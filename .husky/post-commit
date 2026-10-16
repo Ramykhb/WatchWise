@@ -1,0 +1,21 @@
+#!/bin/sh
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+echo "Running frontend checks..."
+
+(
+    cd "$REPO_ROOT/frontend"
+    npm run build
+)
+
+echo "Running backend checks..."
+
+(
+    cd "$REPO_ROOT/backend"
+    php artisan --version
+)
+
+echo "All checks passed!"
