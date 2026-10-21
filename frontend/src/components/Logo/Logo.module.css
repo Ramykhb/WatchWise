@@ -1,0 +1,29 @@
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 28px;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.light .wordmark {
+  color: var(--ink-900);
+}
+
+.light .accent {
+  color: var(--accent-coral);
+}
+
+.dark .wordmark {
+  color: var(--ground-cream);
+}
+
+.dark .accent {
+  color: var(--accent-yellow);
+}
