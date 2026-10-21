@@ -1,0 +1,38 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 20px;
+  padding: 8px 8px 8px 34px;
+  border-radius: var(--radius-pill);
+  background: var(--ink-900);
+  transition:
+    background-color 0.25s ease-out,
+    gap 0.25s ease-out;
+}
+
+.label {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--ground-cream);
+  white-space: nowrap;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-yellow);
+  transition: background-color 0.25s ease-out;
+}
+
+/* Hover variant from Figma: violet fill, coral icon, arrow slides out. */
+.button:hover {
+  background: var(--ground-violet);
+  gap: 32px;
+}
+
+.button:hover .icon {
+  background: var(--accent-coral);
+}
