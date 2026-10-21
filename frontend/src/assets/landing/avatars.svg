@@ -1,0 +1,12 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="70" height="30" viewBox="0 0 70 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Avatars" clip-path="url(#clip0_0_73)">
+<path id="Avatar" d="M28.75 15C28.75 22.5939 22.5939 28.75 15 28.75C7.40608 28.75 1.25 22.5939 1.25 15C1.25 7.40608 7.40608 1.25 15 1.25C22.5939 1.25 28.75 7.40608 28.75 15Z" fill="#7CE0C3" stroke-width="2.5" stroke="white"/>
+<path id="Avatar_2" d="M48.75 15C48.75 22.5939 42.5939 28.75 35 28.75C27.4061 28.75 21.25 22.5939 21.25 15C21.25 7.40608 27.4061 1.25 35 1.25C42.5939 1.25 48.75 7.40608 48.75 15Z" fill="#FF5A4E" stroke-width="2.5" stroke="white"/>
+<path id="Avatar_3" d="M68.75 15C68.75 22.5939 62.5939 28.75 55 28.75C47.4061 28.75 41.25 22.5939 41.25 15C41.25 7.40608 47.4061 1.25 55 1.25C62.5939 1.25 68.75 7.40608 68.75 15Z" fill="#FFC93C" stroke-width="2.5" stroke="white"/>
+</g>
+<defs>
+<clipPath id="clip0_0_73">
+<rect width="70" height="30" fill="white"/>
+</clipPath>
+</defs>
+</svg>
