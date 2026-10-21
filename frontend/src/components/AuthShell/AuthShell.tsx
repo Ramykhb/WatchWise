@@ -1,12 +1,10 @@
-import type { ReactNode } from 'react'
-import { useLocation } from 'react-router'
+import { useRef, type ReactNode } from 'react'
 import FitToViewport from '../FitToViewport/FitToViewport.tsx'
 import Logo from '../Logo/Logo.tsx'
+import { useAuthSwap } from '../../hooks/useAuthSwap.ts'
+import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { useFitScale } from '../../hooks/useFitScale.ts'
 import styles from './AuthShell.module.css'
-
-/** Router state set by the Sign in <-> Sign up links so the page swap morphs instead of replaying the entrance. */
-export type AuthSwapState = { authSwap: true }
 
 export const ARTBOARD_WIDTH = 720
 
@@ -25,13 +23,15 @@ type AuthShellProps = {
 
 /** Shared split layout for the Sign in / Sign up pages. */
 export default function AuthShell({ formSide, logoTheme, background, decor, topLink, artboard, children }: AuthShellProps) {
-  const location = useLocation()
-  const swapped = (location.state as AuthSwapState | null)?.authSwap === true
+  const swapped = useAuthSwap()
+  const pageRef = useRef<HTMLDivElement>(null)
   const { ref, scale } = useFitScale<HTMLDivElement>(ARTBOARD_WIDTH)
+  // GSAP entrance for [data-enter] children; the view-transition morph replaces it on a page swap.
+  useEntranceAnimation(pageRef, !swapped)
 
   return (
     <FitToViewport designHeight={910}>
-      <div className={styles.page} data-entrance={swapped ? 'off' : 'on'}>
+      <div ref={pageRef} className={styles.page}>
         <div className={styles.background} aria-hidden="true">
           {background}
         </div>

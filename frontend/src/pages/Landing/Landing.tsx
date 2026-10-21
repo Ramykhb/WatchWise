@@ -1,5 +1,8 @@
+import { useRef } from 'react'
 import { Link, NavLink } from 'react-router'
 import FitToViewport from '../../components/FitToViewport/FitToViewport.tsx'
+import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
+import Magnet from '../../components/reactbits/Magnet/Magnet.tsx'
 import Logo from '../../components/Logo/Logo.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import TrendingCard, { type TrendingMovie } from '../../components/TrendingCard/TrendingCard.tsx'
@@ -14,6 +17,7 @@ import dotMintSm from '../../assets/landing/deco-dot-mint-sm.svg'
 import dotYellow from '../../assets/landing/deco-dot-yellow.svg'
 import starBadgeIcon from '../../assets/landing/icon-star-badge.svg'
 import plusInkIcon from '../../assets/landing/icon-plus-ink.svg'
+import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import styles from './Landing.module.css'
 
 const NAV_LINKS = [
@@ -28,6 +32,8 @@ const STATS = [
   { value: '4.9', label: 'app rating' },
 ]
 
+const HEADLINE = [{ text: 'Track' }, { text: 'every' }, { text: 'frame.', accent: true }]
+
 const TRENDING: TrendingMovie = {
   title: 'Neon Tide',
   posterTitle: ['NEON', 'TIDE'],
@@ -39,9 +45,12 @@ const TRENDING: TrendingMovie = {
 }
 
 export default function Landing() {
+  const pageRef = useRef<HTMLDivElement>(null)
+  useEntranceAnimation(pageRef)
+
   return (
     <FitToViewport designHeight={880}>
-      <div className={styles.page}>
+      <div ref={pageRef} className={styles.page}>
         {/* Background "ground" layers */}
         <div className={styles.background} aria-hidden="true">
           <img className={styles.bgLayer} src={bgPeachBlob} width={1440} height={1000} alt="" />
@@ -66,23 +75,26 @@ export default function Landing() {
           </header>
 
           <main className={styles.main}>
-            <section className={`${styles.hero} ${styles.enter}`} aria-labelledby="landing-title">
+            <section className={styles.hero} aria-labelledby="landing-title" data-enter data-enter-delay="0.1">
               <p className={styles.eyebrow}>
                 <span className={styles.starBadge}>
                   <img src={starBadgeIcon} width={14} height={14} alt="" />
                 </span>
                 Loved by 2M+ film fans
               </p>
-              <h1 id="landing-title" className={styles.headline}>
-                <span>Track</span>
-                <span>every</span>
-                <span className={styles.accent}>frame.</span>
-              </h1>
+              <SplitHeadline
+                id="landing-title"
+                className={styles.headline}
+                accentClassName={styles.accent}
+                lines={HEADLINE}
+              />
               <p className={styles.subheadline}>
                 Log what you watch, rate what you love, and find your next favorite. Your personal film diary — playful,
                 social, and beautifully organized.
               </p>
-              <ButtonPrimary label="Get Started" to="/signup" />
+              <Magnet padding={60} magnetStrength={4} maxOffset={14}>
+                <ButtonPrimary label="Get Started" to="/signup" />
+              </Magnet>
               <dl className={styles.stats}>
                 {STATS.map((stat) => (
                   <div key={stat.label} className={styles.stat}>
@@ -95,16 +107,16 @@ export default function Landing() {
 
             <div className={styles.visual}>
               <img className={styles.ring} src={decoRing} width={260} height={260} alt="" aria-hidden="true" />
-              <div className={`${styles.cardLift} ${styles.enter}`}>
+              <div className={styles.cardLift} data-enter data-enter-delay="0.35" data-enter-rise="80">
                 <TrendingCard movie={TRENDING} className={styles.card} />
               </div>
-              <div className={`${styles.sticker} ${styles.pop}`} aria-hidden="true">
+              <div className={styles.sticker} aria-hidden="true" data-enter="pop" data-enter-delay="0.8">
                 <div className={styles.stickerFace}>
                   <span className={styles.stickerScore}>4.8</span>
                   <span className={styles.stickerLabel}>CRITICS</span>
                 </div>
               </div>
-              <div className={`${styles.toastWrap} ${styles.enter}`} role="status">
+              <div className={styles.toastWrap} role="status" data-enter data-enter-delay="1" data-enter-rise="30">
                 <div className={styles.toast}>
                   <span className={styles.toastIcon}>
                     <img src={plusInkIcon} width={18} height={18} alt="" />

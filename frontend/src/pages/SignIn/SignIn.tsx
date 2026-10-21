@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
-import AuthShell, { type AuthSwapState } from '../../components/AuthShell/AuthShell.tsx'
+import AuthShell from '../../components/AuthShell/AuthShell.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import Checkbox from '../../components/Checkbox/Checkbox.tsx'
 import OrDivider from '../../components/OrDivider/OrDivider.tsx'
+import Magnet from '../../components/reactbits/Magnet/Magnet.tsx'
+import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import PosterCardMini, { type MiniPoster } from '../../components/PosterCardMini/PosterCardMini.tsx'
 import SocialButton, { type SocialProvider } from '../../components/SocialButton/SocialButton.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
@@ -15,9 +17,9 @@ import decoRing from '../../assets/auth/deco-ring-signin.png'
 import dotCoral from '../../assets/landing/deco-dot-coral.svg'
 import dotMintMd from '../../assets/auth/deco-dot-mint-md.svg'
 import dotMintSm from '../../assets/landing/deco-dot-mint-sm.svg'
+import { AUTH_SWAP_STATE as SWAP, useAuthSwap } from '../../hooks/useAuthSwap.ts'
 import styles from './SignIn.module.css'
 
-const SWAP: AuthSwapState = { authSwap: true }
 const PROVIDERS: SocialProvider[] = ['google', 'github', 'facebook']
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -28,6 +30,7 @@ const NEON_TIDE: MiniPoster = { title: 'Neon Tide', posterTitle: ['NEON', 'TIDE'
 type Errors = Partial<Record<'email' | 'password', string>>
 
 export default function SignIn() {
+  const swapped = useAuthSwap()
   const [errors, setErrors] = useState<Errors>({})
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -71,16 +74,18 @@ export default function SignIn() {
       topLink={
         <div className={styles.topLink}>
           <span>New to WatchWise?</span>
-          <Link to="/signup" viewTransition state={SWAP} className={styles.pill}>
-            Sign up
-          </Link>
+          <Magnet padding={40} magnetStrength={3} maxOffset={10}>
+            <Link to="/signup" viewTransition state={SWAP} className={styles.pill}>
+              Sign up
+            </Link>
+          </Magnet>
         </div>
       }
       artboard={
         <>
-          <PosterCardMini poster={LAST_LAP} className={`${styles.cardLastLap} ww-enter`} />
-          <PosterCardMini poster={PAPER_MOON} className={`${styles.cardPaperMoon} ww-enter vt-card-paper-moon`} />
-          <PosterCardMini poster={NEON_TIDE} className={`${styles.cardNeonTide} ww-enter`} />
+          <PosterCardMini poster={LAST_LAP} className={styles.cardLastLap} data-enter data-enter-delay="0.2" data-enter-rise="60" />
+          <PosterCardMini poster={PAPER_MOON} className={`${styles.cardPaperMoon} vt-card-paper-moon`} data-enter data-enter-delay="0.35" data-enter-rise="60" />
+          <PosterCardMini poster={NEON_TIDE} className={styles.cardNeonTide} data-enter data-enter-delay="0.5" data-enter-rise="60" />
           <div className={`${styles.caption} vt-auth-caption`}>
             <p className={styles.captionTitle}>
               Pick up right
@@ -92,13 +97,14 @@ export default function SignIn() {
         </>
       }
     >
-      <div className={`${styles.form} ww-enter vt-auth-form`}>
+      <div className={`${styles.form} vt-auth-form`} data-enter data-enter-delay="0.05" data-enter-rise="24">
         <div className={styles.heading}>
-          <h1 className={styles.title}>
-            Welcome
-            <br />
-            <span className={styles.accent}>back.</span>
-          </h1>
+          <SplitHeadline
+            className={styles.title}
+            accentClassName={styles.accent}
+            lines={[{ text: 'Welcome' }, { text: 'back.', accent: true }]}
+            animate={!swapped}
+          />
           <p className={styles.subtitle}>Sign in to pick up your watchlist, ratings and lists.</p>
         </div>
 
