@@ -92,8 +92,6 @@
   gap: 24px;
   width: min(460px, 100%);
   margin-top: 6px;
-  --delay: 0.05s;
-  --rise: 24px;
 }
 
 .heading {
@@ -182,8 +180,6 @@
   top: 155px;
   left: 122px;
   rotate: -4deg;
-  --delay: 0.25s;
-  --rise: 60px;
 }
 
 .sticker {
@@ -200,7 +196,6 @@
   background: var(--accent-yellow);
   box-shadow: var(--elevation-soft);
   rotate: 12deg;
-  --delay: 0.7s;
 }
 
 .stickerTitle {

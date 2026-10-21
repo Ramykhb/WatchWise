@@ -1,45 +1,9 @@
 /*
  * Shared motion from the Figma prototype.
- *  - .ww-enter / .ww-pop: entrance keyframes (set --delay and --rise per element).
+ *  - Entrance animations live in GSAP (see hooks/useEntranceAnimation.ts).
  *  - view-transition names: the Sign in <-> Sign up "Smart Animate" swap, driven by
  *    React Router's <Link viewTransition>. Layers with the same name morph between pages.
  */
-
-@keyframes ww-fade-in {
-  from {
-    opacity: 0;
-  }
-}
-
-@keyframes ww-rise {
-  from {
-    translate: 0 var(--rise, 40px);
-  }
-}
-
-@keyframes ww-pop {
-  from {
-    scale: 0.4;
-  }
-}
-
-.ww-enter {
-  animation:
-    ww-fade-in 0.5s ease-out var(--delay, 0s) both,
-    ww-rise 0.6s var(--ease-out-back) var(--delay, 0s) both;
-}
-
-.ww-pop {
-  animation:
-    ww-fade-in 0.3s ease-out var(--delay, 0s) both,
-    ww-pop 0.5s var(--ease-out-back) var(--delay, 0s) both;
-}
-
-/* Arriving through the Sign in <-> Sign up swap: the morph replaces the entrance. */
-[data-entrance='off'] .ww-enter,
-[data-entrance='off'] .ww-pop {
-  animation: none;
-}
 
 /* ---------- Sign in <-> Sign up page swap ---------- */
 .vt-auth-logo {
@@ -90,11 +54,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ww-enter,
-  .ww-pop {
-    animation: none;
-  }
-
   ::view-transition-group(*),
   ::view-transition-old(*),
   ::view-transition-new(*) {
