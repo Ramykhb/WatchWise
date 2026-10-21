@@ -41,7 +41,8 @@ export default function FitToViewport({ designHeight, children }: FitToViewportP
   } as CSSProperties
 
   return (
-    <div className={styles.viewport}>
+    // data-lenis-prevent: this box scrolls natively (only when content overflows), outside Lenis.
+    <div className={styles.viewport} data-lenis-prevent>
       <div className={styles.frame} style={frameStyle} data-fit="">
         {children}
       </div>
