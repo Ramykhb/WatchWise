@@ -1,0 +1,25 @@
+.button {
+  display: inline-flex;
+  flex: 1 1 0;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 12px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-white);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--ink-900);
+  white-space: nowrap;
+  transition:
+    background-color 0.25s ease-out,
+    border-color 0.25s ease-out;
+}
+
+/* Hover variant from Figma: cream fill, violet outline. */
+.button:hover {
+  background: var(--surface-cream-deep);
+  border-color: var(--ground-violet);
+}

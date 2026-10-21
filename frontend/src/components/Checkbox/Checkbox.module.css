@@ -1,0 +1,60 @@
+.checkbox {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+/* Visually hidden native input keeps keyboard + form semantics. */
+.input {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.box {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 7px;
+  background: var(--surface-white);
+  transition:
+    background-color 0.2s ease-out,
+    border-color 0.2s ease-out;
+}
+
+.box img {
+  opacity: 0;
+  transform: scale(0.5);
+  transition:
+    opacity 0.2s ease-out,
+    transform 0.25s var(--ease-out-back);
+}
+
+.input:checked + .box {
+  border-color: var(--ground-violet);
+  background: var(--ground-violet);
+}
+
+.input:checked + .box img {
+  opacity: 1;
+  transform: none;
+}
+
+.input:focus-visible + .box {
+  outline: 3px solid var(--accent-yellow);
+  outline-offset: 2px;
+}
+
+.label {
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink-600);
+}
