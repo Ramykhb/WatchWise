@@ -1,4 +1,5 @@
 import { Link, NavLink } from 'react-router'
+import FitToViewport from '../../components/FitToViewport/FitToViewport.tsx'
 import Logo from '../../components/Logo/Logo.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import TrendingCard, { type TrendingMovie } from '../../components/TrendingCard/TrendingCard.tsx'
@@ -39,88 +40,90 @@ const TRENDING: TrendingMovie = {
 
 export default function Landing() {
   return (
-    <div className={styles.page}>
-      {/* Background "ground" layers */}
-      <div className={styles.background} aria-hidden="true">
-        <img className={styles.bgLayer} src={bgPeachBlob} width={1440} height={1000} alt="" />
-        <img className={`${styles.bgLayer} ${styles.wave}`} src={bgCoralWave} width={1440} height={1000} alt="" />
-        <img className={`${styles.bgLayer} ${styles.wave}`} src={bgVioletGround} width={1440} height={1000} alt="" />
-        <img className={`${styles.bgLayer} ${styles.wave}`} src={bgYellowBlob} width={1440} height={1000} alt="" />
-      </div>
+    <FitToViewport designHeight={1000}>
+      <div className={styles.page}>
+        {/* Background "ground" layers */}
+        <div className={styles.background} aria-hidden="true">
+          <img className={styles.bgLayer} src={bgPeachBlob} width={1440} height={1000} alt="" />
+          <img className={`${styles.bgLayer} ${styles.wave}`} src={bgCoralWave} width={1440} height={1000} alt="" />
+          <img className={`${styles.bgLayer} ${styles.wave}`} src={bgVioletGround} width={1440} height={1000} alt="" />
+          <img className={`${styles.bgLayer} ${styles.wave}`} src={bgYellowBlob} width={1440} height={1000} alt="" />
+        </div>
 
-      <div className={styles.stage}>
-        <header className={styles.header}>
-          <Logo />
-          <nav className={styles.nav} aria-label="Main">
-            {NAV_LINKS.map((link) => (
-              <NavLink key={link.to} to={link.to} className={styles.navLink}>
-                {link.label}
-              </NavLink>
-            ))}
-            <Link to="/signin" className={styles.signIn}>
-              Sign in
-            </Link>
-          </nav>
-        </header>
-
-        <main className={styles.main}>
-          <section className={`${styles.hero} ${styles.enter}`} aria-labelledby="landing-title">
-            <p className={styles.eyebrow}>
-              <span className={styles.starBadge}>
-                <img src={starBadgeIcon} width={14} height={14} alt="" />
-              </span>
-              Loved by 2M+ film fans
-            </p>
-            <h1 id="landing-title" className={styles.headline}>
-              <span>Track</span>
-              <span>every</span>
-              <span className={styles.accent}>frame.</span>
-            </h1>
-            <p className={styles.subheadline}>
-              Log what you watch, rate what you love, and find your next favorite. Your personal film diary — playful,
-              social, and beautifully organized.
-            </p>
-            <ButtonPrimary label="Get Started" to="/signup" />
-            <dl className={styles.stats}>
-              {STATS.map((stat) => (
-                <div key={stat.label} className={styles.stat}>
-                  <dt>{stat.label}</dt>
-                  <dd>{stat.value}</dd>
-                </div>
+        <div className={styles.stage}>
+          <header className={styles.header}>
+            <Logo />
+            <nav className={styles.nav} aria-label="Main">
+              {NAV_LINKS.map((link) => (
+                <NavLink key={link.to} to={link.to} className={styles.navLink}>
+                  {link.label}
+                </NavLink>
               ))}
-            </dl>
-          </section>
+              <Link to="/signin" className={styles.signIn}>
+                Sign in
+              </Link>
+            </nav>
+          </header>
 
-          <div className={styles.visual}>
-            <img className={styles.ring} src={decoRing} width={260} height={260} alt="" aria-hidden="true" />
-            <div className={`${styles.cardLift} ${styles.enter}`}>
-              <TrendingCard movie={TRENDING} className={styles.card} />
-            </div>
-            <div className={`${styles.sticker} ${styles.pop}`} aria-hidden="true">
-              <div className={styles.stickerFace}>
-                <span className={styles.stickerScore}>4.8</span>
-                <span className={styles.stickerLabel}>CRITICS</span>
+          <main className={styles.main}>
+            <section className={`${styles.hero} ${styles.enter}`} aria-labelledby="landing-title">
+              <p className={styles.eyebrow}>
+                <span className={styles.starBadge}>
+                  <img src={starBadgeIcon} width={14} height={14} alt="" />
+                </span>
+                Loved by 2M+ film fans
+              </p>
+              <h1 id="landing-title" className={styles.headline}>
+                <span>Track</span>
+                <span>every</span>
+                <span className={styles.accent}>frame.</span>
+              </h1>
+              <p className={styles.subheadline}>
+                Log what you watch, rate what you love, and find your next favorite. Your personal film diary — playful,
+                social, and beautifully organized.
+              </p>
+              <ButtonPrimary label="Get Started" to="/signup" />
+              <dl className={styles.stats}>
+                {STATS.map((stat) => (
+                  <div key={stat.label} className={styles.stat}>
+                    <dt>{stat.label}</dt>
+                    <dd>{stat.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+
+            <div className={styles.visual}>
+              <img className={styles.ring} src={decoRing} width={260} height={260} alt="" aria-hidden="true" />
+              <div className={`${styles.cardLift} ${styles.enter}`}>
+                <TrendingCard movie={TRENDING} className={styles.card} />
+              </div>
+              <div className={`${styles.sticker} ${styles.pop}`} aria-hidden="true">
+                <div className={styles.stickerFace}>
+                  <span className={styles.stickerScore}>4.8</span>
+                  <span className={styles.stickerLabel}>CRITICS</span>
+                </div>
+              </div>
+              <div className={`${styles.toastWrap} ${styles.enter}`} role="status">
+                <div className={styles.toast}>
+                  <span className={styles.toastIcon}>
+                    <img src={plusInkIcon} width={18} height={18} alt="" />
+                  </span>
+                  <span className={styles.toastText}>
+                    <strong>Added to Watchlist</strong>
+                    <span>Neon Tide · just now</span>
+                  </span>
+                </div>
               </div>
             </div>
-            <div className={`${styles.toastWrap} ${styles.enter}`} role="status">
-              <div className={styles.toast}>
-                <span className={styles.toastIcon}>
-                  <img src={plusInkIcon} width={18} height={18} alt="" />
-                </span>
-                <span className={styles.toastText}>
-                  <strong>Added to Watchlist</strong>
-                  <span>Neon Tide · just now</span>
-                </span>
-              </div>
-            </div>
-          </div>
-        </main>
+          </main>
 
-        <img className={`${styles.dot} ${styles.dotCoral}`} src={dotCoral} width={16} height={16} alt="" aria-hidden="true" />
-        <img className={`${styles.dot} ${styles.dotMintLg}`} src={dotMintLg} width={22} height={22} alt="" aria-hidden="true" />
-        <img className={`${styles.dot} ${styles.dotMintSm}`} src={dotMintSm} width={14} height={14} alt="" aria-hidden="true" />
-        <img className={`${styles.dot} ${styles.dotYellow}`} src={dotYellow} width={12} height={12} alt="" aria-hidden="true" />
+          <img className={`${styles.dot} ${styles.dotCoral}`} src={dotCoral} width={16} height={16} alt="" aria-hidden="true" />
+          <img className={`${styles.dot} ${styles.dotMintLg}`} src={dotMintLg} width={22} height={22} alt="" aria-hidden="true" />
+          <img className={`${styles.dot} ${styles.dotMintSm}`} src={dotMintSm} width={14} height={14} alt="" aria-hidden="true" />
+          <img className={`${styles.dot} ${styles.dotYellow}`} src={dotYellow} width={12} height={12} alt="" aria-hidden="true" />
+        </div>
       </div>
-    </div>
+    </FitToViewport>
   )
 }
