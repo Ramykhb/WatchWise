@@ -1,0 +1,43 @@
+/* Design tokens mirrored from the WatchWise Figma file ("Color" collection + effect styles). */
+:root {
+  /* Ground */
+  --ground-cream: #fff3e3;
+  --ground-violet: #2b1a63;
+  --ground-violet-deep: #1e1147;
+  --ground-peach: #ffd8bf;
+
+  /* Accents */
+  --accent-coral: #ff5a4e;
+  --accent-yellow: #ffc93c;
+  --accent-mint: #7ce0c3;
+
+  /* Ink */
+  --ink-900: #16122b;
+  --ink-600: #5a5470;
+  --ink-400: #8f8aa3;
+
+  /* Surfaces */
+  --surface-white: #ffffff;
+  --surface-violet-tint: #eee8ff;
+  --surface-coral-tint: #ffe4df;
+  --surface-mint-tint: #dcf6ee;
+  --surface-yellow-tint: #fff0c7;
+  --surface-cream-deep: #fbe6cf;
+
+  --text-on-violet-muted: #c9c0e6;
+  --border-subtle: #dbd5d1;
+
+  /* Effects */
+  --elevation-float: 0 56px 96px -12px rgb(20 10 51 / 0.45), 0 14px 30px 0 rgb(20 10 51 / 0.18);
+  --elevation-soft: 0 20px 40px -6px rgb(20 10 51 / 0.28);
+
+  /* Type */
+  --font-display: 'Outfit', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+
+  /* Shape */
+  --radius-pill: 999px;
+
+  /* Motion */
+  --ease-out-back: cubic-bezier(0.45, 1.45, 0.8, 1);
+}
