@@ -14,7 +14,8 @@ const MIN_WIDTH = 1025
 
 /**
  * On desktop widths, scales the whole page so the full design fits the window without
- * scrolling. Children read the scaled frame height from `--fit-height`.
+ * scrolling. Children read the scaled frame height from `--fit-height` and drop their
+ * 1440px column cap via `--stage-max-width`.
  * Below 1025px the page renders normally and keeps its responsive layout.
  */
 export default function FitToViewport({ designHeight, children }: FitToViewportProps) {
@@ -27,6 +28,8 @@ export default function FitToViewport({ designHeight, children }: FitToViewportP
     height: height / scale,
     transform: `scale(${scale})`,
     '--fit-height': `${height / scale}px`,
+    // Use the full scaled width instead of a centered 1440px column with empty sides.
+    '--stage-max-width': 'none',
   } as CSSProperties
 
   return (

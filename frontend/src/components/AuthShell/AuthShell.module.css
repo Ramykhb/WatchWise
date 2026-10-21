@@ -15,7 +15,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  max-width: 1440px;
+  max-width: var(--stage-max-width, 1440px);
   min-height: max(var(--fit-height, 100vh), 1024px);
   margin: 0 auto;
 }
@@ -79,7 +79,8 @@
 .artboard {
   position: absolute;
   top: 0;
-  left: 0;
+  /* Center the art in its half when the half is wider than the 720px artboard. */
+  left: max(0px, calc((100% - 720px) / 2));
   width: 720px;
   height: 942px;
   transform-origin: top left;
