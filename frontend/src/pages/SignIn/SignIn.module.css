@@ -86,8 +86,6 @@
   gap: 26px;
   width: min(460px, 100%);
   margin-top: 68px;
-  --delay: 0.05s;
-  --rise: 24px;
 }
 
 .heading {
@@ -163,28 +161,24 @@
 .cardPaperMoon,
 .cardNeonTide {
   position: absolute;
-  --rise: 60px;
 }
 
 .cardLastLap {
   top: 150px;
   left: 203px;
   rotate: -9deg;
-  --delay: 0.2s;
 }
 
 .cardPaperMoon {
   top: 182px;
   left: 455px;
   rotate: 9deg;
-  --delay: 0.35s;
 }
 
 .cardNeonTide {
   top: 111px;
   left: 315px;
   rotate: 2deg;
-  --delay: 0.5s;
 }
 
 .caption {

@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { HTMLAttributes } from 'react'
 import sunImg from '../../assets/auth/mini-poster-sun.svg'
 import waveImg from '../../assets/auth/mini-poster-wave.svg'
 import starIcon from '../../assets/auth/icon-star-sm.svg'
@@ -15,17 +15,15 @@ export type MiniPoster = {
   mid?: string
 }
 
-type PosterCardMiniProps = {
+type PosterCardMiniProps = HTMLAttributes<HTMLDivElement> & {
   poster: MiniPoster
-  className?: string
-  style?: CSSProperties
 }
 
 /** Compact floating poster card for decorative stacks. */
-export default function PosterCardMini({ poster, className, style }: PosterCardMiniProps) {
+export default function PosterCardMini({ poster, className, ...rest }: PosterCardMiniProps) {
   const [top, middle, bottom] = poster.gradient
   return (
-    <div className={[styles.card, className].filter(Boolean).join(' ')} style={style}>
+    <div className={[styles.card, className].filter(Boolean).join(' ')} {...rest}>
       <div
         className={styles.poster}
         style={{ background: `linear-gradient(180deg, ${top} 0%, ${middle} ${poster.mid ?? '50%'}, ${bottom} 100%)` }}

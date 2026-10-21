@@ -1,3 +1,4 @@
+import type { HTMLAttributes } from 'react'
 import Chip from '../Chip/Chip.tsx'
 import styles from './YearInFilmCard.module.css'
 
@@ -21,9 +22,9 @@ const MONTHS: Month[] = [
 const GENRES = ['Sci-fi · 38', 'Drama · 27', 'Horror · 12']
 
 /** "Your 2026 in film" recap card shown beside the Sign up form. */
-export default function YearInFilmCard({ className }: { className?: string }) {
+export default function YearInFilmCard({ className, ...rest }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={[styles.card, className].filter(Boolean).join(' ')}>
+    <div className={[styles.card, className].filter(Boolean).join(' ')} {...rest}>
       <div className={styles.header}>
         <span className={styles.title}>Your 2026 in film</span>
         <Chip label="Wrapped" />

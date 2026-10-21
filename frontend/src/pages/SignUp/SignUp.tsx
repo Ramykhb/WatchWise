@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
-import AuthShell, { type AuthSwapState } from '../../components/AuthShell/AuthShell.tsx'
+import AuthShell from '../../components/AuthShell/AuthShell.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import Checkbox from '../../components/Checkbox/Checkbox.tsx'
 import OrDivider from '../../components/OrDivider/OrDivider.tsx'
+import Magnet from '../../components/reactbits/Magnet/Magnet.tsx'
+import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import PosterCardMini, { type MiniPoster } from '../../components/PosterCardMini/PosterCardMini.tsx'
 import SocialButton, { type SocialProvider } from '../../components/SocialButton/SocialButton.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
@@ -18,9 +20,9 @@ import dotMintMd from '../../assets/auth/deco-dot-mint-md.svg'
 import dotMintSm from '../../assets/landing/deco-dot-mint-sm.svg'
 import dotYellow from '../../assets/auth/deco-dot-yellow-md.svg'
 import infoIcon from '../../assets/auth/icon-info.svg'
+import { AUTH_SWAP_STATE as SWAP, useAuthSwap } from '../../hooks/useAuthSwap.ts'
 import styles from './SignUp.module.css'
 
-const SWAP: AuthSwapState = { authSwap: true }
 const PROVIDERS: SocialProvider[] = ['google', 'github', 'facebook']
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_PATTERN = /^(?=.*\d).{8,}$/
@@ -30,6 +32,7 @@ const PAPER_MOON: MiniPoster = { title: 'Paper Moon', posterTitle: ['PAPER', 'MO
 type Errors = Partial<Record<'name' | 'email' | 'password' | 'terms', string>>
 
 export default function SignUp() {
+  const swapped = useAuthSwap()
   const [errors, setErrors] = useState<Errors>({})
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -77,16 +80,18 @@ export default function SignUp() {
       topLink={
         <div className={styles.topLink}>
           <span>Already a member?</span>
-          <Link to="/signin" viewTransition state={SWAP} className={styles.pill}>
-            Sign in
-          </Link>
+          <Magnet padding={40} magnetStrength={3} maxOffset={10}>
+            <Link to="/signin" viewTransition state={SWAP} className={styles.pill}>
+              Sign in
+            </Link>
+          </Magnet>
         </div>
       }
       artboard={
         <>
           <PosterCardMini poster={PAPER_MOON} className={`${styles.cardPaperMoon} vt-card-paper-moon`} />
-          <YearInFilmCard className={`${styles.yearCard} ww-enter`} />
-          <div className={`${styles.sticker} ww-pop`}>
+          <YearInFilmCard className={styles.yearCard} data-enter data-enter-delay="0.25" data-enter-rise="60" />
+          <div className={styles.sticker} data-enter="pop" data-enter-delay="0.7">
             <span className={styles.stickerTitle}>FREE</span>
             <span className={styles.stickerLabel}>FOREVER</span>
           </div>
@@ -101,13 +106,14 @@ export default function SignUp() {
         </>
       }
     >
-      <div className={`${styles.form} ww-enter vt-auth-form`}>
+      <div className={`${styles.form} vt-auth-form`} data-enter data-enter-delay="0.05" data-enter-rise="24">
         <div className={styles.heading}>
-          <h1 className={styles.title}>
-            Join the
-            <br />
-            <span className={styles.accent}>reel.</span>
-          </h1>
+          <SplitHeadline
+            className={styles.title}
+            accentClassName={styles.accent}
+            lines={[{ text: 'Join the' }, { text: 'reel.', accent: true }]}
+            animate={!swapped}
+          />
           <p className={styles.subtitle}>Create a free account and start your film diary in seconds.</p>
         </div>
 
