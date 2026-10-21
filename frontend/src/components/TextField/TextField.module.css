@@ -73,3 +73,8 @@
   font-size: 13px;
   color: #c4291e;
 }
+
+/* Compact field height when the page is fitted to the window (see FitToViewport). */
+:global([data-fit]) .input {
+  padding: 14px 0;
+}

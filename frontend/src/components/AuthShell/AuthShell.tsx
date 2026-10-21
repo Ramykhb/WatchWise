@@ -30,7 +30,7 @@ export default function AuthShell({ formSide, logoTheme, background, decor, topL
   const { ref, scale } = useFitScale<HTMLDivElement>(ARTBOARD_WIDTH)
 
   return (
-    <FitToViewport designHeight={1024}>
+    <FitToViewport designHeight={910}>
       <div className={styles.page} data-entrance={swapped ? 'off' : 'on'}>
         <div className={styles.background} aria-hidden="true">
           {background}

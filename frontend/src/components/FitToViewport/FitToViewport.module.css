@@ -3,7 +3,8 @@
   width: 100vw;
   height: 100vh;
   height: 100dvh;
-  overflow: hidden;
+  /* The page fits exactly, so this only scrolls if content grows (e.g. form errors). */
+  overflow: hidden auto;
 }
 
 .frame {

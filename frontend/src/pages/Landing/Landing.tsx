@@ -40,7 +40,7 @@ const TRENDING: TrendingMovie = {
 
 export default function Landing() {
   return (
-    <FitToViewport designHeight={1000}>
+    <FitToViewport designHeight={880}>
       <div className={styles.page}>
         {/* Background "ground" layers */}
         <div className={styles.background} aria-hidden="true">
