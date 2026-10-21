@@ -23,7 +23,7 @@
 
 .stage {
   position: relative;
-  max-width: 1440px;
+  max-width: var(--stage-max-width, 1440px);
   min-height: max(var(--fit-height, 100vh), 1000px);
   margin: 0 auto;
   padding: 38px 0 80px;
