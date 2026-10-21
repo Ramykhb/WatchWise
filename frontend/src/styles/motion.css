@@ -1,0 +1,103 @@
+/*
+ * Shared motion from the Figma prototype.
+ *  - .ww-enter / .ww-pop: entrance keyframes (set --delay and --rise per element).
+ *  - view-transition names: the Sign in <-> Sign up "Smart Animate" swap, driven by
+ *    React Router's <Link viewTransition>. Layers with the same name morph between pages.
+ */
+
+@keyframes ww-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes ww-rise {
+  from {
+    translate: 0 var(--rise, 40px);
+  }
+}
+
+@keyframes ww-pop {
+  from {
+    scale: 0.4;
+  }
+}
+
+.ww-enter {
+  animation:
+    ww-fade-in 0.5s ease-out var(--delay, 0s) both,
+    ww-rise 0.6s var(--ease-out-back) var(--delay, 0s) both;
+}
+
+.ww-pop {
+  animation:
+    ww-fade-in 0.3s ease-out var(--delay, 0s) both,
+    ww-pop 0.5s var(--ease-out-back) var(--delay, 0s) both;
+}
+
+/* Arriving through the Sign in <-> Sign up swap: the morph replaces the entrance. */
+[data-entrance='off'] .ww-enter,
+[data-entrance='off'] .ww-pop {
+  animation: none;
+}
+
+/* ---------- Sign in <-> Sign up page swap ---------- */
+.vt-auth-logo {
+  view-transition-name: auth-logo;
+}
+
+.vt-auth-toplink {
+  view-transition-name: auth-toplink;
+}
+
+.vt-auth-form {
+  view-transition-name: auth-form;
+}
+
+.vt-auth-caption {
+  view-transition-name: auth-caption;
+}
+
+.vt-auth-bg-peach {
+  view-transition-name: auth-bg-peach;
+}
+
+.vt-auth-bg-coral {
+  view-transition-name: auth-bg-coral;
+}
+
+.vt-auth-bg-violet {
+  view-transition-name: auth-bg-violet;
+}
+
+.vt-auth-bg-yellow {
+  view-transition-name: auth-bg-yellow;
+}
+
+.vt-card-paper-moon {
+  view-transition-name: card-paper-moon;
+}
+
+/* Figma: Smart Animate, "Gentle" spring, 0.7s */
+::view-transition-group(*) {
+  animation-duration: 0.7s;
+  animation-timing-function: cubic-bezier(0.34, 1.25, 0.64, 1);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.45s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ww-enter,
+  .ww-pop {
+    animation: none;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

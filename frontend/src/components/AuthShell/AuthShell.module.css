@@ -1,0 +1,141 @@
+.page {
+  position: relative;
+  min-height: var(--fit-height, max(100vh, 1024px));
+  overflow: hidden;
+  background: var(--ground-cream);
+}
+
+.background {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  max-width: var(--stage-max-width, 1440px);
+  min-height: var(--fit-height, max(100vh, 1024px));
+  margin: 0 auto;
+}
+
+.header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 38px 80px 0;
+}
+
+.logoWrap {
+  display: flex;
+}
+
+.logoMobile {
+  display: none !important;
+}
+
+.main {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.formCol {
+  display: flex;
+  min-width: 0;
+  padding-bottom: 64px;
+}
+
+.formLeft .formCol {
+  padding-left: clamp(40px, 10.42vw, 150px);
+  padding-right: 40px;
+}
+
+.formRight .formCol {
+  grid-column: 2;
+  grid-row: 1;
+  justify-content: flex-end;
+  padding-left: 40px;
+  padding-right: clamp(40px, 10.42vw, 150px);
+}
+
+.visualCol {
+  position: relative;
+  min-width: 0;
+}
+
+.formRight .visualCol {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+/* 720 x 942 artboard; children use absolute positions taken from the Figma frame. */
+.artboard {
+  position: absolute;
+  top: 0;
+  /* Center the art in its half when the half is wider than the 720px artboard. */
+  left: max(0px, calc((100% - 720px) / 2));
+  width: 720px;
+  height: 942px;
+  transform-origin: top left;
+}
+
+@media (max-width: 1024px) {
+  .page,
+  .stage {
+    min-height: 100vh;
+  }
+
+  .header {
+    padding: 32px 32px 0;
+  }
+
+  .logoDesktop {
+    display: none !important;
+  }
+
+  .logoMobile {
+    display: inline-flex !important;
+  }
+
+  .main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .formLeft .formCol,
+  .formRight .formCol {
+    grid-column: 1;
+    justify-content: center;
+    padding: 48px 32px 64px;
+  }
+
+  .visualCol {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .header {
+    padding: 24px 20px 0;
+  }
+
+  .formLeft .formCol,
+  .formRight .formCol {
+    padding: 32px 20px 48px;
+  }
+}
+
+/* ---------- Compact spacing when fitted to the window (see FitToViewport) ---------- */
+:global([data-fit]) .header {
+  padding-top: 24px;
+}
+
+:global([data-fit]) .formCol {
+  padding-bottom: 24px;
+}

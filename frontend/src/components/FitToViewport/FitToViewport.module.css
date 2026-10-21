@@ -1,0 +1,15 @@
+.viewport {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  /* The page fits exactly, so this only scrolls if content grows (e.g. form errors). */
+  overflow: hidden auto;
+}
+
+.frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+}

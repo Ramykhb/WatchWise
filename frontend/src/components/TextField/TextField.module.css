@@ -1,0 +1,80 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.label {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink-900);
+}
+
+.control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 16px;
+  background: var(--surface-white);
+  transition:
+    border-color 0.2s ease-out,
+    box-shadow 0.2s ease-out;
+}
+
+.control:focus-within {
+  border-color: var(--ground-violet);
+  box-shadow: 0 0 0 4px var(--surface-violet-tint);
+}
+
+.invalid {
+  border-color: var(--accent-coral);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 17px 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink-900);
+}
+
+.input::placeholder {
+  color: var(--ink-600);
+  opacity: 1;
+}
+
+.toggle {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ground-violet);
+}
+
+.toggle:hover {
+  text-decoration: underline;
+}
+
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-600);
+}
+
+.error {
+  font-weight: 500;
+  font-size: 13px;
+  color: #c4291e;
+}
+
+/* Compact field height when the page is fitted to the window (see FitToViewport). */
+:global([data-fit]) .input {
+  padding: 14px 0;
+}

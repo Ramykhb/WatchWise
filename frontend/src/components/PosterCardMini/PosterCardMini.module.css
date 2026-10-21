@@ -1,0 +1,84 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 200px;
+  padding: 10px 10px 14px;
+  border-radius: 22px;
+  background: var(--surface-white);
+  box-shadow: var(--elevation-float);
+}
+
+.poster {
+  position: relative;
+  height: 236px;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.sun {
+  position: absolute;
+  top: 40px;
+  left: 74px;
+  width: 90px;
+  height: 90px;
+}
+
+.wave {
+  position: absolute;
+  top: 130px;
+  left: 0;
+  width: 180px;
+  height: 110px;
+  max-width: none;
+}
+
+.posterTitle {
+  position: absolute;
+  top: 156px;
+  left: 14px;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 38px;
+  line-height: 0.84;
+  letter-spacing: -0.04em;
+  color: var(--ground-cream);
+  white-space: nowrap;
+}
+
+.info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 4px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
+}
+
+.rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--ink-900);
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--ink-600);
+}

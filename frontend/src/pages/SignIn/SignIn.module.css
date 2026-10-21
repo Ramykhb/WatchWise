@@ -1,0 +1,264 @@
+/* ---------- Background layers (1440 x 1024 artboard) ---------- */
+.bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+}
+
+.bgYellow {
+  position: absolute;
+  top: 800px;
+  left: 0;
+  width: 100.55%;
+  height: 1024px;
+  max-width: none;
+}
+
+/* ---------- Decorative ring & dots (stage coordinates) ---------- */
+.decor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ring {
+  position: absolute;
+  top: 840px;
+  left: 86.8%;
+  width: 300px;
+  height: 300px;
+  max-width: none;
+}
+
+.dotCoral,
+.dotMintMd,
+.dotMintSm {
+  position: absolute;
+}
+
+.dotCoral {
+  top: 120px;
+  left: 47.9%;
+}
+
+.dotMintMd {
+  top: 930px;
+  left: 43.1%;
+}
+
+.dotMintSm {
+  top: 600px;
+  left: 96.5%;
+}
+
+/* ---------- Header link (sits on the violet ground) ---------- */
+.topLink {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-weight: 500;
+  font-size: 15px;
+  color: var(--ground-cream);
+}
+
+.pill {
+  padding: 10px 22px;
+  border: 1.5px solid var(--ground-cream);
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  color: var(--ground-cream);
+  transition:
+    background-color 0.2s ease-out,
+    color 0.2s ease-out;
+}
+
+.pill:hover {
+  background: var(--ground-cream);
+  color: var(--ground-violet);
+}
+
+/* ---------- Form ---------- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  width: min(460px, 100%);
+  margin-top: 68px;
+  --delay: 0.05s;
+  --rise: 24px;
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(56px, 6.1vw, 88px);
+  line-height: 0.91;
+  letter-spacing: -0.06em;
+}
+
+.accent {
+  color: var(--accent-coral);
+}
+
+.subtitle {
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+.social {
+  display: flex;
+  gap: 12px;
+}
+
+.formBody {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.remember {
+  font-weight: 500;
+  color: var(--ink-900);
+}
+
+.link {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ground-violet);
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.footer {
+  font-size: 15px;
+  color: var(--ink-600);
+}
+
+/* ---------- Artboard (720 x 942, origin = top-left of the right half) ---------- */
+.cardLastLap,
+.cardPaperMoon,
+.cardNeonTide {
+  position: absolute;
+  --rise: 60px;
+}
+
+.cardLastLap {
+  top: 150px;
+  left: 203px;
+  rotate: -9deg;
+  --delay: 0.2s;
+}
+
+.cardPaperMoon {
+  top: 182px;
+  left: 455px;
+  rotate: 9deg;
+  --delay: 0.35s;
+}
+
+.cardNeonTide {
+  top: 111px;
+  left: 315px;
+  rotate: 2deg;
+  --delay: 0.5s;
+}
+
+.caption {
+  position: absolute;
+  top: 558px;
+  left: 210px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--ground-cream);
+}
+
+.captionTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+
+.captionText {
+  width: 400px;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--text-on-violet-muted);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1024px) {
+  .wave,
+  .decor {
+    display: none;
+  }
+
+  .topLink {
+    color: var(--ink-600);
+  }
+
+  .pill {
+    border-color: var(--ink-900);
+    color: var(--ink-900);
+  }
+
+  .pill:hover {
+    background: var(--ink-900);
+    color: var(--ground-cream);
+  }
+
+  .form {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .topLink > span {
+    display: none;
+  }
+
+  .social {
+    flex-direction: column;
+  }
+}
+
+/* ---------- Compact spacing when fitted to the window (see FitToViewport) ---------- */
+:global([data-fit]) .form {
+  gap: 20px;
+  margin-top: 28px;
+}
+
+:global([data-fit]) .formBody {
+  gap: 20px;
+}
+
+:global([data-fit]) .fields {
+  gap: 12px;
+}

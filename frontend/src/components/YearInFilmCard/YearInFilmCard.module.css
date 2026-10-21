@@ -1,0 +1,84 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 360px;
+  padding: 24px 24px 26px;
+  border-radius: 32px;
+  background: var(--surface-white);
+  box-shadow: var(--elevation-float);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+.total {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.count {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 76px;
+  line-height: 0.9;
+  letter-spacing: -0.06em;
+}
+
+.countLabel {
+  font-weight: 500;
+  font-size: 15px;
+  color: var(--ink-600);
+}
+
+.chart {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.value {
+  width: 16px;
+  border-radius: 8px;
+}
+
+.soft {
+  background: var(--surface-violet-tint);
+}
+
+.strong {
+  background: var(--ground-violet);
+}
+
+.peak {
+  background: var(--accent-coral);
+}
+
+.month {
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--ink-600);
+}
+
+.genres {
+  display: flex;
+  gap: 8px;
+}
