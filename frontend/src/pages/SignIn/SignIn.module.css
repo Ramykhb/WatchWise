@@ -248,3 +248,17 @@
     flex-direction: column;
   }
 }
+
+/* ---------- Compact spacing when fitted to the window (see FitToViewport) ---------- */
+:global([data-fit]) .form {
+  gap: 20px;
+  margin-top: 28px;
+}
+
+:global([data-fit]) .formBody {
+  gap: 20px;
+}
+
+:global([data-fit]) .fields {
+  gap: 12px;
+}
