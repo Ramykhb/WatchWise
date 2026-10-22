@@ -1,6 +1,13 @@
 <?php
 
 return [
+    'open_meteo' => [
+        'url' => env('OPEN_METEO_URL'),
+        'default_latitude' => (float) env('OPEN_METEO_DEFAULT_LATITUDE'),
+        'default_longitude' => (float) env('OPEN_METEO_DEFAULT_LONGITUDE'),
+        'timezone' => env('OPEN_METEO_TIMEZONE'),
+    ],
+
 
     /*
     |--------------------------------------------------------------------------

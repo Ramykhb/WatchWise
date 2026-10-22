@@ -33,10 +33,7 @@ export const TASTE: TasteChip[] = [
   { label: 'Amara Mensah', color: 'var(--surface-violet-tint)', to: '/people/amara-mensah' },
 ]
 
-export const WEATHER = {
-  place: 'Beirut · now',
-  temp: '18°',
-  condition: 'Light rain · feels like 16°',
+export const WEATHER_MOOD = {
   mood: 'Cozy thrillers & comfort dramas',
   moodText: 'Rainy evenings → slower, atmospheric picks. Sunny weekends → feel-good & adventure.',
 }
