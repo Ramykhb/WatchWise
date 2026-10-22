@@ -6,7 +6,7 @@ import Checkbox from '../../components/Checkbox/Checkbox.tsx'
 import OrDivider from '../../components/OrDivider/OrDivider.tsx'
 import Magnet from '../../components/reactbits/Magnet/Magnet.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
-import PosterCardMini, { type MiniPoster } from '../../components/PosterCardMini/PosterCardMini.tsx'
+import PosterCardMini from '../../components/PosterCardMini/PosterCardMini.tsx'
 import SocialButton, { type SocialProvider } from '../../components/SocialButton/SocialButton.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
 import bgPeach from '../../assets/auth/signin-bg-peach-blob.svg'
@@ -18,14 +18,11 @@ import dotCoral from '../../assets/landing/deco-dot-coral.svg'
 import dotMintMd from '../../assets/auth/deco-dot-mint-md.svg'
 import dotMintSm from '../../assets/landing/deco-dot-mint-sm.svg'
 import { AUTH_SWAP_STATE as SWAP, useAuthSwap } from '../../hooks/useAuthSwap.ts'
+import { LAST_LAP, NEON_TIDE, PAPER_MOON } from '../authPosters.ts'
 import styles from './SignIn.module.css'
 
 const PROVIDERS: SocialProvider[] = ['google', 'github', 'facebook']
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-const LAST_LAP: MiniPoster = { title: 'Last Lap', posterTitle: ['LAST', 'LAP'], meta: 'Drama · 2025', rating: '4.5', gradient: ['#7de0c2', '#338cb2', '#211a5c'], mid: '55%' }
-const PAPER_MOON: MiniPoster = { title: 'Paper Moon', posterTitle: ['PAPER', 'MOON'], meta: 'Comedy · 2026', rating: '4.6', gradient: ['#ffe073', '#ff8c59', '#99264d'] }
-const NEON_TIDE: MiniPoster = { title: 'Neon Tide', posterTitle: ['NEON', 'TIDE'], meta: 'Sci-fi · 2026', rating: '4.8', gradient: ['#ff995c', '#ed4d6b', '#5c298c'] }
 
 type Errors = Partial<Record<'email' | 'password', string>>
 
@@ -83,9 +80,9 @@ export default function SignIn() {
       }
       artboard={
         <>
-          <PosterCardMini poster={LAST_LAP} className={styles.cardLastLap} data-enter data-enter-delay="0.2" data-enter-rise="60" />
+          <PosterCardMini poster={LAST_LAP} className={`${styles.cardLastLap} vt-card-last-lap`} data-enter data-enter-delay="0.2" data-enter-rise="60" />
           <PosterCardMini poster={PAPER_MOON} className={`${styles.cardPaperMoon} vt-card-paper-moon`} data-enter data-enter-delay="0.35" data-enter-rise="60" />
-          <PosterCardMini poster={NEON_TIDE} className={styles.cardNeonTide} data-enter data-enter-delay="0.5" data-enter-rise="60" />
+          <PosterCardMini poster={NEON_TIDE} className={`${styles.cardNeonTide} vt-card-neon-tide`} data-enter data-enter-delay="0.5" data-enter-rise="60" />
           <div className={`${styles.caption} vt-auth-caption`}>
             <p className={styles.captionTitle}>
               Pick up right
@@ -142,7 +139,7 @@ export default function SignIn() {
             <Checkbox name="remember" defaultChecked>
               <span className={styles.remember}>Remember me</span>
             </Checkbox>
-            <Link to="/forgot-password" className={styles.link}>
+            <Link to="/forgot-password" viewTransition state={SWAP} className={styles.link}>
               Forgot password?
             </Link>
           </div>

@@ -168,11 +168,29 @@
 }
 
 /* ---------- Artboard (720 x 942, origin = top-left of the left half) ---------- */
-.cardPaperMoon {
+.cardLastLap,
+.cardPaperMoon,
+.cardNeonTide {
   position: absolute;
+}
+
+/* Poster stack fanned out behind the year card (same cards as Sign in, so they morph on the swap) */
+.cardLastLap {
+  top: 92px;
+  left: 96px;
+  rotate: -12deg;
+}
+
+.cardPaperMoon {
   top: 83px;
   left: 302px;
   rotate: 10deg;
+}
+
+.cardNeonTide {
+  top: 48px;
+  left: 202px;
+  rotate: -1deg;
 }
 
 .yearCard {

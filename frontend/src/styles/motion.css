@@ -38,8 +38,35 @@
   view-transition-name: auth-bg-yellow;
 }
 
+.vt-card-last-lap {
+  view-transition-name: card-last-lap;
+}
+
 .vt-card-paper-moon {
   view-transition-name: card-paper-moon;
+}
+
+.vt-card-neon-tide {
+  view-transition-name: card-neon-tide;
+}
+
+/* Sign-up-only layers get their own names so they stay above the morphing posters
+   (unnamed content sits in the root snapshot, which paints below every named layer). */
+.vt-auth-year-card {
+  view-transition-name: auth-year-card;
+}
+
+.vt-auth-sticker {
+  view-transition-name: auth-sticker;
+}
+
+/* Forgot password preview cards (same reason: keep them above the violet ground mid-swap). */
+.vt-forgot-inbox {
+  view-transition-name: forgot-inbox;
+}
+
+.vt-forgot-reset {
+  view-transition-name: forgot-reset;
 }
 
 /* Figma: Smart Animate, "Gentle" spring, 0.7s */

@@ -1,0 +1,150 @@
+.nav {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 80px;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  min-width: 0;
+}
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.link,
+.linkActive {
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  font-weight: 500;
+  font-size: 15px;
+  white-space: nowrap;
+  transition:
+    background-color 0.2s ease-out,
+    color 0.2s ease-out;
+}
+
+.link {
+  color: var(--ink-600);
+}
+
+.link:hover {
+  background: var(--surface-violet-tint);
+  color: var(--ground-violet);
+}
+
+.linkActive {
+  background: var(--ground-violet);
+  color: var(--ground-cream);
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 280px;
+  padding: 11px 18px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-white);
+  transition:
+    border-color 0.2s ease-out,
+    box-shadow 0.2s ease-out;
+}
+
+.search:focus-within {
+  border-color: var(--ground-violet);
+  box-shadow: 0 0 0 4px var(--surface-violet-tint);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink-900);
+}
+
+.searchInput::placeholder {
+  color: var(--ink-400);
+}
+
+.iconButton,
+.avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+}
+
+.iconButton {
+  border: 1.5px solid var(--border-subtle);
+  background: var(--surface-white);
+  cursor: pointer;
+  transition: border-color 0.2s ease-out;
+}
+
+.iconButton:hover {
+  border-color: var(--ink-900);
+}
+
+.avatar {
+  background: var(--accent-mint);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink-900);
+}
+
+@media (max-width: 1240px) {
+  .search {
+    width: 200px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .nav {
+    flex-wrap: wrap;
+    padding: 20px 32px;
+  }
+
+  .left {
+    display: contents;
+  }
+
+  .links {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .nav {
+    padding: 16px 20px;
+  }
+
+  .search {
+    display: none;
+  }
+}
