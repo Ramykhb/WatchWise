@@ -1,0 +1,28 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class SocialAccount extends Model
+{
+    protected $fillable = ['user_id', 'provider', 'provider_id', 'access_token'];
+
+    protected $hidden = ['access_token'];
+
+    public $timestamps = false;
+
+    protected function casts(): array
+    {
+        return [
+            'access_token' => 'encrypted',
+            'created_at' => 'datetime',
+        ];
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+}
