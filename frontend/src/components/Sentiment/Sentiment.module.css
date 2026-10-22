@@ -1,0 +1,24 @@
+.sentiment {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 10px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--ink-900);
+  white-space: nowrap;
+}
+
+.positive {
+  background: var(--surface-mint-tint);
+}
+
+.neutral {
+  background: var(--surface-violet-tint);
+}
+
+.negative {
+  background: var(--surface-coral-tint);
+}

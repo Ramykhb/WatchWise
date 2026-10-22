@@ -1,0 +1,13 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="388" height="170" viewBox="0 0 388 170" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Roads" clip-path="url(#clip0_0_286)">
+<path id="Vector" d="M0 59.5C116.4 42.5 194 119 388 102" stroke-width="10" stroke="white"/>
+<path id="Vector_2" d="M85.36 0L135.8 170" stroke-width="8" stroke="white"/>
+<path id="Vector_3" d="M291 0C263.84 68 329.8 102 310.4 170" stroke-width="6" stroke="white"/>
+<path id="Vector_4" d="M0 144.5L388 132.6" stroke-width="5" stroke="white"/>
+</g>
+<defs>
+<clipPath id="clip0_0_286">
+<rect width="388" height="170" fill="white"/>
+</clipPath>
+</defs>
+</svg>

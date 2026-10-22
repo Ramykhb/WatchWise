@@ -56,5 +56,5 @@
 .label {
   font-size: 15px;
   line-height: 1.45;
-  color: var(--ink-600);
+  color: var(--checkbox-label-color, var(--ink-600));
 }
