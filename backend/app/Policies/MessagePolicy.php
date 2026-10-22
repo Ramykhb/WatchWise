@@ -5,6 +5,10 @@ namespace App\Policies;
 use App\Contracts\CurrentUser;
 use App\Models\Message;
 
+/**
+ * Messages live in per-movie discussion rooms, which are open to every
+ * authenticated user; there is no participant list to scope against.
+ */
 class MessagePolicy
 {
     public function viewAny(CurrentUser $current): bool

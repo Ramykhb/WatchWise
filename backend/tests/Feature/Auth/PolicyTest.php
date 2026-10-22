@@ -5,6 +5,8 @@ namespace Tests\Feature\Auth;
 use App\Auth\GuestUser;
 use App\Auth\JwtCurrentUser;
 use App\Contracts\CurrentUser;
+use App\Models\DiscussionRoom;
+use App\Models\Message;
 use App\Models\MovieList;
 use App\Models\MovieNight;
 use App\Models\MovieNightInvite;
@@ -83,6 +85,28 @@ class PolicyTest extends TestCase
         $this->assertTrue($this->can($this->current($invitee), 'view', $night));
         $this->assertFalse($this->can($this->current($invitee), 'update', $night));
         $this->assertFalse($this->can($this->current($stranger), 'view', $night));
+    }
+
+    public function test_discussion_room_messages_require_authentication_and_ownership(): void
+    {
+        $author = User::factory()->create();
+        $other = User::factory()->create();
+        $admin = User::factory()->admin()->create();
+        $room = DiscussionRoom::create(['tmdb_id' => 603, 'name' => 'The Matrix']);
+        $message = Message::create(['room_id' => $room->id, 'user_id' => $author->id, 'content' => 'Hello']);
+
+        $this->assertFalse($this->can(new GuestUser, 'viewAny', Message::class));
+        $this->assertFalse($this->can(new GuestUser, 'view', $message));
+        $this->assertFalse($this->can(new GuestUser, 'create', Message::class));
+        $this->assertTrue($this->can($this->current($other), 'view', $message));
+        $this->assertTrue($this->can($this->current($other), 'create', Message::class));
+
+        $this->assertTrue($this->can($this->current($author), 'update', $message));
+        $this->assertFalse($this->can($this->current($other), 'update', $message));
+        $this->assertFalse($this->can($this->current($admin), 'update', $message));
+        $this->assertTrue($this->can($this->current($author), 'delete', $message));
+        $this->assertTrue($this->can($this->current($admin), 'delete', $message));
+        $this->assertFalse($this->can($this->current($other), 'delete', $message));
     }
 
     public function test_gate_defaults_to_the_current_user_binding(): void
