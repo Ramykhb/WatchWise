@@ -1,9 +1,9 @@
 # WatchWise — Handoff
 
-_Last updated: 2026-10-22 · branch `feat/frontend-profile-settings-nearbyCinemasMap` (based on `dev` after PR #16)_
+_Last updated: 2026-10-22 · branch `feat/frontend-createAList-MovieNights-Rooms` (based on `dev` after PR #19)_
 
 WatchWise is the "Modern Movie Discovery & Social Platform" from the Web2 (WEB2PROG302-EC10) project brief.
-So far the work covers **(1) the full product design in Figma**, **(2) fifteen frontend screens in React**, **(3) the Laravel database schema and a first API endpoint (weather)** and **(4) a graphify knowledge graph of the codebase**.
+So far the work covers **(1) the full product design in Figma**, **(2) all nineteen app screens in React** (only the four Admin screens remain), **(3) the Laravel database schema and a first API endpoint (weather)** and **(4) a graphify knowledge graph of the codebase**.
 See also the root [README.md](README.md) for the public project overview and setup.
 
 ---
@@ -35,7 +35,7 @@ See also the root [README.md](README.md) for the public project overview and set
 |---|---|
 | Visitor | ✅ Landing `2:68` |
 | Auth | ✅ Sign Up `5:120` · ✅ Sign In `3:93` · ✅ Forgot Password `25:286` |
-| App | ✅ Home `25:369` · ✅ Discover `27:503` · ✅ Movie Details `28:794` · ✅ Person `27:848` · ✅ For You `30:1340` · ✅ Watchlist & History `30:1046` · ✅ Lists `32:1443` · ✅ List Detail `32:1681` · Create/Edit List modal `32:1944` · ✅ Profile `33:1538` · ✅ Settings `33:1786` · ✅ Nearby Cinemas `45:1698` · Discussion Rooms `45:1882` · Movie Nights `46:1778` · Movie Night Detail `46:2063` |
+| App | ✅ Home `25:369` · ✅ Discover `27:503` · ✅ Movie Details `28:794` · ✅ Person `27:848` · ✅ For You `30:1340` · ✅ Watchlist & History `30:1046` · ✅ Lists `32:1443` · ✅ List Detail `32:1681` · ✅ Create/Edit List modal `32:1944` · ✅ Profile `33:1538` · ✅ Settings `33:1786` · ✅ Nearby Cinemas `45:1698` · ✅ Discussion Rooms `45:1882` · ✅ Movie Nights `46:1778` · ✅ Movie Night Detail `46:2063` |
 | Admin | Overview `47:1905` · Users `47:2173` · Review Moderation `49:2046` · Movie Data `49:2356` |
 | Extras | WatchWise logo sheet `20:192` · **Flow Hub — Start here** `53:2763` |
 
@@ -60,12 +60,16 @@ See also the root [README.md](README.md) for the public project overview and set
 | `/movies/:slug` | Movie Details | Reviews, ratings, sentiment, cinemas map (`movieData.ts`) |
 | `/people/:slug` | Person | Actor/director page (`personData.ts`) |
 | `/for-you` | For You | Recommendations + **live weather** from the backend (`/api/weather`, browser geolocation, Beirut fallback) |
-| `/lists`, `/lists/:slug` | Lists / List Detail | Public/private lists (`listsData.ts`, `listDetailData.ts`) |
+| `/lists`, `/lists/:slug` | Lists / List Detail | Public/private lists (`listsData.ts`, `listDetailData.ts`); shared in-memory `myListsStore` |
+| `/lists/new`, `/lists/:slug/edit` | Create/Edit List dialog | `ListDialog`, opens over the Lists page (child routes of `lists`) |
 | `/lists/watchlist` | Watchlist & History | Under Lists so the Lists nav link is active; `/watchlist` redirects here |
 | `/profile`, `/profile/:handle` | Profile | `/profile` = the signed-in user (Maya, **Edit profile**); `/profile/linasaad` = the Figma public profile. Follow/unfollow, 4 tabs, followers/following, top 4, genres (`profileData.ts`) |
 | `/settings` | Settings | Sticky section menu (scroll-spy), profile form + photo preview, password change, privacy visibility + toggles, connected accounts, integrations (Location asks for geolocation) (`settingsData.ts`) |
 | `/discover/cinemas` | Nearby Cinemas | Illustrated Figma map with pins, popup, zoom; cinemas / movie-locations modes, filters, showtimes, Google Maps directions, "Use my location" (`cinemasData.ts`). Under Discover so that nav link is active; `/cinemas` redirects here and Discover links to it from the "In cinemas near me" filter |
-| everything else | Placeholder | "Coming soon" / 404 so every link works (`lists/new`, `rooms`, `movie-nights`, `releases`, …) |
+| `/movie-nights` | Movie Nights | Invitations (accept/decline), upcoming/past nights, "How it works", **Plan a movie night** form (date/time, in person/online, invite friends, shortlist, voting closes) (`nightsData.ts`) |
+| `/movie-nights/:slug` | Movie Night | RSVP, shortlist voting (one vote each, leading/winner), suggest a movie, invite more, close voting, Google Calendar link, share (`nightDetailData.ts`). Nights live in the shared `nightsStore`, so created/accepted nights open here too |
+| `/rooms`, `/rooms/:roomId` | Discussion Rooms | Room list (search, unread, create room), chat (send, emoji, attach name, agree reactions, mute/copy link), room movie, rules, online members (`roomsData.ts`). One route `rooms/:roomId?` so switching rooms keeps chat state. **Real-time is mocked**: demo typing + canned replies until a backend channel exists |
+| everything else | Placeholder | "Coming soon" / 404 so every link works (`releases`, `terms`, `privacy`, `movies/:slug/credits`, …) |
 
 Every page except For You's weather uses **mock data** in a `*Data.ts` file next to the page — replace those with API calls.
 
@@ -95,7 +99,8 @@ components/
   TextField, Checkbox, OrDivider, SocialButton, SplitHeadline
   reactbits/SplitText, reactbits/Magnet       (React Bits sources)
 pages/  Landing · SignIn · SignUp · ForgotPassword · Home · Discover · MovieDetails · Person
-        ForYou · Lists · ListDetail · Watchlist · Profile · Settings · Cinemas · Placeholder · authPosters.ts
+        ForYou · Lists (+ ListDialog) · ListDetail · Watchlist · Profile · Settings · Cinemas
+        MovieNights (+ NightDetail) · Rooms · Placeholder · authPosters.ts
 assets/<page>/                    SVG/PNG assets exported from Figma, one folder per page
 ```
 Env: `frontend/.env` with `VITE_BACKEND_URL=http://localhost:8000` (see `.env.example`).
@@ -122,7 +127,7 @@ Env: `frontend/.env` with `VITE_BACKEND_URL=http://localhost:8000` (see `.env.ex
 | `graph.json` | raw graph data (GraphRAG-ready) |
 | `manifest.json`, `.graphify_labels.json`, `cost.json` | state for incremental updates, community names, token cost log |
 
-**Latest update (2026-10-22, with the Profile, Settings and Nearby Cinemas pages):** current node / edge / community counts are in the Summary of `graphify-out/GRAPH_REPORT.md` (kept out of this file so updating the graph doesn't change the doc it reads).
+**Latest update (2026-10-22, with the Movie Nights, Movie Night and Discussion Rooms pages):** current node / edge / community counts are in the Summary of `graphify-out/GRAPH_REPORT.md` (kept out of this file so updating the graph doesn't change the doc it reads).
 - Code is extracted structurally (AST, no tokens). Docs (HANDOFF, READMEs, CLAUDE.md, CI workflows) go through an LLM pass; token cost per run is logged in `cost.json`.
 - **Most connected nodes:** `react`, `SplitHeadline()`, `react-router`, `User` (Laravel model), `useEntranceAnimation()`, `ButtonPrimary()`, `AppNav()`, `Magnet()`.
 - **Excluded:** `.graphifyignore` keeps `backend/.claude/` and `.claude/` (agent tooling) out. Figma image assets are not extracted (cost vs. value): their imports appear as bare `frontend_src_assets_*` nodes and the images are listed as "new" on every update. `backend/.npmrc` and `styles/tokens.css` are skipped as "sensitive" by name only.
@@ -155,7 +160,9 @@ In Claude Code, `/graphify . --update` rebuilds incrementally (docs need the LLM
 
 ## 8. Current state & known issues
 - `npm run build` / `npm run lint` pass (after `npm install`). The husky **pre-commit** hook runs the frontend build and `php artisan --version`.
-- Main JS bundle is **789 kB (240 kB gzip)** → Vite size warning. Fix: lazy-load routes (`React.lazy` / route `lazy`) — now worth doing with 15 pages.
+- Main JS bundle is **866 kB (259 kB gzip)** → Vite size warning. Fix: lazy-load routes (`React.lazy` / route `lazy`) — now worth doing with 19 pages.
+- Mock dates for movie nights are in **2025** on purpose: the Figma weekdays ("Fri, Mar 14") only match the 2025 calendar.
+- In stacked mobile layouts, a panel with `flex: 1` and a fixed height collapses or grows (seen on Cinemas and Rooms); set `flex: none` in the media query.
 - Movie Details' in-page jump buttons use `scrollIntoView`, which Lenis may override (the bug fixed in Settings); not checked yet.
 - Animations were checked frame by frame in a throttled preview pane; **live motion should still be checked in a real browser**.
 - Line-ending warnings (LF → CRLF) appear on commit; harmless, a `.gitattributes` would silence them.
@@ -170,9 +177,10 @@ In Claude Code, `/graphify . --update` rebuilds incrementally (docs need the LLM
 - **graphify:** CLI via `uv tool` plus a Claude Code skill in `~/.claude/skills/graphify`.
 
 ## 10. Suggested next steps
-1. Build the remaining app screens from Figma: Create/Edit List modal → Movie Nights + Detail → Discussion Rooms (node ids in §2), then the four Admin screens.
+1. Build the four Admin screens from Figma: Overview → Users → Review Moderation → Movie Data (node ids in §2).
 2. Laravel auth (register/login/logout, Sanctum), then connect Sign in / Sign up / Forgot Password and replace `/Home-Page` with a real post-login redirect.
 3. TMDB integration through the backend; swap the `*Data.ts` mocks for API calls page by page.
+   Movie nights and rooms need their API plus a real-time channel (e.g. Laravel Reverb) to replace the in-memory stores and demo replies.
 4. Code-split routes to clear the bundle warning.
 5. Re-run graphify (`/graphify . --update`) after each feature so the graph stays current.
 
