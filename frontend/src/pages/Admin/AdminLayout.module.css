@@ -1,0 +1,181 @@
+.shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--ground-cream);
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 6px;
+  width: 264px;
+  height: 100vh;
+  padding: 32px 20px;
+  background: var(--ground-violet);
+}
+
+/* The Figma sidebar has a 28px spacer between the logo and the items. */
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 28px;
+}
+
+.item,
+.itemActive,
+.itemDisabled {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-weight: 500;
+  font-size: 15px;
+  white-space: nowrap;
+  transition:
+    background-color 0.2s ease-out,
+    color 0.2s ease-out;
+}
+
+.item,
+.itemDisabled {
+  color: var(--text-on-violet-muted);
+}
+
+.item:hover {
+  background: var(--ground-violet-deep);
+  color: var(--ground-cream);
+}
+
+.itemActive {
+  background: var(--accent-yellow);
+  color: var(--ink-900);
+}
+
+.itemDisabled {
+  cursor: default;
+}
+
+.icon {
+  display: inline-block;
+  flex-shrink: 0;
+  background-color: currentColor;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+}
+
+.admin {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--ground-violet-deep);
+}
+
+.avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-mint);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink-900);
+}
+
+.who {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ground-cream);
+}
+
+.role {
+  font-size: 12px;
+  color: var(--text-on-violet-muted);
+}
+
+.logout {
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--text-on-violet-muted);
+  transition: color 0.2s ease-out;
+}
+
+.logout:hover {
+  color: var(--accent-yellow);
+}
+
+/* ---------- Page area ---------- */
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: 32px 40px 48px;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  .shell {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    width: auto;
+    height: auto;
+    padding: 16px 24px;
+  }
+
+  .nav {
+    flex-direction: row;
+    order: 3;
+    width: 100%;
+    margin-top: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .admin {
+    margin-top: 0;
+    margin-left: auto;
+    padding: 6px 10px;
+  }
+
+  .main {
+    padding: 24px 32px 48px;
+  }
+}
+
+@media (max-width: 640px) {
+  .sidebar {
+    padding: 14px 20px;
+  }
+
+  .who {
+    display: none;
+  }
+
+  .main {
+    padding: 20px 20px 48px;
+  }
+}
