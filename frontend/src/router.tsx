@@ -16,6 +16,11 @@ import Watchlist from './pages/Watchlist/Watchlist.tsx'
 import Profile from './pages/Profile/Profile.tsx'
 import Settings from './pages/Settings/Settings.tsx'
 import Cinemas from './pages/Cinemas/Cinemas.tsx'
+import AdminLayout from './pages/Admin/AdminLayout.tsx'
+import AdminOverview from './pages/Admin/AdminOverview.tsx'
+import AdminUsers from './pages/Admin/AdminUsers.tsx'
+import AdminReviews from './pages/Admin/AdminReviews.tsx'
+import AdminMovies from './pages/Admin/AdminMovies.tsx'
 import MovieNights from './pages/MovieNights/MovieNights.tsx'
 import NightDetail from './pages/MovieNights/NightDetail.tsx'
 import Rooms from './pages/Rooms/Rooms.tsx'
@@ -57,6 +62,17 @@ export const router = createBrowserRouter([
       { path: 'profile', element: <Profile /> },
       { path: 'profile/:handle', element: <Profile /> },
       { path: 'settings', element: <Settings /> },
+      // Admin dashboard. Reached by URL until auth (and an admin role check) is connected.
+      {
+        path: 'admin',
+        element: <AdminLayout />,
+        children: [
+          { index: true, element: <AdminOverview /> },
+          { path: 'users', element: <AdminUsers /> },
+          { path: 'reviews', element: <AdminReviews /> },
+          { path: 'movies', element: <AdminMovies /> },
+        ],
+      },
       { path: 'notifications', element: <Notifications /> },
       // Screens designed in Figma but not built yet.
       { path: 'terms', element: <Placeholder title="Terms of Service" /> },
