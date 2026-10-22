@@ -18,4 +18,4 @@ echo "Running backend checks..."
     php artisan --version
 )
 
-echo "All checks passed!"
+echo "All checks passed. Proceeding with commit."
