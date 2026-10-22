@@ -121,3 +121,65 @@ export const SENTIMENT_SHARE = [
 export const MODERATION_WEEK = { flagged: 124, removed: 58, approved: 61, avgResponse: '2h 14m' }
 
 export const GUIDELINES = ['Spoilers must be tagged', 'No hate speech or slurs', 'No spam, ads or piracy links', 'Critique films, not people']
+
+// ---------- Movies (Figma "Admin — Movie Data") ----------
+
+export type MovieSource = 'TMDB' | 'Edited' | 'Local'
+
+/** The fields an admin can change. Only the content ones (not visible / featured) make a TMDB movie "Edited". */
+export type MovieFields = {
+  title: string
+  releaseDate: string
+  runtime: number
+  director: string
+  genres: string[]
+  description: string
+  visible: boolean
+  featured: boolean
+}
+
+export type AdminMovie = MovieFields & {
+  id: string
+  /** Set for movies cached from TMDB; `tmdb` keeps TMDB's own values for "Reset to TMDB". */
+  tmdbId?: number
+  tmdb?: MovieFields
+  source: MovieSource
+  rating: number | null
+  gradient: Movie['gradient']
+  poster?: string
+}
+
+export const MOVIE_GENRES = ['Action', 'Adventure', 'Animation', 'Comedy', 'Documentary', 'Drama', 'Fantasy', 'Horror', 'Romance', 'Sci-fi', 'Thriller']
+
+export const MOVIE_SYNC = { lastSynced: '2 hours ago', cached: 12480, overrides: 34, nextSync: '4h' }
+
+const tmdbMovie = (id: string, tmdbId: number, movie: Movie, rating: number, fields: MovieFields, overrides?: Partial<MovieFields>): AdminMovie => ({
+  id,
+  tmdbId,
+  tmdb: fields,
+  source: overrides ? 'Edited' : 'TMDB',
+  rating,
+  gradient: movie.gradient,
+  ...fields,
+  ...overrides,
+})
+
+export const ADMIN_MOVIES: AdminMovie[] = [
+  tmdbMovie('m1', 81920, MOVIES.neonTide, 4.8,
+    { title: 'Neon Tide', releaseDate: '2026-03-06', runtime: 134, director: 'Lena Okafor', genres: ['Sci-fi'], description: 'A marine biologist discovers a glowing current off the coast.', visible: true, featured: false },
+    { genres: ['Sci-fi', 'Adventure'], description: 'When a marine biologist discovers a glowing current that rewrites memories, she has to choose which past to keep.', featured: true }),
+  tmdbMovie('m2', 77341, MOVIES.paperMoon, 4.6,
+    { title: 'Paper Moon', releaseDate: '2026-01-23', runtime: 102, director: 'Sami Haddad', genres: ['Comedy'], description: 'Two rival origami artists are forced to share a tiny studio.', visible: true, featured: false }),
+  tmdbMovie('m3', 69012, MOVIES.deepBlue, 4.4,
+    { title: 'Deep Blue', releaseDate: '2025-08-15', runtime: 118, director: 'Iris Chen', genres: ['Thriller'], description: 'A submarine crew loses contact with the surface during a routine dive.', visible: true, featured: false }),
+  {
+    id: 'm4', source: 'Local', rating: 4.1, gradient: ['#fa8cbf', '#9940b2', '#2b1a63'],
+    title: 'Beirut Nights', releaseDate: '2026-04-10', runtime: 91, director: 'Nour Khoury', genres: ['Documentary'],
+    description: 'The musicians, cooks and night-shift workers who keep the city awake.', visible: false, featured: false,
+  },
+  tmdbMovie('m5', 80455, MOVIES.redSignal, 4.1,
+    { title: 'Red Signal', releaseDate: '2026-02-13', runtime: 114, director: 'Marco Vidal', genres: ['Action'], description: 'A train engineer races to stop a runaway freight line.', visible: false, featured: false }),
+  tmdbMovie('m6', 65218, MOVIES.stardust, 4.7,
+    { title: 'Stardust', releaseDate: '2025-11-21', runtime: 126, director: 'Ada Brennan', genres: ['Fantasy'], description: 'A lighthouse keeper catches a falling star.', visible: true, featured: true },
+    { description: 'A lonely lighthouse keeper catches a falling star — and has one night to send it home.' }),
+]
