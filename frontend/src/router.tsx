@@ -5,6 +5,7 @@ import SignIn from './pages/SignIn/SignIn.tsx'
 import SignUp from './pages/SignUp/SignUp.tsx'
 import ForgotPassword from './pages/ForgotPassword/ForgotPassword.tsx'
 import Home from './pages/Home/Home.tsx'
+import Person from './pages/Person/Person.tsx'
 import MovieDetails from './pages/MovieDetails/MovieDetails.tsx'
 import Discover from './pages/Discover/Discover.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
       { path: 'forgot-password', element: <ForgotPassword /> },
       // Signed-in home. Reached by URL until auth is wired to the backend.
       { path: 'Home-Page', element: <Home /> },
+      { path: 'people/:slug', element: <Person /> },
       { path: 'movies/:slug', element: <MovieDetails /> },
       { path: 'discover', element: <Discover /> },
       // Screens designed in Figma but not built yet.
