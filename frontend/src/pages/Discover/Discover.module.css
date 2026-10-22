@@ -424,6 +424,18 @@ legend.groupLabel {
   --checkbox-label-color: var(--ink-900);
 }
 
+/* Under "In cinemas near me", lined up with the checkbox label (22px box + 10px gap). */
+.mapLink {
+  margin: -6px 0 0 32px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ground-violet);
+}
+
+.mapLink:hover {
+  text-decoration: underline;
+}
+
 /* ---------- Results ---------- */
 .results {
   display: flex;
