@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import AuthShell from '../../components/AuthShell/AuthShell.tsx'
+import AuthWaves from '../../components/AuthWaves/AuthWaves.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import Checkbox from '../../components/Checkbox/Checkbox.tsx'
 import OrDivider from '../../components/OrDivider/OrDivider.tsx'
@@ -10,8 +11,6 @@ import PosterCardMini from '../../components/PosterCardMini/PosterCardMini.tsx'
 import SocialButton, { type SocialProvider } from '../../components/SocialButton/SocialButton.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
 import bgPeach from '../../assets/auth/signin-bg-peach-blob.svg'
-import bgCoral from '../../assets/auth/signin-bg-coral-wave.svg'
-import bgViolet from '../../assets/auth/signin-bg-violet-ground.svg'
 import bgYellow from '../../assets/auth/signin-bg-yellow-blob.svg'
 import decoRing from '../../assets/auth/deco-ring-signin.png'
 import dotCoral from '../../assets/landing/deco-dot-coral.svg'
@@ -55,8 +54,7 @@ export default function SignIn() {
       background={
         <>
           <img className={`${styles.bg} vt-auth-bg-peach`} src={bgPeach} width={1440} height={1024} alt="" />
-          <img className={`${styles.bg} ${styles.wave} vt-auth-bg-coral`} src={bgCoral} width={1440} height={1024} alt="" />
-          <img className={`${styles.bg} ${styles.wave} vt-auth-bg-violet`} src={bgViolet} width={1440} height={1024} alt="" />
+          <AuthWaves side="right" className={`${styles.bg} ${styles.wave}`} />
           <img className={`${styles.bgYellow} ${styles.wave} vt-auth-bg-yellow`} src={bgYellow} width={1448} height={1024} alt="" />
         </>
       }
