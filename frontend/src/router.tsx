@@ -13,6 +13,7 @@ import Lists from './pages/Lists/Lists.tsx'
 import ListDetail from './pages/ListDetail/ListDetail.tsx'
 import Watchlist from './pages/Watchlist/Watchlist.tsx'
 import Profile from './pages/Profile/Profile.tsx'
+import Settings from './pages/Settings/Settings.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
 
 export const router = createBrowserRouter([
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
       // `/profile` is the signed-in user's own profile; `/profile/:handle` is anyone's public profile.
       { path: 'profile', element: <Profile /> },
       { path: 'profile/:handle', element: <Profile /> },
+      { path: 'settings', element: <Settings /> },
       // Screens designed in Figma but not built yet.
       { path: 'terms', element: <Placeholder title="Terms of Service" /> },
       { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
