@@ -12,6 +12,8 @@ export type MyList = {
   /** Cover background behind the collage. */
   cover: string
   posters: Gradient[]
+  /** Movie slugs picked in the Create/Edit List dialog, in list order. */
+  movies?: string[]
 }
 
 export type PublicList = {
