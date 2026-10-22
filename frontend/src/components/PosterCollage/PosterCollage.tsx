@@ -6,8 +6,8 @@ const gradientCss = ([top, middle, bottom]: Gradient) => `linear-gradient(180deg
 type PosterCollageProps = {
   /** Up to three posters, back to front. */
   gradients: Gradient[]
-  /** "lg" = 210×150 (My lists cards), "sm" = 180×120 (public list cards). */
-  size?: 'lg' | 'sm'
+  /** "xl" = 260×220 (List Detail header), "lg" = 210×150 (My lists cards), "sm" = 180×120 (public list cards). */
+  size?: 'xl' | 'lg' | 'sm'
 }
 
 /** Three tilted, white-framed poster thumbs fanned out (Figma "Cover collage"). */
