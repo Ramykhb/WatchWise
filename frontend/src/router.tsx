@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router'
+import { Navigate, createBrowserRouter } from 'react-router'
 import RootLayout from './layouts/RootLayout.tsx'
 import Landing from './pages/Landing/Landing.tsx'
 import SignIn from './pages/SignIn/SignIn.tsx'
@@ -9,6 +9,7 @@ import Person from './pages/Person/Person.tsx'
 import MovieDetails from './pages/MovieDetails/MovieDetails.tsx'
 import Discover from './pages/Discover/Discover.tsx'
 import ForYou from './pages/ForYou/ForYou.tsx'
+import Watchlist from './pages/Watchlist/Watchlist.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
 
 export const router = createBrowserRouter([
@@ -26,6 +27,9 @@ export const router = createBrowserRouter([
       { path: 'movies/:slug', element: <MovieDetails /> },
       { path: 'discover', element: <Discover /> },
       { path: 'for-you', element: <ForYou /> },
+      // Lives under Lists so the Lists nav link is highlighted, as in the Figma frame.
+      { path: 'lists/watchlist', element: <Watchlist /> },
+      { path: 'watchlist', element: <Navigate to="/lists/watchlist" replace /> },
       // Screens designed in Figma but not built yet.
       { path: 'terms', element: <Placeholder title="Terms of Service" /> },
       { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
