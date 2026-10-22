@@ -13,6 +13,9 @@ import Lists from './pages/Lists/Lists.tsx'
 import ListDialog from './pages/Lists/ListDialog.tsx'
 import ListDetail from './pages/ListDetail/ListDetail.tsx'
 import Watchlist from './pages/Watchlist/Watchlist.tsx'
+import Profile from './pages/Profile/Profile.tsx'
+import Settings from './pages/Settings/Settings.tsx'
+import Cinemas from './pages/Cinemas/Cinemas.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
 
 export const router = createBrowserRouter([
@@ -29,6 +32,9 @@ export const router = createBrowserRouter([
       { path: 'people/:slug', element: <Person /> },
       { path: 'movies/:slug', element: <MovieDetails /> },
       { path: 'discover', element: <Discover /> },
+      // Lives under Discover so the Discover nav link is highlighted, as in the Figma frame.
+      { path: 'discover/cinemas', element: <Cinemas /> },
+      { path: 'cinemas', element: <Navigate to="/discover/cinemas" replace /> },
       { path: 'for-you', element: <ForYou /> },
       {
         path: 'lists',
@@ -43,6 +49,10 @@ export const router = createBrowserRouter([
       // Lives under Lists so the Lists nav link is highlighted, as in the Figma frame.
       { path: 'lists/watchlist', element: <Watchlist /> },
       { path: 'watchlist', element: <Navigate to="/lists/watchlist" replace /> },
+      // `/profile` is the signed-in user's own profile; `/profile/:handle` is anyone's public profile.
+      { path: 'profile', element: <Profile /> },
+      { path: 'profile/:handle', element: <Profile /> },
+      { path: 'settings', element: <Settings /> },
       // Screens designed in Figma but not built yet.
       { path: 'terms', element: <Placeholder title="Terms of Service" /> },
       { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
@@ -50,10 +60,8 @@ export const router = createBrowserRouter([
       { path: 'movie-nights', element: <Placeholder title="Movie Nights" /> },
       { path: 'rooms', element: <Placeholder title="Discussion Rooms" /> },
       { path: 'releases', element: <Placeholder title="Coming soon" /> },
-      { path: 'profile', element: <Placeholder title="Profile" /> },
       { path: 'movies/:slug/credits', element: <Placeholder title="Full credits" /> },
       { path: 'movies/:slug/videos', element: <Placeholder title="Videos" /> },
-      { path: 'cinemas', element: <Placeholder title="Nearby cinemas" /> },
       { path: '*', element: <Placeholder title="Page not found" notFound /> },
     ],
   },

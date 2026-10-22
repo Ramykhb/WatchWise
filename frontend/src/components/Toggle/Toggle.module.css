@@ -1,0 +1,36 @@
+/* Figma "Toggle": 48×28 track (mint on / border-subtle off) with a 20px white knob inset 4px. */
+.toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 48px;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--border-subtle);
+  cursor: pointer;
+  transition: background-color 0.2s ease-out;
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-white);
+  transition: translate 0.25s var(--ease-out-back);
+}
+
+.toggle[aria-checked='true'] {
+  background: var(--accent-mint);
+}
+
+.toggle[aria-checked='true']::after {
+  translate: 20px 0;
+}
+
+.toggle:focus-visible {
+  outline: 3px solid var(--ground-violet);
+  outline-offset: 2px;
+}
