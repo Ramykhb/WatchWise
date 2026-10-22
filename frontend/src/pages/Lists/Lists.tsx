@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, Outlet } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import PosterCollage from '../../components/PosterCollage/PosterCollage.tsx'
@@ -11,7 +11,8 @@ import trashIcon from '../../assets/lists/icon-trash.svg'
 import plusIcon from '../../assets/lists/icon-plus.svg'
 import heartIcon from '../../assets/lists/icon-heart.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { FOLLOWING_COUNT, MY_LISTS, PUBLIC_LISTS, type PublicList } from './listsData.ts'
+import { FOLLOWING_COUNT, PUBLIC_LISTS, type PublicList } from './listsData.ts'
+import { deleteMyList, useMyLists } from './myListsStore.ts'
 import styles from './Lists.module.css'
 
 type Tab = 'mine' | 'public' | 'following'
@@ -48,13 +49,12 @@ export default function Lists() {
   const tabsRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
 
-  // TODO: load, update and delete lists through the API once auth is connected.
-  const [myLists, setMyLists] = useState(MY_LISTS)
+  const myLists = useMyLists()
   const [tab, setTab] = useState<Tab>('mine')
 
   const remove = (slug: string, title: string) => {
     if (window.confirm(`Delete “${title}”? This can't be undone.`)) {
-      setMyLists((lists) => lists.filter((list) => list.slug !== slug))
+      deleteMyList(slug)
     }
   }
 
@@ -82,7 +82,6 @@ export default function Lists() {
               them.
             </p>
           </div>
-          {/* TODO: open the Create/Edit List modal (Figma 32:1944) once it is built. */}
           <ButtonPrimary label="Create a list" to="/lists/new" />
         </header>
 
@@ -188,6 +187,9 @@ export default function Lists() {
           </section>
         )}
       </main>
+
+      {/* Create/Edit List dialog (routes lists/new and lists/:slug/edit). */}
+      <Outlet />
     </div>
   )
 }
