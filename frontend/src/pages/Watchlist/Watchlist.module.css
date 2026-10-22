@@ -1,0 +1,550 @@
+.page {
+  min-height: 100vh;
+  overflow-x: clip;
+  padding-bottom: 96px;
+  background: var(--ground-cream);
+}
+
+.main {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 80px;
+}
+
+/* ---------- Header ---------- */
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 0;
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.title {
+  display: flex;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 72px;
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+  white-space: nowrap;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.statWhite,
+.statMint,
+.statYellow,
+.chipMint,
+.chipYellow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.statWhite {
+  background: var(--surface-white);
+}
+
+.statMint,
+.chipMint {
+  background: var(--surface-mint-tint);
+}
+
+.statYellow,
+.chipYellow {
+  background: var(--surface-yellow-tint);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.shareNote {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ground-violet);
+}
+
+/* ---------- Tabs ---------- */
+.tabs {
+  display: flex;
+  gap: 28px;
+  padding-bottom: 24px;
+  scroll-margin-top: 16px;
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--ink-400);
+  white-space: nowrap;
+  transition: color 0.2s ease-out;
+}
+
+/* Figma separates label and count with two spaces. */
+.tabCount {
+  margin-left: 0.5em;
+}
+
+.tab::after {
+  content: '';
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent-coral);
+  scale: 0 1;
+  transition: scale 0.25s var(--ease-out-back);
+}
+
+.tab:hover,
+.tab[aria-selected='true'] {
+  color: var(--ink-900);
+}
+
+.tab[aria-selected='true']::after {
+  scale: 1;
+}
+
+/* ---------- Body ---------- */
+.body {
+  display: flex;
+  align-items: flex-start;
+  gap: 32px;
+}
+
+.queue {
+  display: flex;
+  flex: 0 1 820px;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter,
+.filterOn {
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  transition:
+    background-color 0.2s ease-out,
+    color 0.2s ease-out;
+}
+
+.filter {
+  background: var(--surface-white);
+}
+
+.filter:hover {
+  background: var(--surface-violet-tint);
+  color: var(--ground-violet);
+}
+
+.filterOn {
+  background: var(--ground-violet);
+  color: var(--ground-cream);
+}
+
+/* Native <select> dressed as the Figma "Recently added ▾" pill. */
+.sort {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sort select {
+  padding: 7.5px 34px 7.5px 12.5px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  outline: 0;
+  appearance: none;
+  background: var(--surface-white);
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink-900);
+  cursor: pointer;
+  transition: border-color 0.2s ease-out;
+}
+
+.sort select:hover {
+  border-color: var(--ink-900);
+}
+
+.sort select:focus-visible {
+  outline: 3px solid var(--accent-yellow);
+  outline-offset: 2px;
+}
+
+.sort img {
+  position: absolute;
+  right: 14px;
+  pointer-events: none;
+}
+
+.empty {
+  padding: 32px 0;
+  color: var(--ink-600);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px;
+  border-radius: 24px;
+  background: var(--surface-white);
+}
+
+.thumb {
+  flex-shrink: 0;
+  width: 64px;
+  height: 92px;
+  border-radius: 10px;
+  transition: translate 0.25s var(--ease-out-back);
+}
+
+.thumb:hover {
+  translate: 0 -3px;
+}
+
+.info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.itemTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.itemTitle:hover {
+  color: var(--ground-violet);
+  text-decoration: underline;
+}
+
+.details {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.added {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-400);
+}
+
+.watched,
+.watchedOn {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+  transition:
+    background-color 0.2s ease-out,
+    translate 0.2s ease-out;
+}
+
+.watched:hover,
+.watchedOn:hover {
+  translate: 0 -2px;
+}
+
+.watched {
+  background: var(--surface-violet-tint);
+  color: var(--ground-violet);
+}
+
+.watchedOn {
+  background: var(--accent-mint);
+  color: var(--ink-900);
+}
+
+.remove {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-coral-tint);
+  transition: scale 0.25s var(--ease-out-back);
+}
+
+.remove:hover {
+  scale: 1.1;
+}
+
+.historyFull {
+  padding: 12px 28px 20px;
+  border-radius: 28px;
+  background: var(--surface-white);
+}
+
+/* ---------- Side ---------- */
+.side {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.history,
+.taste {
+  display: flex;
+  flex-direction: column;
+  padding: 28px;
+  border-radius: 28px;
+}
+
+.history {
+  background: var(--surface-white);
+}
+
+.historyHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+}
+
+.cardTitle,
+.cardTitleLight {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.cardTitleLight {
+  color: var(--ground-cream);
+}
+
+.seeAll {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ground-violet);
+}
+
+.seeAll:hover {
+  text-decoration: underline;
+}
+
+.month {
+  padding: 16px 0 6px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--ink-400);
+}
+
+.entries {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.date {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 56px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--surface-cream-deep);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.entryThumb {
+  flex-shrink: 0;
+  width: 32px;
+  height: 46px;
+  border-radius: 10px;
+}
+
+.entryText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entryTitle {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.entry:hover .entryTitle {
+  color: var(--ground-violet);
+  text-decoration: underline;
+}
+
+.taste {
+  gap: 14px;
+  background: var(--ground-violet);
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.barLabels {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ground-cream);
+}
+
+.barPercent {
+  color: var(--text-on-violet-muted);
+}
+
+.track {
+  position: relative;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--ground-violet-deep);
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 5px;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  .main {
+    padding: 0 32px;
+  }
+
+  .body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .queue {
+    flex-basis: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding: 0 20px;
+  }
+
+  .title {
+    font-size: 52px;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+
+  .item {
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .info {
+    flex-basis: calc(100% - 82px);
+  }
+
+  .watched,
+  .watchedOn {
+    flex: 1;
+    justify-content: center;
+  }
+}
