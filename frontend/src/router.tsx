@@ -6,6 +6,7 @@ import SignUp from './pages/SignUp/SignUp.tsx'
 import ForgotPassword from './pages/ForgotPassword/ForgotPassword.tsx'
 import Home from './pages/Home/Home.tsx'
 import MovieDetails from './pages/MovieDetails/MovieDetails.tsx'
+import Discover from './pages/Discover/Discover.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
 
 export const router = createBrowserRouter([
@@ -20,10 +21,10 @@ export const router = createBrowserRouter([
       // Signed-in home. Reached by URL until auth is wired to the backend.
       { path: 'Home-Page', element: <Home /> },
       { path: 'movies/:slug', element: <MovieDetails /> },
+      { path: 'discover', element: <Discover /> },
       // Screens designed in Figma but not built yet.
       { path: 'terms', element: <Placeholder title="Terms of Service" /> },
       { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
-      { path: 'discover', element: <Placeholder title="Discover" /> },
       { path: 'lists', element: <Placeholder title="Lists" /> },
       { path: 'community', element: <Placeholder title="Community" /> },
       { path: 'for-you', element: <Placeholder title="For You" /> },

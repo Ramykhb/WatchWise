@@ -5,9 +5,12 @@
   min-width: 0;
 }
 
+/* Figma tiles are 196px wide on Home and 212px on Discover, with the art kept at the same pixel size.
+   A parent sets --poster-w to the design width so the sun and wave keep their proportions. */
 .poster {
+  --w: var(--poster-w, 196);
   position: relative;
-  aspect-ratio: 196 / 290;
+  aspect-ratio: var(--w) / 290;
   overflow: hidden;
   border-radius: 18px;
   transition:
@@ -24,8 +27,8 @@
 .sun {
   position: absolute;
   top: 19.31%;
-  left: 42.86%;
-  width: 51.02%;
+  left: calc(100% * 84 / var(--w));
+  width: calc(100% * 100 / var(--w));
   height: auto;
 }
 
@@ -33,7 +36,7 @@
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 100%;
+  width: calc(100% * 196 / var(--w));
   height: auto;
   max-width: none;
 }
