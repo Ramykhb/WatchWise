@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate } from 'react-router'
 import Logo from '../Logo/Logo.tsx'
 import searchIcon from '../../assets/home/icon-search.svg'
 import bellIcon from '../../assets/home/icon-bell.svg'
+import { useUnreadCount } from '../../pages/Notifications/notificationsStore.ts'
 import styles from './AppNav.module.css'
 
 const LINKS = [
@@ -23,6 +24,7 @@ type AppNavProps = {
 export default function AppNav({ initials = 'MR' }: AppNavProps) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
+  const unread = useUnreadCount()
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -54,9 +56,18 @@ export default function AppNav({ initials = 'MR' }: AppNavProps) {
             aria-label="Search movies and people"
           />
         </form>
-        <button type="button" className={styles.iconButton} aria-label="Notifications">
+        <NavLink
+          to="/notifications"
+          className={({ isActive }) => (isActive ? `${styles.iconButton} ${styles.iconButtonActive}` : styles.iconButton)}
+          aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+        >
           <img src={bellIcon} width={20} height={20} alt="" />
-        </button>
+          {unread > 0 && (
+            <span className={styles.badge} aria-hidden="true">
+              {unread > 9 ? '9+' : unread}
+            </span>
+          )}
+        </NavLink>
         <Link to="/profile" className={styles.avatar} aria-label="Your profile">
           {initials}
         </Link>

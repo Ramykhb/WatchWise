@@ -1,9 +1,9 @@
 # WatchWise — Handoff
 
-_Last updated: 2026-10-22 · branch `feat/frontend-createAList-MovieNights-Rooms` (based on `dev` after PR #19)_
+_Last updated: 2026-10-22 · branch `feat/frontend-notifications` (based on `dev` after PR #20)_
 
 WatchWise is the "Modern Movie Discovery & Social Platform" from the Web2 (WEB2PROG302-EC10) project brief.
-So far the work covers **(1) the full product design in Figma**, **(2) all nineteen app screens in React** (only the four Admin screens remain), **(3) the Laravel database schema and a first API endpoint (weather)** and **(4) a graphify knowledge graph of the codebase**.
+So far the work covers **(1) the full product design in Figma**, **(2) all nineteen app screens in React plus a Notifications page** (only the four Admin screens remain), **(3) the Laravel database schema and a first API endpoint (weather)** and **(4) a graphify knowledge graph of the codebase**.
 See also the root [README.md](README.md) for the public project overview and setup.
 
 ---
@@ -69,6 +69,7 @@ See also the root [README.md](README.md) for the public project overview and set
 | `/movie-nights` | Movie Nights | Invitations (accept/decline), upcoming/past nights, "How it works", **Plan a movie night** form (date/time, in person/online, invite friends, shortlist, voting closes) (`nightsData.ts`) |
 | `/movie-nights/:slug` | Movie Night | RSVP, shortlist voting (one vote each, leading/winner), suggest a movie, invite more, close voting, Google Calendar link, share (`nightDetailData.ts`). Nights live in the shared `nightsStore`, so created/accepted nights open here too |
 | `/rooms`, `/rooms/:roomId` | Discussion Rooms | Room list (search, unread, create room), chat (send, emoji, attach name, agree reactions, mute/copy link), room movie, rules, online members (`roomsData.ts`). One route `rooms/:roomId?` so switching rooms keeps chat state. **Real-time is mocked**: demo typing + canned replies until a backend channel exists |
+| `/notifications` | Notifications | **No Figma frame** — designed in the app's style. Grouped feed (Today / Yesterday / This week), All / Unread / Movie nights / Social tabs, open-to-mark-read, read/unread dot, dismiss, mark all as read, Follow back, "Notify me about" toggles. Shared `notificationsStore` drives the unread badge on the header bell (`AppNav`); Settings › Notifications links here |
 | everything else | Placeholder | "Coming soon" / 404 so every link works (`releases`, `terms`, `privacy`, `movies/:slug/credits`, …) |
 
 Every page except For You's weather uses **mock data** in a `*Data.ts` file next to the page — replace those with API calls.
@@ -79,7 +80,7 @@ Every page except For You's weather uses **mock data** in a `*Data.ts` file next
 - **Auth page swap (Sign in ⇄ Sign up ⇄ Forgot password):** React Router `viewTransition` links with `AUTH_SWAP_STATE`; on a swap the entrance is skipped (`useAuthSwap`) and named layers morph (`styles/motion.css`):
   - Each poster card (`card-last-lap`, `card-paper-moon`, `card-neon-tide`), the year card, sticker and forgot-password cards have their **own names** — unnamed content lives in the root snapshot, which paints *below* every named layer, so anything that must stay on top or move needs a name. Names must be unique per page or the browser skips the transition.
   - The coral/violet waves are **`AuthWaves`**: inline SVG bands whose path GSAP tweens from the previous page's side to the new one; the `auth-waves` layer shows the live new page instead of cross-fading two snapshots.
-- **Shared app pieces:** `AppNav` (signed-in header, active link via `NavLink`, search → `/discover?q=`), `MovieTile` (set `--poster-w` for non-196px tiles), `PillButton` (`to` / `href` / button, `disabled`), `Toggle` (48×28 switch, `role="switch"`), `RatingStars`, `ReviewCard`, `Sentiment`, `PosterCollage`.
+- **Shared app pieces:** `AppNav` (signed-in header, active link via `NavLink`, search → `/discover?q=`, bell → `/notifications` with unread badge), `MovieTile` (set `--poster-w` for non-196px tiles), `PillButton` (`to` / `href` / button, `disabled`), `Toggle` (48×28 switch, `role="switch"`), `RatingStars`, `ReviewCard`, `Sentiment`, `PosterCollage`.
 - **Highlighting a nav link from a sub-page:** nest the route under the section (`/lists/watchlist`, `/discover/cinemas`) and `NavLink` marks it active; add a `Navigate` redirect for the short URL.
 - **Scrolling to a section:** Lenis owns the page scroll, so `element.scrollIntoView()` gets overridden. Use `useLenis()` and `lenis.scrollTo(element, { offset })` (see `Settings.tsx`). Inner scroll areas need `data-lenis-prevent`.
 - **Forms:** client-side validation only; submit handlers have `TODO`s for `POST /api/login`, `/api/register`, `/api/forgot-password` and Socialite redirects.
@@ -100,7 +101,7 @@ components/
   reactbits/SplitText, reactbits/Magnet       (React Bits sources)
 pages/  Landing · SignIn · SignUp · ForgotPassword · Home · Discover · MovieDetails · Person
         ForYou · Lists (+ ListDialog) · ListDetail · Watchlist · Profile · Settings · Cinemas
-        MovieNights (+ NightDetail) · Rooms · Placeholder · authPosters.ts
+        MovieNights (+ NightDetail) · Rooms · Notifications · Placeholder · authPosters.ts
 assets/<page>/                    SVG/PNG assets exported from Figma, one folder per page
 ```
 Env: `frontend/.env` with `VITE_BACKEND_URL=http://localhost:8000` (see `.env.example`).
@@ -127,7 +128,7 @@ Env: `frontend/.env` with `VITE_BACKEND_URL=http://localhost:8000` (see `.env.ex
 | `graph.json` | raw graph data (GraphRAG-ready) |
 | `manifest.json`, `.graphify_labels.json`, `cost.json` | state for incremental updates, community names, token cost log |
 
-**Latest update (2026-10-22, with the Movie Nights, Movie Night and Discussion Rooms pages):** current node / edge / community counts are in the Summary of `graphify-out/GRAPH_REPORT.md` (kept out of this file so updating the graph doesn't change the doc it reads).
+**Latest update (2026-10-22, with the Notifications page):** current node / edge / community counts are in the Summary of `graphify-out/GRAPH_REPORT.md` (kept out of this file so updating the graph doesn't change the doc it reads).
 - Code is extracted structurally (AST, no tokens). Docs (HANDOFF, READMEs, CLAUDE.md, CI workflows) go through an LLM pass; token cost per run is logged in `cost.json`.
 - **Most connected nodes:** `react`, `SplitHeadline()`, `react-router`, `User` (Laravel model), `useEntranceAnimation()`, `ButtonPrimary()`, `AppNav()`, `Magnet()`.
 - **Excluded:** `.graphifyignore` keeps `backend/.claude/` and `.claude/` (agent tooling) out. Figma image assets are not extracted (cost vs. value): their imports appear as bare `frontend_src_assets_*` nodes and the images are listed as "new" on every update. `backend/.npmrc` and `styles/tokens.css` are skipped as "sensitive" by name only.
@@ -160,7 +161,7 @@ In Claude Code, `/graphify . --update` rebuilds incrementally (docs need the LLM
 
 ## 8. Current state & known issues
 - `npm run build` / `npm run lint` pass (after `npm install`). The husky **pre-commit** hook runs the frontend build and `php artisan --version`.
-- Main JS bundle is **866 kB (259 kB gzip)** → Vite size warning. Fix: lazy-load routes (`React.lazy` / route `lazy`) — now worth doing with 19 pages.
+- Main JS bundle is **875 kB (261 kB gzip)** → Vite size warning. Fix: lazy-load routes (`React.lazy` / route `lazy`) — now worth doing with 20 pages.
 - Mock dates for movie nights are in **2025** on purpose: the Figma weekdays ("Fri, Mar 14") only match the 2025 calendar.
 - In stacked mobile layouts, a panel with `flex: 1` and a fixed height collapses or grows (seen on Cinemas and Rooms); set `flex: none` in the media query.
 - Movie Details' in-page jump buttons use `scrollIntoView`, which Lenis may override (the bug fixed in Settings); not checked yet.
@@ -180,7 +181,7 @@ In Claude Code, `/graphify . --update` rebuilds incrementally (docs need the LLM
 1. Build the four Admin screens from Figma: Overview → Users → Review Moderation → Movie Data (node ids in §2).
 2. Laravel auth (register/login/logout, Sanctum), then connect Sign in / Sign up / Forgot Password and replace `/Home-Page` with a real post-login redirect.
 3. TMDB integration through the backend; swap the `*Data.ts` mocks for API calls page by page.
-   Movie nights and rooms need their API plus a real-time channel (e.g. Laravel Reverb) to replace the in-memory stores and demo replies.
+   Movie nights, rooms and notifications need their API plus a real-time channel (e.g. Laravel Reverb) to replace the in-memory stores and demo replies (the backend already has a `notifications` table).
 4. Code-split routes to clear the bundle warning.
 5. Re-run graphify (`/graphify . --update`) after each feature so the graph stays current.
 
