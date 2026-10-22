@@ -1,0 +1,16 @@
+.stars {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.star {
+  display: grid;
+  border-radius: 4px;
+  transition: scale 0.2s var(--ease-out-back);
+}
+
+.star:hover {
+  scale: 1.2;
+}
