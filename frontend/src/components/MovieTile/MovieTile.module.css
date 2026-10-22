@@ -1,0 +1,82 @@
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.poster {
+  position: relative;
+  aspect-ratio: 196 / 290;
+  overflow: hidden;
+  border-radius: 18px;
+  transition:
+    translate 0.3s var(--ease-out-back),
+    box-shadow 0.3s ease-out;
+}
+
+/* Hover variant from Figma: the poster lifts onto a soft shadow. */
+.tile:hover .poster {
+  translate: 0 -8px;
+  box-shadow: var(--elevation-soft);
+}
+
+.sun {
+  position: absolute;
+  top: 19.31%;
+  left: 42.86%;
+  width: 51.02%;
+  height: auto;
+}
+
+.wave {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: auto;
+  max-width: none;
+}
+
+.posterTitle {
+  position: absolute;
+  top: 68.97%;
+  left: 14px;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 32px;
+  line-height: 0.86;
+  letter-spacing: -0.04em;
+  color: var(--ground-cream);
+  white-space: nowrap;
+}
+
+.score {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px 4px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-white);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--ink-900);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
+}
+
+.meta {
+  font-size: 13px;
+  color: var(--ink-600);
+}
