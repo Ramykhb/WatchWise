@@ -1,0 +1,1198 @@
+.page {
+  min-height: 100vh;
+  overflow-x: clip;
+  padding-bottom: 96px;
+  background: var(--ground-cream);
+}
+
+.muted {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-400);
+}
+
+/* ---------- Hero ---------- */
+.hero {
+  background: var(--ground-violet);
+}
+
+.heroInner {
+  display: flex;
+  align-items: flex-start;
+  gap: 56px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 48px 80px 24px;
+}
+
+/* Poster art is laid out in px inside the fixed 320×480 Figma poster. */
+.poster {
+  position: relative;
+  flex-shrink: 0;
+  width: 320px;
+  height: 480px;
+  overflow: hidden;
+  border-radius: 28px;
+  box-shadow: var(--elevation-float);
+}
+
+.posterSun,
+.posterWave,
+.posterTitle {
+  position: absolute;
+  max-width: none;
+}
+
+.posterSun {
+  top: 90px;
+  left: 130px;
+}
+
+.posterWave {
+  top: 270px;
+  left: 0;
+}
+
+.posterTitle {
+  top: 330px;
+  left: 26px;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 62px;
+  line-height: 0.86;
+  letter-spacing: -0.05em;
+  color: var(--ground-cream);
+  white-space: nowrap;
+}
+
+.info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  max-width: 824px;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag,
+.tagHighlight {
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.tag {
+  background: var(--ground-violet-deep);
+  color: var(--ground-cream);
+}
+
+.tagHighlight {
+  background: var(--accent-yellow);
+  color: var(--ink-900);
+}
+
+.title {
+  display: flex;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 96px;
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+  color: var(--ground-cream);
+  white-space: nowrap;
+}
+
+.meta {
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--text-on-violet-muted);
+}
+
+.meta strong {
+  color: var(--ground-cream);
+}
+
+.ratings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 28px;
+}
+
+.average {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.averageValue {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 56px;
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+  color: var(--ground-cream);
+}
+
+.averageText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-on-violet-muted);
+}
+
+.divider {
+  width: 1.5px;
+  height: 48px;
+  background: var(--text-on-violet-muted);
+}
+
+.tmdb,
+.yourRating {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.yourRating {
+  gap: 6px;
+}
+
+.ratingLabel {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--text-on-violet-muted);
+}
+
+.tmdbValue {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--ground-cream);
+}
+
+.bigStars {
+  display: flex;
+  gap: 4px;
+}
+
+.bigStar {
+  display: grid;
+  border-radius: 4px;
+  transition: scale 0.2s var(--ease-out-back);
+}
+
+.bigStar:hover {
+  scale: 1.2;
+}
+
+.overview {
+  max-width: 760px;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--text-on-violet-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.actionTrailer,
+.actionOn,
+.actionOutline,
+.actionWatched {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 22px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+  transition:
+    background-color 0.2s ease-out,
+    border-color 0.2s ease-out,
+    translate 0.2s ease-out;
+}
+
+.actionTrailer:hover,
+.actionOn:hover,
+.actionOutline:hover,
+.actionWatched:hover {
+  translate: 0 -2px;
+}
+
+.actionTrailer {
+  background: var(--accent-yellow);
+  color: var(--ink-900);
+}
+
+.actionTrailer:hover {
+  background: var(--accent-coral);
+}
+
+.actionOn {
+  background: var(--ground-cream);
+  color: var(--ground-violet);
+}
+
+/* 1.5px border inside the 13/22 padding of the Figma frame. */
+.actionOutline {
+  padding: 11.5px 20.5px;
+  border: 1.5px solid var(--text-on-violet-muted);
+  color: var(--ground-cream);
+}
+
+.actionOutline:hover {
+  border-color: var(--ground-cream);
+}
+
+.actionWatched {
+  background: var(--ground-violet-deep);
+  color: var(--ground-cream);
+}
+
+.iconAction {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-pill);
+  background: var(--ground-violet-deep);
+  transition: background-color 0.2s ease-out;
+}
+
+.iconAction:hover {
+  background: var(--ink-900);
+}
+
+.shareNote {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--accent-yellow);
+}
+
+/* Overlaps the hero by 1px so no seam shows at fractional zoom levels. */
+.heroWave {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 70px;
+  margin-top: -1px;
+}
+
+/* ---------- Body ---------- */
+.body {
+  display: flex;
+  align-items: flex-start;
+  gap: 44px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 40px 80px 0;
+}
+
+.main {
+  display: flex;
+  flex: 0 1 800px;
+  flex-direction: column;
+  gap: 48px;
+  min-width: 0;
+}
+
+.section,
+.reviews {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.reviews {
+  gap: 20px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+}
+
+.sectionAction {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ground-violet);
+  white-space: nowrap;
+}
+
+.sectionAction:hover {
+  text-decoration: underline;
+}
+
+.people {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Figma's six 121px people (+16px gaps) overflow the 800px column by 6px; share the width instead. */
+.people li {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 121px;
+}
+
+.person {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.photo {
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--ground-cream);
+  transition:
+    translate 0.3s var(--ease-out-back),
+    box-shadow 0.3s ease-out;
+}
+
+.person:hover .photo {
+  translate: 0 -6px;
+  box-shadow: var(--elevation-soft);
+}
+
+.personName {
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.personRole {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-400);
+  white-space: nowrap;
+}
+
+/* Trailer art positioned as fractions of the 800×440 Figma frame so it scales with the column. */
+.video {
+  position: relative;
+  aspect-ratio: 800 / 440;
+  overflow: hidden;
+  border-radius: 28px;
+}
+
+.videoSun,
+.videoWave {
+  position: absolute;
+  max-width: none;
+  height: auto;
+}
+
+.videoSun {
+  top: 9.09%;
+  left: 58.75%;
+  width: 32.5%;
+}
+
+.videoWave {
+  top: 54.55%;
+  left: 0;
+  width: 100%;
+}
+
+.play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-white);
+  box-shadow: var(--elevation-soft);
+  translate: -50% -50%;
+  transition: scale 0.25s var(--ease-out-back);
+}
+
+.play:hover {
+  scale: 1.08;
+}
+
+.videoChip {
+  position: absolute;
+  bottom: 17px;
+  left: 24px;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-white);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Native <select> shown as the Figma "Sort: Most helpful ▾" header action. */
+.sort {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ground-violet);
+}
+
+.sort select {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sort span {
+  pointer-events: none;
+}
+
+.summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 32px;
+  padding: 28px;
+  border-radius: 28px;
+  background: var(--surface-white);
+}
+
+.summaryAverage {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summaryAverage .muted {
+  font-size: 14px;
+}
+
+.summaryValue {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 64px;
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+}
+
+.distribution {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 8px;
+  width: 260px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.distRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.distStar {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.track {
+  position: relative;
+  flex-shrink: 0;
+  width: 190px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--surface-cream-deep);
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  background: var(--accent-yellow);
+}
+
+.sentiment {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sentimentTitle {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.stacked {
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+}
+
+.stacked span {
+  flex-basis: 0;
+}
+
+.stackPositive {
+  background: var(--accent-mint);
+}
+
+.stackNeutral {
+  background: var(--surface-violet-tint);
+}
+
+.stackNegative {
+  background: var(--accent-coral);
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+/* ---------- Write a review ---------- */
+.write {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  border-radius: 28px;
+  background: var(--surface-white);
+}
+
+.writeHead,
+.writeFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.writeWho {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.writeTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pick .muted {
+  font-size: 14px;
+}
+
+.textarea {
+  height: 120px;
+  padding: 16px 18px;
+  border: 0;
+  border-radius: 18px;
+  outline: 0;
+  background: var(--ground-cream);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-900);
+  resize: none;
+  transition: box-shadow 0.2s ease-out;
+}
+
+.textarea::placeholder {
+  color: var(--ink-400);
+}
+
+.textarea:focus-visible {
+  box-shadow: 0 0 0 3px var(--ground-violet);
+}
+
+/* Spoiler switch, drawn like the Figma 40×24 "Switch". */
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-600);
+  cursor: pointer;
+}
+
+.switch input {
+  position: absolute;
+  width: 40px;
+  height: 24px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.switchTrack {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--border-subtle);
+  transition: background-color 0.2s ease-out;
+}
+
+.switchTrack::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface-white);
+  transition: translate 0.25s var(--ease-out-back);
+}
+
+.switch input:checked + .switchTrack {
+  background: var(--ground-violet);
+}
+
+.switch input:checked + .switchTrack::after {
+  translate: 16px 0;
+}
+
+.switch input:focus-visible + .switchTrack {
+  outline: 3px solid var(--accent-yellow);
+  outline-offset: 2px;
+}
+
+.writeRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ---------- Your review ---------- */
+.yourReview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.yourHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.yourChip {
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-yellow-tint);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.manage {
+  display: flex;
+  gap: 8px;
+}
+
+.edit,
+.delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 13px;
+  transition: translate 0.2s ease-out;
+}
+
+.edit:hover,
+.delete:hover {
+  translate: 0 -2px;
+}
+
+.edit {
+  background: var(--surface-white);
+}
+
+.delete {
+  background: var(--surface-coral-tint);
+}
+
+.loadMore {
+  align-self: flex-start;
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.details,
+.calendar,
+.showtimes,
+.room {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  border-radius: 28px;
+}
+
+.details {
+  padding: 28px;
+  background: var(--surface-white);
+}
+
+.cardTitle {
+  padding-bottom: 12px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.facts {
+  width: 100%;
+  margin: 0;
+}
+
+.fact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1.5px solid var(--border-subtle);
+  font-size: 14px;
+}
+
+.fact dt {
+  line-height: 1.5;
+  color: var(--ink-400);
+}
+
+.fact dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+}
+
+.source {
+  margin-top: 12px;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-mint-tint);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.calendar {
+  gap: 14px;
+  padding: 28px;
+  background: var(--accent-yellow);
+}
+
+.calendarHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.calendarIcon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  background: var(--ink-900);
+}
+
+.calendarTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.calendarWhen {
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.calendarButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.showtimes {
+  gap: 14px;
+  padding: 24px;
+  background: var(--surface-white);
+}
+
+.showtimesHead,
+.cinemaHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.cardTitleSm {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.city {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-violet-tint);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ground-violet);
+}
+
+/* Map layers keep their 388×170 Figma size; wider cards show more mint ground on the right. */
+.map {
+  position: relative;
+  width: 100%;
+  height: 170px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: var(--surface-mint-tint);
+}
+
+.mapLayer,
+.mapPin {
+  position: absolute;
+  max-width: none;
+}
+
+.mapLayer {
+  top: 0;
+  left: 0;
+}
+
+.cinema {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.cinemaName {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.time,
+.timeOn {
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 13px;
+  transition:
+    background-color 0.2s ease-out,
+    color 0.2s ease-out;
+}
+
+.time {
+  background: var(--surface-cream-deep);
+}
+
+.time:hover {
+  background: var(--surface-violet-tint);
+  color: var(--ground-violet);
+}
+
+.timeOn {
+  background: var(--ground-violet);
+  color: var(--ground-cream);
+}
+
+.room {
+  gap: 14px;
+  padding: 28px;
+  background: var(--ground-violet);
+}
+
+.roomHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--accent-yellow);
+}
+
+.roomTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--ground-cream);
+}
+
+.roomText {
+  max-width: 360px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-on-violet-muted);
+}
+
+.roomFoot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.guests {
+  display: flex;
+}
+
+.guest {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 2.5px solid var(--ground-violet);
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink-900);
+}
+
+.guest:not(:last-child) {
+  margin-right: -10px;
+}
+
+/* ---------- More like this ---------- */
+.similar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 64px 80px 0;
+}
+
+/* Six 196px tiles with 20px gaps at 1440, like Home. */
+.row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 20px;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1360px) {
+  .title {
+    font-size: clamp(64px, 6.7vw, 96px);
+  }
+}
+
+@media (max-width: 1100px) {
+  .heroInner,
+  .body,
+  .similar {
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+
+  .heroInner,
+  .body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .heroInner {
+    gap: 32px;
+  }
+
+  .main {
+    flex-basis: auto;
+  }
+
+  .row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .summary {
+    flex-direction: column;
+  }
+
+  .distribution {
+    width: 100%;
+  }
+
+  .track {
+    flex: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .heroInner,
+  .body,
+  .similar {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .heroInner {
+    padding-top: 24px;
+  }
+
+  .poster {
+    align-self: center;
+  }
+
+  .title {
+    font-size: 56px;
+    white-space: normal;
+  }
+
+  .divider {
+    display: none;
+  }
+
+  .people {
+    gap: 12px 8px;
+  }
+
+  .people {
+    flex-wrap: wrap;
+  }
+
+  .people li {
+    flex-basis: calc((100% - 16px) / 3);
+  }
+
+  .photo {
+    width: 88px;
+    height: 88px;
+    font-size: 26px;
+  }
+
+  .play {
+    width: 72px;
+    height: 72px;
+  }
+
+  .videoChip {
+    bottom: 12px;
+    left: 12px;
+  }
+
+  .row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
