@@ -19,6 +19,7 @@ import Cinemas from './pages/Cinemas/Cinemas.tsx'
 import MovieNights from './pages/MovieNights/MovieNights.tsx'
 import NightDetail from './pages/MovieNights/NightDetail.tsx'
 import Rooms from './pages/Rooms/Rooms.tsx'
+import Notifications from './pages/Notifications/Notifications.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
 
 export const router = createBrowserRouter([
@@ -56,6 +57,7 @@ export const router = createBrowserRouter([
       { path: 'profile', element: <Profile /> },
       { path: 'profile/:handle', element: <Profile /> },
       { path: 'settings', element: <Settings /> },
+      { path: 'notifications', element: <Notifications /> },
       // Screens designed in Figma but not built yet.
       { path: 'terms', element: <Placeholder title="Terms of Service" /> },
       { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
