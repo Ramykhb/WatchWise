@@ -19,6 +19,7 @@ import Cinemas from './pages/Cinemas/Cinemas.tsx'
 import AdminLayout from './pages/Admin/AdminLayout.tsx'
 import AdminOverview from './pages/Admin/AdminOverview.tsx'
 import AdminUsers from './pages/Admin/AdminUsers.tsx'
+import AdminReviews from './pages/Admin/AdminReviews.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
 
 export const router = createBrowserRouter([
@@ -63,6 +64,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <AdminOverview /> },
           { path: 'users', element: <AdminUsers /> },
+          { path: 'reviews', element: <AdminReviews /> },
         ],
       },
       // Screens designed in Figma but not built yet.

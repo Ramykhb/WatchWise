@@ -76,3 +76,48 @@ export const USERS: AdminUserRow[] = [
   { id: 'u6', initials: 'SX', color: 'var(--accent-coral)', name: 'spam_bot_991', email: 'x91@tempmail.io', role: 'Member', status: 'Suspended', joined: 'Mar 2026', reviews: 27, lastActive: '5 days ago' },
   { id: 'u7', initials: 'AA', color: 'var(--accent-yellow)', name: 'Ahmad Assaf', email: 'ahmad@watchwise.app', role: 'Admin', status: 'Active', joined: 'Jan 2023', reviews: 12, lastActive: 'Now' },
 ]
+
+// ---------- Reviews (Figma "Admin — Review Moderation") ----------
+
+export type ReviewSentiment = 'positive' | 'neutral' | 'negative'
+export type FlagReason = 'Spam' | 'Links' | 'Spoilers' | 'Offensive language'
+export type ModerationStatus = 'flagged' | 'approved' | 'removed'
+
+export type ModerationReview = {
+  id: string
+  initials: string
+  color: string
+  user: string
+  movie: Movie
+  time: string
+  rating: number
+  sentiment: ReviewSentiment
+  text: string
+  reasons: FlagReason[]
+  reports: number
+  status: ModerationStatus
+}
+
+export const REVIEW_SENTIMENTS: ReviewSentiment[] = ['positive', 'neutral', 'negative']
+export const FLAG_REASONS: FlagReason[] = ['Spam', 'Links', 'Spoilers', 'Offensive language']
+
+/** Totals across the whole site (the queue below is the first page of them). */
+export const REVIEW_TOTALS = { flagged: 37, removed: 412 }
+
+export const MODERATION_REVIEWS: ModerationReview[] = [
+  { id: 'r1', initials: 'SX', color: 'var(--accent-coral)', user: 'spam_bot_991', movie: MOVIES.redSignal, time: '12 min ago', rating: 1, sentiment: 'negative', text: 'WORST MOVIE EVER!!! Watch it free at cheapmovies-xyz.biz instead, full HD no signup', reasons: ['Spam', 'Links'], reports: 14, status: 'flagged' },
+  { id: 'r2', initials: 'DK', color: 'var(--accent-yellow)', user: 'darkknight_22', movie: MOVIES.neonTide, time: '1 h ago', rating: 2, sentiment: 'negative', text: "Can't believe she chooses the present and the lighthouse was a memory the whole time. Predictable.", reasons: ['Spoilers'], reports: 9, status: 'flagged' },
+  { id: 'r3', initials: 'TM', color: 'var(--surface-violet-tint)', user: 'tomas.m', movie: MOVIES.deepBlue, time: '3 h ago', rating: 3, sentiment: 'neutral', text: 'Honestly the lead actor was ****ing awful, but the cinematography almost made up for it.', reasons: ['Offensive language'], reports: 4, status: 'flagged' },
+  { id: 'r4', initials: 'MR', color: 'var(--accent-mint)', user: 'maya.r', movie: MOVIES.stardust, time: 'Yesterday', rating: 5, sentiment: 'positive', text: 'A gorgeous, gentle fantasy. The final shot of the comet over the harbour is pure magic.', reasons: ['Spoilers'], reports: 2, status: 'approved' },
+  { id: 'r5', initials: 'XQ', color: 'var(--accent-coral)', user: 'promo_deals_x', movie: MOVIES.paperMoon, time: '2 days ago', rating: 1, sentiment: 'negative', text: 'Get 90% off streaming at best-deals-now.biz — limited time only!!!', reasons: ['Spam', 'Links'], reports: 21, status: 'removed' },
+]
+
+export const SENTIMENT_SHARE = [
+  { type: 'positive' as const, percent: 64, count: '81,218', color: 'var(--accent-mint)' },
+  { type: 'neutral' as const, percent: 24, count: '30,457', color: 'var(--surface-violet-tint)' },
+  { type: 'negative' as const, percent: 12, count: '15,229', color: 'var(--accent-coral)' },
+]
+
+export const MODERATION_WEEK = { flagged: 124, removed: 58, approved: 61, avgResponse: '2h 14m' }
+
+export const GUIDELINES = ['Spoilers must be tagged', 'No hate speech or slurs', 'No spam, ads or piracy links', 'Critique films, not people']
