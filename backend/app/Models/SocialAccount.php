@@ -9,11 +9,16 @@ class SocialAccount extends Model
 {
     protected $fillable = ['user_id', 'provider', 'provider_id', 'access_token'];
 
+    protected $hidden = ['access_token'];
+
     public $timestamps = false;
 
     protected function casts(): array
     {
-        return ['created_at' => 'datetime'];
+        return [
+            'access_token' => 'encrypted',
+            'created_at' => 'datetime',
+        ];
     }
 
     public function user(): BelongsTo
