@@ -16,6 +16,9 @@ import Watchlist from './pages/Watchlist/Watchlist.tsx'
 import Profile from './pages/Profile/Profile.tsx'
 import Settings from './pages/Settings/Settings.tsx'
 import Cinemas from './pages/Cinemas/Cinemas.tsx'
+import MovieNights from './pages/MovieNights/MovieNights.tsx'
+import NightDetail from './pages/MovieNights/NightDetail.tsx'
+import Rooms from './pages/Rooms/Rooms.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
 
 export const router = createBrowserRouter([
@@ -57,8 +60,10 @@ export const router = createBrowserRouter([
       { path: 'terms', element: <Placeholder title="Terms of Service" /> },
       { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
       { path: 'community', element: <Placeholder title="Community" /> },
-      { path: 'movie-nights', element: <Placeholder title="Movie Nights" /> },
-      { path: 'rooms', element: <Placeholder title="Discussion Rooms" /> },
+      { path: 'movie-nights', element: <MovieNights /> },
+      { path: 'movie-nights/:slug', element: <NightDetail /> },
+      // One route with an optional room id, so switching rooms keeps the page (and its chat state) mounted.
+      { path: 'rooms/:roomId?', element: <Rooms /> },
       { path: 'releases', element: <Placeholder title="Coming soon" /> },
       { path: 'movies/:slug/credits', element: <Placeholder title="Full credits" /> },
       { path: 'movies/:slug/videos', element: <Placeholder title="Videos" /> },
