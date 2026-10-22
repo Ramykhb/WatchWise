@@ -3,3 +3,5 @@ node_modules
 graphify-out/cache/
 graphify-out/.graphify_python
 graphify-out/.graphify_root
+
+.DS_Store
