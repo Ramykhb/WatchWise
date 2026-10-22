@@ -1,0 +1,73 @@
+/* Poster positions are the centres of the Figma "Cover collage" layers (rotated −6°, 2°, 8°). */
+.collage {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.poster {
+  position: absolute;
+  border: 4px solid var(--surface-white);
+  border-radius: 14px;
+}
+
+.poster:nth-child(1) {
+  rotate: -6deg;
+}
+
+.poster:nth-child(2) {
+  rotate: 2deg;
+}
+
+.poster:nth-child(3) {
+  rotate: 8deg;
+}
+
+.lg {
+  width: 210px;
+  height: 150px;
+}
+
+.lg .poster {
+  width: 99px;
+  height: 150px;
+}
+
+.lg .poster:nth-child(1) {
+  top: -5.59px;
+  left: 7.57px;
+}
+
+.lg .poster:nth-child(2) {
+  top: 1.68px;
+  left: 53.36px;
+}
+
+.lg .poster:nth-child(3) {
+  top: 6.16px;
+  left: 100.08px;
+}
+
+.sm {
+  width: 180px;
+  height: 120px;
+}
+
+.sm .poster {
+  width: 79px;
+  height: 120px;
+}
+
+.sm .poster:nth-child(1) {
+  top: -4.46px;
+  left: 6.06px;
+}
+
+.sm .poster:nth-child(2) {
+  top: 1.34px;
+  left: 48.88px;
+}
+
+.sm .poster:nth-child(3) {
+  top: 4.91px;
+  left: 92.27px;
+}

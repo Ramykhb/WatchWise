@@ -9,6 +9,7 @@ import Person from './pages/Person/Person.tsx'
 import MovieDetails from './pages/MovieDetails/MovieDetails.tsx'
 import Discover from './pages/Discover/Discover.tsx'
 import ForYou from './pages/ForYou/ForYou.tsx'
+import Lists from './pages/Lists/Lists.tsx'
 import Watchlist from './pages/Watchlist/Watchlist.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
 
@@ -27,13 +28,17 @@ export const router = createBrowserRouter([
       { path: 'movies/:slug', element: <MovieDetails /> },
       { path: 'discover', element: <Discover /> },
       { path: 'for-you', element: <ForYou /> },
+      { path: 'lists', element: <Lists /> },
       // Lives under Lists so the Lists nav link is highlighted, as in the Figma frame.
       { path: 'lists/watchlist', element: <Watchlist /> },
       { path: 'watchlist', element: <Navigate to="/lists/watchlist" replace /> },
       // Screens designed in Figma but not built yet.
       { path: 'terms', element: <Placeholder title="Terms of Service" /> },
       { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
-      { path: 'lists', element: <Placeholder title="Lists" /> },
+      // Create/Edit List modal (Figma 32:1944) and List Detail (32:1681) are the next screens.
+      { path: 'lists/new', element: <Placeholder title="Create a list" /> },
+      { path: 'lists/:slug', element: <Placeholder title="List detail" /> },
+      { path: 'lists/:slug/edit', element: <Placeholder title="Edit list" /> },
       { path: 'community', element: <Placeholder title="Community" /> },
       { path: 'movie-nights', element: <Placeholder title="Movie Nights" /> },
       { path: 'rooms', element: <Placeholder title="Discussion Rooms" /> },
