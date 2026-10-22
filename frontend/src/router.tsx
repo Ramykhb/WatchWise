@@ -12,6 +12,7 @@ import ForYou from './pages/ForYou/ForYou.tsx'
 import Lists from './pages/Lists/Lists.tsx'
 import ListDetail from './pages/ListDetail/ListDetail.tsx'
 import Watchlist from './pages/Watchlist/Watchlist.tsx'
+import Profile from './pages/Profile/Profile.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
 
 export const router = createBrowserRouter([
@@ -34,6 +35,9 @@ export const router = createBrowserRouter([
       // Lives under Lists so the Lists nav link is highlighted, as in the Figma frame.
       { path: 'lists/watchlist', element: <Watchlist /> },
       { path: 'watchlist', element: <Navigate to="/lists/watchlist" replace /> },
+      // `/profile` is the signed-in user's own profile; `/profile/:handle` is anyone's public profile.
+      { path: 'profile', element: <Profile /> },
+      { path: 'profile/:handle', element: <Profile /> },
       // Screens designed in Figma but not built yet.
       { path: 'terms', element: <Placeholder title="Terms of Service" /> },
       { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
@@ -44,7 +48,6 @@ export const router = createBrowserRouter([
       { path: 'movie-nights', element: <Placeholder title="Movie Nights" /> },
       { path: 'rooms', element: <Placeholder title="Discussion Rooms" /> },
       { path: 'releases', element: <Placeholder title="Coming soon" /> },
-      { path: 'profile', element: <Placeholder title="Profile" /> },
       { path: 'movies/:slug/credits', element: <Placeholder title="Full credits" /> },
       { path: 'movies/:slug/videos', element: <Placeholder title="Videos" /> },
       { path: 'cinemas', element: <Placeholder title="Nearby cinemas" /> },

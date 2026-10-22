@@ -1,0 +1,412 @@
+import { useRef, useState } from 'react'
+import { Link, useParams } from 'react-router'
+import AppNav from '../../components/AppNav/AppNav.tsx'
+import MovieTile from '../../components/MovieTile/MovieTile.tsx'
+import PillButton from '../../components/PillButton/PillButton.tsx'
+import RatingStars from '../../components/RatingStars/RatingStars.tsx'
+import ReviewCard from '../../components/ReviewCard/ReviewCard.tsx'
+import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
+import Placeholder from '../Placeholder/Placeholder.tsx'
+import headerWave from '../../assets/movie/hero-wave.svg'
+import checkIcon from '../../assets/person/icon-check.svg'
+import starIcon from '../../assets/landing/icon-star-badge.svg'
+import pinIcon from '../../assets/profile/icon-pin.svg'
+import calendarIcon from '../../assets/profile/icon-calendar.svg'
+import dotsIcon from '../../assets/profile/icon-dots.svg'
+import chatIcon from '../../assets/profile/icon-chat.svg'
+import listIcon from '../../assets/profile/icon-list.svg'
+import eyeIcon from '../../assets/profile/icon-eye.svg'
+import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
+import { gradientCss } from '../Home/homeData.ts'
+import {
+  ME,
+  MY_FOLLOWING,
+  compactCount,
+  getProfile,
+  hasProfile,
+  type ActivityItem,
+  type Member,
+  type Profile as ProfileData,
+  type ProfileList,
+} from './profileData.ts'
+import styles from './Profile.module.css'
+
+type Tab = 'activity' | 'reviews' | 'lists' | 'watched'
+type PeopleTab = 'followers' | 'following'
+
+/** Chip colours for "Favourite genres", in Figma order. */
+const GENRE_COLORS = [
+  'var(--accent-yellow)',
+  'var(--surface-coral-tint)',
+  'var(--surface-violet-tint)',
+  'var(--surface-mint-tint)',
+  'var(--surface-cream-deep)',
+]
+
+export default function Profile() {
+  const { handle } = useParams()
+  const profile = getProfile(handle)
+  if (!profile) return <Placeholder title="Profile not found" notFound />
+  // Keyed by handle so tabs and follow state reset when moving between profiles.
+  return <ProfilePage key={profile.handle} profile={profile} />
+}
+
+function ProfilePage({ profile }: { profile: ProfileData }) {
+  const pageRef = useRef<HTMLDivElement>(null)
+  useEntranceAnimation(pageRef)
+
+  const isMe = profile.handle === ME
+  const firstName = profile.name.split(' ')[0]
+  const [tab, setTab] = useState<Tab>('activity')
+  const [peopleTab, setPeopleTab] = useState<PeopleTab>('followers')
+  const [shareNote, setShareNote] = useState('')
+  // TODO: read and write follows through the API once it exists.
+  const [following, setFollowing] = useState<string[]>(MY_FOLLOWING)
+  const isFollowing = following.includes(profile.handle)
+  const toggleFollow = (handle: string) =>
+    setFollowing((list) => (list.includes(handle) ? list.filter((h) => h !== handle) : [...list, handle]))
+  // The follower count moves with the main Follow button.
+  const followedAtLoad = MY_FOLLOWING.includes(profile.handle)
+  const followers = profile.followers + (isFollowing === followedAtLoad ? 0 : isFollowing ? 1 : -1)
+
+  const handleShare = async () => {
+    const url = window.location.href
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `${profile.name} on WatchWise`, url })
+        return
+      }
+      await navigator.clipboard.writeText(url)
+      setShareNote('Profile link copied')
+    } catch {
+      setShareNote('')
+    }
+  }
+
+  const tabs: { id: Tab; label: string; count?: number }[] = [
+    { id: 'activity', label: 'Activity' },
+    { id: 'reviews', label: 'Reviews', count: profile.reviews },
+    { id: 'lists', label: 'Lists', count: profile.lists },
+    { id: 'watched', label: 'Watched', count: profile.films },
+  ]
+  const stats = [
+    { label: 'Followers', value: compactCount(followers) },
+    { label: 'Following', value: compactCount(profile.following) },
+    { label: 'Reviews', value: compactCount(profile.reviews) },
+    { label: 'Lists', value: compactCount(profile.lists) },
+    { label: 'Films', value: compactCount(profile.films) },
+  ]
+  const people = peopleTab === 'followers' ? profile.followerList : profile.followingList
+
+  return (
+    <div ref={pageRef} className={styles.page}>
+      <AppNav />
+
+      <main>
+        <section className={styles.header} aria-labelledby="profile-name">
+          <div className={styles.headerInner}>
+            <div
+              className={styles.avatar}
+              style={{ background: profile.color }}
+              aria-hidden="true"
+              data-enter="pop"
+              data-enter-delay="0.1"
+            >
+              {profile.initials}
+            </div>
+            <div className={styles.info} data-enter data-enter-delay="0.25">
+              <div className={styles.nameRow}>
+                <div className={styles.nameBlock}>
+                  <SplitHeadline id="profile-name" className={styles.name} lines={[{ text: profile.name }]} />
+                  <p className={styles.handle}>
+                    <span className={styles.at}>@{profile.handle}</span>
+                    <span className={styles.location}>
+                      <img src={pinIcon} width={14} height={14} alt="" />
+                      {profile.location}
+                    </span>
+                    <span>· Member since {profile.since}</span>
+                  </p>
+                </div>
+                <div className={styles.actions}>
+                  {isMe ? (
+                    <Link to="/settings" className={styles.followBtn}>
+                      Edit profile
+                    </Link>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className={isFollowing ? styles.followBtn : styles.followBtnOff}
+                        aria-pressed={isFollowing}
+                        onClick={() => toggleFollow(profile.handle)}
+                      >
+                        {isFollowing && <img src={checkIcon} width={16} height={16} alt="" />}
+                        {isFollowing ? 'Following' : 'Follow'}
+                      </button>
+                      <Link to="/movie-nights" className={styles.inviteBtn}>
+                        <img src={calendarIcon} width={16} height={16} alt="" />
+                        Invite to movie night
+                      </Link>
+                    </>
+                  )}
+                  <button type="button" className={styles.moreBtn} aria-label="Share profile" onClick={handleShare}>
+                    <img src={dotsIcon} width={22} height={22} alt="" />
+                  </button>
+                </div>
+              </div>
+              <p className={styles.bio}>{profile.bio}</p>
+              <dl className={styles.stats}>
+                {stats.map((stat) => (
+                  <div key={stat.label} className={styles.stat}>
+                    <dt>{stat.label}</dt>
+                    <dd>{stat.value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className={styles.shareNote} role="status">
+                {shareNote}
+              </p>
+            </div>
+          </div>
+        </section>
+        <img className={styles.headerWave} src={headerWave} width={1440} height={70} alt="" />
+
+        <div className={styles.content}>
+          <div className={styles.tabs} role="tablist" aria-label={`${firstName}'s profile`}>
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                className={styles.tab}
+                onClick={() => setTab(t.id)}
+              >
+                <span>
+                  {t.label}
+                  {t.count !== undefined && <span className={styles.tabCount}>{t.count}</span>}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className={styles.body}>
+            <section className={styles.feed} aria-label={tabs.find((t) => t.id === tab)!.label} data-enter data-enter-delay="0.35">
+              {tab === 'activity' &&
+                (profile.activity.length > 0 ? (
+                  profile.activity.map((item) => <ActivityCard key={item.id} item={item} firstName={firstName} />)
+                ) : (
+                  <p className={styles.empty}>No activity yet.</p>
+                ))}
+              {tab === 'reviews' &&
+                (profile.reviewList.length > 0 ? (
+                  profile.reviewList.map((review) => <ReviewCard key={review.id} review={review} />)
+                ) : (
+                  <p className={styles.empty}>No reviews yet.</p>
+                ))}
+              {tab === 'lists' &&
+                profile.listCards.map((list) => (
+                  <Link key={list.slug} to={`/lists/${list.slug}`} className={styles.card}>
+                    <ListPreview list={list} />
+                  </Link>
+                ))}
+              {tab === 'watched' && (
+                <div className={styles.watched}>
+                  {profile.watched.map((movie) => (
+                    <MovieTile key={movie.slug} movie={movie} />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <aside className={styles.side} data-enter data-enter-delay="0.45">
+              <section className={styles.people} aria-label="Followers and following">
+                <div className={styles.segmented} role="tablist" aria-label="People">
+                  {(['followers', 'following'] as const).map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={peopleTab === id}
+                      className={styles.segment}
+                      onClick={() => setPeopleTab(id)}
+                    >
+                      {id === 'followers' ? `Followers ${compactCount(followers)}` : `Following ${profile.following}`}
+                    </button>
+                  ))}
+                </div>
+                <ul className={styles.personList}>
+                  {people.map((person) => (
+                    <PersonRow
+                      key={person.handle}
+                      person={person}
+                      isFollowing={following.includes(person.handle)}
+                      onToggle={() => toggleFollow(person.handle)}
+                    />
+                  ))}
+                </ul>
+                <span className={styles.viewAll}>
+                  View all {(peopleTab === 'followers' ? followers : profile.following).toLocaleString('en-US')} →
+                </span>
+              </section>
+
+              <section className={styles.top4} aria-labelledby="top4-title">
+                <h2 id="top4-title" className={styles.top4Title}>
+                  {isMe ? 'Your' : `${firstName}'s`} top 4
+                </h2>
+                <div className={styles.top4Posters}>
+                  {profile.top4.map((movie) => (
+                    <Link
+                      key={movie.slug}
+                      to={`/movies/${movie.slug}`}
+                      className={styles.top4Poster}
+                      style={{ background: gradientCss(movie.gradient) }}
+                      aria-label={movie.title}
+                    />
+                  ))}
+                </div>
+              </section>
+
+              <section className={styles.genres} aria-labelledby="genres-title">
+                <h2 id="genres-title" className={styles.cardTitle}>
+                  Favourite genres
+                </h2>
+                <ul className={styles.chips}>
+                  {profile.genres.map((genre, index) => (
+                    <li key={genre} className={styles.chip} style={{ background: GENRE_COLORS[index % GENRE_COLORS.length] }}>
+                      <Link to={`/discover?genre=${encodeURIComponent(genre)}`}>{genre}</Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </aside>
+          </div>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+const ACTIVITY_ICON = {
+  rated: { icon: starIcon, bg: 'var(--accent-yellow)' },
+  reviewed: { icon: chatIcon, bg: 'var(--accent-mint)' },
+  list: { icon: listIcon, bg: 'var(--surface-violet-tint)' },
+  watchlist: { icon: eyeIcon, bg: 'var(--accent-coral)' },
+} satisfies Record<ActivityItem['kind'], { icon: string; bg: string }>
+
+function ActivityHead({ item, firstName }: { item: ActivityItem; firstName: string }) {
+  const { icon, bg } = ACTIVITY_ICON[item.kind]
+  return (
+    <div className={styles.activityHead}>
+      <span className={styles.activityIcon} style={{ background: bg }}>
+        <img src={icon} width={14} height={14} alt="" />
+      </span>
+      <p className={styles.activityText}>
+        {item.kind === 'rated' && (
+          <>
+            {firstName} rated <Link to={`/movies/${item.movie.slug}`}>{item.movie.title}</Link>
+          </>
+        )}
+        {item.kind === 'reviewed' && (
+          <>
+            {firstName} reviewed <Link to={`/movies/${item.movie.slug}`}>{item.movie.title}</Link>
+          </>
+        )}
+        {item.kind === 'list' && (
+          <>
+            {firstName} created the public list <Link to={`/lists/${item.list.slug}`}>{item.list.title}</Link>
+          </>
+        )}
+        {item.kind === 'watchlist' && (
+          <>
+            {firstName} added <Link to={`/movies/${item.movie.slug}`}>{item.movie.title}</Link>
+            {item.more > 0 && ` and ${item.more} more`} to the watchlist
+          </>
+        )}
+      </p>
+      <span className={styles.activityTime}>· {item.time}</span>
+    </div>
+  )
+}
+
+function ActivityCard({ item, firstName }: { item: ActivityItem; firstName: string }) {
+  if (item.kind === 'reviewed') {
+    // Figma: the review card sits under a bare heading instead of inside an activity card.
+    return (
+      <article className={styles.reviewActivity}>
+        <ActivityHead item={item} firstName={firstName} />
+        <ReviewCard review={item.review} />
+      </article>
+    )
+  }
+
+  return (
+    <article className={styles.card}>
+      <ActivityHead item={item} firstName={firstName} />
+      {item.kind === 'rated' && (
+        <Link to={`/movies/${item.movie.slug}`} className={styles.film}>
+          <span className={styles.filmThumb} style={{ background: gradientCss(item.movie.gradient) }} />
+          <span className={styles.filmText}>
+            <span className={styles.filmTitle}>{item.movie.title}</span>
+            <RatingStars value={item.rating} label={`${firstName}'s rating`} />
+            <span className={styles.filmMeta}>{item.movie.meta}</span>
+          </span>
+        </Link>
+      )}
+      {item.kind === 'list' && (
+        <Link to={`/lists/${item.list.slug}`} className={styles.listLink}>
+          <ListPreview list={item.list} />
+        </Link>
+      )}
+    </article>
+  )
+}
+
+function ListPreview({ list }: { list: ProfileList }) {
+  return (
+    <span className={styles.listRow}>
+      <span className={styles.listPosters}>
+        {list.posters.slice(0, 5).map((gradient, index) => (
+          <span key={index} className={styles.listPoster} style={{ background: gradientCss(gradient) }} />
+        ))}
+      </span>
+      <span className={styles.listText}>
+        <span className={styles.filmTitle}>{list.title}</span>
+        <span className={styles.filmMeta}>{list.meta}</span>
+      </span>
+    </span>
+  )
+}
+
+function PersonRow({ person, isFollowing, onToggle }: { person: Member; isFollowing: boolean; onToggle: () => void }) {
+  const isMe = person.handle === ME
+  const name = (
+    <span className={styles.personText}>
+      <span className={styles.personName}>
+        {person.name}
+        {isMe && ' (you)'}
+      </span>
+      <span className={styles.personHandle}>@{person.handle}</span>
+    </span>
+  )
+
+  return (
+    <li className={styles.person}>
+      <span className={styles.personAvatar} style={{ background: person.color }} aria-hidden="true">
+        {person.initials}
+      </span>
+      {hasProfile(person.handle) ? (
+        <Link to={isMe ? '/profile' : `/profile/${person.handle}`} className={styles.personLink}>
+          {name}
+        </Link>
+      ) : (
+        name
+      )}
+      {!isMe && (
+        <PillButton variant={isFollowing ? 'outline' : 'solid'} pressed={isFollowing} onClick={onToggle}>
+          {isFollowing ? 'Unfollow' : 'Follow'}
+        </PillButton>
+      )}
+    </li>
+  )
+}
