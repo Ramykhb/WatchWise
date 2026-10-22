@@ -1,18 +1,17 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import AuthShell from '../../components/AuthShell/AuthShell.tsx'
+import AuthWaves from '../../components/AuthWaves/AuthWaves.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import Checkbox from '../../components/Checkbox/Checkbox.tsx'
 import OrDivider from '../../components/OrDivider/OrDivider.tsx'
 import Magnet from '../../components/reactbits/Magnet/Magnet.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
-import PosterCardMini, { type MiniPoster } from '../../components/PosterCardMini/PosterCardMini.tsx'
+import PosterCardMini from '../../components/PosterCardMini/PosterCardMini.tsx'
 import SocialButton, { type SocialProvider } from '../../components/SocialButton/SocialButton.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
 import YearInFilmCard from '../../components/YearInFilmCard/YearInFilmCard.tsx'
 import bgPeach from '../../assets/auth/signup-bg-peach-blob.svg'
-import bgCoral from '../../assets/auth/signup-bg-coral-wave.svg'
-import bgViolet from '../../assets/auth/signup-bg-violet-ground.svg'
 import bgYellow from '../../assets/auth/signup-bg-yellow-blob.svg'
 import decoRing from '../../assets/auth/deco-ring-signup.png'
 import dotCoral from '../../assets/landing/deco-dot-coral.svg'
@@ -21,13 +20,12 @@ import dotMintSm from '../../assets/landing/deco-dot-mint-sm.svg'
 import dotYellow from '../../assets/auth/deco-dot-yellow-md.svg'
 import infoIcon from '../../assets/auth/icon-info.svg'
 import { AUTH_SWAP_STATE as SWAP, useAuthSwap } from '../../hooks/useAuthSwap.ts'
+import { LAST_LAP, NEON_TIDE, PAPER_MOON } from '../authPosters.ts'
 import styles from './SignUp.module.css'
 
 const PROVIDERS: SocialProvider[] = ['google', 'github', 'facebook']
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_PATTERN = /^(?=.*\d).{8,}$/
-
-const PAPER_MOON: MiniPoster = { title: 'Paper Moon', posterTitle: ['PAPER', 'MOON'], meta: 'Comedy · 2026', rating: '4.6', gradient: ['#ffe073', '#ff8c59', '#99264d'] }
 
 type Errors = Partial<Record<'name' | 'email' | 'password' | 'terms', string>>
 
@@ -63,8 +61,7 @@ export default function SignUp() {
       background={
         <>
           <img className={`${styles.bg} vt-auth-bg-peach`} src={bgPeach} width={1440} height={1024} alt="" />
-          <img className={`${styles.bg} ${styles.wave} vt-auth-bg-coral`} src={bgCoral} width={1440} height={1024} alt="" />
-          <img className={`${styles.bg} ${styles.wave} vt-auth-bg-violet`} src={bgViolet} width={1440} height={1024} alt="" />
+          <AuthWaves side="left" className={`${styles.bg} ${styles.wave}`} />
           <img className={`${styles.bgYellow} ${styles.wave} vt-auth-bg-yellow`} src={bgYellow} width={1440} height={1024} alt="" />
         </>
       }
@@ -89,9 +86,11 @@ export default function SignUp() {
       }
       artboard={
         <>
+          <PosterCardMini poster={LAST_LAP} className={`${styles.cardLastLap} vt-card-last-lap`} />
           <PosterCardMini poster={PAPER_MOON} className={`${styles.cardPaperMoon} vt-card-paper-moon`} />
-          <YearInFilmCard className={styles.yearCard} data-enter data-enter-delay="0.25" data-enter-rise="60" />
-          <div className={styles.sticker} data-enter="pop" data-enter-delay="0.7">
+          <PosterCardMini poster={NEON_TIDE} className={`${styles.cardNeonTide} vt-card-neon-tide`} />
+          <YearInFilmCard className={`${styles.yearCard} vt-auth-year-card`} data-enter data-enter-delay="0.25" data-enter-rise="60" />
+          <div className={`${styles.sticker} vt-auth-sticker`} data-enter="pop" data-enter-delay="0.7">
             <span className={styles.stickerTitle}>FREE</span>
             <span className={styles.stickerLabel}>FOREVER</span>
           </div>
