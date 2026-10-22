@@ -9,7 +9,7 @@ class MovieListItem extends Model
 {
     protected $fillable = ['movie_list_id', 'tmdb_id', 'added_at'];
 
-    public const UPDATED_AT = null;
+    public $timestamps = false;
 
     protected function casts(): array
     {

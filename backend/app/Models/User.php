@@ -6,7 +6,6 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
@@ -18,13 +17,11 @@ class User extends Authenticatable
         'password',
         'avatar',
         'bio',
-        'role',
         'profile_visibility',
-        'is_active',
     ];
 
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory;
 
     /**
      * Get the attributes that should be cast.
@@ -73,15 +70,13 @@ class User extends Authenticatable
     public function following()
     {
         return $this->belongsToMany(self::class, 'follows', 'follower_id', 'following_id')
-            ->withPivot('id')
-            ->withTimestamps();
+            ->withPivot('id');
     }
 
     public function followers()
     {
         return $this->belongsToMany(self::class, 'follows', 'following_id', 'follower_id')
-            ->withPivot('id')
-            ->withTimestamps();
+            ->withPivot('id');
     }
 
     public function activityFeed()
