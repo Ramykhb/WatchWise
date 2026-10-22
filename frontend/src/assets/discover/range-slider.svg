@@ -1,0 +1,8 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="252" height="24" viewBox="0 0 252 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Range slider">
+<rect id="Rectangle" y="9" width="252" height="6" rx="3" fill="#DBD5D1"/>
+<rect id="Rectangle_2" x="60" y="9" width="150" height="6" rx="3" fill="#2B1A63"/>
+<path id="Ellipse" d="M70.5 12C70.5 17.2467 66.2467 21.5 61 21.5C55.7533 21.5 51.5 17.2467 51.5 12C51.5 6.75329 55.7533 2.5 61 2.5C66.2467 2.5 70.5 6.75329 70.5 12Z" fill="white" stroke-width="3" stroke="#2B1A63"/>
+<path id="Ellipse_2" d="M220.5 12C220.5 17.2467 216.247 21.5 211 21.5C205.753 21.5 201.5 17.2467 201.5 12C201.5 6.75329 205.753 2.5 211 2.5C216.247 2.5 220.5 6.75329 220.5 12Z" fill="white" stroke-width="3" stroke="#2B1A63"/>
+</g>
+</svg>

@@ -1,0 +1,686 @@
+.page {
+  min-height: 100vh;
+  overflow-x: clip;
+  padding-bottom: 96px;
+  background: var(--ground-cream);
+}
+
+.main {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 80px;
+}
+
+/* ---------- Header ---------- */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px 0 32px;
+}
+
+.title {
+  display: flex;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 72px;
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+  white-space: nowrap;
+}
+
+.lead {
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 10px 10px 24px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-white);
+  transition:
+    border-color 0.2s ease-out,
+    box-shadow 0.2s ease-out;
+}
+
+.searchBar:focus-within {
+  border-color: var(--ground-violet);
+  box-shadow: 0 0 0 4px var(--surface-violet-tint);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 500;
+  font-size: 18px;
+  color: var(--ink-900);
+}
+
+.searchInput::placeholder {
+  color: var(--ink-400);
+}
+
+.searchButton {
+  flex-shrink: 0;
+}
+
+/* Native <select>s dressed as the Figma chip / sort pill / dropdown, chevron overlaid on the right. */
+.typeChip,
+.sort,
+.dropdown {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.typeChip select,
+.sort select,
+.dropdown select {
+  appearance: none;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.typeChip img,
+.sort img,
+.dropdown img {
+  position: absolute;
+  pointer-events: none;
+}
+
+.typeChip select {
+  padding: 7px 32px 7px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-violet-tint);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ground-violet);
+}
+
+.typeChip img {
+  right: 14px;
+}
+
+.typeChip select:focus-visible,
+.sort select:focus-visible,
+.dropdown select:focus-visible {
+  outline: 3px solid var(--accent-yellow);
+  outline-offset: 2px;
+}
+
+.tabs {
+  display: flex;
+  gap: 28px;
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--ink-400);
+  white-space: nowrap;
+  transition: color 0.2s ease-out;
+}
+
+/* Figma separates label and count with two spaces. */
+.tabCount {
+  margin-left: 0.5em;
+}
+
+.tab::after {
+  content: '';
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent-coral);
+  scale: 0 1;
+  transition: scale 0.25s var(--ease-out-back);
+}
+
+.tab:hover,
+.tab[aria-selected='true'] {
+  color: var(--ink-900);
+}
+
+.tab[aria-selected='true']::after {
+  scale: 1;
+}
+
+/* ---------- Body ---------- */
+.body {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+}
+
+/* ---------- Filters ---------- */
+.filters {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 24px;
+  width: 300px;
+  padding: 24px;
+  border-radius: 28px;
+  background: var(--surface-white);
+}
+
+.filtersHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.filtersTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.textButton,
+.textButtonSm {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ground-violet);
+}
+
+.textButtonSm {
+  font-size: 13px;
+}
+
+.textButton:hover,
+.textButtonSm:hover {
+  color: var(--accent-coral);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.groupLabel {
+  padding: 0;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink-900);
+}
+
+/* A <legend> sits outside the fieldset's flex flow, so it needs its own spacing. */
+legend.groupLabel {
+  margin-bottom: 12px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip,
+.chipOn,
+.activeChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  transition:
+    background-color 0.2s ease-out,
+    color 0.2s ease-out;
+}
+
+.chip {
+  background: var(--surface-cream-deep);
+  color: var(--ink-900);
+}
+
+.chip:hover {
+  background: var(--surface-violet-tint);
+  color: var(--ground-violet);
+}
+
+.chipOn {
+  background: var(--ground-violet);
+  color: var(--ground-cream);
+}
+
+/* Dual-thumb year slider, drawn like the Figma "Range slider": 6px track, violet fill, 22px ringed thumbs. */
+.range {
+  --thumb: 22px;
+  position: relative;
+  height: 24px;
+}
+
+.range::before,
+.range::after {
+  content: '';
+  position: absolute;
+  top: 9px;
+  height: 6px;
+  border-radius: 3px;
+}
+
+.range::before {
+  right: 0;
+  left: 0;
+  background: var(--border-subtle);
+}
+
+.range::after {
+  right: calc(var(--thumb) / 2 + (100% - var(--thumb)) * (1 - var(--to)));
+  left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--from));
+  background: var(--ground-violet);
+}
+
+.range input {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 24px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+}
+
+.range input::-webkit-slider-runnable-track {
+  height: 24px;
+  background: transparent;
+}
+
+.range input::-moz-range-track {
+  height: 24px;
+  background: transparent;
+}
+
+.range input::-webkit-slider-thumb {
+  box-sizing: border-box;
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: 1px;
+  border: 3px solid var(--ground-violet);
+  border-radius: 50%;
+  appearance: none;
+  background: var(--surface-white);
+  cursor: grab;
+  pointer-events: auto;
+  transition: scale 0.2s var(--ease-out-back);
+}
+
+.range input::-moz-range-thumb {
+  box-sizing: border-box;
+  width: var(--thumb);
+  height: var(--thumb);
+  border: 3px solid var(--ground-violet);
+  border-radius: 50%;
+  background: var(--surface-white);
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.range input:hover::-webkit-slider-thumb {
+  scale: 1.1;
+}
+
+.range input:focus-visible {
+  outline: 0;
+}
+
+.range input:focus-visible::-webkit-slider-thumb {
+  outline: 3px solid var(--accent-yellow);
+  outline-offset: 2px;
+}
+
+.range input:focus-visible::-moz-range-thumb {
+  outline: 3px solid var(--accent-yellow);
+  outline-offset: 2px;
+}
+
+.rangeLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+.ratingRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stars {
+  display: flex;
+  gap: 2px;
+}
+
+.star {
+  display: grid;
+  border-radius: 4px;
+  transition: scale 0.2s var(--ease-out-back);
+}
+
+.star:hover {
+  scale: 1.2;
+}
+
+.ratingValue {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.dropdown select {
+  width: 100%;
+  padding: 12px 44px 12px 16px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--surface-white);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-900);
+  transition: border-color 0.2s ease-out;
+}
+
+.dropdown select:hover {
+  border-color: var(--ink-900);
+}
+
+.dropdown {
+  display: flex;
+}
+
+.dropdown img {
+  right: 16px;
+}
+
+.availability {
+  --checkbox-label-color: var(--ink-900);
+}
+
+/* ---------- Results ---------- */
+.results {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.resultsTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+}
+
+.accent {
+  color: var(--accent-coral);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sort select {
+  padding: 10px 42px 10px 16px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-white);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink-900);
+  transition: border-color 0.2s ease-out;
+}
+
+.sort select:hover {
+  border-color: var(--ink-900);
+}
+
+.sort img {
+  right: 16px;
+}
+
+.iconButton,
+.iconButtonOn,
+.pageButton,
+.pageButtonOn,
+.pageGap {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 14px;
+  transition:
+    background-color 0.2s ease-out,
+    border-color 0.2s ease-out;
+}
+
+.iconButton,
+.pageButton,
+.pageGap {
+  border: 1.5px solid var(--border-subtle);
+  background: var(--surface-white);
+  color: var(--ink-900);
+}
+
+.iconButton:hover,
+.pageButton:hover:not(:disabled) {
+  border-color: var(--ink-900);
+}
+
+.pageButton:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.iconButtonOn {
+  background: var(--ground-violet);
+}
+
+/* The Figma grid icon is cream (active) and the list icon ink (inactive); recolor them when the view flips. */
+.iconButton .creamIcon {
+  filter: brightness(0.35);
+}
+
+.iconButtonOn .inkIcon {
+  filter: brightness(0) invert(1);
+}
+
+.activeFilters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.activeChip {
+  background: var(--surface-white);
+  color: var(--ink-900);
+}
+
+.activeChip:hover {
+  background: var(--surface-coral-tint);
+}
+
+.grid {
+  --poster-w: 212;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: 36px 28px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  border-radius: 20px;
+  background: var(--surface-white);
+  transition:
+    translate 0.2s ease-out,
+    box-shadow 0.2s ease-out;
+}
+
+.listItem:hover {
+  translate: 0 -2px;
+  box-shadow: var(--elevation-soft);
+}
+
+.thumb {
+  flex-shrink: 0;
+  width: 48px;
+  height: 70px;
+  border-radius: 10px;
+}
+
+.listText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.listTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+
+.listMeta {
+  font-size: 13px;
+  color: var(--ink-600);
+}
+
+.listScore {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px 4px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--ground-cream);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.empty {
+  padding: 48px 0;
+  font-size: 16px;
+  color: var(--ink-600);
+}
+
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pageButtonOn {
+  background: var(--ground-violet);
+  color: var(--ground-cream);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  .main {
+    padding: 0 32px;
+  }
+
+  .body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filters {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding: 0 20px;
+  }
+
+  .title {
+    font-size: 56px;
+  }
+
+  .lead {
+    font-size: 16px;
+  }
+
+  .searchBar {
+    flex-wrap: wrap;
+    padding: 10px;
+    border-radius: 28px;
+  }
+
+  .searchBar > img {
+    margin-left: 10px;
+  }
+
+  .searchInput {
+    flex-basis: calc(100% - 48px);
+    padding: 8px 0;
+  }
+
+  .searchButton {
+    flex: 1;
+    justify-content: space-between;
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 28px 16px;
+  }
+}
