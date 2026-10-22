@@ -1,0 +1,374 @@
+.page {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: clip;
+  padding-bottom: 96px;
+  background: var(--ground-cream);
+}
+
+/* Blob behind the weather card, positioned in the 1440px Figma frame (centered on wide screens). */
+.background {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1440px;
+  height: 700px;
+  translate: -50% 0;
+  pointer-events: none;
+}
+
+.blob {
+  position: absolute;
+  top: 57.5px;
+  left: 820px;
+  max-width: none;
+}
+
+.main {
+  position: relative;
+  z-index: 1;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 80px;
+}
+
+/* ---------- Hero ---------- */
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+  padding: 24px 0 8px;
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 620px;
+  min-width: 0;
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 84px;
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+  white-space: nowrap;
+}
+
+.accent {
+  color: var(--accent-coral);
+}
+
+.lead {
+  max-width: 600px;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+.taste {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 600px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tasteChip {
+  display: inline-flex;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: translate 0.2s ease-out;
+}
+
+.tasteChip:hover {
+  translate: 0 -2px;
+}
+
+.weather {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 18px;
+  width: 520px;
+  padding: 32px;
+  border-radius: 36px;
+  background: var(--ground-violet);
+  box-shadow: var(--elevation-float);
+}
+
+.weatherTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.temp {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.place {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-on-violet-muted);
+}
+
+.degrees {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 80px;
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+  color: var(--ground-cream);
+}
+
+.condition {
+  font-weight: 500;
+  font-size: 15px;
+  color: var(--text-on-violet-muted);
+}
+
+.weatherIcon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 120px;
+  height: 120px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-yellow);
+}
+
+.mood {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  border-radius: 22px;
+  background: var(--ground-violet-deep);
+}
+
+.moodLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--accent-yellow);
+}
+
+.moodTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  color: var(--ground-cream);
+}
+
+.moodText {
+  max-width: 420px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-on-violet-muted);
+}
+
+/* "Adapt suggestions to weather" switch, drawn like the Figma 44×26 mint "Switch" (on). */
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ground-cream);
+  cursor: pointer;
+}
+
+.switch input {
+  position: absolute;
+  width: 44px;
+  height: 26px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.switchTrack {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 26px;
+  border-radius: 13px;
+  background: var(--ink-400);
+  transition: background-color 0.2s ease-out;
+}
+
+.switchTrack::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-white);
+  transition: translate 0.25s var(--ease-out-back);
+}
+
+.switch input:checked + .switchTrack {
+  background: var(--accent-mint);
+}
+
+.switch input:checked + .switchTrack::after {
+  translate: 18px 0;
+}
+
+.switch input:focus-visible + .switchTrack {
+  outline: 3px solid var(--accent-yellow);
+  outline-offset: 2px;
+}
+
+/* ---------- Shelves ---------- */
+.shelf {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 20px;
+  padding-top: 56px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+}
+
+.sectionAction {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ground-violet);
+  white-space: nowrap;
+}
+
+.sectionAction:hover {
+  text-decoration: underline;
+}
+
+.reason {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-white);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink-600);
+}
+
+/* Six 196px tiles with 20px gaps at 1440, like Home. */
+.row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 20px;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1240px) {
+  .title {
+    font-size: 72px;
+  }
+
+  .weather {
+    width: 460px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .main {
+    padding: 0 32px;
+  }
+
+  .background {
+    display: none;
+  }
+
+  .hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .intro {
+    width: auto;
+  }
+
+  .weather {
+    width: auto;
+    max-width: 520px;
+  }
+
+  .row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding: 0 20px;
+  }
+
+  .title {
+    font-size: 52px;
+    white-space: normal;
+  }
+
+  .lead {
+    font-size: 16px;
+  }
+
+  .weather {
+    padding: 24px;
+  }
+
+  .degrees {
+    font-size: 64px;
+  }
+
+  .weatherIcon {
+    width: 96px;
+    height: 96px;
+  }
+
+  .sectionTitle {
+    font-size: 24px;
+  }
+
+  .row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
