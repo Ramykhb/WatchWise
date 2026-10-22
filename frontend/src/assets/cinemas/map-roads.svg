@@ -1,0 +1,15 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="896" height="884" viewBox="0 0 896 884" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Roads" clip-path="url(#clip0_0_89)">
+<path id="Vector" d="M0 300C250 240 420 470 896 420" stroke-width="18" stroke="white"/>
+<path id="Vector_2" d="M200 0L320 884" stroke-width="14" stroke="white"/>
+<path id="Vector_3" d="M660 0C600 300 760 520 700 884" stroke-width="12" stroke="white"/>
+<path id="Vector_4" d="M0 720L896 650" stroke-width="10" stroke="white"/>
+<path id="Vector_5" d="M0 120L520 180" stroke-width="8" stroke="white"/>
+<path id="Vector_6" d="M420 884C460 700 520 600 540 420" stroke-width="8" stroke="white"/>
+</g>
+<defs>
+<clipPath id="clip0_0_89">
+<rect width="896" height="884" fill="white"/>
+</clipPath>
+</defs>
+</svg>
