@@ -1,0 +1,491 @@
+.page {
+  min-height: 100vh;
+  overflow-x: clip;
+  padding-bottom: 96px;
+  background: var(--ground-cream);
+}
+
+/* ---------- Header ---------- */
+.header {
+  background: var(--ground-violet);
+}
+
+.headerInner {
+  display: flex;
+  align-items: center;
+  gap: 56px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 56px 80px 40px;
+}
+
+.portrait {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 240px;
+  height: 240px;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--elevation-float);
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 88px;
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+  color: var(--ground-cream);
+}
+
+.info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  max-width: 820px;
+}
+
+.roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.role,
+.roleMain {
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.role {
+  background: var(--ground-violet-deep);
+  color: var(--ground-cream);
+}
+
+.roleMain {
+  background: var(--accent-yellow);
+  color: var(--ink-900);
+}
+
+.name {
+  display: flex;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 80px;
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+  color: var(--ground-cream);
+  white-space: nowrap;
+}
+
+.bio {
+  max-width: 780px;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--text-on-violet-muted);
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+  margin: 0;
+}
+
+/* Value above label visually; label comes first in the markup for screen readers. */
+.stat {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+}
+
+.stat dt {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-on-violet-muted);
+}
+
+.stat dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--ground-cream);
+}
+
+/* Overlaps the header by 1px so no seam shows at fractional zoom levels. */
+.headerWave {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 70px;
+  margin-top: -1px;
+}
+
+/* ---------- Known for ---------- */
+.knownFor,
+.twoCol {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 40px 80px 0;
+}
+
+.knownFor {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+}
+
+.sectionAction {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ground-violet);
+  white-space: nowrap;
+}
+
+.sectionAction:hover {
+  text-decoration: underline;
+}
+
+/* Six 196px tiles with 20px gaps at 1440, like Home. */
+.row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 20px;
+}
+
+/* ---------- Filmography + side ---------- */
+.twoCol {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  padding-top: 56px;
+}
+
+.filmography,
+.collaborators,
+.awards {
+  display: flex;
+  flex-direction: column;
+  border-radius: 28px;
+}
+
+.filmography {
+  flex: 1;
+  min-width: 0;
+  padding: 28px;
+  background: var(--surface-white);
+}
+
+.cardTitleLg,
+.cardTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.cardTitleLg {
+  padding-bottom: 12px;
+  font-size: 24px;
+}
+
+.cardTitle {
+  font-size: 22px;
+}
+
+.credits {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.credit {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 0;
+}
+
+.credit + .credit {
+  border-top: 1.5px solid var(--border-subtle);
+}
+
+.year {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink-400);
+}
+
+.creditLink {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+
+.thumb {
+  flex-shrink: 0;
+  width: 44px;
+  height: 62px;
+  border-radius: 8px;
+  transition: translate 0.25s var(--ease-out-back);
+}
+
+.creditLink:hover .thumb {
+  translate: 0 -3px;
+}
+
+.creditText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.creditTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.creditLink:hover .creditTitle {
+  color: var(--ground-violet);
+  text-decoration: underline;
+}
+
+.creditRoles {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+.score {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.add,
+.addOn {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-violet-tint);
+  transition:
+    background-color 0.2s ease-out,
+    scale 0.25s var(--ease-out-back);
+}
+
+.add:hover {
+  scale: 1.1;
+}
+
+.addOn {
+  background: var(--accent-mint);
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 24px;
+  width: 420px;
+}
+
+.collaborators,
+.awards {
+  gap: 14px;
+  padding: 28px;
+}
+
+.collaborators {
+  background: var(--surface-white);
+}
+
+.people {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.collaborator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 14px;
+  transition: scale 0.25s var(--ease-out-back);
+}
+
+.collaborator:hover .avatar {
+  scale: 1.1;
+}
+
+.collabText {
+  display: flex;
+  flex-direction: column;
+}
+
+.collabName {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.collaborator:hover .collabName {
+  text-decoration: underline;
+}
+
+.collabMeta {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-400);
+}
+
+.awards {
+  background: var(--accent-yellow);
+}
+
+.awardsHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.awardList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.awardList li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  .headerInner,
+  .knownFor,
+  .twoCol {
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+
+  .headerInner {
+    gap: 40px;
+  }
+
+  .portrait {
+    width: 180px;
+    height: 180px;
+    font-size: 64px;
+  }
+
+  .name {
+    font-size: 64px;
+  }
+
+  .row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .twoCol {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .side {
+    width: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .headerInner,
+  .knownFor,
+  .twoCol {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .headerInner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 24px;
+    padding-top: 32px;
+  }
+
+  .portrait {
+    width: 140px;
+    height: 140px;
+    font-size: 52px;
+  }
+
+  .name {
+    font-size: 48px;
+    white-space: normal;
+  }
+
+  .stats {
+    gap: 24px;
+  }
+
+  .row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filmography {
+    padding: 20px;
+  }
+
+  .credit,
+  .creditLink {
+    gap: 12px;
+  }
+}
