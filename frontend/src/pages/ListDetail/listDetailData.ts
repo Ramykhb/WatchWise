@@ -1,6 +1,7 @@
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import { MOVIES, type Gradient } from '../Home/homeData.ts'
-import { MY_LISTS, PUBLIC_LISTS } from '../Lists/listsData.ts'
+import { PUBLIC_LISTS } from '../Lists/listsData.ts'
+import { getMyLists } from '../Lists/myListsStore.ts'
 
 // Mock content from the Figma "List Detail — Rainy Day Comfort" frame. Other lists get their own
 // titles, covers and a few films; replace all of it with the lists API.
@@ -67,6 +68,12 @@ function entriesFor(posters: Gradient[], count: number): ListEntry[] {
   return [...cover, ...rest].slice(0, Math.min(count, 6)).map((movie) => ({ movie }))
 }
 
+const moviesToEntries = (slugs: string[]): ListEntry[] =>
+  slugs
+    .map((slug) => ALL_MOVIES.find((movie) => movie.slug === slug))
+    .filter((movie): movie is Movie => Boolean(movie))
+    .map((movie) => ({ movie }))
+
 const runtimeFor = (films: number) => {
   const minutes = films * 118
   return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`
@@ -77,7 +84,7 @@ export function getListDetail(slug: string | undefined): ListDetail | undefined 
   if (!slug) return undefined
   if (slug === RAINY_DAY.slug) return RAINY_DAY
 
-  const mine = MY_LISTS.find((list) => list.slug === slug)
+  const mine = getMyLists().find((list) => list.slug === slug)
   if (mine) {
     return {
       slug,
@@ -92,7 +99,7 @@ export function getListDetail(slug: string | undefined): ListDetail | undefined 
       likes: mine.isPublic ? 48 : 0,
       followers: mine.isPublic ? 12 : 0,
       posters: mine.posters,
-      entries: entriesFor(mine.posters, mine.films),
+      entries: mine.movies ? moviesToEntries(mine.movies) : entriesFor(mine.posters, mine.films),
     }
   }
 
