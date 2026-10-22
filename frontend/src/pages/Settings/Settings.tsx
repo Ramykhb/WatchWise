@@ -37,8 +37,7 @@ import styles from './Settings.module.css'
 
 type Section = 'profile' | 'account' | 'privacy' | 'connected' | 'integrations'
 
-// Notifications (rendered after this list) has no panel of its own in Figma; it opens Integrations,
-// where the email digest lives.
+// Notifications (rendered after this list) has no panel in Figma; it links to the Notifications page.
 const MENU: { id: Section; label: string; icon: string }[] = [
   { id: 'profile', label: 'Profile', icon: userIcon },
   { id: 'account', label: 'Account & password', icon: lockIcon },
@@ -227,10 +226,10 @@ export default function Settings() {
                 {item.label}
               </button>
             ))}
-            <button type="button" className={styles.menuItem} onClick={() => goTo('integrations')}>
+            <Link to="/notifications" className={styles.menuItem}>
               <span className={styles.menuIcon} style={maskIcon(bellIcon)} aria-hidden="true" />
               Notifications
-            </button>
+            </Link>
             <button type="button" className={`${styles.menuItem} ${styles.danger}`} onClick={handleDelete}>
               <img src={trashIcon} width={20} height={20} alt="" />
               Delete account

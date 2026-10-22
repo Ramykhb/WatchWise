@@ -1,0 +1,394 @@
+/* No Figma frame for this screen: spacing, type and colours follow the other app pages. */
+.page {
+  min-height: 100vh;
+  overflow-x: clip;
+  padding-bottom: 96px;
+  background: var(--ground-cream);
+}
+
+.main {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 80px;
+}
+
+/* ---------- Header ---------- */
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 0;
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(52px, 5vw, 72px);
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+  white-space: nowrap;
+}
+
+.lead {
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+/* ---------- Tabs ---------- */
+.tabs {
+  display: flex;
+  gap: 28px;
+  padding-bottom: 28px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--ink-400);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s ease-out;
+}
+
+.tabCount {
+  margin-left: 0.5em;
+}
+
+.tab::after {
+  content: '';
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background-color 0.2s ease-out;
+}
+
+.tab:hover,
+.tab[aria-selected='true'] {
+  color: var(--ink-900);
+}
+
+.tab[aria-selected='true']::after {
+  background: var(--accent-coral);
+}
+
+.body {
+  display: flex;
+  align-items: flex-start;
+  gap: 32px;
+}
+
+/* ---------- Feed ---------- */
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 820px;
+  min-width: 0;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.groupTitle {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item,
+.itemUnread {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: 24px;
+  background: var(--surface-white);
+  transition: background-color 0.2s ease-out;
+}
+
+.itemUnread {
+  background: var(--surface-violet-tint);
+}
+
+.avatar,
+.kindIcon {
+  position: relative;
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ink-900);
+}
+
+/* Small type badge on the actor's avatar. */
+.badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 2.5px solid var(--surface-white);
+  border-radius: var(--radius-pill);
+}
+
+.itemUnread .badge {
+  border-color: var(--surface-violet-tint);
+}
+
+.badgeIcon,
+.kindMask {
+  background: var(--ink-900);
+  mask: var(--icon) center / contain no-repeat;
+}
+
+.badgeIcon {
+  width: 12px;
+  height: 12px;
+}
+
+.kindMask {
+  width: 20px;
+  height: 20px;
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sentence {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+.sentence strong {
+  color: var(--ink-900);
+}
+
+.content:hover .sentence strong {
+  color: var(--ground-violet);
+}
+
+.detail {
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-600);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time {
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.action {
+  padding: 10px 16px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-white);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ground-violet);
+  white-space: nowrap;
+  transition: background-color 0.2s ease-out;
+}
+
+.item .action {
+  background: var(--ground-cream);
+}
+
+.action:hover {
+  background: var(--accent-yellow);
+}
+
+.iconBtn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background-color 0.2s ease-out;
+}
+
+.iconBtn:hover {
+  background: rgb(22 18 43 / 0.08);
+}
+
+.dot,
+.dotEmpty {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+}
+
+.dot {
+  background: var(--accent-coral);
+}
+
+.dotEmpty {
+  border: 2px solid var(--border-subtle);
+}
+
+.empty {
+  padding: 40px 20px;
+  border-radius: 24px;
+  background: var(--surface-white);
+  font-size: 15px;
+  color: var(--ink-400);
+  text-align: center;
+}
+
+/* ---------- Preferences ---------- */
+.side {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 24px;
+  border-radius: 28px;
+  background: var(--surface-white);
+}
+
+.sideTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.prefs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prefs li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1.5px solid var(--border-subtle);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.settingsLink {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ground-violet);
+}
+
+.settingsLink:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1360px) {
+  .feed {
+    width: auto;
+    flex: 2;
+  }
+}
+
+@media (max-width: 1100px) {
+  .main {
+    padding: 0 32px;
+  }
+
+  .body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .feed,
+  .side {
+    width: 100%;
+  }
+
+  .side {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding: 0 20px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .item,
+  .itemUnread {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .content {
+    flex-basis: calc(100% - 64px);
+  }
+
+  .actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .detail {
+    white-space: normal;
+  }
+}
