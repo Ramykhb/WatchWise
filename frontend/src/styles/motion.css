@@ -26,12 +26,8 @@
   view-transition-name: auth-bg-peach;
 }
 
-.vt-auth-bg-coral {
-  view-transition-name: auth-bg-coral;
-}
-
-.vt-auth-bg-violet {
-  view-transition-name: auth-bg-violet;
+.vt-auth-waves {
+  view-transition-name: auth-waves;
 }
 
 .vt-auth-bg-yellow {
@@ -73,6 +69,17 @@
 ::view-transition-group(*) {
   animation-duration: 0.7s;
   animation-timing-function: cubic-bezier(0.34, 1.25, 0.64, 1);
+}
+
+/* The coral + violet waves sweep across in the live new page (GSAP, see AuthWaves), so show
+   only that instead of cross-fading two static snapshots. */
+::view-transition-old(auth-waves) {
+  animation: none;
+  opacity: 0;
+}
+
+::view-transition-new(auth-waves) {
+  animation: none;
 }
 
 ::view-transition-old(root),

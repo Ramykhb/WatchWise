@@ -1,13 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import AuthShell from '../../components/AuthShell/AuthShell.tsx'
+import AuthWaves from '../../components/AuthWaves/AuthWaves.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import Magnet from '../../components/reactbits/Magnet/Magnet.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
 import bgPeach from '../../assets/auth/signin-bg-peach-blob.svg'
-import bgCoral from '../../assets/auth/signin-bg-coral-wave.svg'
-import bgViolet from '../../assets/auth/signin-bg-violet-ground.svg'
 import arrowLeft from '../../assets/forgot/icon-arrow-left.svg'
 import arrowIcon from '../../assets/landing/icon-arrow.svg'
 import lockIcon from '../../assets/forgot/icon-lock.svg'
@@ -43,8 +42,7 @@ export default function ForgotPassword() {
       background={
         <>
           <img className={`${styles.bg} vt-auth-bg-peach`} src={bgPeach} width={1440} height={1024} alt="" />
-          <img className={`${styles.bg} ${styles.wave} vt-auth-bg-coral`} src={bgCoral} width={1440} height={1024} alt="" />
-          <img className={`${styles.bg} ${styles.wave} vt-auth-bg-violet`} src={bgViolet} width={1440} height={1024} alt="" />
+          <AuthWaves side="right" className={`${styles.bg} ${styles.wave}`} />
         </>
       }
       topLink={
