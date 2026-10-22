@@ -42,3 +42,37 @@ export const HIGHEST_RATED: RankedMovie[] = [
   { movie: MOVIES.lastLap, meta: '6.3k ratings', value: '4.5' },
   { movie: MOVIES.deepBlue, meta: '10.2k ratings', value: '4.4' },
 ]
+
+// ---------- Users (Figma "Admin — Users") ----------
+
+export type UserRole = 'Member' | 'Moderator' | 'Admin'
+export type UserStatus = 'Active' | 'Unverified' | 'Suspended'
+
+export type AdminUserRow = {
+  id: string
+  initials: string
+  color: string
+  name: string
+  email: string
+  role: UserRole
+  status: UserStatus
+  joined: string
+  reviews: number
+  lastActive: string
+}
+
+export const USER_ROLES: UserRole[] = ['Member', 'Moderator', 'Admin']
+export const USER_STATUSES: UserStatus[] = ['Active', 'Unverified', 'Suspended']
+
+/** Totals across all accounts (the table shows one page of them). */
+export const USER_TOTALS = { total: 48210, active: 41002, unverified: 7080, suspended: 128, admins: 6, pages: 6888 }
+
+export const USERS: AdminUserRow[] = [
+  { id: 'u1', initials: 'MR', color: 'var(--accent-mint)', name: 'Maya Rivera', email: 'maya@watchwise.app', role: 'Member', status: 'Active', joined: 'Mar 2023', reviews: 142, lastActive: '2 min ago' },
+  { id: 'u2', initials: 'LS', color: 'var(--accent-yellow)', name: 'Lina Saad', email: 'lina@gmail.com', role: 'Moderator', status: 'Active', joined: 'Jan 2023', reviews: 214, lastActive: '1 h ago' },
+  { id: 'u3', initials: 'OK', color: 'var(--accent-coral)', name: 'Omar Khalil', email: 'omar.k@outlook.com', role: 'Member', status: 'Active', joined: 'Jun 2024', reviews: 88, lastActive: '3 h ago' },
+  { id: 'u4', initials: 'JN', color: 'var(--accent-mint)', name: 'Jad Nassar', email: 'jadn@github.dev', role: 'Member', status: 'Unverified', joined: 'Mar 2026', reviews: 0, lastActive: 'Yesterday' },
+  { id: 'u5', initials: 'RH', color: 'var(--surface-violet-tint)', name: 'Rana Haddad', email: 'rana.h@gmail.com', role: 'Member', status: 'Active', joined: 'Sep 2024', reviews: 63, lastActive: '2 days ago' },
+  { id: 'u6', initials: 'SX', color: 'var(--accent-coral)', name: 'spam_bot_991', email: 'x91@tempmail.io', role: 'Member', status: 'Suspended', joined: 'Mar 2026', reviews: 27, lastActive: '5 days ago' },
+  { id: 'u7', initials: 'AA', color: 'var(--accent-yellow)', name: 'Ahmad Assaf', email: 'ahmad@watchwise.app', role: 'Admin', status: 'Active', joined: 'Jan 2023', reviews: 12, lastActive: 'Now' },
+]
