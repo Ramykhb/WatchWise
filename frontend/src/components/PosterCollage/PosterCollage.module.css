@@ -71,3 +71,28 @@
   top: 4.91px;
   left: 92.27px;
 }
+
+.xl {
+  width: 260px;
+  height: 220px;
+}
+
+.xl .poster {
+  width: 145px;
+  height: 220px;
+}
+
+.xl .poster:nth-child(1) {
+  top: -8.18px;
+  left: 11.1px;
+}
+
+.xl .poster:nth-child(2) {
+  top: 2.46px;
+  left: 54.12px;
+}
+
+.xl .poster:nth-child(3) {
+  top: 9.02px;
+  left: 98.98px;
+}
