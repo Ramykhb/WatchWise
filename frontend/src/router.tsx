@@ -16,6 +16,7 @@ import Watchlist from './pages/Watchlist/Watchlist.tsx'
 import Profile from './pages/Profile/Profile.tsx'
 import Settings from './pages/Settings/Settings.tsx'
 import Cinemas from './pages/Cinemas/Cinemas.tsx'
+import MovieNights from './pages/MovieNights/MovieNights.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
 
 export const router = createBrowserRouter([
@@ -57,7 +58,9 @@ export const router = createBrowserRouter([
       { path: 'terms', element: <Placeholder title="Terms of Service" /> },
       { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
       { path: 'community', element: <Placeholder title="Community" /> },
-      { path: 'movie-nights', element: <Placeholder title="Movie Nights" /> },
+      { path: 'movie-nights', element: <MovieNights /> },
+      // Movie Night detail (Figma 46:2063) is the next screen.
+      { path: 'movie-nights/:slug', element: <Placeholder title="Movie night" /> },
       { path: 'rooms', element: <Placeholder title="Discussion Rooms" /> },
       { path: 'releases', element: <Placeholder title="Coming soon" /> },
       { path: 'movies/:slug/credits', element: <Placeholder title="Full credits" /> },

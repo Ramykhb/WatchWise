@@ -44,7 +44,7 @@ export type Profile = Member & {
   followingList: Member[]
 }
 
-const MEMBERS = {
+export const MEMBERS = {
   maya: { handle: 'maya', name: 'Maya Rivera', initials: 'MR', color: 'var(--accent-mint)' },
   linasaad: { handle: 'linasaad', name: 'Lina Saad', initials: 'LS', color: 'var(--accent-yellow)' },
   omark: { handle: 'omark', name: 'Omar Khalil', initials: 'OK', color: 'var(--accent-coral)' },
