@@ -137,6 +137,14 @@
   color: var(--ground-cream);
 }
 
+.loadingValue {
+  display: inline-block;
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: 0;
+  color: var(--text-on-violet-muted);
+}
+
 .condition {
   font-weight: 500;
   font-size: 15px;
@@ -184,6 +192,13 @@
   max-width: 420px;
   font-size: 14px;
   line-height: 1.5;
+  color: var(--text-on-violet-muted);
+}
+
+.weatherDetails {
+  margin: -4px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--text-on-violet-muted);
 }
 
@@ -242,6 +257,17 @@
 .switch input:focus-visible + .switchTrack {
   outline: 3px solid var(--accent-yellow);
   outline-offset: 2px;
+}
+
+.locationPrompt {
+  margin: -8px 0 0;
+}
+
+.locationNote {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-on-violet-muted);
 }
 
 /* ---------- Shelves ---------- */
