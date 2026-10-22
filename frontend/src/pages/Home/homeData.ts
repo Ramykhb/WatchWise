@@ -2,7 +2,7 @@ import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 
 // Mock content from the Figma Home frame. Replace with API data once the backend is connected.
 
-type Gradient = [string, string, string]
+export type Gradient = [string, string, string]
 
 const G = {
   neonTide: ['#ff995c', '#ed4d6b', '#5c298c'],
@@ -15,7 +15,7 @@ const G = {
   redSignal: ['#ffbf66', '#d94033', '#400d26'],
 } satisfies Record<string, Gradient>
 
-const MOVIES = {
+export const MOVIES = {
   neonTide: { slug: 'neon-tide', title: 'Neon Tide', posterTitle: ['NEON', 'TIDE'], meta: '2026 · Sci-fi', score: '4.8', gradient: G.neonTide },
   stardust: { slug: 'stardust', title: 'Stardust', posterTitle: ['STAR', 'DUST'], meta: '2025 · Fantasy', score: '4.7', gradient: G.stardust },
   deepBlue: { slug: 'deep-blue', title: 'Deep Blue', posterTitle: ['DEEP', 'BLUE'], meta: '2025 · Thriller', score: '4.4', gradient: G.deepBlue },
