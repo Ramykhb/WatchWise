@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { Fragment, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
@@ -299,15 +299,21 @@ export default function Discover() {
                   ['comingSoon', 'Coming soon'],
                 ] as const
               ).map(([key, label]) => (
-                <Checkbox
-                  key={key}
-                  checked={draft.availability[key]}
-                  onChange={(event) =>
-                    setDraft((f) => ({ ...f, availability: { ...f.availability, [key]: event.target.checked } }))
-                  }
-                >
-                  {label}
-                </Checkbox>
+                <Fragment key={key}>
+                  <Checkbox
+                    checked={draft.availability[key]}
+                    onChange={(event) =>
+                      setDraft((f) => ({ ...f, availability: { ...f.availability, [key]: event.target.checked } }))
+                    }
+                  >
+                    {label}
+                  </Checkbox>
+                  {key === 'cinemas' && (
+                    <Link to="/discover/cinemas" className={styles.mapLink}>
+                      See cinemas on the map →
+                    </Link>
+                  )}
+                </Fragment>
               ))}
             </fieldset>
 

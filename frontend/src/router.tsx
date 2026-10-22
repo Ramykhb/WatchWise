@@ -14,6 +14,7 @@ import ListDetail from './pages/ListDetail/ListDetail.tsx'
 import Watchlist from './pages/Watchlist/Watchlist.tsx'
 import Profile from './pages/Profile/Profile.tsx'
 import Settings from './pages/Settings/Settings.tsx'
+import Cinemas from './pages/Cinemas/Cinemas.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
 
 export const router = createBrowserRouter([
@@ -30,6 +31,9 @@ export const router = createBrowserRouter([
       { path: 'people/:slug', element: <Person /> },
       { path: 'movies/:slug', element: <MovieDetails /> },
       { path: 'discover', element: <Discover /> },
+      // Lives under Discover so the Discover nav link is highlighted, as in the Figma frame.
+      { path: 'discover/cinemas', element: <Cinemas /> },
+      { path: 'cinemas', element: <Navigate to="/discover/cinemas" replace /> },
       { path: 'for-you', element: <ForYou /> },
       { path: 'lists', element: <Lists /> },
       { path: 'lists/:slug', element: <ListDetail /> },
@@ -52,7 +56,6 @@ export const router = createBrowserRouter([
       { path: 'releases', element: <Placeholder title="Coming soon" /> },
       { path: 'movies/:slug/credits', element: <Placeholder title="Full credits" /> },
       { path: 'movies/:slug/videos', element: <Placeholder title="Videos" /> },
-      { path: 'cinemas', element: <Placeholder title="Nearby cinemas" /> },
       { path: '*', element: <Placeholder title="Page not found" notFound /> },
     ],
   },
