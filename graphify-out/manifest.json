@@ -360,10 +360,10 @@
     "semantic_hash": "c414fe12223992cc7faea946f6ac5e4b"
   },
   "frontend/src/router.tsx": {
-    "mtime": 1792697923.072013,
-    "seen": 1792698316.518242,
-    "ast_hash": "df65f504c5ab4bcb70d46df6dda6b5ef",
-    "semantic_hash": "df65f504c5ab4bcb70d46df6dda6b5ef"
+    "mtime": 1792699385.0875256,
+    "seen": 1792699729.4369588,
+    "ast_hash": "8323b42da8c8de4f045ffbdbebd5d2cb",
+    "semantic_hash": "8323b42da8c8de4f045ffbdbebd5d2cb"
   },
   "frontend/tsconfig.app.json": {
     "mtime": 1792587055.9859116,
@@ -408,10 +408,10 @@
     "semantic_hash": "ba6f0749269f366f7f077ccd12ca276d"
   },
   "HANDOFF.md": {
-    "mtime": 1792698199.0124245,
-    "seen": 1792698316.518242,
-    "ast_hash": "1b8617540aa8506b7a89013902e00947",
-    "semantic_hash": "1b8617540aa8506b7a89013902e00947"
+    "mtime": 1792699599.548574,
+    "seen": 1792699729.4369588,
+    "ast_hash": "c2ed7ce58c2d7ef26f9d84b0ae62c6a0",
+    "semantic_hash": "c2ed7ce58c2d7ef26f9d84b0ae62c6a0"
   },
   "backend/AGENTS.md": {
     "mtime": 1792587055.955109,
@@ -684,10 +684,10 @@
     "semantic_hash": "c319c3a1ccde8f06ebdf3b6e4d1765a3"
   },
   "frontend/src/components/AppNav/AppNav.tsx": {
-    "mtime": 1792691664.5464733,
-    "seen": 1792692684.396611,
-    "ast_hash": "6db04eb3f35732e387875979988808d2",
-    "semantic_hash": "6db04eb3f35732e387875979988808d2"
+    "mtime": 1792699385.086077,
+    "seen": 1792699729.4369588,
+    "ast_hash": "8918fa90860ff2ef741d4412d0dd76c7",
+    "semantic_hash": "8918fa90860ff2ef741d4412d0dd76c7"
   },
   "frontend/src/components/AuthWaves/AuthWaves.tsx": {
     "mtime": 1792691664.5469801,
@@ -870,16 +870,16 @@
     "semantic_hash": "9377b16272acdc999a0c7ea80d93a9d8"
   },
   "frontend/src/pages/Profile/profileData.ts": {
-    "mtime": 1792696896.3606117,
-    "seen": 1792698316.518242,
-    "ast_hash": "e3d97cfedcb10b54c726b32ec6bea892",
-    "semantic_hash": "e3d97cfedcb10b54c726b32ec6bea892"
+    "mtime": 1792699073.003321,
+    "seen": 1792699729.4369588,
+    "ast_hash": "cba281c2cf6909a57f7c5e1336218171",
+    "semantic_hash": "cba281c2cf6909a57f7c5e1336218171"
   },
   "frontend/src/pages/Settings/Settings.tsx": {
-    "mtime": 1792696533.2796054,
-    "seen": 1792698316.518242,
-    "ast_hash": "fcb1910d654149b7b358edd6c65d139c",
-    "semantic_hash": "fcb1910d654149b7b358edd6c65d139c"
+    "mtime": 1792699385.086077,
+    "seen": 1792699729.4369588,
+    "ast_hash": "1a158908f7d614d4901283764b2e87b4",
+    "semantic_hash": "1a158908f7d614d4901283764b2e87b4"
   },
   "frontend/src/pages/Settings/settingsData.ts": {
     "mtime": 1792696533.2796054,
@@ -900,45 +900,57 @@
     "semantic_hash": "c23112bf27c23e5eda22542f9ddc5bd1"
   },
   "frontend/src/pages/MovieNights/MovieNights.tsx": {
-    "mtime": 1792697074.415478,
-    "seen": 1792698316.518242,
-    "ast_hash": "f59ffba18fcd60d2be669a6a05d510e1",
-    "semantic_hash": "f59ffba18fcd60d2be669a6a05d510e1"
+    "mtime": 1792699073.0013137,
+    "seen": 1792699729.4369588,
+    "ast_hash": "981ad79f3da5182d91fc15b1ac627652",
+    "semantic_hash": "981ad79f3da5182d91fc15b1ac627652"
   },
   "frontend/src/pages/MovieNights/NightDetail.tsx": {
-    "mtime": 1792697453.6571524,
-    "seen": 1792698316.518242,
-    "ast_hash": "6dbcc5ea041d159546220d87cec702c9",
-    "semantic_hash": "6dbcc5ea041d159546220d87cec702c9"
+    "mtime": 1792699073.0013137,
+    "seen": 1792699729.4369588,
+    "ast_hash": "9d8f3ccbf794da5444e50ee0d69a0168",
+    "semantic_hash": "9d8f3ccbf794da5444e50ee0d69a0168"
   },
   "frontend/src/pages/MovieNights/nightDetailData.ts": {
-    "mtime": 1792697438.7266624,
-    "seen": 1792698316.518242,
-    "ast_hash": "8b2cdc17d3ed756197c8857b56ce05d4",
-    "semantic_hash": "8b2cdc17d3ed756197c8857b56ce05d4"
+    "mtime": 1792699073.003321,
+    "seen": 1792699729.4369588,
+    "ast_hash": "d39ea017829933fab0a6dbc18e15b38d",
+    "semantic_hash": "d39ea017829933fab0a6dbc18e15b38d"
   },
   "frontend/src/pages/MovieNights/nightsData.ts": {
-    "mtime": 1792697106.0639076,
-    "seen": 1792698316.518242,
-    "ast_hash": "1fdb8a3b8b7a64853b2bc87ddbcebf9d",
-    "semantic_hash": "1fdb8a3b8b7a64853b2bc87ddbcebf9d"
+    "mtime": 1792699073.003321,
+    "seen": 1792699729.4369588,
+    "ast_hash": "24ca5c8f651d1c76cd7c38f42594c44b",
+    "semantic_hash": "24ca5c8f651d1c76cd7c38f42594c44b"
   },
   "frontend/src/pages/MovieNights/nightsStore.ts": {
-    "mtime": 1792697074.1769102,
-    "seen": 1792698316.518242,
-    "ast_hash": "ad5d2150853f23a8cd6fb6c0976cb054",
-    "semantic_hash": "ad5d2150853f23a8cd6fb6c0976cb054"
+    "mtime": 1792699073.003321,
+    "seen": 1792699729.4369588,
+    "ast_hash": "efb9d82b6bdee90cbafb465bcf3c714f",
+    "semantic_hash": "efb9d82b6bdee90cbafb465bcf3c714f"
   },
   "frontend/src/pages/Rooms/Rooms.tsx": {
-    "mtime": 1792697966.474956,
-    "seen": 1792698316.518242,
-    "ast_hash": "7447e786b2a273a991ae6e7494da724f",
-    "semantic_hash": "7447e786b2a273a991ae6e7494da724f"
+    "mtime": 1792699073.0053334,
+    "seen": 1792699729.4369588,
+    "ast_hash": "0ceacdfce55b5d550b01a2c1a894237d",
+    "semantic_hash": "0ceacdfce55b5d550b01a2c1a894237d"
   },
   "frontend/src/pages/Rooms/roomsData.ts": {
-    "mtime": 1792697791.7998073,
-    "seen": 1792698316.518242,
-    "ast_hash": "266e253aa4bbae8a64a8abfcb77a8df9",
-    "semantic_hash": "266e253aa4bbae8a64a8abfcb77a8df9"
+    "mtime": 1792699073.0053334,
+    "seen": 1792699729.4369588,
+    "ast_hash": "bb3e3ccc9b34b409821a84ff927d181c",
+    "semantic_hash": "bb3e3ccc9b34b409821a84ff927d181c"
+  },
+  "frontend/src/pages/Notifications/Notifications.tsx": {
+    "mtime": 1792699366.57323,
+    "seen": 1792699729.4369588,
+    "ast_hash": "599ec7e3352aa2c5f057c515313ea60a",
+    "semantic_hash": "599ec7e3352aa2c5f057c515313ea60a"
+  },
+  "frontend/src/pages/Notifications/notificationsStore.ts": {
+    "mtime": 1792699319.1404083,
+    "seen": 1792699729.4369588,
+    "ast_hash": "d84d0afbb41d4f843815d3f10d80da0f",
+    "semantic_hash": "d84d0afbb41d4f843815d3f10d80da0f"
   }
 }
