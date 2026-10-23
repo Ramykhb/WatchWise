@@ -17,12 +17,16 @@ class EmailVerificationService
             return;
         }
 
-        $url = URL::temporarySignedRoute(
-            'auth.verify-email',
-            now()->addMinutes(self::EXPIRES_MINUTES),
-            ['id' => $user->id, 'hash' => sha1($user->email)],
-        );
+        // After the response is sent: SMTP latency must not reveal whether the account exists, and
+        // a mail transport failure must not break registration.
+        defer(fn () => rescue(function () use ($user): void {
+            $url = URL::temporarySignedRoute(
+                'auth.verify-email',
+                now()->addMinutes(self::EXPIRES_MINUTES),
+                ['id' => $user->id, 'hash' => sha1($user->email)],
+            );
 
-        Mail::to($user->email)->send(new VerifyEmailMail($user, $url, self::EXPIRES_MINUTES));
+            Mail::to($user->email)->send(new VerifyEmailMail($user, $url, self::EXPIRES_MINUTES));
+        }));
     }
 }
