@@ -1,28 +1,69 @@
 # Backend Auth Overview
 
-What each file in the auth work does. Paths are relative to `backend/`.
+What each file in the auth module does. Paths are relative to `backend/`.
 
 ## Contents
 
+- [Architecture](#architecture)
+- [Folder layout](#folder-layout)
 - [How a request flows](#how-a-request-flows)
 - [Routes](#routes)
 - [Config](#config)
+- [Services](#services)
+- [Repositories](#repositories)
 - [Tokens and current user](#tokens-and-current-user)
 - [Controllers](#controllers)
 - [Middleware](#middleware)
 - [Form requests](#form-requests)
 - [Email](#email)
+- [Exceptions](#exceptions)
 - [Authorization](#authorization)
-- [Refresh tokens (database)](#refresh-tokens-database)
 - [Wiring](#wiring)
 - [Tests](#tests)
+- [Adding a new entity](#adding-a-new-entity)
+
+## Architecture
+
+Everything about an entity lives in one folder under `app/`, except its Eloquent model (`app/Models`).
+The layers call downward only:
+
+```
+Controller -> InterfaceServices -> Services -> InterfaceRepository -> Repository -> Model
+```
+
+- **Controllers** only handle HTTP: validation (form requests), calling a service, status codes, cookies and redirects.
+- **Services** hold the business rules. They depend on repository interfaces, never on Eloquent.
+- **Repositories** are the only place that queries models.
+- Interfaces are bound to implementations in `app/Auth/Providers/AuthModuleServiceProvider.php`.
+
+## Folder layout
+
+```
+app/Auth/
+  Controllers/          HTTP layer
+  Requests/             Form request validation
+  Middleware/           auth.jwt, auth.optional, verified.email, role
+  InterfaceServices/    Service contracts
+  Services/             Business logic
+  InterfaceRepository/  Repository contracts
+  Repository/           Eloquent queries
+  Factories/            TokenFactory, CurrentUserFactory
+  CurrentUser/          CurrentUser interface, JwtCurrentUser, GuestUser
+  Support/              AuthCookies, TokenPair
+  Mail/                 Verification and reset emails
+  Listeners/            Sends the verification email on registration
+  Exceptions/           Domain exceptions the controllers map to responses
+  Providers/            AuthModuleServiceProvider (interface bindings)
+```
 
 ## How a request flows
 
 1. A request hits a route in `routes/api.php` or `routes/auth_flows.php`.
 2. A middleware (`auth.jwt`, `auth.optional`, `verified.email` or `role`) asks `CurrentUserFactory` who is calling.
-3. The factory reads the access token cookie and returns a `JwtCurrentUser`, or a `GuestUser` if the token is missing or invalid.
-4. The controller runs. Policies receive the `CurrentUser` to decide what it may do.
+3. The factory reads the access token (cookie or Bearer header) and returns a `JwtCurrentUser`, or a `GuestUser` if the token is missing or invalid.
+4. The controller validates the input and calls a service through its interface.
+5. The service applies the rules and uses repositories for data.
+6. Policies receive the `CurrentUser` to decide what it may do.
 
 ## Routes
 
@@ -35,42 +76,61 @@ What each file in the auth work does. Paths are relative to `backend/`.
 
 | File | Purpose |
 | --- | --- |
-| `.env.example` | SMTP mail with `CHANGE_ME` placeholders, `FRONTEND_URL`, Google and GitHub OAuth variables |
+| `.env.example` | SMTP mail placeholders, `FRONTEND_URL`, Google and GitHub OAuth variables, JWT settings |
 | `config/jwt.php` | Signing secret, issuer, access lifetime (15 min), refresh lifetime (30 days), cookie names |
 | `config/cors.php` | CORS rules for the frontend |
 | `config/services.php` | Google and GitHub OAuth credentials, frontend URL |
 | `phpunit.xml` | Test-only `JWT_SECRET` and `FRONTEND_URL` |
+| `app/Providers/AppServiceProvider.php` | Per-route rate limiters (IP bucket plus per-email bucket) and the `Registered` listener |
+
+## Services
+
+Contracts in `app/Auth/InterfaceServices/`, implementations in `app/Auth/Services/`.
+
+| Service | Purpose |
+| --- | --- |
+| `AuthService` | Register, login, refresh and logout. Throws `InvalidCredentials` or `InvalidRefreshToken` |
+| `PasswordResetService` | Sends the reset link (deferred until after the response) and resets the password. Revokes all refresh tokens on reset |
+| `EmailVerificationService` | Sends the signed verification link (60 minutes), resends it, and verifies a link |
+| `SocialAuthService` | Google/GitHub login. Refuses unverified provider emails and takes over unverified local accounts by resetting their password |
+
+## Repositories
+
+Contracts in `app/Auth/InterfaceRepository/`, implementations in `app/Auth/Repository/`.
+
+| Repository | Model | Purpose |
+| --- | --- | --- |
+| `UserRepository` | `User` | Find by id or email, create, mark verified, update password |
+| `RefreshTokenRepository` | `RefreshToken` | Create, find (with row lock for rotation), mark rotated, revoke a family or all of a user's tokens |
+| `PasswordResetRepository` | `PasswordReset` | Replace, find latest and delete the reset row for an email |
+| `SocialAccountRepository` | `SocialAccount` | Find by provider, create, update the access token |
 
 ## Tokens and current user
 
-All in `app/Auth/` unless noted.
-
 | File | Purpose |
 | --- | --- |
-| `TokenFactory.php` | Issues HS256 access tokens and refresh tokens, parses access tokens |
-| `TokenPair.php` | Holds a user's access and refresh tokens with their expiry times |
-| `AuthCookies.php` | Sets and clears the httpOnly access and refresh cookies |
-| `CurrentUserFactory.php` | Resolves the current user once per request, or a guest |
-| `JwtCurrentUser.php` | The logged-in user. The role is read from the database, so a demotion applies immediately |
-| `GuestUser.php` | The anonymous user, never authenticated |
-| `Exceptions/InvalidRefreshToken.php` | Thrown when a refresh token is bad |
-| `app/Contracts/CurrentUser.php` | Interface that policies and middleware depend on |
-| `app/Exceptions/UnverifiedProviderEmail.php` | Thrown when a social provider returns an unverified email |
+| `Factories/TokenFactory.php` | Issues HS256 access tokens and refresh tokens, rotates and revokes refresh tokens, parses access tokens |
+| `Factories/CurrentUserFactory.php` | Resolves the current user once per request, or a guest |
+| `CurrentUser/CurrentUser.php` | Interface that policies and middleware depend on |
+| `CurrentUser/JwtCurrentUser.php` | The logged-in user. The role is read from the database, so a demotion applies immediately |
+| `CurrentUser/GuestUser.php` | The anonymous user, never authenticated |
+| `Support/TokenPair.php` | Holds a user's access and refresh tokens with their expiry times |
+| `Support/AuthCookies.php` | Sets and clears the httpOnly access and refresh cookies |
 
 ## Controllers
 
-All in `app/Http/Controllers/`.
+All in `app/Auth/Controllers/`. They contain no database queries.
 
 | File | Purpose |
 | --- | --- |
-| `Auth/AuthController.php` | Register, login, refresh, logout and `me` |
+| `AuthController.php` | Register, login, refresh, logout and `me`. Has the captcha TODO |
 | `EmailVerificationController.php` | Verifies the emailed link and resends it |
 | `PasswordResetController.php` | Forgot-password and reset-password |
-| `SocialAuthController.php` | Google and GitHub login redirect and callback |
+| `SocialAuthController.php` | Google and GitHub redirect and callback (state cookie check, redirects) |
 
 ## Middleware
 
-All in `app/Http/Middleware/`.
+All in `app/Auth/Middleware/`.
 
 | Alias | File | Behavior |
 | --- | --- | --- |
@@ -81,27 +141,32 @@ All in `app/Http/Middleware/`.
 
 ## Form requests
 
-In `app/Http/Requests/Auth/`. Each validates the matching endpoint:
+In `app/Auth/Requests/`. Each validates the matching endpoint:
 `RegisterRequest`, `LoginRequest`, `ForgotPasswordRequest`, `ResetPasswordRequest`, `ResendVerificationRequest`.
 
 ## Email
 
 | File | Purpose |
 | --- | --- |
-| `app/Services/EmailVerificationService.php` | Sends a signed verification link that expires in 60 minutes |
-| `app/Listeners/SendEmailVerification.php` | Sends that link when a user registers |
-| `app/Mail/VerifyEmailMail.php` | The verification email |
-| `app/Mail/ResetPasswordMail.php` | The password reset email |
+| `Listeners/SendEmailVerification.php` | Sends the verification link when a user registers |
+| `Mail/VerifyEmailMail.php` | The verification email |
+| `Mail/ResetPasswordMail.php` | The password reset email |
 | `resources/views/mail/verify-email.blade.php` | Template for the verification email |
 | `resources/views/mail/reset-password.blade.php` | Template for the reset email |
+
+## Exceptions
+
+In `app/Auth/Exceptions/`. Services throw them and controllers turn them into responses.
+
+`InvalidCredentials`, `InvalidRefreshToken`, `InvalidResetToken`, `UnverifiedProviderEmail`, `EmailRequired`, `AccountDisabled`.
 
 ## Authorization
 
 | File | Purpose |
 | --- | --- |
-| `app/Providers/AuthorizationServiceProvider.php` | Maps models to policies, binds the guest as the default current user, makes Gate use `CurrentUser` |
+| `app/Providers/AuthorizationServiceProvider.php` | Maps models to policies, binds the guest as the default current user, makes the Gate use `CurrentUser` |
 
-Policies in `app/Policies/`:
+Policies stay in `app/Policies/` because each belongs to the entity it protects:
 
 | Policy | Rule |
 | --- | --- |
@@ -112,29 +177,24 @@ Policies in `app/Policies/`:
 | `NotificationPolicy` | Access to notifications |
 | `UserPolicy` | Private profiles are visible to the owner and admins |
 
-## Refresh tokens (database)
-
-| File | Purpose |
-| --- | --- |
-| `app/Models/RefreshToken.php` | The stored refresh token row |
-| `database/migrations/…create_refresh_tokens_table.php` | The refresh tokens table |
-| `database/factories/RefreshTokenFactory.php` | Test factory |
-| `database/factories/UserFactory.php` | Adds `role`, `profile_visibility`, `is_active` defaults and `admin()` / `private()` states |
-
 ## Wiring
 
 | File | Purpose |
 | --- | --- |
 | `bootstrap/app.php` | Registers the API routes and the four middleware aliases |
-| `bootstrap/providers.php` | Registers `AuthorizationServiceProvider` |
+| `bootstrap/providers.php` | Registers `AppServiceProvider`, `AuthorizationServiceProvider` and `AuthModuleServiceProvider` |
 
 ## Tests
 
-In `tests/Feature/Auth/`.
-
-| File | Covers |
+| Location | Covers |
 | --- | --- |
-| `AuthenticationTest.php` | Register, login, refresh, logout |
-| `AccountFlowsTest.php` | Email verification, password reset |
-| `MiddlewareTest.php` | The four middleware |
-| `PolicyTest.php` | The policy rules, including messages |
+| `tests/Feature/Auth/AuthenticationTest.php` | Register, login, refresh, logout, throttling |
+| `tests/Feature/Auth/AccountFlowsTest.php` | Email verification, password reset, social login |
+| `tests/Feature/Auth/MiddlewareTest.php` | The four middleware |
+| `tests/Feature/Auth/PolicyTest.php` | The policy rules, including messages |
+| `tests/Feature/Auth/Repository/` | Each repository against the database |
+| `tests/Unit/Auth/` | Each service with fake repositories |
+
+## Adding a new entity
+
+Follow the same layout, for example `app/Review/` with `Controllers/`, `Requests/`, `InterfaceServices/`, `Services/`, `InterfaceRepository/`, `Repository/`, and its own `ReviewModuleServiceProvider` registered in `bootstrap/providers.php`. Keep the Eloquent model in `app/Models`.
