@@ -2,12 +2,13 @@
 
 namespace App\Auth\Support;
 
+use App\Auth\DTOs\Responses\AuthResponse;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Cookie;
 
 class AuthCookies
 {
-    public function attach(JsonResponse $response, TokenPair $pair): JsonResponse
+    public function attach(JsonResponse $response, AuthResponse $pair): JsonResponse
     {
         return $response
             ->withCookie($this->make(
