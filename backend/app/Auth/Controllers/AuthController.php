@@ -3,13 +3,13 @@
 namespace App\Auth\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
+use App\Auth\DTOs\Responses\UserResponse;
 use App\Auth\Exceptions\InvalidCredentials;
 use App\Auth\Exceptions\InvalidRefreshToken;
 use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Auth\Requests\LoginRequest;
 use App\Auth\Requests\RegisterRequest;
 use App\Auth\Support\AuthCookies;
-use App\Auth\Support\TokenPair;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,9 +23,9 @@ class AuthController extends Controller
 
     public function register(RegisterRequest $request): JsonResponse
     {
-        $pair = $this->auth->register($request->validated(), $request);
+        $auth = $this->auth->register($request->toDto(), $request);
 
-        return $this->cookies->attach($this->tokenResponse($pair, 201), $pair);
+        return $this->cookies->attach(response()->json($auth->body(), 201), $auth);
     }
 
     public function login(LoginRequest $request): JsonResponse
@@ -34,12 +34,12 @@ class AuthController extends Controller
         // in AppServiceProvider no longer lets a third party lock out an account owner. Do the same for
         // register and forgot-password.
         try {
-            $pair = $this->auth->login($request->validated('email'), $request->validated('password'), $request);
+            $auth = $this->auth->login($request->toDto(), $request);
         } catch (InvalidCredentials) {
             return response()->json(['message' => 'Invalid credentials.'], 401);
         }
 
-        return $this->cookies->attach($this->tokenResponse($pair), $pair);
+        return $this->cookies->attach(response()->json($auth->body()), $auth);
     }
 
     public function refresh(Request $request): JsonResponse
@@ -51,12 +51,12 @@ class AuthController extends Controller
         }
 
         try {
-            $pair = $this->auth->refresh($plain, $request);
+            $auth = $this->auth->refresh($plain, $request);
         } catch (InvalidRefreshToken) {
             return $this->unauthenticated();
         }
 
-        return $this->cookies->attach($this->tokenResponse($pair), $pair);
+        return $this->cookies->attach(response()->json($auth->body()), $auth);
     }
 
     public function logout(Request $request): JsonResponse
@@ -72,19 +72,11 @@ class AuthController extends Controller
 
     public function me(CurrentUser $current): JsonResponse
     {
-        return response()->json(['user' => $current->user()]);
+        return response()->json(['user' => UserResponse::fromModel($current->user())]);
     }
 
     private function unauthenticated(): JsonResponse
     {
         return $this->cookies->clear(response()->json(['message' => 'Unauthenticated.'], 401));
-    }
-
-    private function tokenResponse(TokenPair $pair, int $status = 200): JsonResponse
-    {
-        return response()->json([
-            'user' => $pair->user,
-            'expires_at' => $pair->accessExpiresAt->format(DATE_ATOM),
-        ], $status);
     }
 }
