@@ -2,6 +2,8 @@
 
 namespace App\Auth\Services;
 
+use App\Auth\DTOs\Requests\ForgotPasswordData;
+use App\Auth\DTOs\Requests\ResetPasswordData;
 use App\Auth\Exceptions\InvalidResetToken;
 use App\Auth\InterfaceRepository\PasswordResetRepositoryInterface;
 use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
@@ -23,8 +25,9 @@ class PasswordResetService implements PasswordResetServiceInterface
         private RefreshTokenRepositoryInterface $refreshTokens,
     ) {}
 
-    public function sendResetLink(string $email): void
+    public function sendResetLink(ForgotPasswordData $data): void
     {
+        $email = $data->email;
         $user = $this->users->findByEmail($email);
 
         if (! $user) {
@@ -43,14 +46,15 @@ class PasswordResetService implements PasswordResetServiceInterface
         }));
     }
 
-    public function reset(string $email, string $token, string $password): void
+    public function reset(ResetPasswordData $data): void
     {
+        $email = $data->email;
         $record = $this->resets->latestFor($email);
 
         if (! $record
             || ! $record->created_at
             || $record->created_at->lt(now()->subMinutes(self::EXPIRES_MINUTES))
-            || ! Hash::check($token, $record->token)) {
+            || ! Hash::check($data->token, $record->token)) {
             throw new InvalidResetToken;
         }
 
@@ -59,8 +63,8 @@ class PasswordResetService implements PasswordResetServiceInterface
             throw new InvalidResetToken;
         }
 
-        DB::transaction(function () use ($user, $email, $password): void {
-            $this->users->updatePassword($user, $password);
+        DB::transaction(function () use ($user, $email, $data): void {
+            $this->users->updatePassword($user, $data->password);
             $this->resets->deleteFor($email);
             $this->refreshTokens->revokeAllForUser($user->id);
         });

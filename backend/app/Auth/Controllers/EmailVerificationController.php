@@ -2,6 +2,7 @@
 
 namespace App\Auth\Controllers;
 
+use App\Auth\DTOs\Requests\VerifyEmailData;
 use App\Auth\InterfaceServices\EmailVerificationServiceInterface;
 use App\Auth\Requests\ResendVerificationRequest;
 use App\Http\Controllers\Controller;
@@ -16,14 +17,14 @@ class EmailVerificationController extends Controller
     public function verify(int $id, string $hash): RedirectResponse
     {
         $front = rtrim(config('services.frontend_url'), '/');
-        $status = $this->verification->verify($id, $hash) ? 'success' : 'invalid';
+        $status = $this->verification->verify(new VerifyEmailData($id, $hash)) ? 'success' : 'invalid';
 
         return redirect("{$front}/verify-email?status={$status}");
     }
 
     public function resend(ResendVerificationRequest $request): JsonResponse
     {
-        $this->verification->resend($request->validated('email'));
+        $this->verification->resend($request->toDto());
 
         return response()->json(['message' => 'If the account exists and is unverified, a verification email has been sent.']);
     }

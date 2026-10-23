@@ -2,6 +2,8 @@
 
 namespace Tests\Unit\Auth;
 
+use App\Auth\DTOs\Requests\ForgotPasswordData;
+use App\Auth\DTOs\Requests\ResetPasswordData;
 use App\Auth\Exceptions\InvalidResetToken;
 use App\Auth\InterfaceRepository\PasswordResetRepositoryInterface;
 use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
@@ -59,7 +61,7 @@ class PasswordResetServiceTest extends TestCase
         $this->users->shouldReceive('findByEmail')->with('x@example.com')->andReturnNull();
         $this->resets->shouldNotReceive('replaceFor');
 
-        $this->service->sendResetLink('x@example.com');
+        $this->service->sendResetLink(new ForgotPasswordData('x@example.com'));
         app(DeferredCallbackCollection::class)->invoke();
 
         Mail::assertNothingSent();
@@ -74,7 +76,7 @@ class PasswordResetServiceTest extends TestCase
             ->with('ada@example.com', Mockery::on(fn ($hash) => is_string($hash) && Hash::info($hash)['algoName'] === 'bcrypt'))
             ->andReturn(new PasswordReset);
 
-        $this->service->sendResetLink('ada@example.com');
+        $this->service->sendResetLink(new ForgotPasswordData('ada@example.com'));
         Mail::assertNothingSent();
 
         app(DeferredCallbackCollection::class)->invoke();
@@ -87,7 +89,7 @@ class PasswordResetServiceTest extends TestCase
         $this->resets->shouldReceive('latestFor')->andReturnNull();
         $this->expectException(InvalidResetToken::class);
 
-        $this->service->reset('ada@example.com', 'tok', 'newpassword');
+        $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword'));
     }
 
     public function test_reset_throws_when_expired(): void
@@ -95,7 +97,7 @@ class PasswordResetServiceTest extends TestCase
         $this->resets->shouldReceive('latestFor')->andReturn($this->record('tok', 61));
         $this->expectException(InvalidResetToken::class);
 
-        $this->service->reset('ada@example.com', 'tok', 'newpassword');
+        $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword'));
     }
 
     public function test_reset_throws_when_token_wrong(): void
@@ -104,7 +106,7 @@ class PasswordResetServiceTest extends TestCase
         $this->users->shouldNotReceive('updatePassword');
         $this->expectException(InvalidResetToken::class);
 
-        $this->service->reset('ada@example.com', 'wrong', 'newpassword');
+        $this->service->reset(new ResetPasswordData('ada@example.com', 'wrong', 'newpassword'));
     }
 
     public function test_reset_throws_when_user_missing(): void
@@ -113,7 +115,7 @@ class PasswordResetServiceTest extends TestCase
         $this->users->shouldReceive('findByEmail')->andReturnNull();
         $this->expectException(InvalidResetToken::class);
 
-        $this->service->reset('ada@example.com', 'tok', 'newpassword');
+        $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword'));
     }
 
     public function test_reset_updates_password_deletes_record_and_revokes_tokens(): void
@@ -125,6 +127,6 @@ class PasswordResetServiceTest extends TestCase
         $this->resets->shouldReceive('deleteFor')->once()->with('ada@example.com');
         $this->refreshTokens->shouldReceive('revokeAllForUser')->once()->with(7);
 
-        $this->service->reset('ada@example.com', 'tok', 'newpassword');
+        $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword'));
     }
 }

@@ -2,6 +2,8 @@
 
 namespace Tests\Unit\Auth;
 
+use App\Auth\DTOs\Requests\ResendVerificationData;
+use App\Auth\DTOs\Requests\VerifyEmailData;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\Mail\VerifyEmailMail;
 use App\Auth\Services\EmailVerificationService;
@@ -61,7 +63,7 @@ class EmailVerificationServiceTest extends TestCase
         Mail::fake();
         $this->users->shouldReceive('findByEmail')->andReturnNull();
 
-        $this->service->resend('x@example.com');
+        $this->service->resend(new ResendVerificationData('x@example.com'));
         app(DeferredCallbackCollection::class)->invoke();
 
         Mail::assertNothingSent();
@@ -72,11 +74,11 @@ class EmailVerificationServiceTest extends TestCase
         Mail::fake();
         $this->users->shouldReceive('findByEmail')->twice()->andReturn($this->user(true), $this->user());
 
-        $this->service->resend('ada@example.com');
+        $this->service->resend(new ResendVerificationData('ada@example.com'));
         app(DeferredCallbackCollection::class)->invoke();
         Mail::assertNothingSent();
 
-        $this->service->resend('ada@example.com');
+        $this->service->resend(new ResendVerificationData('ada@example.com'));
         app(DeferredCallbackCollection::class)->invoke();
         Mail::assertSent(VerifyEmailMail::class, 1);
     }
@@ -87,8 +89,8 @@ class EmailVerificationServiceTest extends TestCase
         $this->users->shouldReceive('findById')->with(3)->andReturn($this->user());
         $this->users->shouldNotReceive('markEmailVerified');
 
-        $this->assertFalse($this->service->verify(1, 'x'));
-        $this->assertFalse($this->service->verify(3, 'bad'));
+        $this->assertFalse($this->service->verify(new VerifyEmailData(1, 'x')));
+        $this->assertFalse($this->service->verify(new VerifyEmailData(3, 'bad')));
     }
 
     public function test_verify_marks_unverified_user(): void
@@ -97,7 +99,7 @@ class EmailVerificationServiceTest extends TestCase
         $this->users->shouldReceive('findById')->with(3)->andReturn($user);
         $this->users->shouldReceive('markEmailVerified')->once()->with($user);
 
-        $this->assertTrue($this->service->verify(3, sha1('ada@example.com')));
+        $this->assertTrue($this->service->verify(new VerifyEmailData(3, sha1('ada@example.com'))));
     }
 
     public function test_verify_does_not_remark_verified_user(): void
@@ -105,6 +107,6 @@ class EmailVerificationServiceTest extends TestCase
         $this->users->shouldReceive('findById')->andReturn($this->user(true));
         $this->users->shouldNotReceive('markEmailVerified');
 
-        $this->assertTrue($this->service->verify(3, sha1('ada@example.com')));
+        $this->assertTrue($this->service->verify(new VerifyEmailData(3, sha1('ada@example.com'))));
     }
 }

@@ -15,17 +15,15 @@ class PasswordResetController extends Controller
 
     public function forgot(ForgotPasswordRequest $request): JsonResponse
     {
-        $this->passwordResets->sendResetLink($request->validated('email'));
+        $this->passwordResets->sendResetLink($request->toDto());
 
         return response()->json(['message' => 'If that email is registered, a password reset link has been sent.']);
     }
 
     public function reset(ResetPasswordRequest $request): JsonResponse
     {
-        $data = $request->validated();
-
         try {
-            $this->passwordResets->reset($data['email'], $data['token'], $data['password']);
+            $this->passwordResets->reset($request->toDto());
         } catch (InvalidResetToken) {
             return response()->json(['message' => 'Invalid or expired reset token.'], 422);
         }
