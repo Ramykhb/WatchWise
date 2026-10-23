@@ -2,21 +2,22 @@
 
 namespace App\Auth\InterfaceServices;
 
+use App\Auth\DTOs\Requests\LoginData;
+use App\Auth\DTOs\Requests\RegisterData;
+use App\Auth\DTOs\Responses\AuthResponse;
 use App\Auth\Exceptions\InvalidCredentials;
 use App\Auth\Exceptions\InvalidRefreshToken;
-use App\Auth\Support\TokenPair;
 use Illuminate\Http\Request;
 
 interface AuthServiceInterface
 {
-    /** @param  array{name: string, email: string, password: string}  $data */
-    public function register(array $data, Request $request): TokenPair;
+    public function register(RegisterData $data, Request $request): AuthResponse;
 
     /** @throws InvalidCredentials */
-    public function login(string $email, string $password, Request $request): TokenPair;
+    public function login(LoginData $data, Request $request): AuthResponse;
 
     /** @throws InvalidRefreshToken */
-    public function refresh(string $plainRefreshToken, Request $request): TokenPair;
+    public function refresh(string $plainRefreshToken, Request $request): AuthResponse;
 
     public function logout(string $plainRefreshToken): void;
 }

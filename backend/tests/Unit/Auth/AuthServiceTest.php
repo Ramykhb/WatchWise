@@ -2,6 +2,9 @@
 
 namespace Tests\Unit\Auth;
 
+use App\Auth\DTOs\Requests\LoginData;
+use App\Auth\DTOs\Requests\RegisterData;
+use App\Auth\DTOs\Responses\AuthResponse;
 use App\Auth\Exceptions\InvalidCredentials;
 use App\Auth\Exceptions\InvalidRefreshToken;
 use App\Auth\Factories\TokenFactory;
@@ -24,6 +27,9 @@ class AuthServiceTest extends TestCase
         $user = new User;
         $user->forceFill(array_merge([
             'id' => 1,
+            'name' => 'A',
+            'role' => 'user',
+            'profile_visibility' => 'public',
             'email' => 'a@example.com',
             'password' => Hash::make('secret-pass'),
             'is_active' => true,
@@ -54,7 +60,7 @@ class AuthServiceTest extends TestCase
 
         $this->expectException(InvalidCredentials::class);
 
-        (new AuthService($users, $this->tokens()))->login('a@example.com', 'secret-pass', Request::create('/'));
+        (new AuthService($users, $this->tokens()))->login(new LoginData('a@example.com', 'secret-pass'), Request::create('/'));
     }
 
     public function test_login_rejects_wrong_password(): void
@@ -64,7 +70,7 @@ class AuthServiceTest extends TestCase
 
         $this->expectException(InvalidCredentials::class);
 
-        (new AuthService($users, $this->tokens()))->login('a@example.com', 'nope', Request::create('/'));
+        (new AuthService($users, $this->tokens()))->login(new LoginData('a@example.com', 'nope'), Request::create('/'));
     }
 
     public function test_login_rejects_inactive_user(): void
@@ -74,7 +80,7 @@ class AuthServiceTest extends TestCase
 
         $this->expectException(InvalidCredentials::class);
 
-        (new AuthService($users, $this->tokens()))->login('a@example.com', 'secret-pass', Request::create('/'));
+        (new AuthService($users, $this->tokens()))->login(new LoginData('a@example.com', 'secret-pass'), Request::create('/'));
     }
 
     public function test_login_issues_tokens(): void
@@ -87,7 +93,12 @@ class AuthServiceTest extends TestCase
         $tokens = $this->tokens();
         $tokens->shouldReceive('issue')->once()->with($user, $request)->andReturn($pair);
 
-        $this->assertSame($pair, (new AuthService($users, $tokens))->login('a@example.com', 'secret-pass', $request));
+        $result = (new AuthService($users, $tokens))->login(new LoginData('a@example.com', 'secret-pass'), $request);
+
+        $this->assertInstanceOf(AuthResponse::class, $result);
+        $this->assertSame('a', $result->accessToken);
+        $this->assertSame('r', $result->refreshToken);
+        $this->assertSame('a@example.com', $result->user->email);
     }
 
     public function test_register_fires_registered_and_issues_tokens(): void
@@ -105,11 +116,11 @@ class AuthServiceTest extends TestCase
         $tokens->shouldReceive('issue')->once()->with($user, $request)->andReturn($pair);
 
         $result = (new AuthService($users, $tokens))->register(
-            ['name' => 'A', 'email' => 'a@example.com', 'password' => 'secret-pass'],
+            new RegisterData('A', 'a@example.com', 'secret-pass'),
             $request,
         );
 
-        $this->assertSame($pair, $result);
+        $this->assertSame('a', $result->accessToken);
         Event::assertDispatched(Registered::class);
     }
 
@@ -122,7 +133,7 @@ class AuthServiceTest extends TestCase
         $tokens->shouldReceive('rotate')->with('bad', $request)->andThrow(new InvalidRefreshToken);
         $service = new AuthService($this->users(), $tokens);
 
-        $this->assertSame($pair, $service->refresh('good', $request));
+        $this->assertSame('r', $service->refresh('good', $request)->refreshToken);
 
         $this->expectException(InvalidRefreshToken::class);
         $service->refresh('bad', $request);

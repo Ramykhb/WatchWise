@@ -2,11 +2,13 @@
 
 namespace App\Auth\Services;
 
+use App\Auth\DTOs\Requests\LoginData;
+use App\Auth\DTOs\Requests\RegisterData;
+use App\Auth\DTOs\Responses\AuthResponse;
 use App\Auth\Exceptions\InvalidCredentials;
 use App\Auth\Factories\TokenFactory;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\AuthServiceInterface;
-use App\Auth\Support\TokenPair;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -18,33 +20,33 @@ class AuthService implements AuthServiceInterface
         private readonly TokenFactory $tokens,
     ) {}
 
-    public function register(array $data, Request $request): TokenPair
+    public function register(RegisterData $data, Request $request): AuthResponse
     {
         $user = $this->users->create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => $data['password'],
+            'name' => $data->name,
+            'email' => $data->email,
+            'password' => $data->password,
         ])->refresh();
 
         event(new Registered($user));
 
-        return $this->tokens->issue($user, $request);
+        return AuthResponse::fromTokenPair($this->tokens->issue($user, $request));
     }
 
-    public function login(string $email, string $password, Request $request): TokenPair
+    public function login(LoginData $data, Request $request): AuthResponse
     {
-        $user = $this->users->findByEmail($email);
+        $user = $this->users->findByEmail($data->email);
 
-        if (! $user || ! Hash::check($password, $user->password) || ! $user->is_active) {
+        if (! $user || ! Hash::check($data->password, $user->password) || ! $user->is_active) {
             throw new InvalidCredentials;
         }
 
-        return $this->tokens->issue($user, $request);
+        return AuthResponse::fromTokenPair($this->tokens->issue($user, $request));
     }
 
-    public function refresh(string $plainRefreshToken, Request $request): TokenPair
+    public function refresh(string $plainRefreshToken, Request $request): AuthResponse
     {
-        return $this->tokens->rotate($plainRefreshToken, $request);
+        return AuthResponse::fromTokenPair($this->tokens->rotate($plainRefreshToken, $request));
     }
 
     public function logout(string $plainRefreshToken): void
