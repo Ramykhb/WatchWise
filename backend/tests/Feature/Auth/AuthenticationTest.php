@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Auth\TokenFactory;
+use App\Auth\Factories\TokenFactory;
 use App\Models\RefreshToken;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;

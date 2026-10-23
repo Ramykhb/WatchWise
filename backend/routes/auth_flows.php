@@ -1,8 +1,8 @@
 <?php
 
-use App\Http\Controllers\EmailVerificationController;
-use App\Http\Controllers\PasswordResetController;
-use App\Http\Controllers\SocialAuthController;
+use App\Auth\Controllers\EmailVerificationController;
+use App\Auth\Controllers\PasswordResetController;
+use App\Auth\Controllers\SocialAuthController;
 use Illuminate\Support\Facades\Route;
 
 // Loaded from routes/api.php (already under the /api prefix).

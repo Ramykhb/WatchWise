@@ -2,7 +2,7 @@
 
 namespace App\Policies;
 
-use App\Contracts\CurrentUser;
+use App\Auth\CurrentUser\CurrentUser;
 use App\Models\User;
 
 class UserPolicy

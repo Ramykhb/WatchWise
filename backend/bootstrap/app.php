@@ -1,9 +1,9 @@
 <?php
 
-use App\Http\Middleware\AuthenticateJwt;
-use App\Http\Middleware\AuthenticateOptional;
-use App\Http\Middleware\EnsureEmailVerified;
-use App\Http\Middleware\EnsureRole;
+use App\Auth\Middleware\AuthenticateJwt;
+use App\Auth\Middleware\AuthenticateOptional;
+use App\Auth\Middleware\EnsureEmailVerified;
+use App\Auth\Middleware\EnsureRole;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
