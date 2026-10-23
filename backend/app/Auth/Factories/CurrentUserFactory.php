@@ -5,14 +5,17 @@ namespace App\Auth\Factories;
 use App\Auth\CurrentUser\CurrentUser;
 use App\Auth\CurrentUser\GuestUser;
 use App\Auth\CurrentUser\JwtCurrentUser;
-use App\Models\User;
+use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use Illuminate\Http\Request;
 
 class CurrentUserFactory
 {
     public const ATTRIBUTE = 'current_user';
 
-    public function __construct(private readonly TokenFactory $tokens) {}
+    public function __construct(
+        private readonly TokenFactory $tokens,
+        private readonly UserRepositoryInterface $users,
+    ) {}
 
     /** Resolve the CurrentUser once per request and memoize it on the request. */
     public function fromRequest(Request $request): CurrentUser
@@ -40,7 +43,7 @@ class CurrentUserFactory
             return $this->guest();
         }
 
-        $user = User::find($claims->sub);
+        $user = $this->users->findById((int) $claims->sub);
 
         if (! $user || ! $user->is_active) {
             return $this->guest();

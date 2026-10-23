@@ -3,6 +3,7 @@
 namespace App\Auth\Factories;
 
 use App\Auth\Exceptions\InvalidRefreshToken;
+use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
 use App\Auth\Support\TokenPair;
 use App\Models\RefreshToken;
 use App\Models\User;
@@ -18,6 +19,8 @@ use Throwable;
 class TokenFactory
 {
     private const ALGO = 'HS256';
+
+    public function __construct(private readonly RefreshTokenRepositoryInterface $refreshTokens) {}
 
     /** Issue a new access + refresh token pair (new refresh family unless one is given). */
     public function issue(User $user, Request $request, ?string $familyId = null): TokenPair
@@ -51,7 +54,7 @@ class TokenFactory
     {
         $plain = bin2hex(random_bytes(32));
 
-        $row = RefreshToken::create([
+        $row = $this->refreshTokens->create([
             'user_id' => $user->id,
             'token_hash' => $this->hash($plain),
             'family_id' => $familyId ?? (string) Str::uuid(),
@@ -86,7 +89,7 @@ class TokenFactory
     public function rotate(string $plain, Request $request): TokenPair
     {
         $pair = DB::transaction(function () use ($plain, $request): ?TokenPair {
-            $row = RefreshToken::where('token_hash', $this->hash($plain))->lockForUpdate()->first();
+            $row = $this->refreshTokens->findByHashForUpdate($this->hash($plain));
 
             if (! $row) {
                 return null;
@@ -107,11 +110,11 @@ class TokenFactory
                 return null;
             }
 
-            $pair = $this->issue($user, $request, $row->family_id);
-            $new = RefreshToken::where('token_hash', $this->hash($pair->refreshToken))->first();
-            $row->update(['revoked_at' => now(), 'replaced_by' => $new->id]);
+            [$access, $accessExp] = $this->issueAccessToken($user);
+            [$newPlain, $new] = $this->issueRefreshToken($user, $request, $row->family_id);
+            $this->refreshTokens->markRotated($row, $new->id);
 
-            return $pair;
+            return new TokenPair($user, $access, $accessExp, $newPlain, $new->expires_at);
         });
 
         return $pair ?? throw new InvalidRefreshToken;
@@ -120,7 +123,7 @@ class TokenFactory
     /** Revoke the family of the given refresh token (logout). */
     public function revoke(string $plain): void
     {
-        $row = RefreshToken::where('token_hash', $this->hash($plain))->first();
+        $row = $this->refreshTokens->findByHash($this->hash($plain));
 
         if ($row) {
             $this->revokeFamily($row->family_id);
@@ -129,7 +132,7 @@ class TokenFactory
 
     public function revokeFamily(string $familyId): void
     {
-        RefreshToken::where('family_id', $familyId)->whereNull('revoked_at')->update(['revoked_at' => now()]);
+        $this->refreshTokens->revokeFamily($familyId);
     }
 
     public function hash(string $plain): string
