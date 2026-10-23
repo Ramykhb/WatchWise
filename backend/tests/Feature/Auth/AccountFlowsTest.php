@@ -179,7 +179,7 @@ class AccountFlowsTest extends TestCase
         return $u;
     }
 
-    private function callback(string $provider)
+    private function hitSocialCallback(string $provider)
     {
         return $this->withUnencryptedCookie('oauth_state', 'abc')->get("/api/auth/social/{$provider}/callback?state=abc");
     }
@@ -188,7 +188,7 @@ class AccountFlowsTest extends TestCase
     {
         $this->mockSocialite('github', $this->socialUser('gh1', 'new@example.com'));
 
-        $response = $this->callback('github');
+        $response = $this->hitSocialCallback('github');
 
         $response->assertRedirect('http://front.test/auth/callback?status=success');
         $this->assertNotNull($response->getCookie('access_token', false));
@@ -206,7 +206,7 @@ class AccountFlowsTest extends TestCase
         $user = User::factory()->unverified()->create(['email' => 'me@example.com']);
         $this->mockSocialite('google', $this->socialUser('g1', 'me@example.com', ['email_verified' => true]));
 
-        $this->callback('google')->assertRedirect('http://front.test/auth/callback?status=success');
+        $this->hitSocialCallback('google')->assertRedirect('http://front.test/auth/callback?status=success');
 
         $this->assertSame(1, User::count());
         $this->assertNotNull($user->fresh()->email_verified_at);
@@ -218,9 +218,26 @@ class AccountFlowsTest extends TestCase
         $user = User::factory()->unverified()->create(['email' => 'me@example.com']);
         $this->mockSocialite('google', $this->socialUser('g1', 'me@example.com', ['email_verified' => false]));
 
-        $this->callback('google');
+        $this->hitSocialCallback('google')
+            ->assertRedirect('http://front.test/auth/callback?status=error&reason=email_unverified');
 
         $this->assertNull($user->fresh()->email_verified_at);
+        $this->assertSame(0, SocialAccount::count());
+    }
+
+    public function test_social_login_takes_over_unverified_local_account_by_resetting_its_password(): void
+    {
+        $user = User::factory()->unverified()->create(['email' => 'me@example.com', 'password' => 'attacker-password']);
+        $oldHash = $user->password;
+        $this->mockSocialite('google', $this->socialUser('g1', 'me@example.com', ['email_verified' => true]));
+
+        $this->hitSocialCallback('google')->assertRedirect('http://front.test/auth/callback?status=success');
+
+        $user->refresh();
+        $this->assertNotNull($user->email_verified_at);
+        $this->assertNotSame($oldHash, $user->password);
+        $this->postJson('/api/auth/login', ['email' => 'me@example.com', 'password' => 'attacker-password'])
+            ->assertUnauthorized();
     }
 
     public function test_social_callback_reuses_linked_account(): void
@@ -229,7 +246,7 @@ class AccountFlowsTest extends TestCase
         SocialAccount::create(['user_id' => $user->id, 'provider' => 'github', 'provider_id' => 'gh9', 'access_token' => 'old']);
         $this->mockSocialite('github', $this->socialUser('gh9', 'different@example.com'));
 
-        $this->callback('github')->assertRedirect('http://front.test/auth/callback?status=success');
+        $this->hitSocialCallback('github')->assertRedirect('http://front.test/auth/callback?status=success');
 
         $this->assertSame(1, User::count());
         $this->assertSame('provider-access-token', SocialAccount::first()->access_token);

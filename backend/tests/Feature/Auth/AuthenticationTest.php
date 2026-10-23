@@ -21,7 +21,7 @@ class AuthenticationTest extends TestCase
 
     private function refreshWith(string $token)
     {
-        return $this->withUnencryptedCookie('refresh_token', $token)->postJson('/api/auth/refresh');
+        return $this->withCredentials()->withUnencryptedCookie('refresh_token', $token)->postJson('/api/auth/refresh');
     }
 
     public function test_user_can_register_and_receives_httponly_cookies(): void
@@ -80,7 +80,7 @@ class AuthenticationTest extends TestCase
         $this->assertSame(900, $claims->exp - $claims->iat);
         $this->assertNotEmpty($claims->jti);
 
-        $this->withUnencryptedCookie('access_token', $jwt)->getJson('/api/auth/me')
+        $this->withCredentials()->withUnencryptedCookie('access_token', $jwt)->getJson('/api/auth/me')
             ->assertOk()->assertJsonPath('user.id', $user->id);
 
         $this->withHeader('Authorization', 'Bearer '.$jwt)->getJson('/api/auth/me')
@@ -108,10 +108,14 @@ class AuthenticationTest extends TestCase
         $user = User::factory()->create();
         [$jwt] = app(TokenFactory::class)->issueAccessToken($user);
 
-        $this->withHeader('Authorization', 'Bearer '.$jwt.'x')->getJson('/api/auth/me')->assertUnauthorized();
+        [$header, $payload, $signature] = explode('.', $jwt);
+        $flipped = ($signature[5] === 'A' ? 'B' : 'A');
+        $tampered = implode('.', [$header, $payload, substr_replace($signature, $flipped, 5, 1)]);
+        $this->withHeader('Authorization', 'Bearer '.$tampered)->getJson('/api/auth/me')->assertUnauthorized();
 
-        $this->travel(16)->minutes();
-        $this->withHeader('Authorization', 'Bearer '.$jwt)->getJson('/api/auth/me')->assertUnauthorized();
+        config(['jwt.access_ttl' => -1]);
+        [$expired] = app(TokenFactory::class)->issueAccessToken($user);
+        $this->withHeader('Authorization', 'Bearer '.$expired)->getJson('/api/auth/me')->assertUnauthorized();
     }
 
     public function test_refresh_rotates_the_token(): void
@@ -164,12 +168,32 @@ class AuthenticationTest extends TestCase
         $login = $this->postJson('/api/auth/login', ['email' => 'a@example.com', 'password' => 'password']);
         $refresh = $this->cookieValue($login, 'refresh_token');
 
-        $response = $this->withUnencryptedCookie('refresh_token', $refresh)->postJson('/api/auth/logout')->assertOk();
+        $response = $this->withCredentials()->withUnencryptedCookie('refresh_token', $refresh)->postJson('/api/auth/logout')->assertOk();
 
         $this->assertTrue($response->getCookie('access_token', false)->isCleared());
         $this->assertTrue($response->getCookie('refresh_token', false)->isCleared());
         $this->assertSame(0, RefreshToken::whereNull('revoked_at')->count());
         $this->refreshWith($refresh)->assertUnauthorized();
+    }
+
+    public function test_login_throttle_cannot_be_bypassed_by_rotating_the_email(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/auth/login', ['email' => "user{$i}@example.com", 'password' => 'x'])->assertUnauthorized();
+        }
+
+        $this->postJson('/api/auth/login', ['email' => 'fresh@example.com', 'password' => 'x'])->assertStatus(429);
+    }
+
+    public function test_login_throttle_is_per_account_across_ips(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->withServerVariables(['REMOTE_ADDR' => "10.0.0.{$i}"])
+                ->postJson('/api/auth/login', ['email' => 'Victim@Example.com ', 'password' => 'x'])->assertUnauthorized();
+        }
+
+        $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.99'])
+            ->postJson('/api/auth/login', ['email' => 'victim@example.com', 'password' => 'x'])->assertStatus(429);
     }
 
     public function test_login_is_throttled(): void
