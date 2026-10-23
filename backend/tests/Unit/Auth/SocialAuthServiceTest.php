@@ -2,6 +2,8 @@
 
 namespace Tests\Unit\Auth;
 
+use App\Auth\DTOs\Requests\SocialLoginData;
+use App\Auth\DTOs\Responses\AuthResponse;
 use App\Auth\Exceptions\AccountDisabled;
 use App\Auth\Exceptions\UnverifiedProviderEmail;
 use App\Auth\Factories\TokenFactory;
@@ -13,7 +15,6 @@ use App\Auth\Support\TokenPair;
 use App\Models\SocialAccount;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Laravel\Socialite\Two\User as SocialUser;
 use Mockery;
 use Mockery\MockInterface;
 use Tests\TestCase;
@@ -41,21 +42,18 @@ class SocialAuthServiceTest extends TestCase
         $this->service = new SocialAuthService($this->users, $this->accounts, $this->refreshTokens, $this->tokens);
     }
 
-    /**
-     * @param  array<string, mixed>  $raw
-     */
-    private function socialUser(array $raw = ['email_verified' => true]): SocialUser
+    private function socialUser(bool $emailVerified = true): SocialLoginData
     {
-        $user = new SocialUser;
-        $user->map(['id' => 'pid-1', 'name' => 'Ada', 'nickname' => 'ada', 'email' => 'ada@example.com', 'avatar' => 'http://a/b.png']);
-        $user->token = 'tok';
-        $user->user = $raw;
-
-        return $user;
+        return new SocialLoginData('google', 'pid-1', 'ada@example.com', 'Ada', 'ada', 'http://a/b.png', 'tok', $emailVerified);
     }
 
     private function pair(User $user): TokenPair
     {
+        $user->name ??= 'Ada';
+        $user->email ??= 'ada@example.com';
+        $user->role ??= 'user';
+        $user->profile_visibility ??= 'public';
+
         return new TokenPair($user, 'a', now(), 'r', now());
     }
 
@@ -74,7 +72,7 @@ class SocialAuthServiceTest extends TestCase
         $this->accounts->shouldReceive('create')->once()->with(['user_id' => 1, 'provider' => 'google', 'provider_id' => 'pid-1', 'access_token' => 'tok']);
         $this->tokens->shouldReceive('issue')->once()->with($user, $request)->andReturn($this->pair($user));
 
-        $this->assertInstanceOf(TokenPair::class, $this->service->loginWithProvider('google', $this->socialUser(), $request));
+        $this->assertInstanceOf(AuthResponse::class, $this->service->loginWithProvider($this->socialUser(), $request));
     }
 
     public function test_links_a_verified_local_user_without_touching_credentials(): void
@@ -92,7 +90,7 @@ class SocialAuthServiceTest extends TestCase
         $this->accounts->shouldReceive('create')->once();
         $this->tokens->shouldReceive('issue')->once()->andReturn($this->pair($user));
 
-        $this->service->loginWithProvider('google', $this->socialUser(), Request::create('/'));
+        $this->service->loginWithProvider($this->socialUser(), Request::create('/'));
     }
 
     public function test_takeover_of_unverified_local_account_resets_password_and_revokes_tokens(): void
@@ -109,7 +107,7 @@ class SocialAuthServiceTest extends TestCase
         $this->accounts->shouldReceive('create')->once();
         $this->tokens->shouldReceive('issue')->once()->andReturn($this->pair($user));
 
-        $this->service->loginWithProvider('google', $this->socialUser(), Request::create('/'));
+        $this->service->loginWithProvider($this->socialUser(), Request::create('/'));
     }
 
     public function test_rejects_unverified_provider_email(): void
@@ -121,7 +119,7 @@ class SocialAuthServiceTest extends TestCase
 
         $this->expectException(UnverifiedProviderEmail::class);
 
-        $this->service->loginWithProvider('google', $this->socialUser(['email_verified' => false]), Request::create('/'));
+        $this->service->loginWithProvider($this->socialUser(false), Request::create('/'));
     }
 
     public function test_rejects_disabled_account(): void
@@ -138,6 +136,6 @@ class SocialAuthServiceTest extends TestCase
 
         $this->expectException(AccountDisabled::class);
 
-        $this->service->loginWithProvider('google', $this->socialUser(), Request::create('/'));
+        $this->service->loginWithProvider($this->socialUser(), Request::create('/'));
     }
 }

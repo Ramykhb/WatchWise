@@ -2,6 +2,8 @@
 
 namespace App\Auth\Services;
 
+use App\Auth\DTOs\Requests\SocialLoginData;
+use App\Auth\DTOs\Responses\AuthResponse;
 use App\Auth\Exceptions\AccountDisabled;
 use App\Auth\Exceptions\EmailRequired;
 use App\Auth\Exceptions\UnverifiedProviderEmail;
@@ -10,12 +12,10 @@ use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
 use App\Auth\InterfaceRepository\SocialAccountRepositoryInterface;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\SocialAuthServiceInterface;
-use App\Auth\Support\TokenPair;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Laravel\Socialite\Contracts\User as SocialUser;
 
 class SocialAuthService implements SocialAuthServiceInterface
 {
@@ -26,37 +26,36 @@ class SocialAuthService implements SocialAuthServiceInterface
         private readonly TokenFactory $tokens,
     ) {}
 
-    public function loginWithProvider(string $provider, SocialUser $socialUser, Request $request): TokenPair
+    public function loginWithProvider(SocialLoginData $data, Request $request): AuthResponse
     {
-        if (! $socialUser->getEmail()) {
+        if (! $data->email) {
             throw new EmailRequired;
         }
 
-        $user = $this->resolveUser($provider, $socialUser);
+        $user = $this->resolveUser($data);
 
         if (! $user->is_active) {
             throw new AccountDisabled;
         }
 
-        return $this->tokens->issue($user, $request);
+        return AuthResponse::fromTokenPair($this->tokens->issue($user, $request));
     }
 
-    private function resolveUser(string $provider, SocialUser $socialUser): User
+    private function resolveUser(SocialLoginData $data): User
     {
-        return DB::transaction(function () use ($provider, $socialUser): User {
-            $providerId = (string) $socialUser->getId();
-            $account = $this->socialAccounts->findByProvider($provider, $providerId);
+        return DB::transaction(function () use ($data): User {
+            $account = $this->socialAccounts->findByProvider($data->provider, $data->providerId);
 
             if ($account) {
-                $this->socialAccounts->updateAccessToken($account, $socialUser->token);
+                $this->socialAccounts->updateAccessToken($account, $data->accessToken);
 
                 return $account->user;
             }
 
-            $email = $socialUser->getEmail();
+            $email = (string) $data->email;
 
             // Never link to or create an account from an email the provider has not verified.
-            if (! $this->emailIsVerified($provider, $socialUser)) {
+            if (! $this->emailIsVerified($data)) {
                 throw new UnverifiedProviderEmail;
             }
 
@@ -72,29 +71,29 @@ class SocialAuthService implements SocialAuthServiceInterface
                 }
             } else {
                 $user = $this->users->create([
-                    'name' => $socialUser->getName() ?: ($socialUser->getNickname() ?: Str::before($email, '@')),
+                    'name' => $data->name ?: ($data->nickname ?: Str::before($email, '@')),
                     'email' => $email,
                     'password' => Str::random(40),
-                    'avatar' => $socialUser->getAvatar(),
+                    'avatar' => $data->avatar,
                 ]);
                 $this->users->markEmailVerified($user);
             }
 
             $this->socialAccounts->create([
                 'user_id' => $user->id,
-                'provider' => $provider,
-                'provider_id' => $providerId,
-                'access_token' => $socialUser->token,
+                'provider' => $data->provider,
+                'provider_id' => $data->providerId,
+                'access_token' => $data->accessToken,
             ]);
 
             return $user;
         });
     }
 
-    private function emailIsVerified(string $provider, SocialUser $socialUser): bool
+    private function emailIsVerified(SocialLoginData $data): bool
     {
-        if ($provider === 'google') {
-            return (bool) ($socialUser->user['email_verified'] ?? false);
+        if ($data->provider === 'google') {
+            return $data->providerReportsEmailVerified;
         }
 
         return true;
