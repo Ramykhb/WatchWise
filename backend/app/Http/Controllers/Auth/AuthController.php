@@ -39,6 +39,9 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request): JsonResponse
     {
+        // TODO: add a captcha here (required after repeated failed attempts) so the per-email rate limit
+        // in AppServiceProvider no longer lets a third party lock out an account owner. Do the same for
+        // register and forgot-password.
         $user = User::where('email', $request->validated('email'))->first();
 
         if (! $user || ! Hash::check($request->validated('password'), $user->password) || ! $user->is_active) {
