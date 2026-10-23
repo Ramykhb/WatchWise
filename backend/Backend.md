@@ -9,6 +9,7 @@ What each file in the auth module does. Paths are relative to `backend/`.
 - [How a request flows](#how-a-request-flows)
 - [Routes](#routes)
 - [Config](#config)
+- [DTOs](#dtos)
 - [Services](#services)
 - [Repositories](#repositories)
 - [Tokens and current user](#tokens-and-current-user)
@@ -47,6 +48,9 @@ app/Auth/
   Services/             Business logic
   InterfaceRepository/  Repository contracts
   Repository/           Eloquent queries
+  DTOs/
+    Requests/           Input data objects built by the form requests
+    Responses/          Output data objects returned by the services
   Factories/            TokenFactory, CurrentUserFactory
   CurrentUser/          CurrentUser interface, JwtCurrentUser, GuestUser
   Support/              AuthCookies, TokenPair
@@ -82,6 +86,21 @@ app/Auth/
 | `config/services.php` | Google and GitHub OAuth credentials, frontend URL |
 | `phpunit.xml` | Test-only `JWT_SECRET` and `FRONTEND_URL` |
 | `app/Providers/AppServiceProvider.php` | Per-route rate limiters (IP bucket plus per-email bucket) and the `Registered` listener |
+
+## DTOs
+
+Plain `final readonly` classes in `app/Auth/DTOs/`. Services take Request DTOs and return Response DTOs, so they never see raw arrays, `Request` bodies or Socialite types.
+
+| File | Purpose |
+| --- | --- |
+| `Requests/RegisterData`, `LoginData` | Built by `RegisterRequest::toDto()` and `LoginRequest::toDto()` |
+| `Requests/ForgotPasswordData`, `ResetPasswordData`, `ResendVerificationData` | Built by the matching form requests |
+| `Requests/VerifyEmailData` | The `id` and `hash` from the signed verification link |
+| `Requests/SocialLoginData` | What the module needs from an OAuth provider, built by `fromSocialite()` in the controller |
+| `Responses/UserResponse` | The public user JSON (same fields as before) |
+| `Responses/AuthResponse` | The user plus the tokens. `body()` is the JSON, and `AuthCookies` turns the tokens into cookies |
+
+`TokenFactory` still returns the internal `TokenPair`. The services convert it with `AuthResponse::fromTokenPair()`.
 
 ## Services
 
@@ -193,7 +212,7 @@ Policies stay in `app/Policies/` because each belongs to the entity it protects:
 | `tests/Feature/Auth/MiddlewareTest.php` | The four middleware |
 | `tests/Feature/Auth/PolicyTest.php` | The policy rules, including messages |
 | `tests/Feature/Auth/Repository/` | Each repository against the database |
-| `tests/Unit/Auth/` | Each service with fake repositories |
+| `tests/Unit/Auth/` | Each service with fake repositories, and `UserResponse` matching the model's JSON |
 
 ## Adding a new entity
 
