@@ -2,6 +2,7 @@
 
 namespace App\Auth\Controllers;
 
+use App\Auth\DTOs\Requests\SocialLoginData;
 use App\Auth\Exceptions\AccountDisabled;
 use App\Auth\Exceptions\EmailRequired;
 use App\Auth\Exceptions\UnverifiedProviderEmail;
@@ -57,7 +58,7 @@ class SocialAuthController extends Controller
         }
 
         try {
-            $pair = $this->social->loginWithProvider($provider, $socialUser, $request);
+            $authResponse = $this->social->loginWithProvider(SocialLoginData::fromSocialite($provider, $socialUser), $request);
         } catch (EmailRequired) {
             return $this->failure('email_required');
         } catch (UnverifiedProviderEmail) {
@@ -66,7 +67,7 @@ class SocialAuthController extends Controller
             return $this->failure('account_disabled');
         }
 
-        $json = $this->cookies->attach(new JsonResponse, $pair);
+        $json = $this->cookies->attach(new JsonResponse, $authResponse);
 
         $redirect = redirect($this->frontend('/auth/callback?status=success'));
         foreach ($json->headers->getCookies() as $cookie) {
