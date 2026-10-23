@@ -2,6 +2,8 @@
 
 namespace App\Auth\Services;
 
+use App\Auth\DTOs\Requests\ResendVerificationData;
+use App\Auth\DTOs\Requests\VerifyEmailData;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\EmailVerificationServiceInterface;
 use App\Auth\Mail\VerifyEmailMail;
@@ -34,20 +36,20 @@ class EmailVerificationService implements EmailVerificationServiceInterface
         }));
     }
 
-    public function resend(string $email): void
+    public function resend(ResendVerificationData $data): void
     {
-        $user = $this->users->findByEmail($email);
+        $user = $this->users->findByEmail($data->email);
 
         if ($user && ! $user->email_verified_at) {
             $this->send($user);
         }
     }
 
-    public function verify(int $id, string $hash): bool
+    public function verify(VerifyEmailData $data): bool
     {
-        $user = $this->users->findById($id);
+        $user = $this->users->findById($data->id);
 
-        if (! $user || ! hash_equals(sha1($user->email), $hash)) {
+        if (! $user || ! hash_equals(sha1($user->email), $data->hash)) {
             return false;
         }
 
