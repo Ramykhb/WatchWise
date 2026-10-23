@@ -22,7 +22,8 @@ use App\Policies\ReviewPolicy;
 use App\Policies\UserPolicy;
 use App\Policies\UserPreferencePolicy;
 use App\Policies\WatchlistPolicy;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Auth\Access\Gate as AccessGate;
+use Illuminate\Contracts\Auth\Access\Gate as GateContract;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -47,6 +48,13 @@ class AuthorizationServiceProvider extends ServiceProvider
     {
         // Anonymous by default; the auth middleware replaces this per request.
         $this->app->bind(CurrentUser::class, fn () => new GuestUser);
+
+        // Gate checks (can(), authorize(), policies) receive the CurrentUser. Only the Gate is
+        // rebound, so $request->user() and Auth::user() keep their framework meaning (rate limiting).
+        $this->app->singleton(GateContract::class, fn ($app) => new AccessGate(
+            $app,
+            fn () => $app->make(CurrentUser::class),
+        ));
     }
 
     public function boot(): void
@@ -54,8 +62,5 @@ class AuthorizationServiceProvider extends ServiceProvider
         foreach ($this->policies as $model => $policy) {
             Gate::policy($model, $policy);
         }
-
-        // Gate checks (can(), authorize(), policies) receive the CurrentUser, never Auth::user().
-        Auth::resolveUsersUsing(fn () => $this->app->make(CurrentUser::class));
     }
 }
