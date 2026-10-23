@@ -2,13 +2,13 @@
 
 namespace App\Auth\Listeners;
 
-use App\Auth\Services\EmailVerificationService;
+use App\Auth\InterfaceServices\EmailVerificationServiceInterface;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 
 class SendEmailVerification
 {
-    public function __construct(private EmailVerificationService $service) {}
+    public function __construct(private EmailVerificationServiceInterface $service) {}
 
     /** Sends the verification link after registration (registered in AppServiceProvider). */
     public function handle(Registered $event): void
