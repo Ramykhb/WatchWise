@@ -279,6 +279,7 @@ class AccountFlowsTest extends TestCase
     public function test_registered_event_is_listened_to(): void
     {
         Mail::fake();
+        $this->withoutDefer();
         event(new Registered(User::factory()->unverified()->create()));
         Mail::assertSent(VerifyEmailMail::class);
     }

@@ -24,16 +24,19 @@ class PasswordResetController extends Controller
         $user = User::where('email', $email)->first();
 
         if ($user) {
-            $plain = Str::random(64);
-            PasswordReset::where('email', $email)->delete();
-            $record = new PasswordReset(['email' => $email, 'token' => Hash::make($plain)]);
-            $record->created_at = now();
-            $record->save();
+            // After the response is sent, so the cost of hashing and mailing never leaks whether the account exists.
+            defer(fn () => rescue(function () use ($user, $email): void {
+                $plain = Str::random(64);
+                PasswordReset::where('email', $email)->delete();
+                $record = new PasswordReset(['email' => $email, 'token' => Hash::make($plain)]);
+                $record->created_at = now();
+                $record->save();
 
-            $url = rtrim(config('services.frontend_url'), '/').'/reset-password?'
-                .http_build_query(['token' => $plain, 'email' => $email]);
+                $url = rtrim(config('services.frontend_url'), '/').'/reset-password?'
+                    .http_build_query(['token' => $plain, 'email' => $email]);
 
-            Mail::to($email)->send(new ResetPasswordMail($user->name, $url, self::EXPIRES_MINUTES));
+                Mail::to($email)->send(new ResetPasswordMail($user->name, $url, self::EXPIRES_MINUTES));
+            }));
         }
 
         return response()->json(['message' => 'If that email is registered, a password reset link has been sent.']);
