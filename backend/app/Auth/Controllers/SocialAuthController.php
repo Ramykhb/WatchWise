@@ -2,19 +2,16 @@
 
 namespace App\Auth\Controllers;
 
+use App\Auth\Exceptions\AccountDisabled;
+use App\Auth\Exceptions\EmailRequired;
 use App\Auth\Exceptions\UnverifiedProviderEmail;
-use App\Auth\Factories\TokenFactory;
+use App\Auth\InterfaceServices\SocialAuthServiceInterface;
 use App\Auth\Support\AuthCookies;
 use App\Http\Controllers\Controller;
-use App\Models\RefreshToken;
-use App\Models\SocialAccount;
-use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Laravel\Socialite\Contracts\User as SocialUser;
 use Laravel\Socialite\Facades\Socialite;
 use Throwable;
 
@@ -25,7 +22,7 @@ class SocialAuthController extends Controller
     private const STATE_COOKIE = 'oauth_state';
 
     public function __construct(
-        private readonly TokenFactory $tokens,
+        private readonly SocialAuthServiceInterface $social,
         private readonly AuthCookies $cookies,
     ) {}
 
@@ -59,21 +56,16 @@ class SocialAuthController extends Controller
             return $this->failure('provider_error');
         }
 
-        if (! $socialUser->getEmail()) {
-            return $this->failure('email_required');
-        }
-
         try {
-            $user = $this->resolveUser($provider, $socialUser);
+            $pair = $this->social->loginWithProvider($provider, $socialUser, $request);
+        } catch (EmailRequired) {
+            return $this->failure('email_required');
         } catch (UnverifiedProviderEmail) {
             return $this->failure('email_unverified');
-        }
-
-        if (! $user->is_active) {
+        } catch (AccountDisabled) {
             return $this->failure('account_disabled');
         }
 
-        $pair = $this->tokens->issue($user, $request);
         $json = $this->cookies->attach(new JsonResponse, $pair);
 
         $redirect = redirect($this->frontend('/auth/callback?status=success'));
@@ -82,69 +74,6 @@ class SocialAuthController extends Controller
         }
 
         return $redirect->withCookie(cookie()->forget(self::STATE_COOKIE, '/'));
-    }
-
-    private function resolveUser(string $provider, SocialUser $socialUser): User
-    {
-        return DB::transaction(function () use ($provider, $socialUser) {
-            $account = SocialAccount::where('provider', $provider)
-                ->where('provider_id', (string) $socialUser->getId())
-                ->first();
-
-            if ($account) {
-                $account->update(['access_token' => $socialUser->token]);
-                $user = $account->user;
-            } else {
-                $email = $socialUser->getEmail();
-
-                // Never link to or create an account from an email the provider has not verified.
-                if (! $this->emailIsVerified($provider, $socialUser)) {
-                    throw new UnverifiedProviderEmail;
-                }
-
-                $user = User::where('email', $email)->first();
-
-                if ($user) {
-                    if (! $user->email_verified_at) {
-                        // The local account was never proven to belong to this email, so whoever
-                        // registered it may not be the owner: drop their password and sessions.
-                        $user->forceFill([
-                            'email_verified_at' => now(),
-                            'password' => Str::random(40),
-                        ])->save();
-                        RefreshToken::where('user_id', $user->id)->whereNull('revoked_at')->update(['revoked_at' => now()]);
-                    }
-                } else {
-                    $user = new User([
-                        'name' => $socialUser->getName() ?: ($socialUser->getNickname() ?: Str::before($email, '@')),
-                        'email' => $email,
-                        'password' => Str::random(40),
-                        'avatar' => $socialUser->getAvatar(),
-                    ]);
-                    $user->email_verified_at = now();
-                    $user->save();
-                    $user->refresh();
-                }
-
-                SocialAccount::create([
-                    'user_id' => $user->id,
-                    'provider' => $provider,
-                    'provider_id' => (string) $socialUser->getId(),
-                    'access_token' => $socialUser->token,
-                ]);
-            }
-
-            return $user;
-        });
-    }
-
-    private function emailIsVerified(string $provider, SocialUser $socialUser): bool
-    {
-        if ($provider === 'google') {
-            return (bool) ($socialUser->user['email_verified'] ?? false);
-        }
-
-        return true;
     }
 
     private function assertProvider(string $provider): void
