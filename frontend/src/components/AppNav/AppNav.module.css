@@ -98,6 +98,7 @@
 }
 
 .iconButton {
+  position: relative;
   border: 1.5px solid var(--border-subtle);
   background: var(--surface-white);
   cursor: pointer;
@@ -106,6 +107,30 @@
 
 .iconButton:hover {
   border-color: var(--ink-900);
+}
+
+.iconButtonActive {
+  border-color: var(--ground-violet);
+  background: var(--surface-violet-tint);
+}
+
+/* Unread count on the bell. */
+.badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border: 2px solid var(--ground-cream);
+  border-radius: var(--radius-pill);
+  background: var(--accent-coral);
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--surface-white);
 }
 
 .avatar {

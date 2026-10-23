@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'open_meteo' => [
+        'url' => env('OPEN_METEO_URL'),
+        'default_latitude' => (float) env('OPEN_METEO_DEFAULT_LATITUDE'),
+        'default_longitude' => (float) env('OPEN_METEO_DEFAULT_LONGITUDE'),
+        'timezone' => env('OPEN_METEO_TIMEZONE'),
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -48,5 +54,10 @@ return [
     ],
 
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
+
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL'),
+    ],
 
 ];

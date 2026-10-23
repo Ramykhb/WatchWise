@@ -1,0 +1,411 @@
+.page {
+  min-height: 100vh;
+  overflow-x: clip;
+  padding-bottom: 96px;
+  background: var(--ground-cream);
+}
+
+.main {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 80px;
+}
+
+/* ---------- Header ---------- */
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 0;
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.title {
+  display: flex;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 72px;
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+}
+
+.lead {
+  max-width: 640px;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+/* ---------- Tabs ---------- */
+.tabs {
+  display: flex;
+  gap: 28px;
+  padding-bottom: 28px;
+  scroll-margin-top: 16px;
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--ink-400);
+  white-space: nowrap;
+  transition: color 0.2s ease-out;
+}
+
+/* Figma separates label and count with two spaces. */
+.tabCount {
+  margin-left: 0.5em;
+}
+
+.tab::after {
+  content: '';
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent-coral);
+  scale: 0 1;
+  transition: scale 0.25s var(--ease-out-back);
+}
+
+.tab:hover,
+.tab[aria-selected='true'] {
+  color: var(--ink-900);
+}
+
+.tab[aria-selected='true']::after {
+  scale: 1;
+}
+
+/* ---------- My lists ---------- */
+/* Three 410px cards with 24px gaps at 1440; cards of a row are centred vertically, as in Figma. */
+.grid,
+.publicGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 28px;
+  background: var(--surface-white);
+}
+
+.cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 190px;
+  overflow: hidden;
+  border-radius: 22px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardTitle {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.cardTitle:hover {
+  color: var(--ground-violet);
+  text-decoration: underline;
+}
+
+.visPublic,
+.visPrivate {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.visPublic {
+  background: var(--surface-mint-tint);
+}
+
+.visPrivate {
+  background: var(--surface-cream-deep);
+}
+
+.description {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.count {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+.manage {
+  display: flex;
+  gap: 8px;
+}
+
+.edit,
+.delete {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  transition: scale 0.25s var(--ease-out-back);
+}
+
+.edit:hover,
+.delete:hover {
+  scale: 1.1;
+}
+
+.edit {
+  background: var(--surface-violet-tint);
+}
+
+.delete {
+  background: var(--surface-coral-tint);
+}
+
+.newCell {
+  display: flex;
+}
+
+.newList {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 384px;
+  border: 2px dashed var(--ink-400);
+  border-radius: 28px;
+  text-align: center;
+  transition:
+    border-color 0.2s ease-out,
+    background-color 0.2s ease-out;
+}
+
+.newList:hover {
+  border-color: var(--ground-violet);
+  background: var(--surface-violet-tint);
+}
+
+.newIcon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-pill);
+  background: var(--ground-violet);
+  transition: scale 0.25s var(--ease-out-back);
+}
+
+.newList:hover .newIcon {
+  scale: 1.1;
+}
+
+.newTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.newText {
+  max-width: 280px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+/* ---------- Popular public lists ---------- */
+.popular {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 64px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+}
+
+.sectionAction {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ground-violet);
+  white-space: nowrap;
+}
+
+.sectionAction:hover {
+  text-decoration: underline;
+}
+
+.publicCard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 28px;
+  background: var(--surface-white);
+}
+
+.publicCard:hover .publicTitle {
+  color: var(--ground-violet);
+  text-decoration: underline;
+}
+
+.publicCover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  overflow: hidden;
+  border-radius: 22px;
+  background: var(--ground-violet);
+}
+
+.publicTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.publicMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.author {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.likes {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink-600);
+}
+
+.films {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  .main {
+    padding: 0 32px;
+  }
+
+  .grid,
+  .publicGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding: 0 20px;
+  }
+
+  .title {
+    font-size: 56px;
+  }
+
+  .lead {
+    font-size: 16px;
+  }
+
+  .grid,
+  .publicGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .newList {
+    height: 240px;
+  }
+}
