@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Mail\ResetPasswordMail;
-use App\Mail\VerifyEmailMail;
+use App\Auth\Mail\ResetPasswordMail;
+use App\Auth\Mail\VerifyEmailMail;
 use App\Models\PasswordReset;
 use App\Models\RefreshToken;
 use App\Models\SocialAccount;

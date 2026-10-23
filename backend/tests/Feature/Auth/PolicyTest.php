@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Auth\GuestUser;
-use App\Auth\JwtCurrentUser;
-use App\Contracts\CurrentUser;
+use App\Auth\CurrentUser\CurrentUser;
+use App\Auth\CurrentUser\GuestUser;
+use App\Auth\CurrentUser\JwtCurrentUser;
 use App\Models\DiscussionRoom;
 use App\Models\Message;
 use App\Models\MovieList;

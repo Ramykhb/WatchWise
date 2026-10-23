@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Auth\TokenFactory;
-use App\Contracts\CurrentUser;
+use App\Auth\CurrentUser\CurrentUser;
+use App\Auth\Factories\TokenFactory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;

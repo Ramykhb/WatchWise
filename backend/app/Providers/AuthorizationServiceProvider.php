@@ -2,8 +2,8 @@
 
 namespace App\Providers;
 
-use App\Auth\GuestUser;
-use App\Contracts\CurrentUser;
+use App\Auth\CurrentUser\CurrentUser;
+use App\Auth\CurrentUser\GuestUser;
 use App\Models\Message;
 use App\Models\MovieList;
 use App\Models\MovieListItem;
