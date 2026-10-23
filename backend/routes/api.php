@@ -1,6 +1,9 @@
 <?php
 
 use App\Auth\Controllers\AuthController;
+use App\Http\Controllers\MovieRecommendationController;
+use App\Http\Controllers\WeatherController;
+use App\Http\Controllers\WeatherMoodController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
@@ -12,3 +15,7 @@ Route::prefix('auth')->group(function () {
 });
 
 require __DIR__.'/auth_flows.php';
+
+Route::get('/weather', WeatherController::class);
+Route::post('/weather-mood', WeatherMoodController::class);
+Route::get('/movie-recommendations', MovieRecommendationController::class);
