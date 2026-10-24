@@ -24,6 +24,14 @@
   box-shadow: var(--elevation-soft);
 }
 
+.posterImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .sun {
   position: absolute;
   top: 19.31%;

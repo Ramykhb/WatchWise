@@ -631,6 +631,23 @@ legend.groupLabel {
   color: var(--ink-600);
 }
 
+.searchNote {
+  font-size: 14px;
+  color: var(--ink-600);
+}
+
+/* The previous page stays visible, dimmed, while the next one loads. */
+.loading {
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+}
+
+.sort select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .pagination {
   display: flex;
   flex-wrap: wrap;

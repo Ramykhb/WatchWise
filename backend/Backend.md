@@ -1,6 +1,6 @@
-# Backend Auth Overview
+# Backend Overview
 
-What each file in the auth module does. Paths are relative to `backend/`.
+What each file in the Auth and Tmdb modules does. Paths are relative to `backend/`. Everything up to "Tests" describes the Auth module, and the Tmdb module has its own section.
 
 ## Contents
 
@@ -23,6 +23,7 @@ What each file in the auth module does. Paths are relative to `backend/`.
 - [Authorization](#authorization)
 - [Wiring](#wiring)
 - [Tests](#tests)
+- [Tmdb module](#tmdb-module)
 - [Security notes](#security-notes)
 - [Known follow-ups](#known-follow-ups)
 - [Adding a new entity](#adding-a-new-entity)
@@ -46,7 +47,7 @@ Controller -> InterfaceServices -> Services -> InterfaceRepository -> Repository
 ```
 app/Auth/
   Controllers/          HTTP layer
-  Requests/             Form request validation
+  FormRequests/         Laravel form requests: validate the HTTP input and build the DTOs
   Middleware/           auth.jwt, auth.optional, verified.email, role
   InterfaceServices/    Service contracts
   Services/             Business logic
@@ -208,8 +209,36 @@ All in `app/Auth/Middleware/`.
 
 ## Form requests
 
-In `app/Auth/Requests/`. Each validates the matching endpoint:
-`RegisterRequest`, `LoginRequest`, `ForgotPasswordRequest`, `ResetPasswordRequest`, `ResendVerificationRequest`.
+Each module keeps its Laravel form requests in a `FormRequests/` folder:
+
+- `app/Auth/FormRequests/`: `RegisterRequest`, `LoginRequest`, `ForgotPasswordRequest`, `ResetPasswordRequest`, `ResendVerificationRequest`.
+- `app/Tmdb/FormRequests/`: `MovieListRequest`, `MovieSearchRequest`, `MovieDiscoverRequest`.
+
+A form request checks the incoming HTTP request before the controller runs, and turns it into a clean object for the service.
+
+| Part | What it does |
+| --- | --- |
+| `rules()` | The validation rules for one endpoint. For example, `MovieSearchRequest` requires `q` (1 to 100 characters) and allows `page` from 1 to 500 and `year` from 1874 to 2100. `RegisterRequest` checks that the email is unique and that the password is at least 8 characters with letters and numbers |
+| Failed validation | Laravel stops and returns a 422 with the errors listed per field, for example `{"errors": {"q": ["The q field is required."]}}`. The controller and the service never run |
+| `toDto()` | Turns the validated input into a typed DTO from `DTOs/Requests/` (for example `MovieSearchQuery`) that the service uses |
+| `authorize()` | Can reject a request based on who is making it. Ours return `true`, because the auth middleware handles that |
+
+A controller method type-hints the form request, and Laravel runs it automatically. There is no manual `validate()` call:
+
+```php
+public function search(MovieSearchRequest $request): JsonResponse
+{
+    return response()->json($this->movies->search($request->toDto()));
+}
+```
+
+```
+HTTP request -> FormRequest (validate) -> toDto() -> Controller -> Service -> Repository
+```
+
+The form request is the only layer that knows about the raw HTTP input. Everything after it works with typed, trusted data.
+
+Do not confuse `FormRequests/` with `DTOs/Requests/`. The form request validates the HTTP input. The DTO is the plain data object it produces and hands to the service.
 
 ## Email
 
@@ -264,6 +293,39 @@ Policies stay in `app/Policies/` because each belongs to the entity it protects:
 | `tests/Feature/Auth/Repository/` | Each repository against the database |
 | `tests/Unit/Auth/` | Each service with fake repositories, and `UserResponse` matching the model's JSON |
 
+## Tmdb module
+
+`app/Tmdb/` uses the same layers as Auth. TMDB has no database, so the repositories call the TMDB web API instead of Eloquent.
+
+```
+app/Tmdb/
+  Controllers/          MovieController, GenreController
+  FormRequests/         MovieListRequest, MovieSearchRequest, MovieDiscoverRequest
+  InterfaceServices/    MovieServiceInterface, GenreServiceInterface
+  Services/             MovieService, GenreService (maps TMDB data to DTOs, caches genres for a day)
+  InterfaceRepository/  MovieRepositoryInterface, GenreRepositoryInterface
+  Repository/           MovieRepository, GenreRepository (the only code that talks to TMDB)
+  DTOs/Requests/        MovieListQuery, MovieSearchQuery, MovieDiscoverQuery
+  DTOs/Responses/       MovieResponse, MoviePageResponse, GenreResponse
+  Support/              TmdbHttpClient (adds the API key, timeout, wraps failures)
+  Exceptions/           TmdbUnavailable (renders a fixed 502 so TMDB's own error never reaches the client)
+  Providers/            TmdbModuleServiceProvider (interface bindings)
+```
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/movies?list=&page=` | A page of `popular` (default), `top_rated`, `now_playing` or `upcoming` movies |
+| `GET /api/movies/search?q=&page=&year=` | Search movies by title. `q` is required (max 100 characters) |
+| `GET /api/movies/discover` | Filtered browsing: `genres`, `year_from`, `year_to`, `min_rating` (0 to 5), `runtime_min`, `runtime_max`, `language`, `sort` (`popularity`, `rating`, `release_date`, `title`), `page` |
+| `GET /api/genres` | The movie genres (id and name), cached for a day |
+
+- All four are public and are not rate limited.
+- Movie lists are paginated with `page` from 1 to 500 and 20 movies per page. Responses include `page`, `total_pages` (capped at 500, TMDB's limit) and `total_results`. Genres are a short fixed list, so they are not paginated.
+- Ratings are converted from TMDB's 0 to 10 scale to 0 to 5. Adult content is always excluded.
+- Setup: set `TMDB_API_KEY` in `.env`. `TMDB_URL` and `TMDB_IMAGE_URL` have working defaults in `config/services.php`.
+- Routes are in `routes/api.php` and the config is the `tmdb` entry in `config/services.php`.
+- Tests: `tests/Feature/Tmdb/` (the endpoints and `Repository/`) and `tests/Unit/Tmdb/` (the services).
+
 ## Security notes
 
 - Passwords are hashed by the `User` model cast. Refresh tokens and reset tokens are stored hashed. The refresh token is rotated on every use, and presenting an already-used one revokes the whole session chain.
@@ -280,4 +342,4 @@ Policies stay in `app/Policies/` because each belongs to the entity it protects:
 
 ## Adding a new entity
 
-Follow the same layout, for example `app/Review/` with `Controllers/`, `Requests/`, `InterfaceServices/`, `Services/`, `InterfaceRepository/`, `Repository/`, and its own `ReviewModuleServiceProvider` registered in `bootstrap/providers.php`. Keep the Eloquent model in `app/Models`.
+Follow the same layout, for example `app/Review/` with `Controllers/`, `FormRequests/`, `InterfaceServices/`, `Services/`, `InterfaceRepository/`, `Repository/`, and its own `ReviewModuleServiceProvider` registered in `bootstrap/providers.php`. Keep the Eloquent model in `app/Models`.
