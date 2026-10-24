@@ -27,6 +27,8 @@ class NotificationResource extends JsonResource
             'id' => $this->id,
             'kind' => $this->type,
             'actor' => $actor instanceof User ? new MemberResource($actor) : null,
+            // Whether the recipient follows the actor (attached with the actor by the controller).
+            'actor_followed' => $this->resource->relationLoaded('actorFollowed') && $this->resource->getRelation('actorFollowed') === true,
             'text' => $data['text'] ?? '',
             'target' => $data['target'] ?? null,
             'detail' => $data['detail'] ?? null,
