@@ -70,6 +70,7 @@ export async function loadNotifications() {
 
 /** Drops everything on sign-out so the next account starts clean. */
 export function clearNotifications() {
+  lastLoad = 0
   state = { items: [], loaded: false }
   listeners.forEach((listener) => listener())
 }
@@ -82,11 +83,22 @@ export function useUnreadCount() {
   return useNotifications().items.filter((n) => !n.read).length
 }
 
-/** Loads now and every minute while mounted (the header is on every signed-in page). */
+const POLL_MS = 60_000
+let lastLoad = 0
+
+/**
+ * Keeps the list fresh while signed in: every page renders the header, so on navigation it only
+ * reloads when the last load is older than the poll interval.
+ */
 export function useNotificationPolling() {
   useEffect(() => {
-    void loadNotifications()
-    const timer = window.setInterval(() => void loadNotifications(), 60_000)
+    const tick = () => {
+      if (Date.now() - lastLoad < POLL_MS - 1000) return
+      lastLoad = Date.now()
+      void loadNotifications()
+    }
+    tick()
+    const timer = window.setInterval(tick, POLL_MS)
     return () => window.clearInterval(timer)
   }, [])
 }

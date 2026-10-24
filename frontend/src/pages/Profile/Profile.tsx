@@ -18,11 +18,11 @@ import listIcon from '../../assets/profile/icon-list.svg'
 import eyeIcon from '../../assets/profile/icon-eye.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
-import { compactCount, toProfile, type ActivityItem, type Member, type Profile as ProfileData, type ProfileList } from './profileData.ts'
+import { compactCount, toMember, toProfile, type ActivityItem, type Member, type Profile as ProfileData, type ProfileList } from './profileData.ts'
 import styles from './Profile.module.css'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, isStatus, useApi } from '../../lib/api.ts'
-import type { ApiProfile } from '../../lib/types.ts'
+import type { ApiMember, ApiProfile } from '../../lib/types.ts'
 
 type Tab = 'activity' | 'reviews' | 'lists' | 'watched'
 type PeopleTab = 'followers' | 'following'
@@ -110,7 +110,20 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
     { label: 'Lists', value: compactCount(profile.lists) },
     { label: 'Films', value: compactCount(profile.films) },
   ]
-  const people = peopleTab === 'followers' ? profile.followerList : profile.followingList
+  // The profile carries the first 8 of each list; "View all" loads the rest.
+  const [fullLists, setFullLists] = useState<Partial<Record<PeopleTab, Member[]>>>({})
+  const [loadingAll, setLoadingAll] = useState(false)
+  const people = fullLists[peopleTab] ?? (peopleTab === 'followers' ? profile.followerList : profile.followingList)
+  const peopleTotal = peopleTab === 'followers' ? followers : profile.following
+  const showAll = async () => {
+    setLoadingAll(true)
+    try {
+      const response = await api.get<{ users: ApiMember[] }>(`/users/${profile.handle}/${peopleTab}`)
+      setFullLists((lists) => ({ ...lists, [peopleTab]: response.data.users.map(toMember) }))
+    } finally {
+      setLoadingAll(false)
+    }
+  }
 
   return (
     <div ref={pageRef} className={styles.page}>
@@ -285,9 +298,11 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                   ))}
                   {people.length === 0 && <li className={styles.personHandle}>Nobody here yet.</li>}
                 </ul>
-                <span className={styles.viewAll}>
-                  View all {(peopleTab === 'followers' ? followers : profile.following).toLocaleString('en-US')} →
-                </span>
+                {people.length < peopleTotal && !fullLists[peopleTab] && (
+                  <button type="button" className={styles.viewAll} onClick={showAll} disabled={loadingAll}>
+                    {loadingAll ? 'Loading…' : `View all ${peopleTotal.toLocaleString('en-US')} →`}
+                  </button>
+                )}
               </section>
 
               {profile.top4.length > 0 && (
