@@ -52,7 +52,7 @@ export default function SignIn() {
       const response = await authApi.post<AuthPayload>('/login', { email, password })
       setUser(response.data.user)
       const state = location.state as { from?: { pathname?: string } } | null
-      navigate(state?.from?.pathname ?? '/Home-Page', { replace: true })
+      navigate(state?.from?.pathname ?? '/home-page', { replace: true })
     } catch (error) {
       setFormError(apiErrorMessage(error, 'Unable to sign in. Please try again.'))
     } finally {

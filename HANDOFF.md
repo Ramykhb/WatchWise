@@ -55,7 +55,7 @@ See also the root [README.md](README.md) for the public project overview and set
 | `/` | Landing | Hero, magnetic Get Started, Trending card, sticker, toast, wavy backgrounds |
 | `/signin`, `/signup` | Sign In / Sign Up | Social buttons, validation, Show/Hide password; swap animation (below) |
 | `/forgot-password` | Forgot Password | Email validation, step chips (Request → Check email), preview cards |
-| `/Home-Page` | Home | Signed-in home, mock data. **Reached by URL** until auth exists |
+| `/home-page` | Home | Signed-in home, mock data |
 | `/discover` | Discover | Search & filters (`discoverData.ts`) |
 | `/movies/:slug` | Movie Details | Reviews, ratings, sentiment, cinemas map (`movieData.ts`) |
 | `/people/:slug` | Person | Actor/director page (`personData.ts`) |
@@ -149,7 +149,7 @@ In Claude Code, `/graphify . --update` rebuilds incrementally (docs need the LLM
 - **Single-screen desktop pages fit the window** rather than scroll; long app pages scroll.
 - **GSAP, Lenis and React Bits are the default** for UI motion. React Bits components are copied into `components/reactbits`, not installed from npm.
 - **Social login providers are Google, GitHub and Discord.**
-- **Home lives at `/Home-Page`** and is opened by URL until login is wired up.
+- **Home lives at `/home-page`** and requires a signed-in session.
 - **External APIs go through Laravel** (e.g. weather), never straight from the browser, so keys stay server-side.
 - Figma's looping timeline previews were implemented as **play-once entrances**.
 
@@ -179,7 +179,7 @@ In Claude Code, `/graphify . --update` rebuilds incrementally (docs need the LLM
 
 ## 10. Suggested next steps
 1. Build the four Admin screens from Figma: Overview → Users → Review Moderation → Movie Data (node ids in §2).
-2. Laravel auth (register/login/logout, Sanctum), then connect Sign in / Sign up / Forgot Password and replace `/Home-Page` with a real post-login redirect.
+2. Expand the Laravel auth integration beyond sign-in, sign-up, logout and password reset.
 3. TMDB integration through the backend; swap the `*Data.ts` mocks for API calls page by page.
    Movie nights, rooms and notifications need their API plus a real-time channel (e.g. Laravel Reverb) to replace the in-memory stores and demo replies (the backend already has a `notifications` table).
 4. Code-split routes to clear the bundle warning.

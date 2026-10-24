@@ -1,4 +1,4 @@
-import { Navigate, createBrowserRouter, useLocation } from 'react-router'
+import { Navigate, Outlet, createBrowserRouter, useLocation } from 'react-router'
 import RootLayout from './layouts/RootLayout.tsx'
 import Landing from './pages/Landing/Landing.tsx'
 import SignIn from './pages/SignIn/SignIn.tsx'
@@ -29,11 +29,18 @@ import Placeholder from './pages/Placeholder/Placeholder.tsx'
 import { useAuth } from './contexts/AuthContext.tsx'
 import AuthCallback from './pages/AuthCallback/AuthCallback.tsx'
 
-function RequireAuth({ children }: { children: React.ReactNode }) {
+function RequireAuth() {
   const { user, loading } = useAuth()
   const location = useLocation()
   if (loading) return null
   if (!user) return <Navigate to="/signin" replace state={{ from: location }} />
+  return <Outlet />
+}
+
+function RequireGuest({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth()
+  if (loading) return null
+  if (user) return <Navigate to="/home-page" replace />
   return children
 }
 
@@ -42,61 +49,61 @@ export const router = createBrowserRouter([
     path: '/',
     element: <RootLayout />,
     children: [
-      { index: true, element: <Landing /> },
-      { path: 'signin', element: <SignIn /> },
-      { path: 'signup', element: <SignUp /> },
-      { path: 'auth/callback', element: <AuthCallback /> },
-      { path: 'forgot-password', element: <ForgotPassword /> },
-      // Signed-in home. Reached by URL until auth is wired to the backend.
-      { path: 'Home-Page', element: <RequireAuth><Home /></RequireAuth> },
-      { path: 'people/:slug', element: <Person /> },
-      { path: 'movies/:slug', element: <MovieDetails /> },
-      { path: 'discover', element: <Discover /> },
-      // Lives under Discover so the Discover nav link is highlighted, as in the Figma frame.
-      { path: 'discover/cinemas', element: <Cinemas /> },
-      { path: 'cinemas', element: <Navigate to="/discover/cinemas" replace /> },
-      { path: 'for-you', element: <RequireAuth><ForYou /></RequireAuth> },
+      { index: true, element: <RequireGuest><Landing /></RequireGuest> },
+      { path: 'signin', element: <RequireGuest><SignIn /></RequireGuest> },
+      { path: 'signup', element: <RequireGuest><SignUp /></RequireGuest> },
+      { path: 'forgot-password', element: <RequireGuest><ForgotPassword /></RequireGuest> },
+      { path: 'auth/callback', element: <RequireGuest><AuthCallback /></RequireGuest> },
       {
-        path: 'lists',
-        element: <RequireAuth><Lists /></RequireAuth>,
-        // The Create/Edit List dialog opens over the Lists page, which stays mounted underneath.
+        element: <RequireAuth />,
         children: [
-          { path: 'new', element: <ListDialog mode="create" /> },
-          { path: ':slug/edit', element: <ListDialog mode="edit" /> },
+          { path: 'home-page', element: <Home /> },
+          { path: 'people/:slug', element: <Person /> },
+          { path: 'movies/:slug', element: <MovieDetails /> },
+          { path: 'discover', element: <Discover /> },
+          // Lives under Discover so its navigation link stays highlighted.
+          { path: 'discover/cinemas', element: <Cinemas /> },
+          { path: 'cinemas', element: <Navigate to="/discover/cinemas" replace /> },
+          { path: 'for-you', element: <ForYou /> },
+          {
+            path: 'lists',
+            element: <Lists />,
+            // The Create/Edit List dialog opens over the Lists page, which stays mounted underneath.
+            children: [
+              { path: 'new', element: <ListDialog mode="create" /> },
+              { path: ':slug/edit', element: <ListDialog mode="edit" /> },
+            ],
+          },
+          { path: 'lists/:slug', element: <ListDetail /> },
+          { path: 'lists/watchlist', element: <Watchlist /> },
+          { path: 'watchlist', element: <Navigate to="/lists/watchlist" replace /> },
+          { path: 'profile', element: <Profile /> },
+          { path: 'profile/:handle', element: <Profile /> },
+          { path: 'settings', element: <Settings /> },
+          {
+            path: 'admin',
+            element: <AdminLayout />,
+            children: [
+              { index: true, element: <AdminOverview /> },
+              { path: 'users', element: <AdminUsers /> },
+              { path: 'reviews', element: <AdminReviews /> },
+              { path: 'movies', element: <AdminMovies /> },
+            ],
+          },
+          { path: 'notifications', element: <Notifications /> },
+          { path: 'terms', element: <Placeholder title="Terms of Service" /> },
+          { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
+          { path: 'community', element: <Placeholder title="Community" /> },
+          { path: 'movie-nights', element: <MovieNights /> },
+          { path: 'movie-nights/:slug', element: <NightDetail /> },
+          // One optional room id keeps the page mounted when switching rooms.
+          { path: 'rooms/:roomId?', element: <Rooms /> },
+          { path: 'releases', element: <Placeholder title="Coming soon" /> },
+          { path: 'movies/:slug/credits', element: <Placeholder title="Full credits" /> },
+          { path: 'movies/:slug/videos', element: <Placeholder title="Videos" /> },
+          { path: '*', element: <Placeholder title="Page not found" notFound /> },
         ],
       },
-      { path: 'lists/:slug', element: <ListDetail /> },
-      // Lives under Lists so the Lists nav link is highlighted, as in the Figma frame.
-      { path: 'lists/watchlist', element: <RequireAuth><Watchlist /></RequireAuth> },
-      { path: 'watchlist', element: <Navigate to="/lists/watchlist" replace /> },
-      // `/profile` is the signed-in user's own profile; `/profile/:handle` is anyone's public profile.
-      { path: 'profile', element: <RequireAuth><Profile /></RequireAuth> },
-      { path: 'profile/:handle', element: <Profile /> },
-      { path: 'settings', element: <RequireAuth><Settings /></RequireAuth> },
-      // Admin dashboard. Reached by URL until auth (and an admin role check) is connected.
-      {
-        path: 'admin',
-        element: <RequireAuth><AdminLayout /></RequireAuth>,
-        children: [
-          { index: true, element: <AdminOverview /> },
-          { path: 'users', element: <AdminUsers /> },
-          { path: 'reviews', element: <AdminReviews /> },
-          { path: 'movies', element: <AdminMovies /> },
-        ],
-      },
-      { path: 'notifications', element: <RequireAuth><Notifications /></RequireAuth> },
-      // Screens designed in Figma but not built yet.
-      { path: 'terms', element: <Placeholder title="Terms of Service" /> },
-      { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
-      { path: 'community', element: <Placeholder title="Community" /> },
-      { path: 'movie-nights', element: <RequireAuth><MovieNights /></RequireAuth> },
-      { path: 'movie-nights/:slug', element: <RequireAuth><NightDetail /></RequireAuth> },
-      // One route with an optional room id, so switching rooms keeps the page (and its chat state) mounted.
-      { path: 'rooms/:roomId?', element: <RequireAuth><Rooms /></RequireAuth> },
-      { path: 'releases', element: <Placeholder title="Coming soon" /> },
-      { path: 'movies/:slug/credits', element: <Placeholder title="Full credits" /> },
-      { path: 'movies/:slug/videos', element: <Placeholder title="Videos" /> },
-      { path: '*', element: <Placeholder title="Page not found" notFound /> },
     ],
   },
 ])
