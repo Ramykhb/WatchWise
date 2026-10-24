@@ -95,6 +95,17 @@ class TmdbDiscoverTest extends TestCase
             && ! isset($request['vote_count.gte']));
     }
 
+    public function test_discover_accepts_an_upper_bound_on_its_own(): void
+    {
+        Http::fake(['https://api.themoviedb.org/*' => Http::response($this->tmdbPage())]);
+
+        $this->getJson('/api/movies/discover?runtime_max=89&year_to=2020')->assertOk();
+
+        Http::assertSent(fn ($request) => $request['with_runtime.lte'] === 89
+            && $request['primary_release_date.lte'] === '2020-12-31'
+            && ! isset($request['with_runtime.gte']));
+    }
+
     public function test_discover_rejects_bad_filters(): void
     {
         $this->getJson('/api/movies/discover?genres=sci-fi&year_from=2026&year_to=2015&sort=random')
