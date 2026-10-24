@@ -94,8 +94,8 @@ function downloadIcs(slug: string, title: string, premiere: Premiere) {
 
 export default function MovieDetails() {
   const { slug = '' } = useParams()
-  // TMDB movies have numeric ids (/movies/438631); the design's mock movies have names (/movies/neon-tide).
-  return /^\d+$/.test(slug) ? <TmdbMovieDetails id={slug} /> : <MockMovieDetails slug={slug} />
+  // TMDB movies have numeric ids (/movies/438631) and TV shows "tv-" ids (/movies/tv-1399); the design's mock movies have names (/movies/neon-tide).
+  return /^(tv-)?\d+$/.test(slug) ?<TmdbMovieDetails id={slug} /> : <MockMovieDetails slug={slug} />
 }
 
 function MockMovieDetails({ slug }: { slug: string }) {

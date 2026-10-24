@@ -27,14 +27,16 @@ import {
   DEFAULT_FILTERS,
   GENRES,
   LANGUAGES,
+  MEDIA_FILTERS,
   RUNTIMES,
   SEARCH_TYPES,
   SORTS,
   YEAR_BOUNDS,
   type Filters,
+  type MediaFilter,
   type SearchType,
 } from './discoverData.ts'
-import { GENRE_IDS, fetchMovies, loadGenres, toTileMovie, type MoviePage } from './discoverApi.ts'
+import { TV_GENRE_IDS, fetchMovies, loadGenres, toTileMovie, type MoviePage } from './discoverApi.ts'
 import { useApi } from '../../lib/api.ts'
 import { colorOf, initialsOf } from '../../lib/format.ts'
 import type { ApiList, ApiUserSearch } from '../../lib/types.ts'
@@ -92,6 +94,11 @@ export default function Discover() {
   const [result, setResult] = useState<Result | null>(null)
   const [retries, setRetries] = useState(0)
 
+  // The Movies & TV tab lists movies and TV shows together (the Type filter narrows it); People and Lists aren't connected yet.
+  const isMedia = type === 'movies'
+  // TV has no Thriller, Horror or Romance, so those chips go away while only TV shows are listed.
+  const availableGenres = draft.mediaType === 'tv' ? GENRES.filter((genre) => genre in TV_GENRE_IDS) : GENRES
+
   useEffect(() => {
     let active = true
     loadGenres()
@@ -108,12 +115,11 @@ export default function Discover() {
 
   useEffect(() => {
     const controller = new AbortController()
-    const genreIds = applied.genres.map((label) => GENRE_IDS[label]).filter((id) => id !== undefined)
-    fetchMovies({ query: submittedQuery, filters: applied, sort, page, genreIds, signal: controller.signal })
+    fetchMovies({ query: submittedQuery, filters: applied, sort, page, signal: controller.signal })
       .then((data) => setResult({ key: requestKey, data, failed: false }))
       .catch((error: unknown) => {
         if (axios.isCancel(error)) return
-        console.error('Unable to load movies:', error)
+        console.error('Unable to load results:', error)
         setResult({ key: requestKey, data: null, failed: true })
       })
     // A newer search or filter change cancels the request that's still running.
@@ -141,6 +147,14 @@ export default function Discover() {
     setLastQuery(submittedQuery)
     setQuery(submittedQuery)
   }
+
+  const setMediaType = (mediaType: MediaFilter) =>
+    setDraft((f) => ({
+      ...f,
+      mediaType,
+      // Drop genres TV doesn't have when only TV shows are wanted.
+      genres: mediaType === 'tv' ? f.genres.filter((genre) => genre in TV_GENRE_IDS) : f.genres,
+    }))
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -174,6 +188,14 @@ export default function Discover() {
     })
 
   const activeChips = [
+    ...(applied.mediaType !== 'all'
+      ? [
+          {
+            label: MEDIA_FILTERS.find((m) => m.id === applied.mediaType)!.label,
+            remove: () => applyFilters({ ...applied, mediaType: 'all' }),
+          },
+        ]
+      : []),
     ...applied.genres.map((genre) => ({
       label: genre,
       remove: () => applyFilters({ ...applied, genres: applied.genres.filter((g) => g !== genre) }),
@@ -191,7 +213,7 @@ export default function Discover() {
       <main className={styles.main}>
         <header className={styles.header} data-enter data-enter-delay="0.1">
           <SplitHeadline id="discover-title" className={styles.title} lines={[{ text: 'Discover' }]} />
-          <p className={styles.lead}>Search 900k+ movies, people and lists — live from TMDB.</p>
+          <p className={styles.lead}>Search 900k+ movies, shows, people and lists — live from TMDB.</p>
 
           <form className={styles.searchBar} role="search" onSubmit={handleSearch}>
             <img src={searchIcon} width={22} height={22} alt="" />
@@ -200,7 +222,7 @@ export default function Discover() {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search movies, people, lists…"
+              placeholder="Search movies, shows, people…"
               aria-label="Search"
             />
             <label className={styles.typeChip}>
@@ -257,9 +279,30 @@ export default function Discover() {
             </div>
 
             <fieldset className={styles.group}>
+              <legend className={styles.groupLabel}>Type</legend>
+              <div className={styles.chips}>
+                {MEDIA_FILTERS.map((option) => {
+                  const on = draft.mediaType === option.id
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      className={on ? styles.chipOn : styles.chip}
+                      aria-pressed={on}
+                      onClick={() => setMediaType(option.id)}
+                    >
+                      {on && <img src={checkIcon} width={14} height={14} alt="" />}
+                      {option.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </fieldset>
+
+            <fieldset className={styles.group}>
               <legend className={styles.groupLabel}>Genres</legend>
               <div className={styles.chips}>
-                {GENRES.map((genre) => {
+                {availableGenres.map((genre) => {
                   const on = draft.genres.includes(genre)
                   return (
                     <button
@@ -414,7 +457,7 @@ export default function Discover() {
                 ) : (
                   <>
                     <span className={`${styles.skeletonCount} ${styles.shimmer}`} aria-hidden="true" />
-                    <span className="sr-only">Loading movies…</span>
+                    <span className="sr-only">Loading results…</span>
                   </>
                 )}
                 {submittedQuery && (
@@ -431,7 +474,7 @@ export default function Discover() {
                   <select
                     value={sort}
                     disabled={Boolean(submittedQuery)}
-                    title={submittedQuery ? 'Search results are sorted by relevance' : undefined}
+                    title={submittedQuery ? 'Search results come in their own order, so sorting is paused' : undefined}
                     onChange={(event) => {
                       setSort(event.target.value)
                       setPage(1)
@@ -484,7 +527,7 @@ export default function Discover() {
                 <button
                   type="button"
                   className={styles.textButtonSm}
-                  onClick={() => applyFilters({ ...applied, genres: [], runtime: null })}
+                  onClick={() => applyFilters({ ...applied, mediaType: 'all', genres: [], runtime: null })}
                 >
                   Clear all
                 </button>
@@ -492,9 +535,9 @@ export default function Discover() {
             )}
 
             {/* A thin moving bar while a new page or filter loads; the current results stay visible, dimmed. */}
-            {type === 'movies' && loading && shown && <div className={styles.loadingBar} aria-hidden="true" />}
+            {isMedia && loading && shown && <div className={styles.loadingBar} aria-hidden="true" />}
 
-            {type === 'movies' && submittedQuery && (
+            {isMedia && submittedQuery && (
               <p className={styles.searchNote}>
                 Searching by title, so filters and sort are paused.{' '}
                 <button
@@ -549,7 +592,7 @@ export default function Discover() {
               )
             ) : failed ? (
               <p className={styles.empty} role="alert">
-                Couldn't load movies right now.{' '}
+                Couldn't load results right now.{' '}
                 <button type="button" className={styles.textButton} onClick={() => setRetries((n) => n + 1)}>
                   Try again
                 </button>
@@ -558,7 +601,7 @@ export default function Discover() {
               <ResultsSkeleton view={view} />
             ) : movies.length === 0 ? (
               <p className={styles.empty}>
-                {submittedQuery ? `No movies match “${submittedQuery}”.` : 'No movies match these filters. Try fewer filters.'}
+                {submittedQuery ? `Nothing matches “${submittedQuery}”.` : 'Nothing matches these filters. Try fewer filters.'}
               </p>
             ) : view === 'grid' ? (
               <div className={loading ? `${styles.grid} ${styles.loading}` : styles.grid}>
@@ -595,7 +638,7 @@ export default function Discover() {
               </ul>
             )}
 
-            {type === 'movies' && !failed && totalPages > 1 && (
+            {isMedia && !failed && totalPages > 1 && (
               <nav className={styles.pagination} aria-label="Pages">
                 <button
                   type="button"

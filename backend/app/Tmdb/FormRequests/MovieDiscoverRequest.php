@@ -25,6 +25,8 @@ class MovieDiscoverRequest extends FormRequest
             'language' => ['sometimes', 'string', 'regex:/^[a-z]{2}$/'],
             'sort' => ['sometimes', 'string', Rule::in(MovieDiscoverQuery::SORTS)],
             'page' => ['sometimes', 'integer', 'between:1,500'],
+            'type' => ['sometimes', 'string', Rule::in(['movie', 'tv', 'all'])],
+            'tv_genres' => ['sometimes', 'string', 'regex:/^\d+(,\d+)*$/'],
         ];
     }
 

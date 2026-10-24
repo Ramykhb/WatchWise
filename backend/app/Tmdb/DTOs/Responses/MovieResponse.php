@@ -21,15 +21,18 @@ final readonly class MovieResponse implements JsonSerializable
         public array $genreIds,
         public ?string $posterUrl,
         public ?string $backdropUrl,
+        /** 'movie' or 'tv'. */
+        public string $mediaType = 'movie',
     ) {}
 
     /**
-     * @return array{id: int, title: string, overview: string, release_date: ?string, year: ?int, rating: float, vote_count: int, genre_ids: list<int>, poster_url: ?string, backdrop_url: ?string}
+     * @return array{id: int, media_type: string, title: string, overview: string, release_date: ?string, year: ?int, rating: float, vote_count: int, genre_ids: list<int>, poster_url: ?string, backdrop_url: ?string}
      */
     public function jsonSerialize(): array
     {
         return [
             'id' => $this->id,
+            'media_type' => $this->mediaType,
             'title' => $this->title,
             'overview' => $this->overview,
             'release_date' => $this->releaseDate,

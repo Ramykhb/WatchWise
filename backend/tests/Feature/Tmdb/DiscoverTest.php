@@ -58,6 +58,75 @@ class DiscoverTest extends TestCase
             && $request['page'] === 2);
     }
 
+    public function test_discover_merges_movies_and_tv_shows_by_the_chosen_sort(): void
+    {
+        Http::fake([
+            'https://api.themoviedb.org/3/discover/movie*' => Http::response([
+                'page' => 1, 'total_pages' => 3, 'total_results' => 50,
+                'results' => [['id' => 1, 'title' => 'Zed', 'release_date' => '2020-01-01', 'popularity' => 10]],
+            ]),
+            'https://api.themoviedb.org/3/discover/tv*' => Http::response([
+                'page' => 1, 'total_pages' => 5, 'total_results' => 70,
+                'results' => [['id' => 2, 'name' => 'Alpha', 'first_air_date' => '2022-05-05', 'popularity' => 99]],
+            ]),
+        ]);
+
+        $this->getJson('/api/movies/discover?type=all&genres=878&tv_genres=10765')
+            ->assertOk()
+            ->assertJsonPath('total_results', 120)
+            ->assertJsonPath('total_pages', 6)
+            ->assertJsonPath('movies.0.title', 'Alpha')
+            ->assertJsonPath('movies.0.media_type', 'tv')
+            ->assertJsonPath('movies.0.release_date', '2022-05-05')
+            ->assertJsonPath('movies.1.media_type', 'movie');
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/discover/tv') && $request['with_genres'] === '10765');
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/discover/movie') && $request['with_genres'] === '878');
+    }
+
+    public function test_merged_pages_are_cut_from_the_globally_sorted_list(): void
+    {
+        // Movies are always more popular than shows here, so combined page 2 must be movies 21-40.
+        Http::fake(function ($request) {
+            $page = (int) $request['page'];
+            $isShow = str_contains($request->url(), '/discover/tv');
+
+            $results = array_map(fn (int $i): array => [
+                'id' => ($isShow ? 1000 : 0) + ($page - 1) * 20 + $i,
+                'title' => 'Title',
+                'popularity' => ($isShow ? 500 : 900) - ($page - 1) * 20 - $i,
+            ], range(1, 20));
+
+            return Http::response(['page' => $page, 'total_pages' => 3, 'total_results' => 60, 'results' => $results]);
+        });
+
+        $this->getJson('/api/movies/discover?type=all&page=2')
+            ->assertOk()
+            ->assertJsonPath('page', 2)
+            ->assertJsonPath('total_results', 120)
+            ->assertJsonPath('total_pages', 6)
+            ->assertJsonCount(20, 'movies')
+            ->assertJsonPath('movies.0.id', 21)
+            ->assertJsonPath('movies.19.id', 40);
+    }
+
+    public function test_tv_details_use_the_tv_endpoint(): void
+    {
+        Http::fake(['https://api.themoviedb.org/3/tv/5*' => Http::response([
+            'id' => 5, 'name' => 'Show', 'first_air_date' => '2019-02-02', 'episode_run_time' => [45],
+            'created_by' => [['id' => 9, 'name' => 'Maker']],
+            'content_ratings' => ['results' => [['iso_3166_1' => 'US', 'rating' => 'TV-MA']]],
+        ])]);
+
+        $this->getJson('/api/movies/5?type=tv')
+            ->assertOk()
+            ->assertJsonPath('title', 'Show')
+            ->assertJsonPath('media_type', 'tv')
+            ->assertJsonPath('runtime', 45)
+            ->assertJsonPath('certification', 'TV-MA')
+            ->assertJsonPath('directors.0.name', 'Maker');
+    }
+
     public function test_search_needs_a_query(): void
     {
         $this->getJson('/api/movies/search')->assertUnprocessable()->assertJsonValidationErrors(['q']);
