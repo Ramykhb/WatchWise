@@ -23,22 +23,43 @@ class ProfileController extends Controller
         private readonly ProfilePrivacy $privacy,
     ) {}
 
-    /** GET /api/users?q= — find members by name or @username (invite pickers, search). */
+    /**
+     * GET /api/users?q=&limit= — find members by name or @username (header search, Discover,
+     * invite pickers). Without `q` it suggests the most-followed members. Each result says
+     * whether the signed-in user follows them, so Follow buttons start in the right state.
+     */
     public function index(Request $request, CurrentUser $current): JsonResponse
     {
         $q = trim((string) $request->query('q', ''));
+        $limit = min(max((int) $request->query('limit', 10), 1), 30);
+        $like = $this->containsPattern(ltrim($q, '@'));
 
-        $users = User::query()
+        $query = User::query()
             ->where('is_active', true)
             ->whereKeyNot($current->id())
             ->when($q !== '', fn ($query) => $query->where(fn ($w) => $w
-                ->where('name', 'like', "%{$q}%")
-                ->orWhere('username', 'like', '%'.ltrim($q, '@').'%')))
-            ->orderBy('name')
-            ->limit(10)
+                ->whereRaw("name LIKE ? ESCAPE '!'", [$like])
+                ->orWhereRaw("username LIKE ? ESCAPE '!'", [$like])));
+
+        $total = (clone $query)->count();
+        $users = $query->withCount('followers')
+            ->when($q !== '', fn ($query) => $query->orderBy('name'), fn ($query) => $query->orderByDesc('followers_count')->orderBy('name'))
+            ->limit($limit)
             ->get();
 
-        return response()->json(['users' => MemberResource::collection($users)]);
+        $me = $current->user();
+        $following = $me->following()->whereIn('users.id', $users->pluck('id'))->pluck('users.id')->all();
+        $followers = $me->followers()->whereIn('users.id', $users->pluck('id'))->pluck('users.id')->all();
+
+        return response()->json([
+            'total' => $total,
+            'users' => $users->map(fn (User $user) => [
+                ...(new MemberResource($user))->resolve(),
+                'followers' => $user->followers_count,
+                'is_following' => in_array($user->id, $following, true),
+                'follows_you' => in_array($user->id, $followers, true),
+            ])->values(),
+        ]);
     }
 
     /** GET /api/users/{username} — everything the Profile page shows, filtered by the owner's privacy settings. */

@@ -87,6 +87,128 @@
   color: var(--ink-400);
 }
 
+/* ---------- Search dropdown (people + "search movies") ---------- */
+.searchWrap {
+  position: relative;
+}
+
+.results {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 380px;
+  max-height: min(480px, 70vh);
+  overflow-y: auto;
+  padding: 10px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 20px;
+  background: var(--surface-white);
+  box-shadow: var(--elevation-soft);
+}
+
+.resultAction {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ground-violet);
+  text-align: left;
+  cursor: pointer;
+}
+
+.resultAction:hover,
+.resultAction:focus-visible {
+  background: var(--surface-violet-tint);
+}
+
+.resultsLabel {
+  padding: 8px 12px 2px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.resultsNote {
+  padding: 6px 12px 10px;
+  font-size: 14px;
+  color: var(--ink-600);
+}
+
+.people {
+  display: flex;
+  flex-direction: column;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 12px;
+}
+
+.person:hover {
+  background: var(--ground-cream);
+}
+
+.personLink {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.personAvatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink-900);
+}
+
+.personText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.personName,
+.personHandle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personName {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink-900);
+}
+
+.personHandle {
+  font-size: 13px;
+  color: var(--ink-600);
+}
+
 .iconButton,
 .avatar {
   display: grid;

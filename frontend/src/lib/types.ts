@@ -4,6 +4,11 @@
 /** Small public card of a user (MemberResource). */
 export type ApiMember = { id: number; username: string; name: string; avatar: string | null }
 
+/** A person in search results (GET /api/users?q=), with the signed-in user's follow state. */
+export type ApiSearchUser = ApiMember & { followers: number; is_following: boolean; follows_you: boolean }
+
+export type ApiUserSearch = { total: number; users: ApiSearchUser[] }
+
 export type ApiReview = {
   id: number
   tmdb_id: number
