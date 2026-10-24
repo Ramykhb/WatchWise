@@ -31,10 +31,10 @@ class TmdbDiscoverController extends Controller
         $validated = $request->validate([
             'genres' => ['sometimes', 'string', 'regex:/^\d+(,\d+)*$/'],
             'year_from' => ['sometimes', 'integer', 'between:1874,2100'],
-            'year_to' => ['sometimes', 'integer', 'between:1874,2100', 'gte:year_from'],
+            'year_to' => ['sometimes', 'integer', 'between:1874,2100', Rule::when($request->filled('year_from'), 'gte:year_from')],
             'min_rating' => ['sometimes', 'numeric', 'between:0,5'],
             'runtime_min' => ['sometimes', 'integer', 'min:0'],
-            'runtime_max' => ['sometimes', 'integer', 'min:1', 'gte:runtime_min'],
+            'runtime_max' => ['sometimes', 'integer', 'min:1', Rule::when($request->filled('runtime_min'), 'gte:runtime_min')],
             'language' => ['sometimes', 'string', 'regex:/^[a-z]{2}$/'],
             'sort' => ['sometimes', 'string', Rule::in(array_keys(self::SORTS))],
             'page' => ['sometimes', 'integer', 'between:1,500'],
@@ -51,8 +51,8 @@ class TmdbDiscoverController extends Controller
                 'with_runtime.gte' => isset($validated['runtime_min']) ? (int) $validated['runtime_min'] : null,
                 'with_runtime.lte' => isset($validated['runtime_max']) ? (int) $validated['runtime_max'] : null,
                 'with_original_language' => $validated['language'] ?? null,
-                // Without a vote floor, "Rating" is topped by films with a single 10/10 vote.
-                'vote_count.gte' => $sort === 'rating' ? 100 : null,
+                // Without a vote floor, "Rating" and "Title" are topped by obscure films with a handful of votes.
+                'vote_count.gte' => in_array($sort, ['rating', 'title'], true) ? 100 : null,
                 'sort_by' => self::SORTS[$sort],
                 'page' => (int) ($validated['page'] ?? 1),
                 'include_adult' => 'false',
