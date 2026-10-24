@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import MovieTile from '../../components/MovieTile/MovieTile.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
@@ -12,7 +12,7 @@ import checkIcon from '../../assets/person/icon-check.svg'
 import starIcon from '../../assets/landing/icon-star-badge.svg'
 import pinIcon from '../../assets/profile/icon-pin.svg'
 import calendarIcon from '../../assets/profile/icon-calendar.svg'
-import dotsIcon from '../../assets/profile/icon-dots.svg'
+import shareIcon from '../../assets/profile/icon-share.svg'
 import chatIcon from '../../assets/profile/icon-chat.svg'
 import listIcon from '../../assets/profile/icon-list.svg'
 import eyeIcon from '../../assets/profile/icon-eye.svg'
@@ -30,6 +30,7 @@ import {
   type ProfileList,
 } from './profileData.ts'
 import styles from './Profile.module.css'
+import { useAuth } from '../../contexts/AuthContext.tsx'
 
 type Tab = 'activity' | 'reviews' | 'lists' | 'watched'
 type PeopleTab = 'followers' | 'following'
@@ -56,6 +57,8 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
   useEntranceAnimation(pageRef)
 
   const isMe = profile.handle === ME
+  const { logout } = useAuth()
+  const navigate = useNavigate()
   const firstName = profile.name.split(' ')[0]
   const [tab, setTab] = useState<Tab>('activity')
   const [peopleTab, setPeopleTab] = useState<PeopleTab>('followers')
@@ -150,8 +153,17 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                     </>
                   )}
                   <button type="button" className={styles.moreBtn} aria-label="Share profile" onClick={handleShare}>
-                    <img src={dotsIcon} width={22} height={22} alt="" />
+                    <img src={shareIcon} width={22} height={22} alt="" />
                   </button>
+                  {isMe && (
+                    <button
+                      type="button"
+                      className={styles.logoutBtn}
+                      onClick={() => void logout().then(() => navigate('/signin', { replace: true }))}
+                    >
+                      Log out
+                    </button>
+                  )}
                 </div>
               </div>
               <p className={styles.bio}>{profile.bio}</p>

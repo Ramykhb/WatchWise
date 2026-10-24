@@ -156,6 +156,22 @@
   background: var(--ink-900);
 }
 
+.logoutBtn {
+  padding: 12px 20px;
+  border: 1.5px solid var(--text-on-violet-muted);
+  border-radius: var(--radius-pill);
+  color: var(--ground-cream);
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background-color 0.2s ease-out, translate 0.2s ease-out;
+}
+
+.logoutBtn:hover {
+  background: var(--ground-violet-deep);
+  translate: 0 -2px;
+}
+
 .bio {
   max-width: 760px;
   font-size: 17px;
