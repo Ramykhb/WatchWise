@@ -2,9 +2,9 @@
 
 export type SearchType = 'movies' | 'people' | 'lists'
 
-/** People and Lists aren't connected yet, so their counts are still the design's. */
+/** Movies & TV are searched live (their count comes from the results). People and Lists aren't connected yet, so their counts are still the design's. */
 export const SEARCH_TYPES: { id: SearchType; label: string; count: number }[] = [
-  { id: 'movies', label: 'Movies', count: 0 },
+  { id: 'movies', label: 'Movies & TV', count: 0 },
   { id: 'people', label: 'People', count: 31 },
   { id: 'lists', label: 'Lists', count: 19 },
 ]
@@ -19,7 +19,17 @@ export const SORTS = ['Popularity', 'Rating', 'Release date', 'Title']
 
 export const YEAR_BOUNDS = { min: 2010, max: 2030 }
 
+/** Which kind of titles to list: both, or just one. */
+export type MediaFilter = 'all' | 'movie' | 'tv'
+
+export const MEDIA_FILTERS: { id: MediaFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'movie', label: 'Movies' },
+  { id: 'tv', label: 'TV shows' },
+]
+
 export type Filters = {
+  mediaType: MediaFilter
   genres: string[]
   years: [number, number]
   minRating: number
@@ -29,6 +39,7 @@ export type Filters = {
 }
 
 export const DEFAULT_FILTERS: Filters = {
+  mediaType: 'all',
   genres: [],
   years: [YEAR_BOUNDS.min, YEAR_BOUNDS.max],
   minRating: 0,
