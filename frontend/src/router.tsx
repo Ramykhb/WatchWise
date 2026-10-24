@@ -1,4 +1,4 @@
-import { Navigate, Outlet, createBrowserRouter, useLocation } from 'react-router'
+import { Navigate, createBrowserRouter } from 'react-router'
 import RootLayout from './layouts/RootLayout.tsx'
 import Landing from './pages/Landing/Landing.tsx'
 import SignIn from './pages/SignIn/SignIn.tsx'
@@ -26,23 +26,8 @@ import NightDetail from './pages/MovieNights/NightDetail.tsx'
 import Rooms from './pages/Rooms/Rooms.tsx'
 import Notifications from './pages/Notifications/Notifications.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
-import { useAuth } from './contexts/AuthContext.tsx'
+import { RequireAuth, RequireGuest } from './components/RouteGuards/RouteGuards.tsx'
 import AuthCallback from './pages/AuthCallback/AuthCallback.tsx'
-
-function RequireAuth() {
-  const { user, loading } = useAuth()
-  const location = useLocation()
-  if (loading) return null
-  if (!user) return <Navigate to="/signin" replace state={{ from: location }} />
-  return <Outlet />
-}
-
-function RequireGuest({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth()
-  if (loading) return null
-  if (user) return <Navigate to="/home-page" replace />
-  return children
-}
 
 export const router = createBrowserRouter([
   {

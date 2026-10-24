@@ -8,12 +8,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MovieNight extends Model
 {
-    protected $fillable = ['organizer_id', 'title', 'scheduled_at', 'location', 'meeting_link', 'status', 'winning_tmdb_id'];
+    protected $fillable = ['organizer_id', 'title', 'scheduled_at', 'location', 'meeting_link', 'note', 'status', 'winning_tmdb_id'];
 
     protected function casts(): array
     {
         return [
             'scheduled_at' => 'datetime',
+            'organizer_id' => 'integer',
             'winning_tmdb_id' => 'integer',
         ];
     }

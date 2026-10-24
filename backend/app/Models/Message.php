@@ -11,6 +11,11 @@ class Message extends Model
 
     public const UPDATED_AT = null;
 
+    protected function casts(): array
+    {
+        return ['created_at' => 'datetime'];
+    }
+
     public function room(): BelongsTo
     {
         return $this->belongsTo(DiscussionRoom::class, 'room_id');

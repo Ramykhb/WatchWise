@@ -1,17 +1,19 @@
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
+import { api } from '../../lib/api.ts'
+import { dayGroup, look, shortName, timeAgo } from '../../lib/format.ts'
+import type { ApiNotification } from '../../lib/types.ts'
 
-// In-memory notifications shared by the header bell (unread badge) and the Notifications page.
-// No Figma frame exists for this screen; content follows the app's other mocks.
-// TODO: load from the notifications API (the backend already has a notifications table) and
-// push new ones over the real-time channel.
+// Notifications shared by the header bell (unread badge) and the Notifications page, loaded from
+// GET /api/notifications. Other members' actions create them on the backend (follows, invites,
+// RSVPs, votes, @mentions); the header polls every minute since there is no real-time channel yet.
 
-export type NotificationKind = 'invite' | 'vote' | 'mention' | 'follow' | 'like' | 'list' | 'release' | 'watchlist'
+export type NotificationKind = ApiNotification['kind']
 
 export type AppNotification = {
-  id: string
+  id: number
   kind: NotificationKind
   /** Who did it, shown in bold; omitted for system notices. */
-  actor?: { name: string; initials: string; color: string; handle?: string }
+  actor?: { name: string; initials: string; color: string; handle: string }
   /** Sentence after the actor, e.g. "invited you to". */
   text: string
   /** Bold object of the sentence, e.g. "Sci-fi Saturday". */
@@ -19,34 +21,20 @@ export type AppNotification = {
   /** Optional quote or detail line under the sentence. */
   detail?: string
   time: string
-  group: 'Today' | 'Yesterday' | 'This week'
+  group: 'Today' | 'Yesterday' | 'This week' | 'Earlier'
   to: string
   /** Label of the action link, e.g. "Vote". */
   action: string
   read: boolean
 }
 
-const OMAR = { name: 'Omar K.', initials: 'OK', color: 'var(--accent-coral)', handle: 'omark' }
-const LINA = { name: 'Lina Saad', initials: 'LS', color: 'var(--accent-yellow)', handle: 'linasaad' }
-const JAD = { name: 'Jad N.', initials: 'JN', color: 'var(--accent-mint)', handle: 'jadn' }
-const RANA = { name: 'Rana H.', initials: 'RH', color: 'var(--surface-violet-tint)', handle: 'ranah' }
+type State = { items: AppNotification[]; loaded: boolean }
 
-const INITIAL: AppNotification[] = [
-  { id: 'n1', kind: 'invite', actor: OMAR, text: 'invited you to', target: 'Sci-fi Saturday', detail: 'Sat, Mar 15 · 9:00 PM · Online', time: '12 min ago', group: 'Today', to: '/movie-nights', action: 'Respond', read: false },
-  { id: 'n2', kind: 'mention', actor: JAD, text: 'mentioned you in', target: 'Neon Tide — ending explained', detail: '“@Maya you called the lighthouse thing before anyone.”', time: '40 min ago', group: 'Today', to: '/rooms/neon-tide-ending', action: 'Reply', read: false },
-  { id: 'n3', kind: 'vote', text: 'Voting closes in 18h for', target: 'Friday Frights', detail: 'Deep Blue leads with 5 votes — you voted for it.', time: '2 h ago', group: 'Today', to: '/movie-nights/friday-frights', action: 'See votes', read: false },
-  { id: 'n4', kind: 'follow', actor: LINA, text: 'started following you', time: '5 h ago', group: 'Today', to: '/profile/linasaad', action: 'View profile', read: false },
-  { id: 'n5', kind: 'like', actor: RANA, text: 'and 12 others found your review of', target: 'Neon Tide', detail: 'helpful', time: 'Yesterday', group: 'Yesterday', to: '/movies/neon-tide', action: 'View review', read: true },
-  { id: 'n6', kind: 'list', actor: JAD, text: 'liked your list', target: 'Comfort Rewatches', time: 'Yesterday', group: 'Yesterday', to: '/lists/comfort-rewatches', action: 'Open list', read: true },
-  { id: 'n7', kind: 'release', text: 'New in cinemas near you:', target: 'Velvet Hour II', detail: 'Showing at Grand Cinemas ABC from Mar 14.', time: 'Mon', group: 'This week', to: '/discover/cinemas', action: 'Showtimes', read: true },
-  { id: 'n8', kind: 'watchlist', text: 'From your watchlist:', target: 'Stardust', detail: 'is now streaming.', time: 'Sun', group: 'This week', to: '/movies/stardust', action: 'Watch now', read: true },
-]
-
-let items = INITIAL
+let state: State = { items: [], loaded: false }
 const listeners = new Set<() => void>()
 
-function emit(next: AppNotification[]) {
-  items = next
+function emit(items: AppNotification[]) {
+  state = { items, loaded: true }
   listeners.forEach((listener) => listener())
 }
 
@@ -55,24 +43,84 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener)
 }
 
-const getItems = () => items
+const getState = () => state
+
+const toItem = (n: ApiNotification): AppNotification => ({
+  id: n.id,
+  kind: n.kind,
+  actor: n.actor ? { name: shortName(n.actor.name), handle: n.actor.username, ...look(n.actor) } : undefined,
+  text: n.text,
+  target: n.target ?? undefined,
+  detail: n.detail ?? undefined,
+  time: timeAgo(n.created_at),
+  group: dayGroup(n.created_at),
+  to: n.to,
+  action: n.action,
+  read: n.read,
+})
+
+// Bumped on every account change, so a response for the previous account is ignored.
+let generation = 0
+
+export async function loadNotifications() {
+  const started = generation
+  try {
+    const response = await api.get<{ notifications: ApiNotification[] }>('/notifications')
+    if (started === generation) emit(response.data.notifications.map(toItem))
+  } catch {
+    // Keep what is on screen; the next poll tries again.
+  }
+}
+
+/** Drops everything on sign-out so the next account starts clean. */
+export function clearNotifications() {
+  generation++
+  lastLoad = 0
+  state = { items: [], loaded: false }
+  listeners.forEach((listener) => listener())
+}
 
 export function useNotifications() {
-  return useSyncExternalStore(subscribe, getItems)
+  return useSyncExternalStore(subscribe, getState)
 }
 
 export function useUnreadCount() {
-  return useNotifications().filter((n) => !n.read).length
+  return useNotifications().items.filter((n) => !n.read).length
 }
 
-export function markRead(id: string, read = true) {
-  emit(items.map((n) => (n.id === id ? { ...n, read } : n)))
+const POLL_MS = 60_000
+let lastLoad = 0
+
+/**
+ * Keeps the list fresh while signed in: every page renders the header, so on navigation it only
+ * reloads when the last load is older than the poll interval.
+ */
+export function useNotificationPolling() {
+  useEffect(() => {
+    const tick = () => {
+      if (Date.now() - lastLoad < POLL_MS - 1000) return
+      lastLoad = Date.now()
+      void loadNotifications()
+    }
+    tick()
+    const timer = window.setInterval(tick, POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [])
+}
+
+// Changes show at once and are saved in the background; a failed save reloads the real state.
+
+export function markRead(id: number, read = true) {
+  emit(state.items.map((n) => (n.id === id ? { ...n, read } : n)))
+  api.patch(`/notifications/${id}`, { read }).catch(() => void loadNotifications())
 }
 
 export function markAllRead() {
-  emit(items.map((n) => ({ ...n, read: true })))
+  emit(state.items.map((n) => ({ ...n, read: true })))
+  api.post('/notifications/read-all').catch(() => void loadNotifications())
 }
 
-export function dismiss(id: string) {
-  emit(items.filter((n) => n.id !== id))
+export function dismiss(id: number) {
+  emit(state.items.filter((n) => n.id !== id))
+  api.delete(`/notifications/${id}`).catch(() => void loadNotifications())
 }
