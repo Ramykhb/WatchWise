@@ -25,7 +25,7 @@ import styles from './SignUp.module.css'
 import { apiErrorMessage, authApi, type AuthPayload } from '../../lib/auth.ts'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 
-const PROVIDERS: SocialProvider[] = ['google', 'github', 'facebook']
+const PROVIDERS: SocialProvider[] = ['google', 'github', 'discord']
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_PATTERN = /^(?=.*\d).{8,}$/
 
@@ -70,10 +70,6 @@ export default function SignUp() {
   }
 
   const handleSocial = (provider: SocialProvider) => {
-    if (provider === 'facebook') {
-      setFormError('Facebook sign-in is not available yet. Choose Google or GitHub.')
-      return
-    }
     window.location.assign(`${import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000'}/api/auth/social/${provider}`)
   }
 

@@ -1,14 +1,14 @@
 import googleIcon from '../../assets/auth/icon-google.svg'
 import githubIcon from '../../assets/auth/icon-github.svg'
-import facebookIcon from '../../assets/auth/icon-facebook.svg'
+import discordIcon from '../../assets/auth/icon-discord.svg'
 import styles from './SocialButton.module.css'
 
-export type SocialProvider = 'google' | 'github' | 'facebook'
+export type SocialProvider = 'google' | 'github' | 'discord'
 
 const PROVIDERS: Record<SocialProvider, { label: string; icon: string }> = {
   google: { label: 'Google', icon: googleIcon },
   github: { label: 'GitHub', icon: githubIcon },
-  facebook: { label: 'Facebook', icon: facebookIcon },
+  discord: { label: 'Discord', icon: discordIcon },
 }
 
 type SocialButtonProps = {
@@ -18,7 +18,7 @@ type SocialButtonProps = {
   onSelect: (provider: SocialProvider) => void
 }
 
-/** Outlined pill for OAuth providers (Google, GitHub, Facebook). */
+/** Outlined pill for OAuth providers (Google, GitHub, Discord). */
 export default function SocialButton({ provider, action, onSelect }: SocialButtonProps) {
   const { label, icon } = PROVIDERS[provider]
   return (

@@ -16,7 +16,7 @@ Route::prefix('auth')->group(function () {
     Route::post('forgot-password', [PasswordResetController::class, 'forgot'])->middleware('throttle:auth-forgot-password');
     Route::post('reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:auth-reset-password');
 
-    Route::prefix('social/{provider}')->where(['provider' => 'google|github'])->group(function () {
+    Route::prefix('social/{provider}')->where(['provider' => 'google|github|discord'])->group(function () {
         Route::get('/', [SocialAuthController::class, 'redirect']);
         Route::get('callback', [SocialAuthController::class, 'callback']);
     });
