@@ -278,11 +278,12 @@ In `app/Auth/Exceptions/`. Services throw them and controllers turn them into re
 | --- | --- |
 | `app/Providers/AuthorizationServiceProvider.php` | Maps models to policies, binds the guest as the default current user, makes the Gate use `CurrentUser` |
 
-Most policies stay in `app/Policies/` because each belongs to the entity it protects. The Movie List and Movie Night policies live in their own module folders (`app/MovieList/Policies/`, `app/MovieNight/Policies/`):
+Most policies stay in `app/Policies/` because each belongs to the entity it protects. The Movie List, Movie Night and Watchlist policies live in their own module folders (`app/MovieList/Policies/`, `app/MovieNight/Policies/`, `app/Watchlist/Policies/`):
 
 | Policy | Rule |
 | --- | --- |
-| `ReviewPolicy`, `WatchlistPolicy`, `UserPreferencePolicy` | Owner-based access |
+| `ReviewPolicy`, `UserPreferencePolicy` | Owner-based access |
+| `WatchlistPolicy` (`app/Watchlist/Policies/`) | Owner-based access |
 | `MovieListPolicy`, `MovieListItemPolicy` (`app/MovieList/Policies/`) | Private lists are visible to their owner only |
 | `MovieNightPolicy` (`app/MovieNight/Policies/`) | Organizer and invitees can view a night; only the organizer can change it |
 | `MessagePolicy` | Authenticated users can read and post in discussion rooms; author edits, author or admin deletes |
@@ -385,6 +386,28 @@ app/MovieNight/
 - The form requests run the policy check in `authorize()`, so a forbidden request is rejected before validation, as before.
 - `GET /api/lists` with an unknown `scope` now fails validation (422 with an `errors` object) instead of returning the message "Unknown scope.".
 - Tests: `tests/Feature/Social/ContentTest.php` and `tests/Feature/Social/MovieNightRulesTest.php`.
+
+## Watchlist module
+
+`app/Watchlist/` uses the same layers as Auth. The user's want-to-watch list and watch history are the same rows: a film with status `watched` is history. The `Watchlist` model stays in `app/Models/`.
+
+```
+app/Watchlist/
+  Controllers/          WatchlistController
+  FormRequests/         StoreWatchlistRequest, UpdateWatchlistRequest
+  InterfaceServices/    WatchlistServiceInterface
+  Services/             WatchlistService (sets watched_at from the status, records new films in the activity feed)
+  InterfaceRepository/  WatchlistRepositoryInterface
+  Repository/           WatchlistRepository
+  DTOs/Requests/        AddToWatchlistData, UpdateWatchlistStatusData
+  DTOs/Responses/       WatchlistResponse, WatchlistItemResponse, AddToWatchlistResponse
+  Policies/             WatchlistPolicy
+  Providers/            WatchlistModuleServiceProvider (interface bindings)
+```
+
+- The routes did not change (`/api/watchlist`, in `routes/social.php`).
+- `POST /api/watchlist` answers 201 for a new film and 200 when the film was already there.
+- Tests: `tests/Feature/Social/ContentTest.php` and `tests/Feature/Social/WatchlistRulesTest.php`.
 
 ## Gemini module
 
