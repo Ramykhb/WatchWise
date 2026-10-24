@@ -37,7 +37,7 @@ class WeatherMoodService implements WeatherMoodServiceInterface
             ."humidity {$query->humidity}%, wind {$query->wind} km/h, "
             ."precipitation {$query->precipitation} mm. "
             .'Decide the movie mood this weather calls for. '
-            ."'mood' must be a short genre phrase, max 6 words (example style: Cozy thrillers & comfort dramas). "
+            ."'mood' must be a short genre phrase, max 6 words (example style: Cozy thrillers & comfort dramas), and max 30 characters. "
             ."'description' must be 1-2 short sentences linking weather types to picks "
             .'(example style: Rainy evenings → slower, atmospheric picks. Sunny weekends → feel-good & adventure.). '
             .'Do not copy the examples, base it on the current weather. '
