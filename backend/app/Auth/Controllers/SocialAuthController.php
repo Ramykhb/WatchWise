@@ -8,6 +8,7 @@ use App\Auth\Exceptions\EmailRequired;
 use App\Auth\Exceptions\UnverifiedProviderEmail;
 use App\Auth\InterfaceServices\SocialAuthServiceInterface;
 use App\Auth\Support\AuthCookies;
+use App\Auth\Support\GooglePhoto;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -26,6 +27,7 @@ class SocialAuthController extends Controller
     public function __construct(
         private readonly SocialAuthServiceInterface $social,
         private readonly AuthCookies $cookies,
+        private readonly GooglePhoto $googlePhoto,
     ) {}
 
     public function redirect(string $provider): RedirectResponse
@@ -84,6 +86,11 @@ class SocialAuthController extends Controller
                 : SocialLoginData::fromSocialite($provider, Socialite::driver($provider)->stateless()->user());
         } catch (Throwable) {
             return $this->failure('provider_error');
+        }
+
+        // Google's letter image for accounts without a photo counts as no photo (initials are shown).
+        if ($provider === 'google' && $this->googlePhoto->isPlaceholder($socialData->accessToken) === true) {
+            $socialData = $socialData->withoutPlaceholderAvatar();
         }
 
         try {

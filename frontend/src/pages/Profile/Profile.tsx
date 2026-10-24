@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
+import AvatarImage from '../../components/AvatarImage/AvatarImage.tsx'
 import MovieTile from '../../components/MovieTile/MovieTile.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
 import RatingStars from '../../components/RatingStars/RatingStars.tsx'
@@ -139,7 +140,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
               data-enter="pop"
               data-enter-delay="0.1"
             >
-              {profile.avatar ? <img className={styles.avatarImg} src={profile.avatar} alt="" /> : profile.initials}
+              <AvatarImage className={styles.avatarImg} src={profile.avatar} fallback={profile.initials} />
             </div>
             <div className={styles.info} data-enter data-enter-delay="0.25">
               <div className={styles.nameRow}>
@@ -452,7 +453,7 @@ function PersonRow({ person, isMe, isFollowing, onToggle }: { person: Member; is
   return (
     <li className={styles.person}>
       <span className={styles.personAvatar} style={{ background: person.color }} aria-hidden="true">
-        {person.avatar ? <img className={styles.avatarImg} src={person.avatar} alt="" /> : person.initials}
+        <AvatarImage className={styles.avatarImg} src={person.avatar} fallback={person.initials} />
       </span>
       <Link to={isMe ? '/profile' : `/profile/${person.handle}`} className={styles.personLink}>
         {name}

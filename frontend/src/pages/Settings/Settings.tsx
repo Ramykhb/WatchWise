@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type
 import { Link, useNavigate } from 'react-router'
 import { useLenis } from 'lenis/react'
 import AppNav from '../../components/AppNav/AppNav.tsx'
+import AvatarImage from '../../components/AvatarImage/AvatarImage.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
@@ -323,8 +324,8 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
               <PanelHead id="profile-title" title="Profile" text="This is how other members see you." />
               <form className={styles.form} onSubmit={handleProfile} noValidate>
                 <div className={styles.avatarRow}>
-                  <span className={styles.avatar} aria-hidden={!photo} style={photo ? undefined : { background: colorOf(me.user.id) }}>
-                    {photo ? <img src={photo} alt="Your profile photo" /> : initialsOf(me.user.name)}
+                  <span className={styles.avatar} aria-hidden={!photo} style={{ background: colorOf(me.user.id) }}>
+                    <AvatarImage src={photo} alt="Your profile photo" fallback={initialsOf(me.user.name)} />
                   </span>
                   <div className={styles.avatarButtons}>
                     <label className={styles.upload}>
