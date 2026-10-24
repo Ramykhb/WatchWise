@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Tmdb\DTOs\Requests;
+namespace App\Movie\DTOs\Requests;
 
 final readonly class MovieDiscoverQuery
 {

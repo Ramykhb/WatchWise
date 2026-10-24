@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Tmdb\DTOs\Responses;
+namespace App\Movie\DTOs\Responses;
 
+use App\Genre\DTOs\Responses\GenreResponse;
 use JsonSerializable;
 
 /** Everything the Movie Details page needs: the movie's list fields plus its extras. */

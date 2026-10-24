@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Tmdb\FormRequests;
+namespace App\Movie\FormRequests;
 
-use App\Tmdb\DTOs\Requests\MovieDiscoverQuery;
+use App\Movie\DTOs\Requests\MovieDiscoverQuery;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 

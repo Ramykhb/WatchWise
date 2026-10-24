@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Tmdb\InterfaceRepository;
+namespace App\Movie\InterfaceRepository;
 
-use App\Tmdb\DTOs\Requests\MovieDiscoverQuery;
-use App\Tmdb\DTOs\Requests\MovieListQuery;
-use App\Tmdb\DTOs\Requests\MovieSearchQuery;
-use App\Tmdb\Exceptions\MovieNotFound;
-use App\Tmdb\Exceptions\TmdbUnavailable;
+use App\Movie\DTOs\Requests\MovieDiscoverQuery;
+use App\Movie\DTOs\Requests\MovieListQuery;
+use App\Movie\DTOs\Requests\MovieSearchQuery;
+use App\Movie\Exceptions\MovieNotFound;
+use App\Support\Exceptions\TmdbUnavailable;
 
 /**
  * Reads movie pages from TMDB. Returns TMDB's decoded page payload
