@@ -53,12 +53,20 @@ class ProfileController extends Controller
 
         return response()->json([
             'total' => $total,
-            'users' => $users->map(fn (User $user) => [
-                ...(new MemberResource($user))->resolve(),
-                'followers' => $user->followers_count,
-                'is_following' => in_array($user->id, $following, true),
-                'follows_you' => in_array($user->id, $followers, true),
-            ])->values(),
+            'users' => $users->map(function (User $user) use ($current, $following, $followers) {
+                $member = (new MemberResource($user))->resolve();
+                // Match show(): restricted profiles expose the name and handle, but not the avatar.
+                if (! $this->privacy->canView($user, $current)) {
+                    $member['avatar'] = null;
+                }
+
+                return [
+                    ...$member,
+                    'followers' => $user->followers_count,
+                    'is_following' => in_array($user->id, $following, true),
+                    'follows_you' => in_array($user->id, $followers, true),
+                ];
+            })->values(),
         ]);
     }
 
