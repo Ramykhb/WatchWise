@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature;
+namespace Tests\Feature\Weather;
 
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -50,5 +50,29 @@ class WeatherTest extends TestCase
         $this->getJson('/api/weather?latitude=33.8938')
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['longitude']);
+    }
+
+    public function test_weather_returns_502_when_open_meteo_fails(): void
+    {
+        Http::fake([
+            'https://api.open-meteo.com/*' => Http::response('boom', 500),
+        ]);
+
+        $this->getJson('/api/weather')
+            ->assertStatus(502)
+            ->assertExactJson(['message' => 'Weather service is temporarily unavailable.']);
+    }
+
+    public function test_weather_is_throttled_to_thirty_requests_a_minute(): void
+    {
+        Http::fake([
+            'https://api.open-meteo.com/*' => Http::response(['current' => []]),
+        ]);
+
+        for ($i = 0; $i < 30; $i++) {
+            $this->getJson('/api/weather')->assertOk();
+        }
+
+        $this->getJson('/api/weather')->assertStatus(429);
     }
 }
