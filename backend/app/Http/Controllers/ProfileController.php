@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Http\Resources\MemberResource;
-use App\Http\Resources\MovieListResource;
 use App\Http\Resources\ReviewResource;
 use App\Models\User;
+use App\MovieList\Resources\MovieListResource;
 use App\Services\ActivityFeedService;
 use App\Services\Notifier;
 use App\Services\ProfilePrivacy;

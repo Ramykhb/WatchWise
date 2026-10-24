@@ -4,12 +4,12 @@ namespace App\Services;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Http\Resources\MemberResource;
-use App\Http\Resources\MovieListResource;
 use App\Http\Resources\ReviewResource;
 use App\Models\ActivityFeed;
 use App\Models\MovieList;
 use App\Models\Review;
 use App\Models\User;
+use App\MovieList\Resources\MovieListResource;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
