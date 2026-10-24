@@ -2,10 +2,13 @@
 
 use App\Auth\Controllers\AuthController;
 use App\Http\Controllers\MovieRecommendationController;
+use App\Http\Controllers\TmdbDiscoverController;
+use App\Http\Controllers\TmdbGenresController;
+use App\Http\Controllers\TmdbMoviesController;
+use App\Http\Controllers\TmdbMovieSearchController;
 use App\Http\Controllers\WeatherController;
 use App\Http\Controllers\WeatherMoodController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\TmdbMoviesController;
 
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register'])->middleware('throttle:auth-register');
@@ -21,3 +24,6 @@ Route::get('/weather', WeatherController::class);
 Route::post('/weather-mood', WeatherMoodController::class);
 Route::get('/movie-recommendations', MovieRecommendationController::class);
 Route::get('/movies', TmdbMoviesController::class);
+Route::get('/movies/search', TmdbMovieSearchController::class);
+Route::get('/movies/discover', TmdbDiscoverController::class);
+Route::get('/genres', TmdbGenresController::class);
