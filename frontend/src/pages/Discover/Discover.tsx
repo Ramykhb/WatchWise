@@ -1,4 +1,5 @@
-import { Fragment, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import axios from 'axios'
 import { Link, useSearchParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
@@ -22,24 +23,23 @@ import { gradientCss } from '../Home/homeData.ts'
 import {
   DEFAULT_FILTERS,
   GENRES,
-  INITIAL_FILTERS,
   LANGUAGES,
-  RESULTS,
   RUNTIMES,
   SEARCH_TYPES,
   SORTS,
-  TOTAL_PAGES,
   YEAR_BOUNDS,
   type Filters,
   type SearchType,
 } from './discoverData.ts'
+import { fetchMovies, loadGenres, toTileMovie, type MoviePage } from './discoverApi.ts'
 import styles from './Discover.module.css'
 
-// TODO: search TMDB through the backend (query, type, filters, sort, page) instead of showing mock results.
-const DEFAULT_QUERY = 'space'
+/** The latest response, tagged with the request it answers so stale ones are easy to spot. */
+type Result = { key: string; data: MoviePage | null; failed: boolean }
 
 /** Page buttons around the current page, e.g. 1 2 3 … 21 or 1 … 7 8 9 … 21. */
 function pageItems(page: number, total: number): (number | '…')[] {
+  if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1)
   if (page <= 3) return [1, 2, 3, '…', total]
   if (page >= total - 2) return [1, '…', total - 2, total - 1, total]
   return [1, '…', page - 1, page, page + 1, '…', total]
@@ -51,18 +51,74 @@ export default function Discover() {
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
 
+  const resultsRef = useRef<HTMLElement>(null)
+
   const [searchParams, setSearchParams] = useSearchParams()
-  const submittedQuery = searchParams.get('q') ?? DEFAULT_QUERY
+  const submittedQuery = (searchParams.get('q') ?? '').trim()
   const [query, setQuery] = useState(submittedQuery)
   const [type, setType] = useState<SearchType>('movies')
 
   // Draft = what the panel shows; applied = what the results use (committed by "Apply filters").
-  const [draft, setDraft] = useState<Filters>(INITIAL_FILTERS)
-  const [applied, setApplied] = useState<Filters>(INITIAL_FILTERS)
+  const [draft, setDraft] = useState<Filters>(DEFAULT_FILTERS)
+  const [applied, setApplied] = useState<Filters>(DEFAULT_FILTERS)
 
   const [sort, setSort] = useState(SORTS[0])
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [page, setPage] = useState(1)
+
+  const [genres, setGenres] = useState<Map<number, string> | null>(null)
+  const [result, setResult] = useState<Result | null>(null)
+  const [retries, setRetries] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    loadGenres()
+      .then((map) => active && setGenres(map))
+      // Without genres the results still load; tiles just show the year and genre filters are skipped.
+      .catch(() => active && setGenres(new Map()))
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const genreIds = useMemo(() => {
+    if (!genres) return []
+    const idByLabel = new Map([...genres].map(([id, label]) => [label, id]))
+    return applied.genres.map((label) => idByLabel.get(label)).filter((id): id is number => id !== undefined)
+  }, [genres, applied.genres])
+
+  const requestKey = JSON.stringify({ q: submittedQuery, applied, sort, page, retries })
+  const loading = result?.key !== requestKey
+
+  useEffect(() => {
+    // Wait for the genre list so a genre filter isn't sent without its ids.
+    if (!genres) return
+    const controller = new AbortController()
+    fetchMovies({ query: submittedQuery, filters: applied, sort, page, genreIds, signal: controller.signal })
+      .then((data) => setResult({ key: requestKey, data, failed: false }))
+      .catch((error: unknown) => {
+        if (axios.isCancel(error)) return
+        console.error('Unable to load movies:', error)
+        setResult({ key: requestKey, data: null, failed: true })
+      })
+    // A newer search or filter change cancels the request that's still running.
+    return () => controller.abort()
+    // requestKey covers the query, filters, sort, page and retries.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestKey, genres])
+
+  // Keep showing the previous page while the next one loads, so the grid doesn't jump.
+  const [shown, setShown] = useState<MoviePage | null>(null)
+  if (result?.data && result.data !== shown) setShown(result.data)
+
+  const movies = useMemo(() => (shown && genres ? shown.movies.map((m) => toTileMovie(m, genres)) : []), [shown, genres])
+  const totalPages = shown?.total_pages ?? 0
+  const failed = !loading && result?.failed
+
+  const goToPage = (next: number) => {
+    setPage(next)
+    resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   // Keep the field in sync when the header search changes ?q= while this page is open.
   const [lastQuery, setLastQuery] = useState(submittedQuery)
@@ -111,6 +167,7 @@ export default function Discover() {
   ]
 
   const activeType = SEARCH_TYPES.find((t) => t.id === type)!
+  const movieCount = shown?.total_results ?? 0
   const sliderStyle = { '--from': fraction(draft.years[0]), '--to': fraction(draft.years[1]) } as CSSProperties
 
   return (
@@ -158,7 +215,9 @@ export default function Discover() {
               >
                 <span>
                   {t.label}
-                  <span className={styles.tabCount}>{t.count}</span>
+                  <span className={styles.tabCount}>
+                    {t.id === 'movies' ? movieCount.toLocaleString('en-US') : t.count}
+                  </span>
                 </span>
               </button>
             ))}
@@ -320,10 +379,21 @@ export default function Discover() {
             <ButtonPrimary label="Apply filters" type="submit" fullWidth />
           </form>
 
-          <section className={styles.results} aria-labelledby="results-title" data-enter data-enter-delay="0.35">
+          <section
+            ref={resultsRef}
+            className={styles.results}
+            aria-labelledby="results-title"
+            aria-busy={loading}
+            data-enter
+            data-enter-delay="0.35"
+          >
             <div className={styles.toolbar}>
               <h2 id="results-title" className={styles.resultsTitle} aria-live="polite">
-                {activeType.count} results
+                {type !== 'movies'
+                  ? `${activeType.count} results`
+                  : shown
+                    ? `${movieCount.toLocaleString('en-US')} ${movieCount === 1 ? 'result' : 'results'}`
+                    : 'Loading movies…'}
                 {submittedQuery && (
                   <>
                     {' for '}
@@ -334,7 +404,15 @@ export default function Discover() {
               <div className={styles.controls}>
                 <label className={styles.sort}>
                   <span className="sr-only">Sort by</span>
-                  <select value={sort} onChange={(event) => setSort(event.target.value)}>
+                  <select
+                    value={sort}
+                    disabled={Boolean(submittedQuery)}
+                    title={submittedQuery ? 'Search results are sorted by relevance' : undefined}
+                    onChange={(event) => {
+                      setSort(event.target.value)
+                      setPage(1)
+                    }}
+                  >
                     {SORTS.map((option) => (
                       <option key={option} value={option}>
                         Sort: {option}
@@ -388,20 +466,54 @@ export default function Discover() {
               </div>
             )}
 
+            {type === 'movies' && submittedQuery && (
+              <p className={styles.searchNote}>
+                Searching by title, so filters and sort are paused.{' '}
+                <button
+                  type="button"
+                  className={styles.textButtonSm}
+                  onClick={() => {
+                    setSearchParams({})
+                    setPage(1)
+                  }}
+                >
+                  Clear search
+                </button>
+              </p>
+            )}
+
             {type !== 'movies' ? (
               <p className={styles.empty}>{activeType.label} results are coming soon.</p>
+            ) : failed ? (
+              <p className={styles.empty} role="alert">
+                Couldn't load movies right now.{' '}
+                <button type="button" className={styles.textButton} onClick={() => setRetries((n) => n + 1)}>
+                  Try again
+                </button>
+              </p>
+            ) : shown && movies.length === 0 ? (
+              <p className={styles.empty}>
+                {submittedQuery ? `No movies match “${submittedQuery}”.` : 'No movies match these filters. Try fewer filters.'}
+              </p>
             ) : view === 'grid' ? (
-              <div className={styles.grid}>
-                {RESULTS.map((movie, index) => (
-                  <MovieTile key={`${movie.slug}-${index}`} movie={movie} />
+              <div className={loading ? `${styles.grid} ${styles.loading}` : styles.grid}>
+                {movies.map((movie) => (
+                  <MovieTile key={movie.slug} movie={movie} />
                 ))}
               </div>
             ) : (
-              <ul className={styles.list}>
-                {RESULTS.map((movie, index) => (
-                  <li key={`${movie.slug}-${index}`}>
+              <ul className={loading ? `${styles.list} ${styles.loading}` : styles.list}>
+                {movies.map((movie) => (
+                  <li key={movie.slug}>
                     <Link to={`/movies/${movie.slug}`} className={styles.listItem}>
-                      <span className={styles.thumb} style={{ background: gradientCss(movie.gradient) }} />
+                      <span
+                        className={styles.thumb}
+                        style={{
+                          background: movie.posterUrl
+                            ? `center / cover no-repeat url("${movie.posterUrl}")`
+                            : gradientCss(movie.gradient),
+                        }}
+                      />
                       <span className={styles.listText}>
                         <span className={styles.listTitle}>{movie.title}</span>
                         <span className={styles.listMeta}>{movie.meta}</span>
@@ -417,18 +529,18 @@ export default function Discover() {
               </ul>
             )}
 
-            {type === 'movies' && (
+            {type === 'movies' && !failed && totalPages > 1 && (
               <nav className={styles.pagination} aria-label="Pages">
                 <button
                   type="button"
                   className={styles.pageButton}
                   aria-label="Previous page"
                   disabled={page === 1}
-                  onClick={() => setPage((p) => p - 1)}
+                  onClick={() => goToPage(page - 1)}
                 >
                   <img src={chevLeftIcon} width={18} height={18} alt="" />
                 </button>
-                {pageItems(page, TOTAL_PAGES).map((item, index) =>
+                {pageItems(page, totalPages).map((item, index) =>
                   item === '…' ? (
                     <span key={`gap-${index}`} className={styles.pageGap}>
                       …
@@ -439,7 +551,7 @@ export default function Discover() {
                       type="button"
                       className={item === page ? styles.pageButtonOn : styles.pageButton}
                       aria-current={item === page ? 'page' : undefined}
-                      onClick={() => setPage(item)}
+                      onClick={() => goToPage(item)}
                     >
                       {item}
                     </button>
@@ -449,8 +561,8 @@ export default function Discover() {
                   type="button"
                   className={styles.pageButton}
                   aria-label="Next page"
-                  disabled={page === TOTAL_PAGES}
-                  onClick={() => setPage((p) => p + 1)}
+                  disabled={page >= totalPages}
+                  onClick={() => goToPage(page + 1)}
                 >
                   <img src={chevRightIcon} width={18} height={18} alt="" />
                 </button>
