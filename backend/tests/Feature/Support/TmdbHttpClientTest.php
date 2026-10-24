@@ -1,10 +1,10 @@
 <?php
 
-namespace Tests\Feature\Tmdb\Support;
+namespace Tests\Feature\Support;
 
-use App\Tmdb\Exceptions\TmdbNotFound;
-use App\Tmdb\Exceptions\TmdbUnavailable;
-use App\Tmdb\Support\TmdbHttpClient;
+use App\Support\Exceptions\TmdbNotFound;
+use App\Support\Exceptions\TmdbUnavailable;
+use App\Support\TmdbHttpClient;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;

@@ -1,11 +1,11 @@
 <?php
 
-namespace Tests\Unit\Tmdb;
+namespace Tests\Unit\Genre;
 
-use App\Tmdb\DTOs\Responses\GenreResponse;
-use App\Tmdb\Exceptions\TmdbUnavailable;
-use App\Tmdb\InterfaceRepository\GenreRepositoryInterface;
-use App\Tmdb\Services\GenreService;
+use App\Genre\DTOs\Responses\GenreResponse;
+use App\Support\Exceptions\TmdbUnavailable;
+use App\Genre\InterfaceRepository\GenreRepositoryInterface;
+use App\Genre\Services\GenreService;
 use Illuminate\Support\Facades\Cache;
 use Mockery;
 use Mockery\MockInterface;

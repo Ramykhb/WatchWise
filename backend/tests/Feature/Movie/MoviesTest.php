@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Tmdb;
+namespace Tests\Feature\Movie;
 
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
