@@ -49,7 +49,7 @@ export default function SignIn() {
     if (Object.keys(next).length > 0) return
     setSubmitting(true)
     try {
-      const response = await authApi.post<AuthPayload>('/login', { email, password })
+      const response = await authApi.post<AuthPayload>('/auth/login', { email, password })
       setUser(response.data.user)
       const state = location.state as { from?: { pathname?: string } } | null
       navigate(state?.from?.pathname ?? '/home-page', { replace: true })

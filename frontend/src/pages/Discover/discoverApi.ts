@@ -1,8 +1,6 @@
-import axios from 'axios'
+import { api } from '../../lib/api.ts'
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import type { Filters } from './discoverData.ts'
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL
 
 /** A movie as the backend's TMDB endpoints return it. */
 export type TmdbMovie = {
@@ -76,8 +74,8 @@ let genresRequest: Promise<Map<number, string>> | null = null
 
 /** Genre id → display name (e.g. 878 → "Sci-fi"). Fetched once and shared while the app is open. */
 export function loadGenres(): Promise<Map<number, string>> {
-  genresRequest ??= axios
-    .get<{ genres: { id: number; name: string }[] }>(`${BACKEND_URL}/api/genres`)
+  genresRequest ??= api
+    .get<{ genres: { id: number; name: string }[] }>('/genres')
     .then(({ data }) => new Map(data.genres.map((g) => [g.id, genreLabel(g.name)])))
     .catch((error: unknown) => {
       // Let the next call try again instead of keeping the failure.
@@ -101,11 +99,11 @@ type MovieQuery = {
 /** One page of results: a title search, or Discover's filtered browse. */
 export async function fetchMovies({ query, filters, sort, page, genreIds, signal }: MovieQuery): Promise<MoviePage> {
   if (query) {
-    const { data } = await axios.get<MoviePage>(`${BACKEND_URL}/api/movies/search`, { params: { q: query, page }, signal })
+    const { data } = await api.get<MoviePage>('/movies/search', { params: { q: query, page }, signal })
     return data
   }
 
-  const { data } = await axios.get<MoviePage>(`${BACKEND_URL}/api/movies/discover`, {
+  const { data } = await api.get<MoviePage>('/movies/discover', {
     params: {
       genres: genreIds.length ? genreIds.join(',') : undefined,
       year_from: filters.years[0],

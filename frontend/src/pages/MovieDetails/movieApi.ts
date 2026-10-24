@@ -1,8 +1,7 @@
 import axios from 'axios'
+import { api } from '../../lib/api.ts'
 import { genreLabel, toTileMovie, type TmdbMovie } from '../Discover/discoverApi.ts'
 import type { CastMember, MovieDetails } from './movieData.ts'
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL
 
 /** GET /api/movies/{id}: a movie with everything the details page needs from TMDB. */
 export type TmdbMovieDetails = TmdbMovie & {
@@ -61,7 +60,7 @@ const formatDate = (date: string) =>
 /** Fetches a TMDB movie through the backend. Resolves to null when TMDB doesn't know the id. */
 export async function fetchMovieDetails(id: string, signal: AbortSignal): Promise<TmdbMovieDetails | null> {
   try {
-    const { data } = await axios.get<TmdbMovieDetails>(`${BACKEND_URL}/api/movies/${id}`, { signal })
+    const { data } = await api.get<TmdbMovieDetails>(`/movies/${id}`, { signal })
     return data
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) return null

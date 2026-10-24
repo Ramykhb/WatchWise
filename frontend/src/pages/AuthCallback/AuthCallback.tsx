@@ -18,7 +18,7 @@ export default function AuthCallback() {
         return
       }
       try {
-        const response = await authApi.get<{ user: AuthUser }>('/me')
+        const response = await authApi.get<{ user: AuthUser }>('/auth/me')
         if (active) {
           setUser(response.data.user)
           navigate('/home-page', { replace: true })

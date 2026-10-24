@@ -1,12 +1,8 @@
 import axios from 'axios'
+import { api } from './api.ts'
 
-const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000').replace(/\/$/, '')
-
-export const authApi = axios.create({
-  baseURL: `${backendUrl}/api/auth`,
-  withCredentials: true,
-  headers: { Accept: 'application/json' },
-})
+/** Auth requests share the same base URL, cookies and refresh handling as every other API call. */
+export const authApi = api
 
 export type AuthUser = {
   id: number

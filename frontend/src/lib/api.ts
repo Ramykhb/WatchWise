@@ -1,27 +1,100 @@
-import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
+import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { useCallback, useEffect, useState } from 'react'
-import { authApi } from './auth.ts'
 
 const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000').replace(/\/$/, '')
 
-/** The Laravel API (`/api/...`). Auth cookies ride along; an expired access token is refreshed once. */
+/** The shared Laravel API client (`/api/...`) for both application and auth requests. */
 export const api = axios.create({
   baseURL: `${backendUrl}/api`,
   withCredentials: true,
   headers: { Accept: 'application/json' },
 })
 
-// The access cookie lives 15 minutes. On a 401, rotate the refresh token once and retry the request;
-// parallel requests share the same refresh call.
-let refreshing: Promise<unknown> | null = null
-api.interceptors.response.use(undefined, async (error: AxiosError) => {
-  const config = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined
-  if (error.response?.status !== 401 || !config || config._retried) throw error
-  config._retried = true
-  refreshing ??= authApi.post('/refresh').finally(() => {
-    refreshing = null
+type RetryableRequestConfig = InternalAxiosRequestConfig & { _retried?: boolean }
+
+const publicAuthEndpoints = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
+  '/auth/logout',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/resend-verification',
+]
+const guestRoutes = ['/', '/signin', '/signup', '/forgot-password', '/auth/callback']
+
+function shouldSkipRefresh(url?: string): boolean {
+  if (!url) return false
+  const path = url.startsWith('http') ? new URL(url).pathname : url.split('?')[0]
+  return publicAuthEndpoints.some((endpoint) => path.endsWith(endpoint))
+}
+
+let refreshing = false
+let clearingSession: Promise<void> | null = null
+let failedRequests: Array<{
+  config: RetryableRequestConfig
+  resolve: (response: AxiosResponse) => void
+  reject: (reason: unknown) => void
+}> = []
+
+function settleFailedRequests(error?: unknown) {
+  failedRequests.forEach(({ config, resolve, reject }) => {
+    if (error) reject(error)
+    else void api(config).then(resolve, reject)
   })
-  await refreshing
+  failedRequests = []
+}
+
+function clearSessionAndRedirect(): Promise<void> {
+  if (clearingSession) return clearingSession
+
+  // Auth cookies are HttpOnly; only the backend can revoke and expire them.
+  clearingSession = api.post('/auth/logout')
+    .catch(() => undefined)
+    .then(() => {
+      if (!guestRoutes.includes(window.location.pathname)) window.location.replace('/')
+    })
+    .finally(() => {
+      clearingSession = null
+    })
+
+  return clearingSession
+}
+
+api.interceptors.response.use(undefined, async (error: AxiosError) => {
+  const config = error.config as RetryableRequestConfig | undefined
+  const status = error.response?.status
+
+  if (!config || ![401, 403].includes(status ?? 0) || shouldSkipRefresh(config.url)) {
+    return Promise.reject(error)
+  }
+
+  if (config._retried) {
+    if (status === 401) await clearSessionAndRedirect()
+    return Promise.reject(error)
+  }
+
+  config._retried = true
+
+  if (refreshing) {
+    return new Promise<AxiosResponse>((resolve, reject) => {
+      failedRequests.push({ config, resolve, reject })
+    })
+  }
+
+  refreshing = true
+
+  try {
+    await api.post('/auth/refresh')
+  } catch (refreshError) {
+    refreshing = false
+    settleFailedRequests(refreshError)
+    await clearSessionAndRedirect()
+    return Promise.reject(refreshError)
+  }
+
+  refreshing = false
+  settleFailedRequests()
   return api(config)
 })
 

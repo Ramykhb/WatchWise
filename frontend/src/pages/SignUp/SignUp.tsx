@@ -57,7 +57,7 @@ export default function SignUp() {
     if (Object.keys(next).length > 0) return
     setSubmitting(true)
     try {
-      const response = await authApi.post<AuthPayload>('/register', {
+      const response = await authApi.post<AuthPayload>('/auth/register', {
         name, email, password, password_confirmation: passwordConfirmation,
       })
       setUser(response.data.user)
