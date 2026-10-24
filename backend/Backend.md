@@ -278,13 +278,13 @@ In `app/Auth/Exceptions/`. Services throw them and controllers turn them into re
 | --- | --- |
 | `app/Providers/AuthorizationServiceProvider.php` | Maps models to policies, binds the guest as the default current user, makes the Gate use `CurrentUser` |
 
-Policies stay in `app/Policies/` because each belongs to the entity it protects:
+Most policies stay in `app/Policies/` because each belongs to the entity it protects. The Movie List and Movie Night policies live in their own module folders (`app/MovieList/Policies/`, `app/MovieNight/Policies/`):
 
 | Policy | Rule |
 | --- | --- |
 | `ReviewPolicy`, `WatchlistPolicy`, `UserPreferencePolicy` | Owner-based access |
-| `MovieListPolicy`, `MovieListItemPolicy` | Private lists are visible to their owner only |
-| `MovieNightPolicy` | Organizer and invitees can view a night; only the organizer can change it |
+| `MovieListPolicy`, `MovieListItemPolicy` (`app/MovieList/Policies/`) | Private lists are visible to their owner only |
+| `MovieNightPolicy` (`app/MovieNight/Policies/`) | Organizer and invitees can view a night; only the organizer can change it |
 | `MessagePolicy` | Authenticated users can read and post in discussion rooms; author edits, author or admin deletes |
 | `NotificationPolicy` | Access to notifications |
 | `UserPolicy` | Private profiles are visible to the owner and admins |
@@ -350,6 +350,41 @@ app/Support/            Shared by both: TmdbHttpClient (adds the API key, timeou
 - Setup: set `TMDB_API_KEY` in `.env`. `TMDB_URL` and `TMDB_IMAGE_URL` have working defaults in `config/services.php`.
 - Routes are in `routes/api.php` and the config is the `tmdb` entry in `config/services.php`.
 - Tests: `tests/Feature/Movie/`, `tests/Feature/Genre/` and `tests/Feature/Support/` (the endpoints, repositories and `TmdbHttpClient`), and `tests/Unit/Movie/` and `tests/Unit/Genre/` (the services).
+
+## MovieList and MovieNight modules
+
+`app/MovieList/` and `app/MovieNight/` use the same layers as Auth. Their Eloquent models stay in `app/Models/`, and `MovieListResource` stays in `app/MovieList/Resources/` because the profile and activity feed also use it.
+
+```
+app/MovieList/
+  Controllers/          MovieListController
+  FormRequests/         MovieListIndexRequest, StoreMovieListRequest, UpdateMovieListRequest
+  InterfaceServices/    MovieListServiceInterface
+  Services/             MovieListService (transactions, activity feed entries)
+  InterfaceRepository/  MovieListRepositoryInterface
+  Repository/           MovieListRepository (scopes, search, syncing films)
+  DTOs/Requests/        MovieListSearchQuery, CreateMovieListData, UpdateMovieListData
+  Resources/            MovieListResource
+  Policies/             MovieListPolicy, MovieListItemPolicy
+  Providers/            MovieListModuleServiceProvider (interface bindings)
+app/MovieNight/
+  Controllers/          MovieNightController
+  FormRequests/         StoreMovieNightRequest, UpdateMovieNightRequest, InviteGuestsRequest, RsvpRequest, VoteRequest
+  InterfaceServices/    MovieNightServiceInterface
+  Services/             MovieNightService (invites, RSVPs, votes, notifications through Notifier)
+  InterfaceRepository/  MovieNightRepositoryInterface
+  Repository/           MovieNightRepository
+  DTOs/Requests/        CreateMovieNightData, UpdateMovieNightData, InviteGuestsData, RsvpData, VoteData
+  DTOs/Responses/       MovieNightResponse, MovieNightOverviewResponse
+  Exceptions/           NotInvitedToMovieNight (403), DeclinedGuestCannotVote (403), VotingClosed (422)
+  Policies/             MovieNightPolicy
+  Providers/            MovieNightModuleServiceProvider (interface bindings)
+```
+
+- The routes did not change (`/api/lists` and `/api/movie-nights`, in `routes/social.php`).
+- The form requests run the policy check in `authorize()`, so a forbidden request is rejected before validation, as before.
+- `GET /api/lists` with an unknown `scope` now fails validation (422 with an `errors` object) instead of returning the message "Unknown scope.".
+- Tests: `tests/Feature/Social/ContentTest.php` and `tests/Feature/Social/MovieNightRulesTest.php`.
 
 ## Gemini module
 
