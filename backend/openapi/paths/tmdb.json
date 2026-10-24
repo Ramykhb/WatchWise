@@ -68,6 +68,22 @@
         }
       }
     },
+    "/api/movies/{id}": {
+      "get": {
+        "summary": "Get movie details",
+        "description": "Returns a movie with its genres, cast, directors, trailer, certification and recommended movies. Successful responses are cached for six hours. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
+        "tags": ["Movies"],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "description": "TMDB movie id.", "schema": {"type": "integer", "minimum": 1}, "example": 27205}
+        ],
+        "responses": {
+          "200": {"description": "Movie details.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MovieDetails"}}}},
+          "404": {"description": "No movie has this id.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}, "example": {"message": "Movie not found."}}}},
+          "429": {"description": "Too many requests.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}}}},
+          "502": {"description": "TMDB is unreachable or returned an error.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}, "example": {"message": "Movie service is temporarily unavailable."}}}}
+        }
+      }
+    },
     "/api/genres": {
       "get": {
         "summary": "List movie genres",
@@ -129,6 +145,45 @@
           {"type": "object", "required": ["sort"], "properties": {"sort": {"type": "string", "enum": ["popularity", "rating", "release_date", "title"], "example": "popularity"}}},
           {"$ref": "#/components/schemas/MoviePageBase"}
         ]
+      },
+      "MovieDetails": {
+        "allOf": [
+          {"$ref": "#/components/schemas/Movie"},
+          {
+            "type": "object",
+            "required": ["genres", "tagline", "runtime", "status", "tmdb_score", "original_language", "certification", "budget", "revenue", "directors", "cast", "trailer", "similar"],
+            "properties": {
+              "genres": {"type": "array", "items": {"$ref": "#/components/schemas/Genre"}},
+              "tagline": {"type": "string", "nullable": true},
+              "runtime": {"type": "integer", "nullable": true, "example": 148},
+              "status": {"type": "string", "nullable": true, "example": "Released"},
+              "tmdb_score": {"type": "number", "format": "float", "example": 8.3},
+              "original_language": {"type": "object", "nullable": true, "required": ["code", "name"], "properties": {"code": {"type": "string"}, "name": {"type": "string"}}},
+              "certification": {"type": "string", "nullable": true, "example": "PG-13"},
+              "budget": {"type": "integer", "nullable": true},
+              "revenue": {"type": "integer", "nullable": true},
+              "directors": {"type": "array", "items": {"$ref": "#/components/schemas/Person"}},
+              "cast": {"type": "array", "items": {"$ref": "#/components/schemas/CastMember"}},
+              "trailer": {"type": "object", "nullable": true, "required": ["name", "youtube_key", "url", "embed_url"], "properties": {"name": {"type": "string"}, "youtube_key": {"type": "string"}, "url": {"type": "string", "format": "uri"}, "embed_url": {"type": "string", "format": "uri"}}},
+              "similar": {"type": "array", "items": {"$ref": "#/components/schemas/Movie"}}
+            }
+          }
+        ]
+      },
+      "Person": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {"id": {"type": "integer"}, "name": {"type": "string"}}
+      },
+      "CastMember": {
+        "type": "object",
+        "required": ["id", "name", "character", "profile_url"],
+        "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "character": {"type": "string"}, "profile_url": {"type": "string", "nullable": true}}
+      },
+      "Trailer": {
+        "type": "object",
+        "required": ["name", "youtube_key", "url", "embed_url"],
+        "properties": {"name": {"type": "string"}, "youtube_key": {"type": "string"}, "url": {"type": "string", "format": "uri"}, "embed_url": {"type": "string", "format": "uri"}}
       },
       "Genre": {
         "type": "object",
