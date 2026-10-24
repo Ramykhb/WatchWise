@@ -18,19 +18,11 @@ import listIcon from '../../assets/profile/icon-list.svg'
 import eyeIcon from '../../assets/profile/icon-eye.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
-import {
-  ME,
-  MY_FOLLOWING,
-  compactCount,
-  getProfile,
-  hasProfile,
-  type ActivityItem,
-  type Member,
-  type Profile as ProfileData,
-  type ProfileList,
-} from './profileData.ts'
+import { compactCount, toMember, toProfile, type ActivityItem, type Member, type Profile as ProfileData, type ProfileList } from './profileData.ts'
 import styles from './Profile.module.css'
-import { useAuth } from '../../contexts/AuthContext.tsx'
+import { useAuth } from '../../contexts/useAuth.ts'
+import { api, isStatus, useApi } from '../../lib/api.ts'
+import type { ApiMember, ApiProfile } from '../../lib/types.ts'
 
 type Tab = 'activity' | 'reviews' | 'lists' | 'watched'
 type PeopleTab = 'followers' | 'following'
@@ -46,31 +38,50 @@ const GENRE_COLORS = [
 
 export default function Profile() {
   const { handle } = useParams()
-  const profile = getProfile(handle)
-  if (!profile) return <Placeholder title="Profile not found" notFound />
-  // Keyed by handle so tabs and follow state reset when moving between profiles.
-  return <ProfilePage key={profile.handle} profile={profile} />
+  const { user } = useAuth()
+  // `/profile` is the signed-in user's own profile.
+  const { data, error } = useApi<ApiProfile>(`/users/${encodeURIComponent(handle ?? user?.username ?? '')}`)
+  if (isStatus(error, 404)) return <Placeholder title="Profile not found" notFound />
+  if (error) return <Placeholder title="Couldn't load this profile" />
+  if (!data) return <ProfileLoading />
+  // Keyed by user so tabs and follow state reset when moving between profiles.
+  return <ProfilePage key={data.user.id} profile={toProfile(data)} />
+}
+
+function ProfileLoading() {
+  return (
+    <div className={styles.page}>
+      <AppNav />
+      <p className={styles.empty} role="status">
+        Loading profile…
+      </p>
+    </div>
+  )
 }
 
 function ProfilePage({ profile }: { profile: ProfileData }) {
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
 
-  const isMe = profile.handle === ME
-  const { logout } = useAuth()
+  const isMe = profile.isMe
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
   const firstName = profile.name.split(' ')[0]
   const [tab, setTab] = useState<Tab>('activity')
   const [peopleTab, setPeopleTab] = useState<PeopleTab>('followers')
   const [shareNote, setShareNote] = useState('')
-  // TODO: read and write follows through the API once it exists.
-  const [following, setFollowing] = useState<string[]>(MY_FOLLOWING)
-  const isFollowing = following.includes(profile.handle)
-  const toggleFollow = (handle: string) =>
-    setFollowing((list) => (list.includes(handle) ? list.filter((h) => h !== handle) : [...list, handle]))
+  // Ids the signed-in user follows; buttons change at once and are saved through the follows API.
+  const [following, setFollowing] = useState<number[]>(profile.myFollowing)
+  const isFollowing = following.includes(profile.id)
+  const toggleFollow = (member: Pick<Member, 'id' | 'handle'>) => {
+    const was = following.includes(member.id)
+    const flip = (list: number[]) => (list.includes(member.id) ? list.filter((id) => id !== member.id) : [...list, member.id])
+    setFollowing(flip)
+    const request = was ? api.delete(`/users/${member.handle}/follow`) : api.post(`/users/${member.handle}/follow`)
+    request.catch(() => setFollowing(flip))
+  }
   // The follower count moves with the main Follow button.
-  const followedAtLoad = MY_FOLLOWING.includes(profile.handle)
-  const followers = profile.followers + (isFollowing === followedAtLoad ? 0 : isFollowing ? 1 : -1)
+  const followers = profile.followers + (isFollowing === profile.isFollowing ? 0 : isFollowing ? 1 : -1)
 
   const handleShare = async () => {
     const url = window.location.href
@@ -88,9 +99,9 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: 'activity', label: 'Activity' },
-    { id: 'reviews', label: 'Reviews', count: profile.reviews },
-    { id: 'lists', label: 'Lists', count: profile.lists },
-    { id: 'watched', label: 'Watched', count: profile.films },
+    { id: 'reviews', label: 'Reviews', count: profile.reviews ?? undefined },
+    { id: 'lists', label: 'Lists', count: profile.lists ?? undefined },
+    { id: 'watched', label: 'Watched', count: profile.films ?? undefined },
   ]
   const stats = [
     { label: 'Followers', value: compactCount(followers) },
@@ -99,7 +110,20 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
     { label: 'Lists', value: compactCount(profile.lists) },
     { label: 'Films', value: compactCount(profile.films) },
   ]
-  const people = peopleTab === 'followers' ? profile.followerList : profile.followingList
+  // The profile carries the first 8 of each list; "View all" loads the rest.
+  const [fullLists, setFullLists] = useState<Partial<Record<PeopleTab, Member[]>>>({})
+  const [loadingAll, setLoadingAll] = useState(false)
+  const people = fullLists[peopleTab] ?? (peopleTab === 'followers' ? profile.followerList : profile.followingList)
+  const peopleTotal = peopleTab === 'followers' ? followers : (profile.following ?? 0)
+  const showAll = async () => {
+    setLoadingAll(true)
+    try {
+      const response = await api.get<{ users: ApiMember[] }>(`/users/${profile.handle}/${peopleTab}`)
+      setFullLists((lists) => ({ ...lists, [peopleTab]: response.data.users.map(toMember) }))
+    } finally {
+      setLoadingAll(false)
+    }
+  }
 
   return (
     <div ref={pageRef} className={styles.page}>
@@ -115,7 +139,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
               data-enter="pop"
               data-enter-delay="0.1"
             >
-              {profile.initials}
+              {profile.avatar ? <img className={styles.avatarImg} src={profile.avatar} alt="" /> : profile.initials}
             </div>
             <div className={styles.info} data-enter data-enter-delay="0.25">
               <div className={styles.nameRow}>
@@ -123,11 +147,14 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                   <SplitHeadline id="profile-name" className={styles.name} lines={[{ text: profile.name }]} />
                   <p className={styles.handle}>
                     <span className={styles.at}>@{profile.handle}</span>
-                    <span className={styles.location}>
-                      <img src={pinIcon} width={14} height={14} alt="" />
-                      {profile.location}
-                    </span>
-                    <span>· Member since {profile.since}</span>
+                    {profile.location && (
+                      <span className={styles.location}>
+                        <img src={pinIcon} width={14} height={14} alt="" />
+                        {profile.location}
+                      </span>
+                    )}
+                    {profile.since && <span>· Member since {profile.since}</span>}
+                    {profile.followsYou && <span>· Follows you</span>}
                   </p>
                 </div>
                 <div className={styles.actions}>
@@ -141,7 +168,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                         type="button"
                         className={isFollowing ? styles.followBtn : styles.followBtnOff}
                         aria-pressed={isFollowing}
-                        onClick={() => toggleFollow(profile.handle)}
+                        onClick={() => toggleFollow(profile)}
                       >
                         {isFollowing && <img src={checkIcon} width={16} height={16} alt="" />}
                         {isFollowing ? 'Following' : 'Follow'}
@@ -166,7 +193,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                   )}
                 </div>
               </div>
-              <p className={styles.bio}>{profile.bio}</p>
+              <p className={styles.bio}>{profile.bio || (isMe ? 'Add a short bio in Settings so people know your taste.' : '')}</p>
               <dl className={styles.stats}>
                 {stats.map((stat) => (
                   <div key={stat.label} className={styles.stat}>
@@ -183,6 +210,11 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
         </section>
         <img className={styles.headerWave} src={headerWave} width={1440} height={70} alt="" />
 
+        {profile.restricted ? (
+          <div className={styles.content}>
+            <p className={styles.empty}>This profile is private. Only {firstName} can share more of it.</p>
+          </div>
+        ) : (
         <div className={styles.content}>
           <div className={styles.tabs} role="tablist" aria-label={`${firstName}'s profile`}>
             {tabs.map((t) => (
@@ -217,18 +249,25 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                   <p className={styles.empty}>No reviews yet.</p>
                 ))}
               {tab === 'lists' &&
-                profile.listCards.map((list) => (
-                  <Link key={list.slug} to={`/lists/${list.slug}`} className={styles.card}>
-                    <ListPreview list={list} />
-                  </Link>
+                (profile.listCards.length > 0 ? (
+                  profile.listCards.map((list) => (
+                    <Link key={list.slug} to={`/lists/${list.slug}`} className={styles.card}>
+                      <ListPreview list={list} />
+                    </Link>
+                  ))
+                ) : (
+                  <p className={styles.empty}>No lists yet.</p>
                 ))}
-              {tab === 'watched' && (
-                <div className={styles.watched}>
-                  {profile.watched.map((movie) => (
-                    <MovieTile key={movie.slug} movie={movie} />
-                  ))}
-                </div>
-              )}
+              {tab === 'watched' &&
+                (profile.watched.length > 0 ? (
+                  <div className={styles.watched}>
+                    {profile.watched.map((movie) => (
+                      <MovieTile key={movie.slug} movie={movie} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className={styles.empty}>No watched films to show.</p>
+                ))}
             </section>
 
             <aside className={styles.side} data-enter data-enter-delay="0.45">
@@ -243,25 +282,30 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                       className={styles.segment}
                       onClick={() => setPeopleTab(id)}
                     >
-                      {id === 'followers' ? `Followers ${compactCount(followers)}` : `Following ${profile.following}`}
+                      {id === 'followers' ? `Followers ${compactCount(followers)}` : `Following ${compactCount(profile.following)}`}
                     </button>
                   ))}
                 </div>
                 <ul className={styles.personList}>
                   {people.map((person) => (
                     <PersonRow
-                      key={person.handle}
+                      key={person.id}
                       person={person}
-                      isFollowing={following.includes(person.handle)}
-                      onToggle={() => toggleFollow(person.handle)}
+                      isMe={person.id === user?.id}
+                      isFollowing={following.includes(person.id)}
+                      onToggle={() => toggleFollow(person)}
                     />
                   ))}
+                  {people.length === 0 && <li className={styles.personHandle}>Nobody here yet.</li>}
                 </ul>
-                <span className={styles.viewAll}>
-                  View all {(peopleTab === 'followers' ? followers : profile.following).toLocaleString('en-US')} →
-                </span>
+                {people.length < peopleTotal && !fullLists[peopleTab] && (
+                  <button type="button" className={styles.viewAll} onClick={showAll} disabled={loadingAll}>
+                    {loadingAll ? 'Loading…' : `View all ${peopleTotal.toLocaleString('en-US')} →`}
+                  </button>
+                )}
               </section>
 
+              {profile.top4.length > 0 && (
               <section className={styles.top4} aria-labelledby="top4-title">
                 <h2 id="top4-title" className={styles.top4Title}>
                   {isMe ? 'Your' : `${firstName}'s`} top 4
@@ -278,7 +322,9 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                   ))}
                 </div>
               </section>
+              )}
 
+              {profile.genres.length > 0 && (
               <section className={styles.genres} aria-labelledby="genres-title">
                 <h2 id="genres-title" className={styles.cardTitle}>
                   Favourite genres
@@ -291,9 +337,11 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                   ))}
                 </ul>
               </section>
+              )}
             </aside>
           </div>
         </div>
+        )}
       </main>
     </div>
   )
@@ -390,8 +438,7 @@ function ListPreview({ list }: { list: ProfileList }) {
   )
 }
 
-function PersonRow({ person, isFollowing, onToggle }: { person: Member; isFollowing: boolean; onToggle: () => void }) {
-  const isMe = person.handle === ME
+function PersonRow({ person, isMe, isFollowing, onToggle }: { person: Member; isMe: boolean; isFollowing: boolean; onToggle: () => void }) {
   const name = (
     <span className={styles.personText}>
       <span className={styles.personName}>
@@ -405,15 +452,11 @@ function PersonRow({ person, isFollowing, onToggle }: { person: Member; isFollow
   return (
     <li className={styles.person}>
       <span className={styles.personAvatar} style={{ background: person.color }} aria-hidden="true">
-        {person.initials}
+        {person.avatar ? <img className={styles.avatarImg} src={person.avatar} alt="" /> : person.initials}
       </span>
-      {hasProfile(person.handle) ? (
-        <Link to={isMe ? '/profile' : `/profile/${person.handle}`} className={styles.personLink}>
-          {name}
-        </Link>
-      ) : (
-        name
-      )}
+      <Link to={isMe ? '/profile' : `/profile/${person.handle}`} className={styles.personLink}>
+        {name}
+      </Link>
       {!isMe && (
         <PillButton variant={isFollowing ? 'outline' : 'solid'} pressed={isFollowing} onClick={onToggle}>
           {isFollowing ? 'Unfollow' : 'Follow'}

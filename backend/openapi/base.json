@@ -1,0 +1,62 @@
+{
+    "openapi": "3.0.3",
+    "info": {
+        "title": "WatchWise API",
+        "version": "1.0.0",
+        "description": "WatchWise backend API.\n\nAuthentication uses HttpOnly cookies set by `POST /api/auth/login` or `POST /api/auth/register`. After logging in through 'Try it out', the browser sends the cookies automatically on the same origin, so protected endpoints work without pasting a token. A Bearer access token (`Authorization: Bearer <token>`) also works."
+    },
+    "servers": [
+        { "url": "/" }
+    ],
+    "tags": [
+        { "name": "Auth" },
+        { "name": "Account" },
+        { "name": "Social login" },
+        { "name": "Movies" },
+        { "name": "Genres" },
+        { "name": "Weather" },
+        { "name": "Recommendations" }
+    ],
+    "paths": {},
+    "components": {
+        "securitySchemes": {
+            "cookieAuth": {
+                "type": "apiKey",
+                "in": "cookie",
+                "name": "access_token"
+            },
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        },
+        "schemas": {
+            "Message": {
+                "type": "object",
+                "properties": {
+                    "message": { "type": "string" }
+                }
+            },
+            "Error": {
+                "type": "object",
+                "properties": {
+                    "error": { "type": "string" }
+                }
+            },
+            "ValidationError": {
+                "type": "object",
+                "properties": {
+                    "message": { "type": "string" },
+                    "errors": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

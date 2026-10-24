@@ -9,10 +9,11 @@ import lockIcon from '../../assets/lists/icon-lock.svg'
 import editIcon from '../../assets/lists/icon-edit.svg'
 import trashIcon from '../../assets/lists/icon-trash.svg'
 import plusIcon from '../../assets/lists/icon-plus.svg'
-import heartIcon from '../../assets/lists/icon-heart.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { FOLLOWING_COUNT, PUBLIC_LISTS, type PublicList } from './listsData.ts'
-import { deleteMyList, useMyLists } from './myListsStore.ts'
+import { useApi } from '../../lib/api.ts'
+import type { ApiList } from '../../lib/types.ts'
+import { toPublicList, type PublicList } from './listsData.ts'
+import { deleteList, useMyLists } from './myListsStore.ts'
 import styles from './Lists.module.css'
 
 type Tab = 'mine' | 'public' | 'following'
@@ -32,11 +33,6 @@ function PublicListCard({ list }: { list: PublicList }) {
           by {list.author}
         </span>
         <span className={styles.stats}>
-          <span className={styles.likes}>
-            <img src={heartIcon} width={14} height={14} alt="" />
-            {list.likes}
-            <span className="sr-only"> likes</span>
-          </span>
           <span className={styles.films}>{list.films} films</span>
         </span>
       </span>
@@ -49,12 +45,17 @@ export default function Lists() {
   const tabsRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
 
-  const myLists = useMyLists()
+  const { lists: myLists, loaded } = useMyLists()
   const [tab, setTab] = useState<Tab>('mine')
+  // Other members' public lists, and those by people you follow.
+  const publicLists = (useApi<{ lists: ApiList[] }>('/lists?scope=public').data?.lists ?? []).map(toPublicList)
+  const followingLists = (useApi<{ lists: ApiList[] }>('/lists?scope=following').data?.lists ?? []).map(toPublicList)
+  const [deleteError, setDeleteError] = useState('')
 
-  const remove = (slug: string, title: string) => {
+  const remove = (id: number, title: string) => {
     if (window.confirm(`Delete “${title}”? This can't be undone.`)) {
-      deleteMyList(slug)
+      setDeleteError('')
+      deleteList(id).catch(() => setDeleteError(`Couldn't delete “${title}”. Please try again.`))
     }
   }
 
@@ -66,7 +67,7 @@ export default function Lists() {
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: 'mine', label: 'My lists', count: myLists.length },
     { id: 'public', label: 'Public lists' },
-    { id: 'following', label: 'Following', count: FOLLOWING_COUNT },
+    { id: 'following', label: 'Following', count: followingLists.length },
   ]
 
   return (
@@ -103,10 +104,17 @@ export default function Lists() {
           ))}
         </div>
 
+        {deleteError && (
+          <p className={styles.description} role="alert">
+            {deleteError}
+          </p>
+        )}
+
         {tab === 'mine' && (
           <ul className={styles.grid} data-enter data-enter-delay="0.25">
+            {!loaded && <li className={styles.description}>Loading your lists…</li>}
             {myLists.map((list) => (
-              <li key={list.slug} className={styles.card}>
+              <li key={list.id} className={styles.card}>
                 <Link
                   to={`/lists/${list.slug}`}
                   className={styles.cover}
@@ -137,7 +145,7 @@ export default function Lists() {
                       type="button"
                       className={styles.delete}
                       aria-label={`Delete ${list.title}`}
-                      onClick={() => remove(list.slug, list.title)}
+                      onClick={() => remove(list.id, list.title)}
                     >
                       <img src={trashIcon} width={16} height={16} alt="" />
                     </button>
@@ -159,11 +167,16 @@ export default function Lists() {
 
         {tab !== 'mine' && (
           <ul className={styles.publicGrid}>
-            {PUBLIC_LISTS.filter((list) => tab === 'public' || list.following).map((list) => (
-              <li key={list.slug}>
+            {(tab === 'public' ? publicLists : followingLists).map((list) => (
+              <li key={list.id}>
                 <PublicListCard list={list} />
               </li>
             ))}
+            {(tab === 'public' ? publicLists : followingLists).length === 0 && (
+              <li className={styles.description}>
+                {tab === 'public' ? 'No public lists yet.' : 'People you follow have no public lists yet.'}
+              </li>
+            )}
           </ul>
         )}
 
@@ -178,8 +191,8 @@ export default function Lists() {
               </button>
             </div>
             <ul className={styles.publicGrid}>
-              {PUBLIC_LISTS.map((list) => (
-                <li key={list.slug}>
+              {publicLists.slice(0, 3).map((list) => (
+                <li key={list.id}>
                   <PublicListCard list={list} />
                 </li>
               ))}

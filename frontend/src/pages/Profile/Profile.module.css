@@ -36,6 +36,17 @@
   color: var(--ink-900);
 }
 
+.avatar,
+.personAvatar {
+  overflow: hidden;
+}
+
+.avatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .info {
   display: flex;
   flex: 1;
@@ -553,6 +564,11 @@ a.card:hover {
 }
 
 .viewAll {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
   font-weight: 700;
   font-size: 14px;
   color: var(--ground-violet);

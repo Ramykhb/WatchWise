@@ -14,8 +14,12 @@ import trashIcon from '../../assets/watchlist/icon-trash.svg'
 import checkIcon from '../../assets/person/icon-check.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
-import { FILTERS, HISTORY, QUEUE, TASTE, TOTALS, type Availability, type HistoryEntry, type QueueItem } from './watchlistData.ts'
+import { api, useApi } from '../../lib/api.ts'
+import type { ApiWatchItem } from '../../lib/types.ts'
+import { tasteOf, toHistory, toQueueItem, type HistoryEntry, type QueueItem } from './watchlistData.ts'
 import styles from './Watchlist.module.css'
+
+type WatchlistResponse = { items: ApiWatchItem[]; ratings: Record<string, number> }
 
 type Tab = 'watchlist' | 'watched' | 'history'
 
@@ -26,9 +30,6 @@ const SORTS = {
   runtime: { label: 'Shortest first', compare: (a: QueueItem, b: QueueItem) => a.runtimeMinutes - b.runtimeMinutes },
 }
 type SortKey = keyof typeof SORTS
-
-const MAX_TASTE = Math.max(...TASTE.map((t) => t.percent))
-const INITIALLY_WATCHED = QUEUE.filter((item) => item.watched).length
 
 /** History entries grouped under their month heading, in order. */
 function byMonth(entries: HistoryEntry[]) {
@@ -47,7 +48,7 @@ function HistoryList({ entries }: { entries: HistoryEntry[] }) {
       <p className={styles.month}>{month}</p>
       <ul className={styles.entries}>
         {monthEntries.map((entry) => (
-          <li key={`${entry.date}-${entry.movie.slug}`}>
+          <li key={entry.id}>
             <Link to={`/movies/${entry.movie.slug}`} className={styles.entry}>
               <span className={styles.date}>{entry.date}</span>
               <span className={styles.entryThumb} style={{ background: gradientCss(entry.movie.gradient) }} />
@@ -68,23 +69,37 @@ export default function Watchlist() {
   const tabsRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
 
-  // TODO: load and update the watchlist through the API once auth is connected.
-  const [queue, setQueue] = useState(QUEUE)
+  // Rows of the watchlists table; marking as watched and removing are saved through the API.
+  const { data, setData, reload, loading } = useApi<WatchlistResponse>('/watchlist')
+  const items = data?.items ?? []
   const [tab, setTab] = useState<Tab>('watchlist')
-  const [filter, setFilter] = useState<Availability | 'all'>('all')
   const [sort, setSort] = useState<SortKey>('recent')
   const [shareNote, setShareNote] = useState('')
 
-  const watchedNow = queue.filter((item) => item.watched).length
-  const removed = QUEUE.length - queue.length
-  const toWatch = TOTALS.toWatch - removed - (watchedNow - INITIALLY_WATCHED)
-  const watchedTotal = TOTALS.watched + (watchedNow - INITIALLY_WATCHED)
+  const history = toHistory(items, data?.ratings ?? {})
+  const queue = items.filter((item) => item.status !== 'watched').map(toQueueItem)
+  const toWatch = queue.length
+  const watchedTotal = history.length
+  const queuedHours = Math.round(queue.reduce((sum, item) => sum + item.runtimeMinutes, 0) / 60)
+  const taste = tasteOf(history.map((entry) => entry.movie))
+  const maxTaste = Math.max(1, ...taste.map((t) => t.percent))
 
-  const shown = queue.filter((item) => filter === 'all' || item.availability === filter).sort(SORTS[sort].compare)
+  const shown = [...queue].sort(SORTS[sort].compare)
 
-  const toggleWatched = (slug: string) =>
-    setQueue((items) => items.map((item) => (item.movie.slug === slug ? { ...item, watched: !item.watched } : item)))
-  const remove = (slug: string) => setQueue((items) => items.filter((item) => item.movie.slug !== slug))
+  const toggleWatched = (id: number) => {
+    const item = items.find((i) => i.id === id)
+    if (!item) return
+    const status = item.status === 'watched' ? 'to_watch' : 'watched'
+    setData((current) => ({
+      ...current,
+      items: current.items.map((i) => (i.id === id ? { ...i, status, watched_at: status === 'watched' ? new Date().toISOString() : null } : i)),
+    }))
+    api.patch(`/watchlist/${id}`, { status }).catch(reload)
+  }
+  const remove = (id: number) => {
+    setData((current) => ({ ...current, items: current.items.filter((i) => i.id !== id) }))
+    api.delete(`/watchlist/${id}`).catch(reload)
+  }
 
   const handleShare = async () => {
     const url = window.location.href
@@ -130,7 +145,7 @@ export default function Watchlist() {
               </li>
               <li className={styles.statYellow}>
                 <img src={filmIcon} width={14} height={14} alt="" />
-                {TOTALS.queuedHours}h queued
+                {queuedHours}h queued
               </li>
             </ul>
           </div>
@@ -167,20 +182,9 @@ export default function Watchlist() {
           <section className={styles.queue} aria-label={tabs.find((t) => t.id === tab)!.label} data-enter data-enter-delay="0.25">
             {tab === 'watchlist' && (
               <>
+                {/* TODO: availability filters (in cinemas / streaming / coming soon) once TMDB data is connected. */}
                 <div className={styles.toolbar}>
-                  <div className={styles.filters} role="group" aria-label="Filter by availability">
-                    {FILTERS.map((f) => (
-                      <button
-                        key={f.id}
-                        type="button"
-                        className={filter === f.id ? styles.filterOn : styles.filter}
-                        aria-pressed={filter === f.id}
-                        onClick={() => setFilter(f.id)}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
+                  <span />
                   <label className={styles.sort}>
                     <span className="sr-only">Sort watchlist</span>
                     <select value={sort} onChange={(event) => setSort(event.target.value as SortKey)}>
@@ -194,11 +198,13 @@ export default function Watchlist() {
                   </label>
                 </div>
 
-                {shown.length === 0 && <p className={styles.empty}>Nothing here yet — try another filter.</p>}
+                {shown.length === 0 && !loading && (
+                  <p className={styles.empty}>Your watchlist is empty — find something on Discover or For You.</p>
+                )}
 
                 <ul className={styles.items}>
                   {shown.map((item) => (
-                    <li key={item.movie.slug} className={styles.item}>
+                    <li key={item.id} className={styles.item}>
                       <Link
                         to={`/movies/${item.movie.slug}`}
                         className={styles.thumb}
@@ -211,9 +217,6 @@ export default function Watchlist() {
                         </Link>
                         <p className={styles.details}>{item.details}</p>
                         <div className={styles.meta}>
-                          <span className={item.availability === 'soon' ? styles.chipYellow : styles.chipMint}>
-                            {item.availabilityLabel}
-                          </span>
                           <span className={styles.added}>{item.added}</span>
                         </div>
                       </div>
@@ -221,7 +224,7 @@ export default function Watchlist() {
                         type="button"
                         className={item.watched ? styles.watchedOn : styles.watched}
                         aria-pressed={item.watched}
-                        onClick={() => toggleWatched(item.movie.slug)}
+                        onClick={() => toggleWatched(item.id)}
                       >
                         <img src={item.watched ? checkIcon : eyeIcon} width={16} height={16} alt="" />
                         {item.watched ? 'Watched' : 'Mark as watched'}
@@ -230,7 +233,7 @@ export default function Watchlist() {
                         type="button"
                         className={styles.remove}
                         aria-label={`Remove ${item.movie.title} from watchlist`}
-                        onClick={() => remove(item.movie.slug)}
+                        onClick={() => remove(item.id)}
                       >
                         <img src={trashIcon} width={18} height={18} alt="" />
                       </button>
@@ -240,10 +243,11 @@ export default function Watchlist() {
               </>
             )}
 
+            {tab === 'watched' && history.length === 0 && !loading && <p className={styles.empty}>No watched films yet.</p>}
             {tab === 'watched' && (
               <ul className={styles.items}>
-                {HISTORY.map((entry) => (
-                  <li key={entry.movie.slug} className={styles.item}>
+                {history.map((entry) => (
+                  <li key={entry.id} className={styles.item}>
                     <Link
                       to={`/movies/${entry.movie.slug}`}
                       className={styles.thumb}
@@ -260,6 +264,10 @@ export default function Watchlist() {
                         <span className={styles.added}>Watched {entry.date}</span>
                       </div>
                     </div>
+                    <button type="button" className={styles.watchedOn} aria-pressed onClick={() => toggleWatched(entry.id)}>
+                      <img src={checkIcon} width={16} height={16} alt="" />
+                      Watched
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -267,7 +275,7 @@ export default function Watchlist() {
 
             {tab === 'history' && (
               <div className={styles.historyFull}>
-                <HistoryList entries={HISTORY} />
+                <HistoryList entries={history} />
               </div>
             )}
           </section>
@@ -282,15 +290,16 @@ export default function Watchlist() {
                   See all
                 </button>
               </div>
-              <HistoryList entries={HISTORY} />
+              {history.length > 0 ? <HistoryList entries={history.slice(0, 5)} /> : <p className={styles.added}>Films you mark as watched show up here.</p>}
             </section>
 
+            {taste.length > 0 && (
             <section className={styles.taste} aria-labelledby="taste-title">
               <h2 id="taste-title" className={styles.cardTitleLight}>
                 What you watch
               </h2>
               <ul className={styles.bars}>
-                {TASTE.map((t) => (
+                {taste.map((t) => (
                   <li key={t.genre} className={styles.bar}>
                     <span className={styles.barLabels}>
                       <span>{t.genre}</span>
@@ -298,12 +307,13 @@ export default function Watchlist() {
                     </span>
                     {/* Bars are scaled to the top genre, as in the Figma frame. */}
                     <span className={styles.track}>
-                      <span className={styles.fill} style={{ width: `${(t.percent / MAX_TASTE) * 100}%`, background: t.color }} />
+                      <span className={styles.fill} style={{ width: `${(t.percent / maxTaste) * 100}%`, background: t.color }} />
                     </span>
                   </li>
                 ))}
               </ul>
             </section>
+            )}
           </aside>
         </div>
       </main>

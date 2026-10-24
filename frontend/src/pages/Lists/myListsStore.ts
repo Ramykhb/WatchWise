@@ -1,15 +1,18 @@
-import { useSyncExternalStore } from 'react'
-import { MY_LISTS, type MyList } from './listsData.ts'
+import { useEffect, useSyncExternalStore } from 'react'
+import { api } from '../../lib/api.ts'
+import type { ApiList } from '../../lib/types.ts'
+import { toMyList, type MyList } from './listsData.ts'
 
-// In-memory store for the signed-in user's lists, shared by Lists, List Detail and the Create/Edit
-// List dialog so creating, editing and deleting stay in sync while the app is open.
-// TODO: replace with the lists API (GET/POST/PATCH/DELETE) once the backend is connected.
+// The signed-in user's lists (GET /api/lists?scope=mine), shared by Lists, List Detail and the
+// Create/Edit List dialog so creating, editing and deleting show everywhere at once.
 
-let lists: MyList[] = MY_LISTS
+type State = { lists: MyList[]; loaded: boolean }
+
+let state: State = { lists: [], loaded: false }
 const listeners = new Set<() => void>()
 
-function emit(next: MyList[]) {
-  lists = next
+function emit(lists: MyList[]) {
+  state = { lists, loaded: true }
   listeners.forEach((listener) => listener())
 }
 
@@ -18,31 +21,57 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener)
 }
 
-export const getMyLists = () => lists
+const getState = () => state
 
+// Bumped on every account change, so a response for the previous account is ignored.
+let generation = 0
+
+export async function loadMyLists() {
+  const started = generation
+  const response = await api.get<{ lists: ApiList[] }>('/lists', { params: { scope: 'mine' } })
+  if (started === generation) emit(response.data.lists.map(toMyList))
+}
+
+/** Drops the lists when the signed-in account changes (see AuthContext). */
+export function clearMyLists() {
+  generation++
+  state = { lists: [], loaded: false }
+  listeners.forEach((listener) => listener())
+}
+
+/**
+ * The user's lists, (re)loaded from the API whenever a page using them opens. A failed load
+ * stops the loading state but keeps only what this account already loaded (never another's,
+ * since the store is cleared on every account change).
+ */
 export function useMyLists() {
-  return useSyncExternalStore(subscribe, getMyLists)
+  useEffect(() => {
+    const started = generation
+    loadMyLists().catch(() => started === generation && emit(state.lists))
+  }, [])
+  return useSyncExternalStore(subscribe, getState)
 }
 
-/** Adds a new list or replaces the one with the same slug. */
-export function saveMyList(list: MyList) {
-  const exists = lists.some((l) => l.slug === list.slug)
-  emit(exists ? lists.map((l) => (l.slug === list.slug ? list : l)) : [list, ...lists])
+export type ListInput = { title: string; description: string; is_public: boolean; tmdb_ids: number[] }
+
+export async function createList(input: ListInput) {
+  const started = generation
+  const response = await api.post<{ list: ApiList }>('/lists', input)
+  if (started === generation) emit([toMyList(response.data.list), ...state.lists])
+  return response.data.list
 }
 
-export function deleteMyList(slug: string) {
-  emit(lists.filter((l) => l.slug !== slug))
+/** Saves fields and/or the films (in order); returns the updated list. */
+export async function updateList(id: number, input: Partial<ListInput>) {
+  const started = generation
+  const response = await api.patch<{ list: ApiList }>(`/lists/${id}`, input)
+  const updated = toMyList(response.data.list)
+  if (started === generation) emit(state.lists.map((list) => (list.id === id ? updated : list)))
+  return response.data.list
 }
 
-/** URL slug from a title, made unique among the user's lists. */
-export function uniqueSlug(title: string, ignore?: string) {
-  const base =
-    title
-      .toLowerCase()
-      .normalize('NFKD')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'my-list'
-  let slug = base
-  for (let n = 2; lists.some((l) => l.slug === slug && l.slug !== ignore); n++) slug = `${base}-${n}`
-  return slug
+export async function deleteList(id: number) {
+  const started = generation
+  await api.delete(`/lists/${id}`)
+  if (started === generation) emit(state.lists.filter((list) => list.id !== id))
 }
