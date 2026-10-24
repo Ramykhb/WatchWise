@@ -10,19 +10,13 @@ export type CastMember = { slug: string; initials: string; name: string; role: s
 
 export type Cinema = { name: string; distance: string; times: string[] }
 
-export type MovieDetails = {
-  movie: Movie
-  tags: { label: string; highlight?: boolean }[]
-  year: string
-  runtime: string
-  language: string
-  director: string
+/**
+ * WatchWise's own data about a movie: reviews and ratings, premiere, showtimes and the live room.
+ * No API serves it yet, so only the design's mock movies have it; TMDB movies leave it out and
+ * the page hides those sections rather than show sample data.
+ */
+export type Community = {
   ratingCount: string
-  tmdbScore: string
-  overview: string
-  cast: CastMember[]
-  /** With a YouTube key the trailer plays on the page; the backdrop replaces the gradient art. */
-  trailer: { label: string; gradient: Gradient; youtubeKey?: string; backdropUrl?: string }
   reviewSummary: {
     average: string
     count: string
@@ -32,15 +26,30 @@ export type MovieDetails = {
   }
   reviews: Review[]
   yourReview: Review
-  facts: { label: string; value: string }[]
   premiere: { title: string; when: string; start: string; end: string }
   city: string
   cinemas: Cinema[]
   room: { title: string; text: string; guests: { initials: string; color: string }[]; extra: number }
-  similar: Movie[]
 }
 
-const NEON_TIDE: Omit<MovieDetails, 'movie' | 'similar'> = {
+export type MovieDetails = {
+  movie: Movie
+  tags: { label: string; highlight?: boolean }[]
+  year: string
+  runtime: string
+  language: string
+  director: string
+  tmdbScore: string
+  overview: string
+  cast: CastMember[]
+  /** With a YouTube key the trailer plays on the page; the backdrop replaces the gradient art. */
+  trailer: { label: string; gradient: Gradient; youtubeKey?: string; backdropUrl?: string }
+  facts: { label: string; value: string }[]
+  similar: Movie[]
+  community?: Community
+}
+
+const NEON_TIDE: Omit<MovieDetails, 'movie' | 'similar' | 'community'> & Community = {
   tags: [{ label: '#1 Trending', highlight: true }, { label: 'Sci-fi' }, { label: 'Adventure' }, { label: 'PG-13' }],
   year: '2026',
   runtime: '2h 14m',
@@ -132,9 +141,6 @@ const NEON_TIDE: Omit<MovieDetails, 'movie' | 'similar'> = {
   },
 }
 
-/** The parts TMDB doesn't provide (reviews, premiere, showtimes, room). TMDB movies reuse them until those APIs exist. */
-export const MOCK_EXTRAS = NEON_TIDE
-
 // Order of the Figma "More like this" row.
 const SIMILAR = [
   MOVIES.stardust,
@@ -152,9 +158,11 @@ const BY_SLUG = new Map<string, Movie>(Object.values(MOVIES).map((movie) => [mov
 export function getMovieDetails(slug: string | undefined): MovieDetails | undefined {
   const movie = slug ? BY_SLUG.get(slug) : undefined
   if (!movie) return undefined
+  const { ratingCount, reviewSummary, reviews, yourReview, premiere, city, cinemas, room, ...core } = NEON_TIDE
   return {
-    ...NEON_TIDE,
+    ...core,
     movie,
     similar: SIMILAR.filter((m) => m.slug !== movie.slug).slice(0, 6),
+    community: { ratingCount, reviewSummary, reviews, yourReview, premiere, city, cinemas, room },
   }
 }

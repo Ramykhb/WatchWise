@@ -1,6 +1,6 @@
 import axios from 'axios'
-import { loadGenres, toTileMovie, type TmdbMovie } from '../Discover/discoverApi.ts'
-import { MOCK_EXTRAS, type CastMember, type MovieDetails } from './movieData.ts'
+import { genreLabel, toTileMovie, type TmdbMovie } from '../Discover/discoverApi.ts'
+import type { CastMember, MovieDetails } from './movieData.ts'
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL
 
@@ -59,23 +59,24 @@ const formatDate = (date: string) =>
   new Date(`${date}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 
 /** Fetches a TMDB movie through the backend. Resolves to null when TMDB doesn't know the id. */
-export async function fetchMovieDetails(id: string, signal: AbortSignal): Promise<MovieDetails | null> {
+export async function fetchMovieDetails(id: string, signal: AbortSignal): Promise<TmdbMovieDetails | null> {
   try {
-    const [{ data }, genres] = await Promise.all([
-      axios.get<TmdbMovieDetails>(`${BACKEND_URL}/api/movies/${id}`, { signal }),
-      // Genre names are only needed for the tiles, so a failure here shouldn't hide the movie.
-      loadGenres().catch(() => new Map<number, string>()),
-    ])
-    return toDetails(data, genres)
+    const { data } = await axios.get<TmdbMovieDetails>(`${BACKEND_URL}/api/movies/${id}`, { signal })
+    return data
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) return null
     throw error
   }
 }
 
-/** Shapes the API movie like the page's mock data. Reviews, showtimes and the room stay mock for now. */
-function toDetails(api: TmdbMovieDetails, genres: Map<number, string>): MovieDetails {
-  const genreLabels = api.genres.map((genre) => genres.get(genre.id) ?? genre.name)
+/**
+ * Shapes the API movie for the page. `genres` (the /api/genres list) only names the genres on the
+ * "More like this" tiles, so it can still be empty when the movie arrives.
+ * WatchWise's own data (reviews, premiere, showtimes, room) has no API yet, so `community` is left out.
+ */
+export function toDetails(api: TmdbMovieDetails, genres: Map<number, string>): MovieDetails {
+  // The details payload names its genres itself, so these don't wait for /api/genres.
+  const genreLabels = api.genres.map((genre) => genreLabel(genre.name))
   const directorNames = api.directors.map((person) => person.name).join(', ')
 
   const people = [
@@ -105,9 +106,7 @@ function toDetails(api: TmdbMovieDetails, genres: Map<number, string>): MovieDet
   const tile = toTileMovie(api, genres)
 
   return {
-    ...MOCK_EXTRAS,
-    // The big "WatchWise average" belongs with the (still mock) reviews, so it uses their average.
-    movie: { ...tile, score: MOCK_EXTRAS.reviewSummary.average },
+    movie: tile,
     tags: [...genreLabels.map((label) => ({ label })), ...(api.certification ? [{ label: api.certification }] : [])],
     year: api.year ? String(api.year) : '—',
     runtime: formatRuntime(api.runtime),

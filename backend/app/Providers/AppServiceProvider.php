@@ -29,6 +29,16 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(Registered::class, SendEmailVerification::class);
 
         $this->configureAuthRateLimiting();
+        $this->configureTmdbRateLimiting();
+    }
+
+    /**
+     * The movie and genre routes are public and each request can reach TMDB, so one per-IP
+     * bucket keeps a single client from using up the shared TMDB quota.
+     */
+    private function configureTmdbRateLimiting(): void
+    {
+        RateLimiter::for('tmdb', fn (Request $request): Limit => Limit::perMinute(60)->by('ip:'.$request->ip()));
     }
 
     /**

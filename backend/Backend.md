@@ -133,6 +133,7 @@ Defined in `app/Providers/AppServiceProvider.php`. Each route has its own named 
 | `auth-refresh` | 30 |
 | `auth-verify-email` | 20 |
 | `auth-resend-verification`, `auth-forgot-password` | 3 |
+| `tmdb` (all movie and genre routes, per IP only) | 60 |
 
 The per-email bucket is shared across IPs, so someone who knows an email can block logins for that account for up to a minute. A captcha would remove that (see [Known follow-ups](#known-follow-ups)).
 
@@ -320,7 +321,8 @@ app/Tmdb/
 | `GET /api/movies/{id}` | One movie with genres, US certification, runtime, original language, directors, top 12 cast, a YouTube trailer, budget, box office and 10 recommended movies (fetched in one TMDB call). Unknown ids return 404 |
 | `GET /api/genres` | The movie genres (id and name), cached for a day |
 
-- All five are public and are not rate limited.
+- All five are public. They share the `tmdb` rate limit: 60 requests per minute per IP (see [Rate limits](#rate-limits)), so one client cannot use up the TMDB quota.
+- Movie details are cached for 6 hours per movie (`tmdb.movie.{id}`); unknown movies and TMDB failures are not cached.
 - Movie lists are paginated with `page` from 1 to 500 and 20 movies per page. Responses include `page`, `total_pages` (capped at 500, TMDB's limit) and `total_results`. Genres are a short fixed list, so they are not paginated.
 - Ratings are converted from TMDB's 0 to 10 scale to 0 to 5. Adult content is always excluded.
 - Setup: set `TMDB_API_KEY` in `.env`. `TMDB_URL` and `TMDB_IMAGE_URL` have working defaults in `config/services.php`.

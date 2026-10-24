@@ -383,11 +383,16 @@ export default function Discover() {
           >
             <div className={styles.toolbar}>
               <h2 id="results-title" className={styles.resultsTitle} aria-live="polite">
-                {type !== 'movies'
-                  ? `${activeType.count} results`
-                  : shown
-                    ? `${movieCount.toLocaleString('en-US')} ${movieCount === 1 ? 'result' : 'results'}`
-                    : 'Loading movies…'}
+                {type !== 'movies' ? (
+                  `${activeType.count} results`
+                ) : shown ? (
+                  `${movieCount.toLocaleString('en-US')} ${movieCount === 1 ? 'result' : 'results'}`
+                ) : (
+                  <>
+                    <span className={`${styles.skeletonCount} ${styles.shimmer}`} aria-hidden="true" />
+                    <span className="sr-only">Loading movies…</span>
+                  </>
+                )}
                 {submittedQuery && (
                   <>
                     {' for '}
@@ -460,6 +465,9 @@ export default function Discover() {
               </div>
             )}
 
+            {/* A thin moving bar while a new page or filter loads; the current results stay visible, dimmed. */}
+            {type === 'movies' && loading && shown && <div className={styles.loadingBar} aria-hidden="true" />}
+
             {type === 'movies' && submittedQuery && (
               <p className={styles.searchNote}>
                 Searching by title, so filters and sort are paused.{' '}
@@ -485,7 +493,9 @@ export default function Discover() {
                   Try again
                 </button>
               </p>
-            ) : shown && movies.length === 0 ? (
+            ) : !shown ? (
+              <ResultsSkeleton view={view} />
+            ) : movies.length === 0 ? (
               <p className={styles.empty}>
                 {submittedQuery ? `No movies match “${submittedQuery}”.` : 'No movies match these filters. Try fewer filters.'}
               </p>
@@ -566,6 +576,37 @@ export default function Discover() {
           </section>
         </div>
       </main>
+    </div>
+  )
+}
+
+/** Tiles or rows in the results' own shape while the first page loads, so nothing jumps when it arrives. */
+function ResultsSkeleton({ view }: { view: 'grid' | 'list' }) {
+  if (view === 'list') {
+    return (
+      <ul className={styles.list} aria-hidden="true">
+        {Array.from({ length: 8 }, (_, index) => (
+          <li key={index} className={styles.skeletonRow}>
+            <span className={`${styles.thumb} ${styles.shimmer}`} />
+            <span className={styles.listText}>
+              <span className={`${styles.skeletonLine} ${styles.shimmer}`} style={{ width: '45%' }} />
+              <span className={`${styles.skeletonLine} ${styles.shimmer}`} style={{ width: '25%' }} />
+            </span>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  return (
+    <div className={styles.grid} aria-hidden="true">
+      {Array.from({ length: 12 }, (_, index) => (
+        <div key={index} className={styles.skeletonTile}>
+          <span className={`${styles.skeletonPoster} ${styles.shimmer}`} />
+          <span className={`${styles.skeletonLine} ${styles.shimmer}`} style={{ width: '75%' }} />
+          <span className={`${styles.skeletonLine} ${styles.shimmer}`} style={{ width: '45%' }} />
+        </div>
+      ))}
     </div>
   )
 }
