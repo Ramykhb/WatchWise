@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import AuthShell from '../../components/AuthShell/AuthShell.tsx'
 import AuthWaves from '../../components/AuthWaves/AuthWaves.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
@@ -22,36 +22,59 @@ import infoIcon from '../../assets/auth/icon-info.svg'
 import { AUTH_SWAP_STATE as SWAP, useAuthSwap } from '../../hooks/useAuthSwap.ts'
 import { LAST_LAP, NEON_TIDE, PAPER_MOON } from '../authPosters.ts'
 import styles from './SignUp.module.css'
+import { apiErrorMessage, authApi, type AuthPayload } from '../../lib/auth.ts'
+import { useAuth } from '../../contexts/AuthContext.tsx'
 
 const PROVIDERS: SocialProvider[] = ['google', 'github', 'facebook']
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_PATTERN = /^(?=.*\d).{8,}$/
 
-type Errors = Partial<Record<'name' | 'email' | 'password' | 'terms', string>>
+type Errors = Partial<Record<'name' | 'email' | 'password' | 'password_confirmation' | 'terms', string>>
 
 export default function SignUp() {
   const swapped = useAuthSwap()
   const [errors, setErrors] = useState<Errors>({})
+  const [formError, setFormError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const navigate = useNavigate()
+  const { setUser } = useAuth()
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const name = String(data.get('name') ?? '').trim()
     const email = String(data.get('email') ?? '').trim()
     const password = String(data.get('password') ?? '')
+    const passwordConfirmation = String(data.get('password_confirmation') ?? '')
     const next: Errors = {}
     if (name.length < 2) next.name = 'Tell us your name.'
     if (!EMAIL_PATTERN.test(email)) next.email = 'Enter a valid email address.'
     if (!PASSWORD_PATTERN.test(password)) next.password = 'Use at least 8 characters, including a number.'
+    if (passwordConfirmation !== password) next.password_confirmation = 'Passwords do not match.'
     if (!data.get('terms')) next.terms = 'Please accept the Terms and Privacy Policy.'
     setErrors(next)
+    setFormError('')
     if (Object.keys(next).length > 0) return
-    // TODO: call the Laravel auth API (POST /api/register) once the backend endpoint exists.
+    setSubmitting(true)
+    try {
+      const response = await authApi.post<AuthPayload>('/register', {
+        name, email, password, password_confirmation: passwordConfirmation,
+      })
+      setUser(response.data.user)
+      navigate('/Home-Page', { replace: true })
+    } catch (error) {
+      setFormError(apiErrorMessage(error, 'Unable to create your account. Please try again.'))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleSocial = (provider: SocialProvider) => {
-    // TODO: redirect to the backend OAuth route (Laravel Socialite) for this provider.
-    void provider
+    if (provider === 'facebook') {
+      setFormError('Facebook sign-in is not available yet. Choose Google or GitHub.')
+      return
+    }
+    window.location.assign(`${import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000'}/api/auth/social/${provider}`)
   }
 
   return (
@@ -160,6 +183,16 @@ export default function SignUp() {
                 </>
               }
             />
+            <TextField
+              label="Confirm password"
+              name="password_confirmation"
+              type="password"
+              placeholder="Repeat your password"
+              autoComplete="new-password"
+              required
+              revealable
+              error={errors.password_confirmation}
+            />
           </div>
           <div className={styles.terms}>
             <Checkbox name="terms" required aria-describedby={errors.terms ? 'terms-error' : undefined}>
@@ -179,7 +212,8 @@ export default function SignUp() {
               </p>
             )}
           </div>
-          <ButtonPrimary type="submit" label="Create account" fullWidth />
+          {formError && <p className={styles.error} role="alert">{formError}</p>}
+          <ButtonPrimary type="submit" label={submitting ? 'Creating account…' : 'Create account'} fullWidth disabled={submitting} />
         </form>
 
         <p className={styles.footer}>

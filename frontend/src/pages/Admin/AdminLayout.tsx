@@ -1,4 +1,5 @@
-import { Link, NavLink, Outlet } from 'react-router'
+import { NavLink, Outlet, useNavigate } from 'react-router'
+import { useAuth } from '../../contexts/AuthContext.tsx'
 import Logo from '../../components/Logo/Logo.tsx'
 import gridIcon from '../../assets/admin/icon-grid.svg'
 import usersIcon from '../../assets/admin/icon-users.svg'
@@ -40,6 +41,8 @@ function MaskIcon({ src, size = 20 }: { src: string; size?: number }) {
  * TODO: guard these routes so only signed-in administrators can open them once auth is connected.
  */
 export default function AdminLayout() {
+  const { logout } = useAuth()
+  const navigate = useNavigate()
   return (
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
@@ -72,10 +75,9 @@ export default function AdminLayout() {
             <span className={styles.name}>{ADMIN_USER.name}</span>
             <span className={styles.role}>{ADMIN_USER.role}</span>
           </span>
-          {/* TODO: call the logout endpoint once auth is connected. */}
-          <Link to="/signin" className={styles.logout} aria-label="Log out">
+          <button type="button" onClick={() => void logout().then(() => navigate('/signin', { replace: true }))} className={styles.logout} aria-label="Log out">
             <MaskIcon src={logoutIcon} size={18} />
-          </Link>
+          </button>
         </div>
       </aside>
 

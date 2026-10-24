@@ -117,6 +117,10 @@
   border-radius: 6px;
   color: var(--text-on-violet-muted);
   transition: color 0.2s ease-out;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 .logout:hover {

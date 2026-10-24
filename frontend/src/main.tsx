@@ -4,9 +4,12 @@ import { RouterProvider } from 'react-router'
 import 'lenis/dist/lenis.css'
 import './index.css'
 import { router } from './router.tsx'
+import { AuthProvider } from './contexts/AuthContext.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
   </StrictMode>,
 )
