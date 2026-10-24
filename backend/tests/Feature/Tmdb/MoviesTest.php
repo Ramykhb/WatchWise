@@ -1,11 +1,11 @@
 <?php
 
-namespace Tests\Feature;
+namespace Tests\Feature\Tmdb;
 
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
-class TmdbMoviesTest extends TestCase
+class MoviesTest extends TestCase
 {
     public function test_movies_returns_popular_movies_by_default(): void
     {

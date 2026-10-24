@@ -1,11 +1,11 @@
 <?php
 
-namespace Tests\Feature;
+namespace Tests\Feature\Tmdb;
 
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
-class TmdbDiscoverTest extends TestCase
+class DiscoverTest extends TestCase
 {
     /**
      * A one-movie TMDB page to answer every faked request with.
