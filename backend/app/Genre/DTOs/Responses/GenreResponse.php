@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Tmdb\DTOs\Responses;
+namespace App\Genre\DTOs\Responses;
 
 use JsonSerializable;
 

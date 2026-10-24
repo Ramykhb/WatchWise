@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Tmdb\Controllers;
+namespace App\Genre\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Tmdb\InterfaceServices\GenreServiceInterface;
+use App\Genre\InterfaceServices\GenreServiceInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 

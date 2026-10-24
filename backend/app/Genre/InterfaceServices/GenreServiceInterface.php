@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Tmdb\InterfaceServices;
+namespace App\Genre\InterfaceServices;
 
-use App\Tmdb\DTOs\Responses\GenreResponse;
-use App\Tmdb\Exceptions\TmdbUnavailable;
+use App\Genre\DTOs\Responses\GenreResponse;
+use App\Support\Exceptions\TmdbUnavailable;
 
 interface GenreServiceInterface
 {

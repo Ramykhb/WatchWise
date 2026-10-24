@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Tmdb\Repository;
+namespace App\Genre\Repository;
 
-use App\Tmdb\InterfaceRepository\GenreRepositoryInterface;
-use App\Tmdb\Support\TmdbHttpClient;
+use App\Genre\InterfaceRepository\GenreRepositoryInterface;
+use App\Support\TmdbHttpClient;
 
 class GenreRepository implements GenreRepositoryInterface
 {
