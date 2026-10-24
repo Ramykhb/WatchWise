@@ -6,6 +6,7 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
@@ -13,15 +14,50 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name',
+        'username',
         'email',
         'password',
         'avatar',
         'bio',
+        'location',
         'profile_visibility',
     ];
 
     /** @use HasFactory<UserFactory> */
     use HasFactory;
+
+    /** Every account gets a unique @handle; sign-up and social sign-in only send a name. */
+    protected static function booted(): void
+    {
+        static::creating(function (User $user) {
+            $user->username ??= static::uniqueUsername($user->name ?: Str::before((string) $user->email, '@'));
+        });
+    }
+
+    public static function uniqueUsername(string $from): string
+    {
+        $base = Str::of($from)->ascii()->lower()->replaceMatches('/[^a-z0-9]+/', '')->limit(20, '')->toString() ?: 'member';
+        $username = $base;
+        for ($n = 2; static::where('username', $username)->exists(); $n++) {
+            $username = $base.$n;
+        }
+
+        return $username;
+    }
+
+    /** A privacy toggle from Settings (ratings, reviews, lists, watchlist, history, following). */
+    public function shares(string $key): bool
+    {
+        $defaults = ['ratings' => true, 'reviews' => true, 'lists' => true, 'watchlist' => false, 'history' => true, 'following' => true];
+
+        return (bool) ($this->preferences?->settings['privacy'][$key] ?? $defaults[$key] ?? true);
+    }
+
+    /** "followers" profiles are visible to people who follow the owner. */
+    public function isFollowedBy(?int $userId): bool
+    {
+        return $userId !== null && $this->followers()->whereKey($userId)->exists();
+    }
 
     /**
      * Get the attributes that should be cast.
