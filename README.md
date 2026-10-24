@@ -46,7 +46,7 @@ The platform is designed around:
 
 - Branded landing page and responsive application shell
 - Sign up, sign in, and forgot-password user flows
-- Social sign-in entry points for Google, GitHub, and Facebook
+- Social sign-in entry points for Google, GitHub, and Discord
 - Discover, movie details, person, home, and placeholder route structure
 - Reusable movie, review, rating, sentiment, navigation, and form components
 - Responsive styling based on shared design tokens and CSS Modules

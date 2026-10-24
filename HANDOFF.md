@@ -148,7 +148,7 @@ In Claude Code, `/graphify . --update` rebuilds incrementally (docs need the LLM
 - **Plain CSS Modules + tokens** instead of Tailwind (matches the existing Vite setup).
 - **Single-screen desktop pages fit the window** rather than scroll; long app pages scroll.
 - **GSAP, Lenis and React Bits are the default** for UI motion. React Bits components are copied into `components/reactbits`, not installed from npm.
-- **Facebook login added** to the auth pages because the brief lists "gmail, github, fb".
+- **Social login providers are Google, GitHub and Discord.**
 - **Home lives at `/Home-Page`** and is opened by URL until login is wired up.
 - **External APIs go through Laravel** (e.g. weather), never straight from the browser, so keys stay server-side.
 - Figma's looping timeline previews were implemented as **play-once entrances**.

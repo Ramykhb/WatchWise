@@ -92,7 +92,7 @@ class SocialAuthService implements SocialAuthServiceInterface
 
     private function emailIsVerified(SocialLoginData $data): bool
     {
-        if ($data->provider === 'google') {
+        if (in_array($data->provider, ['google', 'discord'], true)) {
             return $data->providerReportsEmailVerified;
         }
 

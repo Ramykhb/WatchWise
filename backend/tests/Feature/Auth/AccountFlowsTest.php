@@ -258,8 +258,8 @@ class AccountFlowsTest extends TestCase
             ->get('/api/auth/social/github/callback?state=zzz')
             ->assertRedirect('http://front.test/auth/callback?status=error&reason=invalid_state');
 
-        $this->get('/api/auth/social/facebook/callback')->assertNotFound();
-        $this->get('/api/auth/social/facebook')->assertNotFound();
+        $this->get('/api/auth/social/slack/callback')->assertNotFound();
+        $this->get('/api/auth/social/slack')->assertNotFound();
     }
 
     public function test_social_redirect_sets_state_cookie(): void
