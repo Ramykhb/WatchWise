@@ -29,7 +29,7 @@ class TmdbHttpClient
                 ])
                 ->throw();
         } catch (ConnectionException|RequestException $exception) {
-            throw new TmdbUnavailable($exception);
+            throw TmdbUnavailable::fromFailure($path, $exception);
         }
     }
 }
