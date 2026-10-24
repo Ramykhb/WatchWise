@@ -1,13 +1,13 @@
-import { useSyncExternalStore } from 'react'
-import { INVITATIONS, UPCOMING, type Invitation, type Night } from './nightsData.ts'
+import { useEffect, useSyncExternalStore } from 'react'
+import { api } from '../../lib/api.ts'
+import type { ApiNight } from '../../lib/types.ts'
 
-// In-memory store for movie nights, shared by the planner and the movie night page so creating
-// a night or answering an invite stays in sync while the app is open.
-// TODO: replace with the movie nights API (create, invite, RSVP) once the backend is connected.
+// Movie nights of the signed-in user (GET /api/movie-nights): ones they host or were invited to.
+// Shared by the planner so creating a night or answering an invite shows at once.
 
-type State = { upcoming: Night[]; invitations: Invitation[]; declined: string[] }
+type State = { upcoming: ApiNight[]; invitations: ApiNight[]; past: ApiNight[]; declined: string[]; loaded: boolean }
 
-let state: State = { upcoming: UPCOMING, invitations: INVITATIONS, declined: [] }
+let state: State = { upcoming: [], invitations: [], past: [], declined: [], loaded: false }
 const listeners = new Set<() => void>()
 
 function emit(next: State) {
@@ -22,31 +22,43 @@ function subscribe(listener: () => void) {
 
 const getState = () => state
 
+export async function loadNights() {
+  const response = await api.get<Pick<State, 'upcoming' | 'invitations' | 'past'>>('/movie-nights')
+  emit({ ...state, ...response.data, loaded: true })
+}
+
 export function useNights() {
+  useEffect(() => {
+    loadNights().catch(() => emit({ ...state, loaded: true }))
+  }, [])
   return useSyncExternalStore(subscribe, getState)
 }
 
-const byDate = (a: Night, b: Night) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)
-
-export function addNight(night: Night) {
-  emit({ ...state, upcoming: [...state.upcoming, night].sort(byDate) })
+export type NightInput = {
+  title: string
+  scheduled_at: string
+  location?: string | null
+  meeting_link?: string | null
+  invitees: string[]
+  tmdb_ids: number[]
 }
 
-/** Accepting moves the invite's night into Upcoming; declining just drops it. */
-export function answerInvitation(id: string, accept: boolean) {
-  const invitation = state.invitations.find((i) => i.id === id)
+export async function createNight(input: NightInput) {
+  const response = await api.post<{ night: ApiNight }>('/movie-nights', input)
+  const upcoming = [...state.upcoming, response.data.night].sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
+  emit({ ...state, upcoming })
+  return response.data.night
+}
+
+/** Accepting moves the night into Upcoming; declining just drops it. */
+export async function answerInvitation(id: number, accept: boolean) {
+  const invitation = state.invitations.find((night) => night.id === id)
   if (!invitation) return
+  const response = await api.put<{ night: ApiNight }>(`/movie-nights/${id}/rsvp`, { status: accept ? 'accepted' : 'declined' })
   emit({
-    upcoming: accept ? [...state.upcoming, invitation.night].sort(byDate) : state.upcoming,
-    invitations: state.invitations.filter((i) => i.id !== id),
-    declined: accept ? state.declined : [...state.declined, invitation.night.title],
+    ...state,
+    upcoming: accept ? [...state.upcoming, response.data.night].sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at)) : state.upcoming,
+    invitations: state.invitations.filter((night) => night.id !== id),
+    declined: accept ? state.declined : [...state.declined, invitation.title],
   })
-}
-
-/** URL slug from a title, unique among upcoming nights. */
-export function uniqueNightSlug(title: string) {
-  const base = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'movie-night'
-  let slug = base
-  for (let n = 2; state.upcoming.some((night) => night.slug === slug); n++) slug = `${base}-${n}`
-  return slug
 }

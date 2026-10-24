@@ -11,37 +11,41 @@ import globeIcon from '../../assets/listmodal/icon-globe.svg'
 import lockIcon from '../../assets/listmodal/icon-lock.svg'
 import searchIcon from '../../assets/home/icon-search.svg'
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
-import { MOVIES, gradientCss, type Gradient } from '../Home/homeData.ts'
-import { getListDetail } from '../ListDetail/listDetailData.ts'
-import { getMyLists, saveMyList, uniqueSlug } from './myListsStore.ts'
+import { gradientCss } from '../Home/homeData.ts'
+import { apiErrorMessage } from '../../lib/auth.ts'
+import { useApi } from '../../lib/api.ts'
+import { PICKABLE_MOVIES, movieFor, tmdbIdOf } from '../../lib/movies.ts'
+import type { ApiList } from '../../lib/types.ts'
+import { listSlug } from '../Profile/profileData.ts'
+import { listIdFrom } from './listsData.ts'
+import { createList, updateList } from './myListsStore.ts'
 import styles from './ListDialog.module.css'
 
-const ALL_MOVIES: Movie[] = Object.values(MOVIES)
 const CLOSE_MS = 220
 
 type ListDialogProps = { mode: 'create' | 'edit' }
 
 /** "Create a list" / "Edit list" dialog over the Lists page (Figma "Modal — Create / Edit List"). */
 export default function ListDialog({ mode }: ListDialogProps) {
+  return mode === 'edit' ? <EditDialog /> : <Dialog key="new" />
+}
+
+/** Loads the list (with its films) before opening the dialog. */
+function EditDialog() {
   const { slug } = useParams()
   const navigate = useNavigate()
-  const existing = mode === 'edit' ? getMyLists().find((list) => list.slug === slug) : undefined
+  const { data, error } = useApi<{ list: ApiList }>(`/lists/${listIdFrom(slug)}`)
 
-  // An unknown list can't be edited; go back to Lists.
+  // An unknown list, or someone else's, can't be edited; go back to Lists.
   useEffect(() => {
-    if (mode === 'edit' && !existing) navigate('/lists', { replace: true })
-  }, [mode, existing, navigate])
+    if (error) navigate('/lists', { replace: true })
+  }, [error, navigate])
 
-  if (mode === 'edit' && !existing) return null
-  return <Dialog key={slug ?? 'new'} existing={existing} />
+  if (!data) return null
+  return <Dialog key={data.list.id} existing={data.list} />
 }
 
-function initialPicks(slug: string | undefined): Movie[] {
-  if (!slug) return []
-  return getListDetail(slug)?.entries.map((entry) => entry.movie) ?? []
-}
-
-function Dialog({ existing }: { existing?: ReturnType<typeof getMyLists>[number] }) {
+function Dialog({ existing }: { existing?: ApiList }) {
   const navigate = useNavigate()
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -49,17 +53,18 @@ function Dialog({ existing }: { existing?: ReturnType<typeof getMyLists>[number]
 
   const [title, setTitle] = useState(existing?.title ?? '')
   const [description, setDescription] = useState(existing?.description ?? '')
-  const [isPublic, setIsPublic] = useState(existing?.isPublic ?? true)
-  const [initial] = useState<Movie[]>(() => initialPicks(existing?.slug))
-  const [picked, setPicked] = useState<Movie[]>(initial)
+  const [isPublic, setIsPublic] = useState(existing?.is_public ?? true)
+  const [picked, setPicked] = useState<Movie[]>(() => existing?.items?.map((item) => movieFor(item.tmdb_id)) ?? [])
   const [query, setQuery] = useState('')
   const [titleError, setTitleError] = useState('')
+  const [formError, setFormError] = useState('')
+  const [saving, setSaving] = useState(false)
   const [closing, setClosing] = useState(false)
 
   const q = query.trim().toLowerCase()
-  // TODO: search TMDB through the backend instead of the local mock movies.
+  // TODO: search TMDB through the backend instead of the demo movies.
   const results = q
-    ? ALL_MOVIES.filter((movie) => movie.title.toLowerCase().includes(q) && !picked.includes(movie)).slice(0, 5)
+    ? PICKABLE_MOVIES.filter((movie) => movie.title.toLowerCase().includes(q) && !picked.some((p) => p.slug === movie.slug)).slice(0, 5)
     : []
 
   const close = (to = '/lists') => {
@@ -108,7 +113,7 @@ function Dialog({ existing }: { existing?: ReturnType<typeof getMyLists>[number]
     setQuery('')
   }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const cleanTitle = title.trim()
     if (!cleanTitle) {
@@ -116,25 +121,16 @@ function Dialog({ existing }: { existing?: ReturnType<typeof getMyLists>[number]
       dialogRef.current?.querySelector<HTMLInputElement>('input')?.focus()
       return
     }
-    // Cover: the first three picked posters, padded with the existing cover.
-    const posters: Gradient[] = [...picked.map((movie) => movie.gradient), ...(existing?.posters ?? []), MOVIES.neonTide.gradient]
-      .filter((gradient, index, all) => all.indexOf(gradient) === index)
-      .slice(0, 3)
-    const slug = existing?.slug ?? uniqueSlug(cleanTitle)
-    // TODO: POST /lists or PATCH /lists/:slug once the API exists.
-    saveMyList({
-      slug,
-      title: cleanTitle,
-      description: description.trim(),
-      isPublic,
-      // Mock lists only show a few of their films, so adjust the total by what changed here.
-      films: existing ? Math.max(0, existing.films + picked.length - initial.length) : picked.length,
-      updated: 'updated just now',
-      cover: isPublic ? 'var(--surface-violet-tint)' : 'var(--surface-cream-deep)',
-      posters,
-      movies: picked.map((movie) => movie.slug),
-    })
-    close(isEdit ? '/lists' : `/lists/${slug}`)
+    const input = { title: cleanTitle, description: description.trim(), is_public: isPublic, tmdb_ids: picked.map(tmdbIdOf) }
+    setSaving(true)
+    setFormError('')
+    try {
+      const saved = existing ? await updateList(existing.id, input) : await createList(input)
+      close(isEdit ? '/lists' : `/lists/${listSlug(saved)}`)
+    } catch (error) {
+      setFormError(apiErrorMessage(error, "Couldn't save the list. Please try again."))
+      setSaving(false)
+    }
   }
 
   return (
@@ -259,7 +255,7 @@ function Dialog({ existing }: { existing?: ReturnType<typeof getMyLists>[number]
                       type="button"
                       className={styles.unpick}
                       aria-label={`Remove ${movie.title}`}
-                      onClick={() => setPicked((list) => list.filter((m) => m !== movie))}
+                      onClick={() => setPicked((list) => list.filter((m) => m.slug !== movie.slug))}
                     >
                       <img src={xSmIcon} width={12} height={12} alt="" />
                     </button>
@@ -269,11 +265,17 @@ function Dialog({ existing }: { existing?: ReturnType<typeof getMyLists>[number]
             )}
           </div>
 
+          {formError && (
+            <p className={styles.noResults} role="alert">
+              {formError}
+            </p>
+          )}
+
           <div className={styles.footer}>
             <PillButton variant="outline" onClick={() => close()}>
               Cancel
             </PillButton>
-            <ButtonPrimary label="Save list" type="submit" />
+            <ButtonPrimary label={saving ? 'Saving…' : 'Save list'} type="submit" disabled={saving} />
           </div>
         </form>
       </div>

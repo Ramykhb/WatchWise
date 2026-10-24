@@ -18,21 +18,29 @@ import calendarSmIcon from '../../assets/home/icon-calendar-sm.svg'
 import chatIcon from '../../assets/home/icon-chat.svg'
 import onlineDot from '../../assets/home/dot-online.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import {
-  ACTIVITY,
-  BECAUSE_YOU_LOVED,
-  MOVIE_NIGHT,
-  POPULAR,
-  RELEASES,
-  ROOMS,
-  TONIGHTS_PICK,
-  WEATHER,
-  gradientCss,
-} from './homeData.ts'
+import { BECAUSE_YOU_LOVED, POPULAR, RELEASES, TONIGHTS_PICK, WEATHER, gradientCss } from './homeData.ts'
 import styles from './Home.module.css'
+import { useAuth } from '../../contexts/useAuth.ts'
+import { api, useApi } from '../../lib/api.ts'
+import { look, shortName, timeAgo } from '../../lib/format.ts'
+import { movieFor, tmdbIdOf } from '../../lib/movies.ts'
+import type { ApiActivity, ApiHome } from '../../lib/types.ts'
+import { formatWhen, localDateTime } from '../MovieNights/nightsData.ts'
 
-// TODO: take the name from the signed-in user once auth is connected.
-const USER_NAME = 'Maya'
+/** One line of "From people you follow": who, what, which film and where it links. */
+function describe(item: ApiActivity) {
+  const movie = movieFor(item.kind === 'list' ? (item.list.posters[0] ?? 0) : (item.tmdb_id ?? 0))
+  switch (item.kind) {
+    case 'rated':
+      return { movie, action: 'rated', target: movie.title, suffix: '★'.repeat(item.rating), to: `/movies/${movie.slug}` }
+    case 'reviewed':
+      return { movie, action: 'reviewed', target: movie.title, suffix: `— “${item.review.content.slice(0, 60)}${item.review.content.length > 60 ? '…' : ''}”`, to: `/movies/${movie.slug}` }
+    case 'list':
+      return { movie, action: 'updated the public list', target: `“${item.list.title}”`, suffix: '', to: `/lists/${item.list.id}` }
+    case 'watchlist':
+      return { movie, action: 'added', target: movie.title, suffix: 'to their watchlist', to: `/movies/${movie.slug}` }
+  }
+}
 
 // Kept short: "Good afternoon," is too wide for the two-line 84px headline.
 function greeting(hour = new Date().getHours()) {
@@ -45,8 +53,17 @@ export default function Home() {
   const pageRef = useRef<HTMLDivElement>(null)
   const [onWatchlist, setOnWatchlist] = useState(false)
   useEntranceAnimation(pageRef)
+  const { user } = useAuth()
+  const home = useApi<ApiHome>('/home').data
+  const firstName = user?.name.split(' ')[0] ?? ''
 
   const pick = TONIGHTS_PICK.movie
+  const addPick = () => {
+    if (onWatchlist) return
+    setOnWatchlist(true)
+    api.post('/watchlist', { tmdb_id: tmdbIdOf(pick) }).catch(() => setOnWatchlist(false))
+  }
+  const night = home?.next_night
 
   return (
     <div ref={pageRef} className={styles.page}>
@@ -68,7 +85,7 @@ export default function Home() {
               id="home-title"
               className={styles.title}
               accentClassName={styles.accent}
-              lines={[{ text: greeting() }, { text: `${USER_NAME}.`, accent: true }]}
+              lines={[{ text: greeting() }, { text: `${firstName}.`, accent: true }]}
             />
             <p className={styles.lead}>
               Rainy nights call for cozy thrillers and big-hearted dramas. We picked a few based on your ratings and
@@ -111,7 +128,7 @@ export default function Home() {
                   type="button"
                   className={styles.watchlist}
                   aria-pressed={onWatchlist}
-                  onClick={() => setOnWatchlist((value) => !value)}
+                  onClick={addPick}
                 >
                   <img src={plusIcon} width={14} height={14} alt="" />
                   {onWatchlist ? 'On watchlist' : 'Watchlist'}
@@ -193,21 +210,30 @@ export default function Home() {
             <h2 id="home-activity" className={styles.cardTitle}>
               From people you follow
             </h2>
-            {ACTIVITY.map((item) => (
-              <Link key={item.name} to={`/movies/${item.movie.slug}`} className={styles.activityItem}>
-                <span className={styles.avatar} style={{ background: item.color }}>
-                  {item.initials}
-                </span>
-                <span className={styles.activityText}>
-                  <span className={styles.activityLine}>
-                    <strong>{item.name}</strong> {item.action} <strong>{item.target}</strong>
-                    {item.suffix && ` ${item.suffix}`}
+            {(home?.activity ?? []).map((item) => {
+              const line = describe(item)
+              const face = look(item.user)
+              return (
+                <Link key={item.id} to={line.to} className={styles.activityItem}>
+                  <span className={styles.avatar} style={{ background: face.color }}>
+                    {face.initials}
                   </span>
-                  <span className={styles.activityTime}>{item.time}</span>
-                </span>
-                <span className={styles.thumb} style={{ background: gradientCss(item.movie.gradient) }} />
-              </Link>
-            ))}
+                  <span className={styles.activityText}>
+                    <span className={styles.activityLine}>
+                      <strong>{shortName(item.user.name)}</strong> {line.action} <strong>{line.target}</strong>
+                      {line.suffix && ` ${line.suffix}`}
+                    </span>
+                    <span className={styles.activityTime}>{timeAgo(item.created_at)}</span>
+                  </span>
+                  <span className={styles.thumb} style={{ background: gradientCss(line.movie.gradient) }} />
+                </Link>
+              )
+            })}
+            {home && home.activity.length === 0 && (
+              <p className={styles.activityTime}>
+                Nothing yet — <Link to="/discover">follow people</Link> to see what they watch, rate and list.
+              </p>
+            )}
           </section>
 
           <div className={styles.side}>
@@ -215,15 +241,15 @@ export default function Home() {
               <div className={styles.roomsHead}>
                 <img src={chatIcon} width={20} height={20} alt="" />
                 <h2 id="home-rooms" className={styles.cardTitleLight}>
-                  Live discussion rooms
+                  Discussion rooms
                 </h2>
               </div>
-              {ROOMS.map((room) => (
-                <Link key={room.name} to="/rooms" className={styles.room}>
+              {(home?.rooms ?? []).map((room) => (
+                <Link key={room.id} to={`/rooms/${room.id}`} className={styles.room}>
                   <span className={styles.roomName}>{room.name}</span>
                   <span className={styles.online}>
                     <img src={onlineDot} width={8} height={8} alt="" />
-                    {room.online} online
+                    {room.members} {room.members === 1 ? 'member' : 'members'}
                   </span>
                 </Link>
               ))}
@@ -232,29 +258,47 @@ export default function Home() {
               </PillButton>
             </section>
 
+            {night ? (
             <section className={styles.night} aria-labelledby="home-night">
               <span className={styles.chipYellowTint}>
                 <img src={calendarSmIcon} width={14} height={14} alt="" />
-                {MOVIE_NIGHT.when}
+                {formatWhen(localDateTime(night.scheduled_at))}
               </span>
               <h2 id="home-night" className={styles.nightTitle}>
-                {MOVIE_NIGHT.title}
+                {night.title}
               </h2>
-              <p className={styles.nightText}>{MOVIE_NIGHT.text}</p>
+              <p className={styles.nightText}>
+                {night.leader
+                  ? `${movieFor(night.leader.tmdb_id).title} is leading with ${night.leader.votes} vote${night.leader.votes === 1 ? '' : 's'}.`
+                  : 'No votes yet — pick your favourite from the shortlist.'}
+              </p>
               <div className={styles.nightFoot}>
                 <div className={styles.guests}>
-                  {MOVIE_NIGHT.guests.map((guest) => (
-                    <span key={guest.initials} className={styles.guest} style={{ background: guest.color }}>
-                      {guest.initials}
+                  {night.guests.slice(0, 3).map((guest) => (
+                    <span key={guest.id} className={styles.guest} style={{ background: look(guest).color }}>
+                      {look(guest).initials}
                     </span>
                   ))}
-                  <span className={styles.guest} style={{ background: 'var(--surface-violet-tint)' }}>
-                    +{MOVIE_NIGHT.extraGuests}
-                  </span>
+                  {night.guests.length > 3 && (
+                    <span className={styles.guest} style={{ background: 'var(--surface-violet-tint)' }}>
+                      +{night.guests.length - 3}
+                    </span>
+                  )}
                 </div>
-                <PillButton to="/movie-nights">Vote now</PillButton>
+                <PillButton to={`/movie-nights/${night.id}`}>Vote now</PillButton>
               </div>
             </section>
+            ) : (
+            <section className={styles.night} aria-labelledby="home-night">
+              <h2 id="home-night" className={styles.nightTitle}>
+                No movie night planned
+              </h2>
+              <p className={styles.nightText}>Get friends together, shortlist a few films and vote on the winner.</p>
+              <div className={styles.nightFoot}>
+                <PillButton to="/movie-nights">Plan one</PillButton>
+              </div>
+            </section>
+            )}
           </div>
         </div>
       </main>

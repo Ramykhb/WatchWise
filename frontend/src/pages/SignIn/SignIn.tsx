@@ -19,7 +19,7 @@ import dotMintSm from '../../assets/landing/deco-dot-mint-sm.svg'
 import { AUTH_SWAP_STATE as SWAP, useAuthSwap } from '../../hooks/useAuthSwap.ts'
 import { LAST_LAP, NEON_TIDE, PAPER_MOON } from '../authPosters.ts'
 import { apiErrorMessage, authApi, type AuthPayload } from '../../lib/auth.ts'
-import { useAuth } from '../../contexts/AuthContext.tsx'
+import { useAuth } from '../../contexts/useAuth.ts'
 import styles from './SignIn.module.css'
 
 const PROVIDERS: SocialProvider[] = ['google', 'github', 'discord']

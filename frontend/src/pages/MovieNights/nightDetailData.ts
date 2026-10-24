@@ -1,76 +1,53 @@
-import { MOVIES } from '../Home/homeData.ts'
-import { FRIENDS, YOU, type Guest, type Night } from './nightsData.ts'
+import type { ApiNight, ApiRsvp } from '../../lib/types.ts'
+import { toGuest, type Guest } from './nightsData.ts'
 
-// Mock content from the Figma "Movie Night Detail — Friday Frights" frame. Other nights get a
-// default detail built from their card data. Replace with the movie nights API.
+// Turns GET /api/movie-nights/{id} into the guests, RSVPs and shortlist the detail page draws.
 
 export type Rsvp = 'going' | 'maybe' | 'declined' | 'pending'
 
-export type Candidate = {
-  slug: string
-  /** e.g. "1h 58m" */
-  runtime?: string
-  suggestedBy: string
-  voters: Guest[]
-}
+export type Candidate = { tmdbId: number; suggestedBy: string; voters: Guest[] }
 
 export type NightDetail = {
   host: Guest
-  /** Full address when the card shows a short one ("Lina's place" → "Lina's place, Hamra"). */
+  isHost: boolean
+  /** Your answer, or null when you are the host. */
+  myRsvp: Rsvp | null
+  myVote: number | null
   where?: string
   link?: string
   note?: string
-  /** Everyone invited, including you. */
-  guests: { guest: Guest; rsvp: Rsvp }[]
-  /** RSVPs of guests not listed individually (Figma shows 5 of 10). */
-  hidden: { going: number; pending: number }
-  totalGuests: number
+  /** Host first, then everyone invited. */
+  guests: { guest: Guest; rsvp: Rsvp; isHost: boolean }[]
   candidates: Candidate[]
-  closesIn?: string
+  closed: boolean
+  winner: number | null
 }
 
-const [OMAR, LINA, JAD, RANA] = FRIENDS
-const SAMI: Guest = { name: 'Sami', initials: 'SA', color: 'var(--accent-coral)' }
-const EXTRA_A: Guest = { name: 'Nour', initials: 'NB', color: 'var(--surface-violet-tint)' }
-const EXTRA_B: Guest = { name: 'Karim', initials: 'KT', color: 'var(--surface-violet-tint)' }
+const RSVP: Record<ApiRsvp, Rsvp> = { accepted: 'going', maybe: 'maybe', declined: 'declined', pending: 'pending' }
 
-const DETAILS: Record<string, NightDetail> = {
-  'friday-frights': {
-    host: { ...LINA, name: 'Lina S.' },
-    where: "Lina's place, Hamra",
-    link: 'meet.watchwise.app/ff-314',
-    note: 'Bring snacks — Lina has the projector.',
-    closesIn: '18h',
-    guests: [
-      { guest: { ...LINA, name: 'Lina S.' }, rsvp: 'going' },
-      { guest: YOU, rsvp: 'going' },
-      { guest: { ...OMAR, name: 'Omar K.' }, rsvp: 'going' },
-      { guest: { ...JAD, name: 'Jad N.' }, rsvp: 'pending' },
-      { guest: { ...SAMI, name: 'Sami A.' }, rsvp: 'declined' },
-    ],
-    hidden: { going: 3, pending: 1 },
-    totalGuests: 10,
-    candidates: [
-      { slug: 'deep-blue', runtime: '1h 58m', suggestedBy: 'Lina S.', voters: [LINA, YOU, OMAR, EXTRA_A, EXTRA_B] },
-      { slug: 'red-signal', runtime: '1h 54m', suggestedBy: 'Omar K.', voters: [JAD, SAMI] },
-      { slug: 'stardust', runtime: '2h 06m', suggestedBy: 'Rana H.', voters: [{ ...RANA, color: 'var(--accent-yellow)' }] },
-      { slug: 'velvet-hour', runtime: '1h 49m', suggestedBy: 'Jad N.', voters: [] },
-    ],
-  },
-}
+/** The API's answer for an RSVP option. */
+export const apiRsvp = (rsvp: Exclude<Rsvp, 'pending'>): ApiRsvp => (rsvp === 'going' ? 'accepted' : rsvp)
 
-export function getNightDetail(night: Night): NightDetail {
-  const known = DETAILS[night.slug]
-  if (known) return known
-  const host = night.guests[0] ?? YOU
+export function toNightDetail(night: ApiNight, viewerId: number | undefined): NightDetail {
+  const host = toGuest(night.organizer, viewerId)
   return {
     host,
-    link: night.online ? night.where : undefined,
-    guests: night.guests.map((guest) => ({ guest, rsvp: guest === YOU || guest === host ? 'going' : 'pending' })),
-    hidden: { going: 0, pending: night.moreGuests },
-    totalGuests: night.guests.length + night.moreGuests,
-    candidates: night.candidates.map((slug) => ({ slug, suggestedBy: host === YOU ? 'you' : host.name, voters: [] })),
+    isHost: night.is_organizer,
+    myRsvp: night.my_rsvp === 'host' ? null : RSVP[night.my_rsvp],
+    myVote: night.my_vote,
+    where: night.location ?? undefined,
+    link: night.meeting_link ?? undefined,
+    note: night.note ?? undefined,
+    guests: [
+      { guest: host, rsvp: 'going', isHost: true },
+      ...night.guests.map((g) => ({ guest: toGuest(g.user, viewerId), rsvp: RSVP[g.status], isHost: false })),
+    ],
+    candidates: night.candidates.map((c) => ({
+      tmdbId: c.tmdb_id,
+      suggestedBy: c.added_by ? (c.added_by.id === viewerId ? 'you' : toGuest(c.added_by, viewerId).name) : 'someone',
+      voters: c.voters.map((v) => toGuest(v, viewerId)),
+    })),
+    closed: night.status === 'confirmed' || night.winning_tmdb_id !== null,
+    winner: night.winning_tmdb_id,
   }
 }
-
-export const movieInfo = (slug: string) => Object.values(MOVIES).find((m) => m.slug === slug)

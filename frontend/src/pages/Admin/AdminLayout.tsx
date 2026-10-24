@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router'
-import { useAuth } from '../../contexts/AuthContext.tsx'
+import { useAuth } from '../../contexts/useAuth.ts'
 import Logo from '../../components/Logo/Logo.tsx'
 import gridIcon from '../../assets/admin/icon-grid.svg'
 import usersIcon from '../../assets/admin/icon-users.svg'

@@ -18,15 +18,19 @@ import searchIcon from '../../assets/home/icon-search.svg'
 import xIcon from '../../assets/listmodal/icon-x-sm.svg'
 import plusIcon from '../../assets/nights/icon-plus.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { MOVIES, gradientCss } from '../Home/homeData.ts'
-import { FRIENDS, PAST, YOU, dateTile, formatWhen, type Guest, type Night } from './nightsData.ts'
-import { addNight, answerInvitation, uniqueNightSlug, useNights } from './nightsStore.ts'
+import { gradientCss } from '../Home/homeData.ts'
+import { useAuth } from '../../contexts/useAuth.ts'
+import { useApi } from '../../lib/api.ts'
+import { apiErrorMessage } from '../../lib/auth.ts'
+import { PICKABLE_MOVIES, tmdbIdOf } from '../../lib/movies.ts'
+import type { ApiMember } from '../../lib/types.ts'
+import { dateTile, formatWhen, toGuest, toNight, type Guest, type Night } from './nightsData.ts'
+import { answerInvitation, createNight, useNights } from './nightsStore.ts'
 import styles from './MovieNights.module.css'
 
 type Tab = 'upcoming' | 'invitations' | 'past'
 
-const ALL_MOVIES = Object.values(MOVIES)
-const movieBySlug = (slug: string) => ALL_MOVIES.find((m) => m.slug === slug)
+const movieBySlug = (slug: string) => PICKABLE_MOVIES.find((m) => m.slug === slug)
 
 const STATUS_CLASS = { voting: styles.statusVoting, picked: styles.statusPicked, shortlisting: styles.statusShortlist }
 
@@ -45,43 +49,56 @@ export default function MovieNights() {
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
 
-  const { upcoming, invitations, declined } = useNights()
+  const { user } = useAuth()
+  const store = useNights()
+  const upcoming = store.upcoming.map((n) => toNight(n, user?.id))
+  const past = store.past.map((n) => toNight(n, user?.id))
+  const invitations = store.invitations.map((n) => ({ id: n.id, host: toGuest(n.organizer, user?.id), night: toNight(n, user?.id) }))
+  const declined = store.declined
   const [tab, setTab] = useState<Tab>('upcoming')
   const [showHelp, setShowHelp] = useState(false)
+  const [answerError, setAnswerError] = useState('')
 
-  // "Plan a movie night" form (Figma starts with four friends and two films picked).
+  // People the user follows can be invited.
+  const followingQuery = useApi<{ users: ApiMember[] }>(`/users/${user?.username ?? ''}/following`)
+  const people = (followingQuery.data?.users ?? []).map((m) => toGuest(m, user?.id))
+
+  // "Plan a movie night" form.
   const [online, setOnline] = useState(false)
-  const [friends, setFriends] = useState<Guest[]>(FRIENDS.slice(0, 4))
+  const [friends, setFriends] = useState<Guest[]>([])
   const [friendQuery, setFriendQuery] = useState('')
-  const [films, setFilms] = useState<string[]>(['deep-blue', 'red-signal'])
+  const [films, setFilms] = useState<string[]>([])
   const [pickingFilm, setPickingFilm] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
   const [created, setCreated] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const friendMatches = friendQuery.trim()
-    ? FRIENDS.filter(
-        (f) => !friends.includes(f) && f.name.toLowerCase().includes(friendQuery.trim().toLowerCase()),
+    ? people.filter(
+        (f) =>
+          !friends.some((p) => p.id === f.id) &&
+          `${f.name} ${f.handle}`.toLowerCase().includes(friendQuery.trim().replace(/^@/, '').toLowerCase()),
       )
     : []
-  const filmChoices = ALL_MOVIES.filter((m) => !films.includes(m.slug))
+  const filmChoices = PICKABLE_MOVIES.filter((m) => !films.includes(m.slug))
 
   const addFriend = (friend: Guest) => {
     setFriends((list) => [...list, friend])
     setFriendQuery('')
   }
 
-  const handleCreate = (event: FormEvent<HTMLFormElement>) => {
+  const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const form = event.currentTarget
     const data = new FormData(form)
     const title = String(data.get('title') ?? '').trim()
     const date = String(data.get('date') ?? '')
     const time = String(data.get('time') ?? '')
-    const closes = String(data.get('closes') ?? '')
     const next: FormErrors = {}
     if (title.length < 2) next.title = 'Give your movie night a name.'
     if (!date) next.date = 'Pick a date.'
     if (!time) next.time = 'Pick a time.'
+    else if (date && new Date(`${date}T${time}`).getTime() <= Date.now()) next.date = 'Pick a time in the future.'
     if (friends.length === 0) next.friends = 'Invite at least one friend.'
     if (films.length === 0) next.films = 'Add at least one film to the shortlist.'
     setErrors(next)
@@ -90,31 +107,36 @@ export default function MovieNights() {
       return
     }
 
-    const voting = films.length > 1
-    const where = String(data.get('where') ?? '').trim() || (online ? 'Online' : 'Your place')
-    const night: Night = {
-      slug: uniqueNightSlug(title),
-      title,
-      date,
-      time,
-      status: voting ? 'voting' : 'shortlisting',
-      statusLabel: voting ? (closes ? `Voting open · closes ${formatWhen({ date: closes.slice(0, 10), time: closes.slice(11, 16) })}` : 'Voting open') : 'Shortlisting',
-      lead: voting ? `${films.length} films to vote on` : '1 film so far',
-      where,
-      online,
-      guests: [YOU, ...friends.slice(0, 2)],
-      moreGuests: Math.max(0, friends.length - 2),
-      candidates: films,
-      gradient: movieBySlug(films[0])?.gradient ?? MOVIES.neonTide.gradient,
+    const where = String(data.get('where') ?? '').trim()
+    // The API wants a full URL for meeting links.
+    const link = online && where ? (/^https?:\/\//i.test(where) ? where : `https://${where}`) : null
+    setSaving(true)
+    try {
+      await createNight({
+        title,
+        scheduled_at: new Date(`${date}T${time}`).toISOString(),
+        location: online ? null : where || null,
+        meeting_link: link,
+        invitees: friends.map((f) => f.handle),
+        tmdb_ids: films.map((slug) => tmdbIdOf(movieBySlug(slug)!)),
+      })
+      setCreated(`“${title}” is planned — invites sent to ${friends.length} friend${friends.length > 1 ? 's' : ''}.`)
+      form.reset()
+      setFriends([])
+      setFilms([])
+      setOnline(false)
+      setTab('upcoming')
+    } catch (error) {
+      setCreated('')
+      setErrors({ title: apiErrorMessage(error, "Couldn't create the movie night. Please try again.") })
+    } finally {
+      setSaving(false)
     }
-    // TODO: POST /api/movie-nights and send the invites once the endpoint exists.
-    addNight(night)
-    setCreated(`“${title}” is planned — invites sent to ${friends.length} friend${friends.length > 1 ? 's' : ''}.`)
-    form.reset()
-    setFriends([])
-    setFilms([])
-    setOnline(false)
-    setTab('upcoming')
+  }
+
+  const answer = (id: number, accept: boolean) => {
+    setAnswerError('')
+    answerInvitation(id, accept).catch(() => setAnswerError("Couldn't save your answer. Please try again."))
   }
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
@@ -206,17 +228,22 @@ export default function MovieNights() {
                         </span>
                       </p>
                     </div>
-                    <button type="button" className={styles.accept} onClick={() => answerInvitation(id, true)}>
+                    <button type="button" className={styles.accept} onClick={() => answer(id, true)}>
                       <img src={checkIcon} width={14} height={14} alt="" />
                       Accept
                     </button>
-                    <button type="button" className={styles.decline} onClick={() => answerInvitation(id, false)}>
+                    <button type="button" className={styles.decline} onClick={() => answer(id, false)}>
                       <img src={xCreamIcon} width={14} height={14} alt="" />
                       Decline
                     </button>
                   </article>
                 ))}
                 {invitations.length === 0 && <p className={styles.invitesEmpty}>No pending invitations. You&apos;re all caught up.</p>}
+                {answerError && (
+                  <p className={styles.invitesEmpty} role="alert">
+                    {answerError}
+                  </p>
+                )}
                 {declined.length > 0 && (
                   <p className={styles.invitesEmpty} role="status">
                     Declined: {declined.join(', ')}
@@ -231,12 +258,15 @@ export default function MovieNights() {
                   {tab === 'past' ? 'Past nights' : 'Coming up'}
                 </h2>
                 <ul className={styles.grid}>
-                  {(tab === 'past' ? PAST : upcoming).map((night) => (
+                  {(tab === 'past' ? past : upcoming).map((night) => (
                     <li key={night.slug}>
                       <NightCard night={night} />
                     </li>
                   ))}
                 </ul>
+                {store.loaded && (tab === 'past' ? past : upcoming).length === 0 && (
+                  <p className={styles.invitesEmpty}>{tab === 'past' ? 'No past movie nights yet.' : 'Nothing planned yet — plan one on the right.'}</p>
+                )}
               </section>
             )}
           </div>
@@ -304,7 +334,7 @@ export default function MovieNights() {
                   {friendMatches.length > 0 && (
                     <ul className={styles.suggestions}>
                       {friendMatches.map((friend) => (
-                        <li key={friend.initials}>
+                        <li key={friend.id}>
                           <button type="button" onClick={() => addFriend(friend)}>
                             <span className={styles.avatarSm} style={{ background: friend.color }} aria-hidden="true">
                               {friend.initials}
@@ -316,10 +346,13 @@ export default function MovieNights() {
                     </ul>
                   )}
                   {friendQuery.trim() && friendMatches.length === 0 && <p className={styles.hint}>No one you follow matches “{friendQuery}”.</p>}
+                  {!friendQuery.trim() && people.length === 0 && followingQuery.data && (
+                    <p className={styles.hint}>Follow people from their profiles to invite them here.</p>
+                  )}
                 </div>
                 <ul className={styles.chips}>
                   {friends.map((friend) => (
-                    <li key={friend.initials} className={styles.person}>
+                    <li key={friend.id} className={styles.person}>
                       <span className={styles.avatarSm} style={{ background: friend.color }} aria-hidden="true">
                         {friend.initials}
                       </span>
@@ -328,7 +361,7 @@ export default function MovieNights() {
                         type="button"
                         className={styles.remove}
                         aria-label={`Remove ${friend.name}`}
-                        onClick={() => setFriends((list) => list.filter((f) => f !== friend))}
+                        onClick={() => setFriends((list) => list.filter((f) => f.id !== friend.id))}
                       >
                         <img src={xIcon} width={12} height={12} alt="" />
                       </button>
@@ -394,8 +427,7 @@ export default function MovieNights() {
                 {errors.films && <p className={styles.error}>{errors.films}</p>}
               </div>
 
-              <TextField label="Voting closes" name="closes" type="datetime-local" />
-              <ButtonPrimary type="submit" label="Create & send invites" fullWidth />
+              <ButtonPrimary type="submit" label={saving ? 'Creating…' : 'Create & send invites'} fullWidth disabled={saving} />
             </form>
           </aside>
         </div>
@@ -425,7 +457,7 @@ function NightCard({ night }: { night: Night }) {
       <span className={styles.cardFoot}>
         <span className={styles.faces}>
           {night.guests.map((guest) => (
-            <span key={guest.initials + guest.name} className={styles.face} style={{ background: guest.color }} title={guest.name}>
+            <span key={guest.id} className={styles.face} style={{ background: guest.color }} title={guest.name}>
               {guest.initials}
             </span>
           ))}
