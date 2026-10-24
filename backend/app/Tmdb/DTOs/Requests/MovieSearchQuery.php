@@ -13,6 +13,14 @@ final readonly class MovieSearchQuery
     ) {}
 
     /**
+     * The same search for another page.
+     */
+    public function withPage(int $page): self
+    {
+        return new self($this->query, $page, $this->year, $this->type);
+    }
+
+    /**
      * @param  array{q: string, page?: int|string, year?: int|string, type?: string}  $validated
      */
     public static function fromValidated(array $validated): self

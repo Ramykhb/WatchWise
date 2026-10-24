@@ -31,6 +31,26 @@ final readonly class MovieDiscoverQuery
     ) {}
 
     /**
+     * The same browse for another page.
+     */
+    public function withPage(int $page): self
+    {
+        return new self(
+            $this->genres,
+            $this->yearFrom,
+            $this->yearTo,
+            $this->minRating,
+            $this->runtimeMin,
+            $this->runtimeMax,
+            $this->language,
+            $this->sort,
+            $page,
+            $this->type,
+            $this->tvGenres,
+        );
+    }
+
+    /**
      * @param  array<string, mixed>  $validated
      */
     public static function fromValidated(array $validated): self

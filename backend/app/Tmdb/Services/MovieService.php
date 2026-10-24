@@ -14,6 +14,7 @@ use App\Tmdb\DTOs\Responses\PersonResponse;
 use App\Tmdb\DTOs\Responses\TrailerResponse;
 use App\Tmdb\InterfaceRepository\MovieRepositoryInterface;
 use App\Tmdb\InterfaceServices\MovieServiceInterface;
+use Closure;
 use Illuminate\Support\Facades\Cache;
 
 class MovieService implements MovieServiceInterface
@@ -29,6 +30,13 @@ class MovieService implements MovieServiceInterface
 
     private const DETAILS_CACHE_HOURS = 6;
 
+    /**
+     * A combined movies + tv page holds as many titles as one TMDB page, and goes this many pages deep.
+     */
+    private const MERGED_PAGE_SIZE = 20;
+
+    private const MERGED_MAX_PAGES = 10;
+
     public function __construct(private readonly MovieRepositoryInterface $movies) {}
 
     public function list(MovieListQuery $query): MoviePageResponse
@@ -43,10 +51,13 @@ class MovieService implements MovieServiceInterface
         return match ($query->type) {
             'tv' => $this->toPage($this->movies->searchTv($query), $meta, 'tv'),
             // TMDB gives no relevance score to merge on, so a combined search is ordered by popularity.
-            'all' => $this->mergedPage([
-                'movie' => $this->movies->search($query),
-                'tv' => $this->movies->searchTv($query),
-            ], 'popularity', $meta),
+            'all' => $this->mergedPage(
+                fn (int $page): array => $this->movies->search($query->withPage($page)),
+                fn (int $page): array => $this->movies->searchTv($query->withPage($page)),
+                $query->page,
+                'popularity',
+                $meta,
+            ),
             default => $this->toPage($this->movies->search($query), $meta),
         };
     }
@@ -57,10 +68,13 @@ class MovieService implements MovieServiceInterface
 
         return match ($query->type) {
             'tv' => $this->toPage($this->movies->discoverTv($query), $meta, 'tv'),
-            'all' => $this->mergedPage([
-                'movie' => $this->movies->discover($query),
-                'tv' => $this->movies->discoverTv($query),
-            ], $query->sort, $meta),
+            'all' => $this->mergedPage(
+                fn (int $page): array => $this->movies->discover($query->withPage($page)),
+                fn (int $page): array => $this->movies->discoverTv($query->withPage($page)),
+                $query->page,
+                $query->sort,
+                $meta,
+            ),
             default => $this->toPage($this->movies->discover($query), $meta),
         };
     }
@@ -193,28 +207,50 @@ class MovieService implements MovieServiceInterface
     }
 
     /**
-     * One page holding the same page of movies and tv shows, ordered by the chosen sort.
+     * One page of movies and tv shows ordered together by the chosen sort.
      *
-     * @param  array<string, array<string, mixed>>  $payloads  TMDB's page payload for each type
+     * Each source is already sorted by TMDB, so the combined page N is the slice at offset (N - 1) * 20 of the
+     * two lists merged. That needs the first N pages of each source, which is why combined results stop at
+     * MERGED_MAX_PAGES: deeper pages would cost more and more TMDB calls.
+     *
+     * @param  Closure(int): array<string, mixed>  $fetchMovies  TMDB's page payload of movies, by page number
+     * @param  Closure(int): array<string, mixed>  $fetchShows  TMDB's page payload of tv shows, by page number
      * @param  array<string, string>  $meta
      */
-    private function mergedPage(array $payloads, string $sort, array $meta): MoviePageResponse
+    private function mergedPage(Closure $fetchMovies, Closure $fetchShows, int $page, string $sort, array $meta): MoviePageResponse
     {
+        $page = min($page, self::MERGED_MAX_PAGES);
         $items = [];
+        $totalResults = 0;
 
-        foreach ($payloads as $type => $payload) {
-            foreach ($payload['results'] ?? [] as $item) {
-                $items[] = ['type' => $type, 'item' => $item];
+        foreach (['movie' => $fetchMovies, 'tv' => $fetchShows] as $type => $fetch) {
+            for ($number = 1; $number <= $page; $number++) {
+                $payload = $fetch($number);
+
+                foreach ($payload['results'] ?? [] as $item) {
+                    $items[] = ['type' => $type, 'item' => $item];
+                }
+
+                if ($number === 1) {
+                    $totalResults += (int) ($payload['total_results'] ?? 0);
+                }
+
+                if ($number >= (int) ($payload['total_pages'] ?? 0)) {
+                    break;
+                }
             }
         }
 
         usort($items, fn (array $a, array $b): int => $this->compareForSort($a['item'], $b['item'], $sort));
 
         return new MoviePageResponse(
-            page: (int) max(array_map(fn (array $payload): int => (int) ($payload['page'] ?? 1), $payloads)),
-            totalPages: min((int) max(array_map(fn (array $payload): int => (int) ($payload['total_pages'] ?? 0), $payloads)), 500),
-            totalResults: (int) array_sum(array_map(fn (array $payload): int => (int) ($payload['total_results'] ?? 0), $payloads)),
-            movies: array_map(fn (array $entry): MovieResponse => $this->toMovie($entry['item'], $entry['type']), $items),
+            page: $page,
+            totalPages: min((int) ceil($totalResults / self::MERGED_PAGE_SIZE), self::MERGED_MAX_PAGES),
+            totalResults: $totalResults,
+            movies: array_map(
+                fn (array $entry): MovieResponse => $this->toMovie($entry['item'], $entry['type']),
+                array_slice($items, ($page - 1) * self::MERGED_PAGE_SIZE, self::MERGED_PAGE_SIZE),
+            ),
             meta: $meta,
         );
     }
