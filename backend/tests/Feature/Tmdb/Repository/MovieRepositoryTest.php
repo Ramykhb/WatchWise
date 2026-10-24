@@ -5,6 +5,7 @@ namespace Tests\Feature\Tmdb\Repository;
 use App\Tmdb\DTOs\Requests\MovieDiscoverQuery;
 use App\Tmdb\DTOs\Requests\MovieListQuery;
 use App\Tmdb\DTOs\Requests\MovieSearchQuery;
+use App\Tmdb\Exceptions\MovieNotFound;
 use App\Tmdb\Exceptions\TmdbUnavailable;
 use App\Tmdb\InterfaceRepository\MovieRepositoryInterface;
 use Illuminate\Http\Client\ConnectionException;
@@ -155,5 +156,35 @@ class MovieRepositoryTest extends TestCase
         $this->expectException(TmdbUnavailable::class);
 
         $this->repository()->search(new MovieSearchQuery('dune'));
+    }
+
+    public function test_find_asks_for_the_movie_with_its_extras_in_one_call(): void
+    {
+        Http::fake(['https://api.themoviedb.org/3/movie/438631*' => Http::response(['id' => 438631, 'title' => 'Dune'])]);
+
+        $payload = $this->repository()->find(438631);
+
+        $this->assertSame(['id' => 438631, 'title' => 'Dune'], $payload);
+        Http::assertSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://api.themoviedb.org/3/movie/438631?')
+            && $request['append_to_response'] === 'credits,videos,recommendations,similar,release_dates');
+        Http::assertSentCount(1);
+    }
+
+    public function test_find_throws_movie_not_found_for_an_unknown_id(): void
+    {
+        Http::fake(['https://api.themoviedb.org/*' => Http::response(['status_message' => 'Not found'], 404)]);
+
+        $this->expectException(MovieNotFound::class);
+
+        $this->repository()->find(999999999);
+    }
+
+    public function test_find_throws_tmdb_unavailable_when_tmdb_fails(): void
+    {
+        Http::fake(['https://api.themoviedb.org/*' => Http::response([], 500)]);
+
+        $this->expectException(TmdbUnavailable::class);
+
+        $this->repository()->find(438631);
     }
 }

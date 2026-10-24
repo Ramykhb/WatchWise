@@ -28,6 +28,24 @@ export type MoviePage = {
 /** TMDB genre names the design shortens. */
 const GENRE_LABELS: Record<string, string> = { 'Science Fiction': 'Sci-fi' }
 
+/** A TMDB genre name as the design writes it ("Science Fiction" → "Sci-fi"). */
+export const genreLabel = (name: string) => GENRE_LABELS[name] ?? name
+
+/**
+ * TMDB's ids for the design's genre chips. They never change, so filtering by genre keeps working
+ * even when /api/genres is slow or down (that list is only needed for the names on the tiles).
+ */
+export const GENRE_IDS: Record<string, number> = {
+  'Sci-fi': 878,
+  Adventure: 12,
+  Drama: 18,
+  Comedy: 35,
+  Thriller: 53,
+  Horror: 27,
+  Animation: 16,
+  Romance: 10749,
+}
+
 const RUNTIME_PARAMS: Record<string, { runtime_min?: number; runtime_max?: number }> = {
   '< 90m': { runtime_max: 89 },
   '90–120m': { runtime_min: 90, runtime_max: 120 },
@@ -60,7 +78,7 @@ let genresRequest: Promise<Map<number, string>> | null = null
 export function loadGenres(): Promise<Map<number, string>> {
   genresRequest ??= axios
     .get<{ genres: { id: number; name: string }[] }>(`${BACKEND_URL}/api/genres`)
-    .then(({ data }) => new Map(data.genres.map((g) => [g.id, GENRE_LABELS[g.name] ?? g.name])))
+    .then(({ data }) => new Map(data.genres.map((g) => [g.id, genreLabel(g.name)])))
     .catch((error: unknown) => {
       // Let the next call try again instead of keeping the failure.
       genresRequest = null

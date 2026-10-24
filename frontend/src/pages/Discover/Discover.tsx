@@ -31,7 +31,7 @@ import {
   type Filters,
   type SearchType,
 } from './discoverData.ts'
-import { fetchMovies, loadGenres, toTileMovie, type MoviePage } from './discoverApi.ts'
+import { GENRE_IDS, fetchMovies, loadGenres, toTileMovie, type MoviePage } from './discoverApi.ts'
 import styles from './Discover.module.css'
 
 /** The latest response, tagged with the request it answers so stale ones are easy to spot. */
@@ -66,7 +66,8 @@ export default function Discover() {
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [page, setPage] = useState(1)
 
-  const [genres, setGenres] = useState<Map<number, string> | null>(null)
+  // Genre names for the tiles. Loaded on the side: the movies never wait for them.
+  const [genres, setGenres] = useState<Map<number, string>>(() => new Map())
   const [result, setResult] = useState<Result | null>(null)
   const [retries, setRetries] = useState(0)
 
@@ -74,26 +75,19 @@ export default function Discover() {
     let active = true
     loadGenres()
       .then((map) => active && setGenres(map))
-      // Without genres the results still load; tiles just show the year and genre filters are skipped.
-      .catch(() => active && setGenres(new Map()))
+      // Without the list, tiles just show the year; everything else keeps working.
+      .catch((error: unknown) => console.error('Unable to load genre names:', error))
     return () => {
       active = false
     }
   }, [])
 
-  const genreIds = useMemo(() => {
-    if (!genres) return []
-    const idByLabel = new Map([...genres].map(([id, label]) => [label, id]))
-    return applied.genres.map((label) => idByLabel.get(label)).filter((id): id is number => id !== undefined)
-  }, [genres, applied.genres])
-
   const requestKey = JSON.stringify({ q: submittedQuery, applied, sort, page, retries })
   const loading = result?.key !== requestKey
 
   useEffect(() => {
-    // Wait for the genre list so a genre filter isn't sent without its ids.
-    if (!genres) return
     const controller = new AbortController()
+    const genreIds = applied.genres.map((label) => GENRE_IDS[label]).filter((id) => id !== undefined)
     fetchMovies({ query: submittedQuery, filters: applied, sort, page, genreIds, signal: controller.signal })
       .then((data) => setResult({ key: requestKey, data, failed: false }))
       .catch((error: unknown) => {
@@ -105,13 +99,13 @@ export default function Discover() {
     return () => controller.abort()
     // requestKey covers the query, filters, sort, page and retries.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestKey, genres])
+  }, [requestKey])
 
   // Keep showing the previous page while the next one loads, so the grid doesn't jump.
   const [shown, setShown] = useState<MoviePage | null>(null)
   if (result?.data && result.data !== shown) setShown(result.data)
 
-  const movies = useMemo(() => (shown && genres ? shown.movies.map((m) => toTileMovie(m, genres)) : []), [shown, genres])
+  const movies = useMemo(() => (shown ? shown.movies.map((m) => toTileMovie(m, genres)) : []), [shown, genres])
   const totalPages = shown?.total_pages ?? 0
   const failed = !loading && result?.failed
 
@@ -389,11 +383,16 @@ export default function Discover() {
           >
             <div className={styles.toolbar}>
               <h2 id="results-title" className={styles.resultsTitle} aria-live="polite">
-                {type !== 'movies'
-                  ? `${activeType.count} results`
-                  : shown
-                    ? `${movieCount.toLocaleString('en-US')} ${movieCount === 1 ? 'result' : 'results'}`
-                    : 'Loading movies…'}
+                {type !== 'movies' ? (
+                  `${activeType.count} results`
+                ) : shown ? (
+                  `${movieCount.toLocaleString('en-US')} ${movieCount === 1 ? 'result' : 'results'}`
+                ) : (
+                  <>
+                    <span className={`${styles.skeletonCount} ${styles.shimmer}`} aria-hidden="true" />
+                    <span className="sr-only">Loading movies…</span>
+                  </>
+                )}
                 {submittedQuery && (
                   <>
                     {' for '}
@@ -466,6 +465,9 @@ export default function Discover() {
               </div>
             )}
 
+            {/* A thin moving bar while a new page or filter loads; the current results stay visible, dimmed. */}
+            {type === 'movies' && loading && shown && <div className={styles.loadingBar} aria-hidden="true" />}
+
             {type === 'movies' && submittedQuery && (
               <p className={styles.searchNote}>
                 Searching by title, so filters and sort are paused.{' '}
@@ -491,7 +493,9 @@ export default function Discover() {
                   Try again
                 </button>
               </p>
-            ) : shown && movies.length === 0 ? (
+            ) : !shown ? (
+              <ResultsSkeleton view={view} />
+            ) : movies.length === 0 ? (
               <p className={styles.empty}>
                 {submittedQuery ? `No movies match “${submittedQuery}”.` : 'No movies match these filters. Try fewer filters.'}
               </p>
@@ -509,8 +513,9 @@ export default function Discover() {
                       <span
                         className={styles.thumb}
                         style={{
+                          // The gradient sits under the poster, so it shows if the poster fails to load.
                           background: movie.posterUrl
-                            ? `center / cover no-repeat url("${movie.posterUrl}")`
+                            ? `center / cover no-repeat url("${movie.posterUrl}"), ${gradientCss(movie.gradient)}`
                             : gradientCss(movie.gradient),
                         }}
                       />
@@ -571,6 +576,37 @@ export default function Discover() {
           </section>
         </div>
       </main>
+    </div>
+  )
+}
+
+/** Tiles or rows in the results' own shape while the first page loads, so nothing jumps when it arrives. */
+function ResultsSkeleton({ view }: { view: 'grid' | 'list' }) {
+  if (view === 'list') {
+    return (
+      <ul className={styles.list} aria-hidden="true">
+        {Array.from({ length: 8 }, (_, index) => (
+          <li key={index} className={styles.skeletonRow}>
+            <span className={`${styles.thumb} ${styles.shimmer}`} />
+            <span className={styles.listText}>
+              <span className={`${styles.skeletonLine} ${styles.shimmer}`} style={{ width: '45%' }} />
+              <span className={`${styles.skeletonLine} ${styles.shimmer}`} style={{ width: '25%' }} />
+            </span>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  return (
+    <div className={styles.grid} aria-hidden="true">
+      {Array.from({ length: 12 }, (_, index) => (
+        <div key={index} className={styles.skeletonTile}>
+          <span className={`${styles.skeletonPoster} ${styles.shimmer}`} />
+          <span className={`${styles.skeletonLine} ${styles.shimmer}`} style={{ width: '75%' }} />
+          <span className={`${styles.skeletonLine} ${styles.shimmer}`} style={{ width: '45%' }} />
+        </div>
+      ))}
     </div>
   )
 }

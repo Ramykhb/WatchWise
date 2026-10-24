@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Tmdb\Support;
 
+use App\Tmdb\Exceptions\TmdbNotFound;
 use App\Tmdb\Exceptions\TmdbUnavailable;
 use App\Tmdb\Support\TmdbHttpClient;
 use Illuminate\Http\Client\ConnectionException;
@@ -26,6 +27,15 @@ class TmdbHttpClientTest extends TestCase
             $this->assertStringNotContainsString('super-secret-key', $exception->getMessage());
             $this->assertNull($exception->getPrevious());
         }
+    }
+
+    public function test_a_404_throws_tmdb_not_found_instead_of_unavailable(): void
+    {
+        Http::fake(['https://api.themoviedb.org/*' => Http::response(['status_message' => 'Not found'], 404)]);
+
+        $this->expectException(TmdbNotFound::class);
+
+        app(TmdbHttpClient::class)->get('/movie/999999999');
     }
 
     public function test_the_key_is_removed_even_when_it_is_not_in_a_query_string(): void
