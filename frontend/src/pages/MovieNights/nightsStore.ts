@@ -22,14 +22,25 @@ function subscribe(listener: () => void) {
 
 const getState = () => state
 
+// Bumped on every account change, so a response for the previous account is ignored.
+let generation = 0
+
 export async function loadNights() {
+  const started = generation
   const response = await api.get<Pick<State, 'upcoming' | 'invitations' | 'past'>>('/movie-nights')
-  emit({ ...state, ...response.data, loaded: true })
+  if (started === generation) emit({ ...state, ...response.data, loaded: true })
+}
+
+/** Drops the nights when the signed-in account changes (see AuthContext). */
+export function clearNights() {
+  generation++
+  emit({ upcoming: [], invitations: [], past: [], declined: [], loaded: false })
 }
 
 export function useNights() {
   useEffect(() => {
-    loadNights().catch(() => emit({ ...state, loaded: true }))
+    const started = generation
+    loadNights().catch(() => started === generation && emit({ ...state, loaded: true }))
   }, [])
   return useSyncExternalStore(subscribe, getState)
 }
@@ -44,7 +55,9 @@ export type NightInput = {
 }
 
 export async function createNight(input: NightInput) {
+  const started = generation
   const response = await api.post<{ night: ApiNight }>('/movie-nights', input)
+  if (started !== generation) return response.data.night
   const upcoming = [...state.upcoming, response.data.night].sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
   emit({ ...state, upcoming })
   return response.data.night
@@ -54,7 +67,9 @@ export async function createNight(input: NightInput) {
 export async function answerInvitation(id: number, accept: boolean) {
   const invitation = state.invitations.find((night) => night.id === id)
   if (!invitation) return
+  const started = generation
   const response = await api.put<{ night: ApiNight }>(`/movie-nights/${id}/rsvp`, { status: accept ? 'accepted' : 'declined' })
+  if (started !== generation) return
   emit({
     ...state,
     upcoming: accept ? [...state.upcoming, response.data.night].sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at)) : state.upcoming,

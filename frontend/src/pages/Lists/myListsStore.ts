@@ -23,15 +23,31 @@ function subscribe(listener: () => void) {
 
 const getState = () => state
 
+// Bumped on every account change, so a response for the previous account is ignored.
+let generation = 0
+
 export async function loadMyLists() {
+  const started = generation
   const response = await api.get<{ lists: ApiList[] }>('/lists', { params: { scope: 'mine' } })
-  emit(response.data.lists.map(toMyList))
+  if (started === generation) emit(response.data.lists.map(toMyList))
 }
 
-/** The user's lists, (re)loaded from the API whenever a page using them opens. */
+/** Drops the lists when the signed-in account changes (see AuthContext). */
+export function clearMyLists() {
+  generation++
+  state = { lists: [], loaded: false }
+  listeners.forEach((listener) => listener())
+}
+
+/**
+ * The user's lists, (re)loaded from the API whenever a page using them opens. A failed load
+ * stops the loading state but keeps only what this account already loaded (never another's,
+ * since the store is cleared on every account change).
+ */
 export function useMyLists() {
   useEffect(() => {
-    loadMyLists().catch(() => emit(state.lists))
+    const started = generation
+    loadMyLists().catch(() => started === generation && emit(state.lists))
   }, [])
   return useSyncExternalStore(subscribe, getState)
 }
@@ -39,20 +55,23 @@ export function useMyLists() {
 export type ListInput = { title: string; description: string; is_public: boolean; tmdb_ids: number[] }
 
 export async function createList(input: ListInput) {
+  const started = generation
   const response = await api.post<{ list: ApiList }>('/lists', input)
-  emit([toMyList(response.data.list), ...state.lists])
+  if (started === generation) emit([toMyList(response.data.list), ...state.lists])
   return response.data.list
 }
 
 /** Saves fields and/or the films (in order); returns the updated list. */
 export async function updateList(id: number, input: Partial<ListInput>) {
+  const started = generation
   const response = await api.patch<{ list: ApiList }>(`/lists/${id}`, input)
   const updated = toMyList(response.data.list)
-  emit(state.lists.map((list) => (list.id === id ? updated : list)))
+  if (started === generation) emit(state.lists.map((list) => (list.id === id ? updated : list)))
   return response.data.list
 }
 
 export async function deleteList(id: number) {
+  const started = generation
   await api.delete(`/lists/${id}`)
-  emit(state.lists.filter((list) => list.id !== id))
+  if (started === generation) emit(state.lists.filter((list) => list.id !== id))
 }

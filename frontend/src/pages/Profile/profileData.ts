@@ -35,10 +35,11 @@ export type Profile = Member & {
   /** Private (or followers-only) profile the viewer can't open: only the header is shown. */
   restricted: boolean
   followers: number
-  following: number
-  reviews: number
-  lists: number
-  films: number
+  /** null when the owner hides that section. */
+  following: number | null
+  reviews: number | null
+  lists: number | null
+  films: number | null
   activity: ActivityItem[]
   reviewList: Review[]
   listCards: ProfileList[]
@@ -100,13 +101,17 @@ export function toProfile(data: ApiProfile): Profile {
   return {
     ...toMember(data.user),
     location: data.user.location ?? '',
-    since: String(new Date(data.user.member_since).getFullYear()),
+    since: data.user.member_since ? String(new Date(data.user.member_since).getFullYear()) : '',
     bio: data.user.bio ?? '',
     isMe: data.is_me,
     isFollowing: data.is_following,
     followsYou: data.follows_you,
     restricted: data.restricted,
-    ...data.counts,
+    followers: data.counts?.followers ?? 0,
+    following: data.counts?.following ?? null,
+    reviews: data.counts?.reviews ?? null,
+    lists: data.counts?.lists ?? null,
+    films: data.counts?.films ?? null,
     activity: (data.activity ?? []).map(toActivity),
     reviewList: (data.reviews ?? []).map(toReview),
     listCards: (data.lists ?? []).map(toProfileList),
@@ -119,7 +124,8 @@ export function toProfile(data: ApiProfile): Profile {
   }
 }
 
-/** 2412 → "2.4k", 318 → "318". */
-export function compactCount(n: number) {
+/** 2412 → "2.4k", 318 → "318", hidden (null) → "–". */
+export function compactCount(n: number | null) {
+  if (n === null) return '–'
   return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n)
 }

@@ -31,7 +31,11 @@ api.interceptors.response.use(undefined, async (error: AxiosError) => {
 const cache = new Map<string, unknown>()
 const inFlight = new Map<string, Promise<unknown>>()
 
+// Bumped on every account change, so a response for the previous account is not cached.
+let generation = 0
+
 export function clearApiCache() {
+  generation++
   cache.clear()
   inFlight.clear()
 }
@@ -39,13 +43,18 @@ export function clearApiCache() {
 function fetchShared<T>(path: string): Promise<T> {
   let request = inFlight.get(path) as Promise<T> | undefined
   if (!request) {
-    request = api
+    const started = generation
+    const shared: Promise<T> = api
       .get<T>(path)
       .then((response) => {
-        cache.set(path, response.data)
+        if (started === generation) cache.set(path, response.data)
         return response.data
       })
-      .finally(() => inFlight.delete(path))
+      .finally(() => {
+        // Only remove our own entry; after an account change the path may belong to a new request.
+        if (inFlight.get(path) === shared) inFlight.delete(path)
+      })
+    request = shared
     inFlight.set(path, request)
   }
   return request
