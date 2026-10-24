@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router'
 import sunImg from '../../assets/home/tile-sun.svg'
 import waveImg from '../../assets/home/tile-wave.svg'
@@ -20,11 +21,20 @@ export type Movie = {
 /** Poster tile for grids and carousels (Figma "Movie Tile"). */
 export default function MovieTile({ movie }: { movie: Movie }) {
   const [top, middle, bottom] = movie.gradient
+  // A poster that fails to load falls back to the gradient art instead of an empty box.
+  const [failedPoster, setFailedPoster] = useState<string | null>(null)
+  const showPoster = movie.posterUrl && movie.posterUrl !== failedPoster
   return (
     <Link to={`/movies/${movie.slug}`} className={styles.tile}>
       <div className={styles.poster} style={{ background: `linear-gradient(180deg, ${top} 0%, ${middle} 50%, ${bottom} 100%)` }}>
-        {movie.posterUrl ? (
-          <img className={styles.posterImage} src={movie.posterUrl} alt="" loading="lazy" />
+        {showPoster ? (
+          <img
+            className={styles.posterImage}
+            src={movie.posterUrl}
+            alt=""
+            loading="lazy"
+            onError={() => setFailedPoster(movie.posterUrl ?? null)}
+          />
         ) : (
           <>
             <img className={styles.sun} src={sunImg} width={100} height={100} alt="" />

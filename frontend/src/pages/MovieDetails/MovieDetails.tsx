@@ -1,5 +1,6 @@
-import { useRef, useState, type FormEvent, type RefObject } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { Link, useParams } from 'react-router'
+import axios from 'axios'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import MovieTile from '../../components/MovieTile/MovieTile.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
@@ -35,7 +36,11 @@ import chatIcon from '../../assets/home/icon-chat.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { getMovieDetails, type MovieDetails as Details } from './movieData.ts'
+import { fetchMovieDetails } from './movieApi.ts'
 import styles from './MovieDetails.module.css'
+
+/** What the last request for a TMDB movie returned, tagged with the request it answers. */
+type Loaded = { key: string; details: Details | null; failed: boolean }
 
 const MAX_REVIEW = 2000
 
@@ -85,11 +90,141 @@ function downloadIcs(details: Details) {
 }
 
 export default function MovieDetails() {
-  const { slug } = useParams()
+  const { slug = '' } = useParams()
+  // TMDB movies have numeric ids (/movies/438631); the design's mock movies have names (/movies/neon-tide).
+  return /^\d+$/.test(slug) ? <TmdbMovieDetails id={slug} /> : <MockMovieDetails slug={slug} />
+}
+
+function MockMovieDetails({ slug }: { slug: string }) {
   const details = getMovieDetails(slug)
   if (!details) return <Placeholder title="Movie not found" notFound />
   // Keyed by slug so local state (rating, watchlist, review draft) resets when moving between movies.
   return <MovieDetailsPage key={details.movie.slug} details={details} />
+}
+
+function TmdbMovieDetails({ id }: { id: string }) {
+  const [loaded, setLoaded] = useState<Loaded | null>(null)
+  const [retries, setRetries] = useState(0)
+  const key = `${id}-${retries}`
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetchMovieDetails(id, controller.signal)
+      .then((details) => setLoaded({ key, details, failed: false }))
+      .catch((error: unknown) => {
+        if (axios.isCancel(error)) return
+        console.error('Unable to load the movie:', error)
+        setLoaded({ key, details: null, failed: true })
+      })
+    return () => controller.abort()
+  }, [id, key])
+
+  if (loaded?.key !== key) return <MovieDetailsSkeleton />
+
+  if (loaded.failed) {
+    return (
+      <div className={styles.page}>
+        <AppNav />
+        <main>
+          <section className={styles.hero}>
+            <div className={styles.loadError} role="alert">
+              <h1 className={styles.loadErrorTitle}>We couldn't load this movie</h1>
+              <p className={styles.loadErrorText}>
+                The movie service didn't answer. Check your connection, then try again.
+              </p>
+              <div className={styles.actions}>
+                <button type="button" className={styles.actionTrailer} onClick={() => setRetries((n) => n + 1)}>
+                  Try again
+                </button>
+                <Link to="/discover" className={styles.actionOutline}>
+                  Back to Discover
+                </Link>
+              </div>
+            </div>
+          </section>
+          <img className={styles.heroWave} src={heroWave} width={1440} height={70} alt="" />
+        </main>
+      </div>
+    )
+  }
+
+  if (!loaded.details) return <Placeholder title="Movie not found" notFound />
+  return <MovieDetailsPage key={id} details={loaded.details} />
+}
+
+/** Grey shapes in the page's own layout while a TMDB movie loads, so nothing jumps when it arrives. */
+function MovieDetailsSkeleton() {
+  return (
+    <div className={styles.page}>
+      <AppNav />
+      <main aria-busy="true">
+        <p className="sr-only" role="status">
+          Loading movie…
+        </p>
+        <section className={styles.hero} aria-hidden="true">
+          <div className={styles.heroInner}>
+            <div className={`${styles.poster} ${styles.skeletonOnViolet}`} />
+            <div className={styles.info}>
+              <div className={styles.tags}>
+                {[64, 92, 56].map((width) => (
+                  <span key={width} className={`${styles.skeletonPill} ${styles.skeletonOnViolet}`} style={{ width }} />
+                ))}
+              </div>
+              <span className={`${styles.skeletonTitle} ${styles.skeletonOnViolet}`} />
+              <span className={`${styles.skeletonLine} ${styles.skeletonOnViolet}`} style={{ width: '55%' }} />
+              <div className={styles.ratings}>
+                {[150, 90, 150].map((width, index) => (
+                  <span key={index} className={`${styles.skeletonBlock} ${styles.skeletonOnViolet}`} style={{ width }} />
+                ))}
+              </div>
+              <div className={styles.skeletonParagraph}>
+                {['100%', '96%', '88%', '62%'].map((width) => (
+                  <span key={width} className={`${styles.skeletonLine} ${styles.skeletonOnViolet}`} style={{ width }} />
+                ))}
+              </div>
+              <div className={styles.actions}>
+                {[150, 140, 170, 130].map((width) => (
+                  <span key={width} className={`${styles.skeletonButton} ${styles.skeletonOnViolet}`} style={{ width }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+        <img className={styles.heroWave} src={heroWave} width={1440} height={70} alt="" />
+
+        <div className={styles.body} aria-hidden="true">
+          <div className={styles.main}>
+            <div className={styles.section}>
+              <span className={`${styles.skeletonHeading} ${styles.skeletonOnCream}`} />
+              <ul className={styles.people}>
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <li key={n} className={styles.skeletonPerson}>
+                    <span className={`${styles.skeletonAvatar} ${styles.skeletonOnCream}`} />
+                    <span className={`${styles.skeletonLine} ${styles.skeletonOnCream}`} style={{ width: '80%' }} />
+                    <span className={`${styles.skeletonLine} ${styles.skeletonOnCream}`} style={{ width: '60%' }} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className={styles.section}>
+              <span className={`${styles.skeletonHeading} ${styles.skeletonOnCream}`} />
+              <div className={`${styles.video} ${styles.skeletonOnCream}`} />
+            </div>
+          </div>
+          <div className={styles.sidebar}>
+            <div className={styles.details}>
+              <span className={`${styles.skeletonHeading} ${styles.skeletonOnCream}`} style={{ width: 90 }} />
+              <div className={styles.skeletonFacts}>
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <span key={n} className={`${styles.skeletonLine} ${styles.skeletonOnCream}`} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  )
 }
 
 function MovieDetailsPage({ details }: { details: Details }) {
@@ -172,12 +307,18 @@ function MovieDetailsPage({ details }: { details: Details }) {
               data-enter-delay="0.1"
               data-enter-rise="80"
             >
-              <img className={styles.posterSun} src={heroSun} width={170} height={170} alt="" />
-              <img className={styles.posterWave} src={heroPosterWave} width={320} height={220} alt="" />
-              <p className={styles.posterTitle} aria-hidden="true">
-                <span>{movie.posterTitle[0]}</span>
-                <span>{movie.posterTitle[1]}</span>
-              </p>
+              {movie.posterUrl ? (
+                <img className={styles.posterImage} src={movie.posterUrl} alt={`${movie.title} poster`} />
+              ) : (
+                <>
+                  <img className={styles.posterSun} src={heroSun} width={170} height={170} alt="" />
+                  <img className={styles.posterWave} src={heroPosterWave} width={320} height={220} alt="" />
+                  <p className={styles.posterTitle} aria-hidden="true">
+                    <span>{movie.posterTitle[0]}</span>
+                    <span>{movie.posterTitle[1]}</span>
+                  </p>
+                </>
+              )}
             </div>
 
             <div className={styles.info} data-enter data-enter-delay="0.25">
@@ -304,17 +445,34 @@ function MovieDetailsPage({ details }: { details: Details }) {
                 </Link>
               </div>
               <ul className={styles.people}>
-                {details.cast.map((person) => (
-                  <li key={person.slug}>
-                    <Link to={`/people/${person.slug}`} className={styles.person}>
+                {details.cast.map((person) => {
+                  const content = (
+                    <>
                       <span className={styles.photo} style={{ background: gradientCss(person.gradient) }}>
-                        {person.initials}
+                        {person.photoUrl ? (
+                          <img className={styles.photoImage} src={person.photoUrl} alt="" loading="lazy" />
+                        ) : (
+                          person.initials
+                        )}
                       </span>
-                      <span className={styles.personName}>{person.name}</span>
+                      <span className={styles.personName} title={person.name}>
+                        {person.name}
+                      </span>
                       <span className={styles.personRole}>{person.role}</span>
-                    </Link>
-                  </li>
-                ))}
+                    </>
+                  )
+                  return (
+                    <li key={`${person.name}-${person.role}`}>
+                      {person.slug ? (
+                        <Link to={`/people/${person.slug}`} className={styles.person}>
+                          {content}
+                        </Link>
+                      ) : (
+                        <div className={styles.person}>{content}</div>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             </section>
 
@@ -328,19 +486,38 @@ function MovieDetailsPage({ details }: { details: Details }) {
                 </Link>
               </div>
               <div className={styles.video} style={{ background: gradientCss(details.trailer.gradient) }}>
-                <img className={styles.videoSun} src={trailerSun} width={260} height={260} alt="" />
-                <img className={styles.videoWave} src={trailerWave} width={800} height={220} alt="" />
-                {/* TODO: embed the TMDB trailer (YouTube key) once the backend provides it. */}
-                <button
-                  type="button"
-                  className={styles.play}
-                  aria-label={`Play ${details.trailer.label}`}
-                  aria-pressed={playing}
-                  onClick={() => setPlaying((value) => !value)}
-                >
-                  <img src={playLgIcon} width={43} height={43} alt="" />
-                </button>
-                <span className={styles.videoChip}>{playing ? 'Trailer coming soon' : details.trailer.label}</span>
+                {playing && details.trailer.youtubeKey ? (
+                  <iframe
+                    className={styles.videoFrame}
+                    src={`https://www.youtube-nocookie.com/embed/${details.trailer.youtubeKey}?autoplay=1&rel=0`}
+                    title={`${movie.title} — ${details.trailer.label}`}
+                    allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                    allowFullScreen
+                  />
+                ) : (
+                  <>
+                    {details.trailer.backdropUrl ? (
+                      <img className={styles.videoBackdrop} src={details.trailer.backdropUrl} alt="" loading="lazy" />
+                    ) : (
+                      <>
+                        <img className={styles.videoSun} src={trailerSun} width={260} height={260} alt="" />
+                        <img className={styles.videoWave} src={trailerWave} width={800} height={220} alt="" />
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className={styles.play}
+                      aria-label={`Play ${details.trailer.label}`}
+                      aria-pressed={playing}
+                      onClick={() => setPlaying((value) => !value)}
+                    >
+                      <img src={playLgIcon} width={43} height={43} alt="" />
+                    </button>
+                    <span className={styles.videoChip}>
+                      {playing ? 'Trailer coming soon' : details.trailer.label}
+                    </span>
+                  </>
+                )}
               </div>
             </section>
 
