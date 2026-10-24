@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /** The signed-in user's notifications (header bell and the Notifications page). */
@@ -55,15 +56,26 @@ class NotificationController extends Controller
     }
 
     /**
-     * Loads the user each notification is about (data.actor_id) in one query.
+     * Loads the user each notification is about (data.actor_id) in one query, and whether the
+     * recipient already follows them (so "Follow back" shows "Following" after a reload).
      *
      * @param  Collection<int, Notification>  $notifications
      * @return Collection<int, Notification>
      */
     private function withActors(Collection $notifications): Collection
     {
-        $actors = User::whereIn('id', $notifications->pluck('data.actor_id')->filter()->unique())->get()->keyBy('id');
+        $actorIds = $notifications->pluck('data.actor_id')->filter()->unique()->values();
+        $actors = User::whereIn('id', $actorIds)->get()->keyBy('id');
+        // All notifications here belong to one recipient.
+        $recipientId = $notifications->first()?->user_id;
+        $followed = $recipientId
+            ? DB::table('follows')->where('follower_id', $recipientId)->whereIn('following_id', $actorIds)->pluck('following_id')->all()
+            : [];
 
-        return $notifications->each(fn (Notification $n) => $n->setRelation('actor', $actors->get($n->data['actor_id'] ?? 0)));
+        return $notifications->each(function (Notification $n) use ($actors, $followed) {
+            $actorId = $n->data['actor_id'] ?? 0;
+            $n->setRelation('actor', $actors->get($actorId));
+            $n->setRelation('actorFollowed', in_array($actorId, $followed));
+        });
     }
 }
