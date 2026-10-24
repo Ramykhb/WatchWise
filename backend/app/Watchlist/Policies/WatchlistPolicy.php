@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Policies;
+namespace App\Watchlist\Policies;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\Watchlist;
