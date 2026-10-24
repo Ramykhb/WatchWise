@@ -61,6 +61,59 @@ type WeatherMood = {
   description: string;
 };
 
+type WeatherMoodCache = {
+  cachedAt: number;
+  weather: WeatherResponse;
+  mood: WeatherMood;
+};
+
+const WEATHER_CACHE_KEY = "watchwise:weather-mood:v1";
+const WEATHER_CACHE_TTL = 60 * 60 * 1000;
+
+function removeWeatherCache() {
+  try {
+    localStorage.removeItem(WEATHER_CACHE_KEY);
+  } catch {
+    // Storage can be unavailable in private browsing or when blocked by the browser.
+  }
+}
+
+function readWeatherCache(): WeatherMoodCache | null {
+  try {
+    const raw = localStorage.getItem(WEATHER_CACHE_KEY);
+    if (!raw) return null;
+
+    const cache = JSON.parse(raw) as Partial<WeatherMoodCache>;
+    const age = Date.now() - (cache.cachedAt ?? 0);
+    const current = cache.weather?.current;
+    const location = cache.weather?.location;
+    const isValid =
+      typeof cache.cachedAt === "number" &&
+      typeof location?.latitude === "number" &&
+      typeof location.longitude === "number" &&
+      typeof location.is_default === "boolean" &&
+      typeof current?.temperature_2m === "number" &&
+      typeof current.apparent_temperature === "number" &&
+      typeof current.relative_humidity_2m === "number" &&
+      typeof current.weather_code === "number" &&
+      typeof current.precipitation === "number" &&
+      typeof current.wind_speed_10m === "number" &&
+      typeof cache.mood?.title === "string" &&
+      typeof cache.mood?.mood === "string" &&
+      typeof cache.mood?.description === "string";
+
+    if (!isValid || age < 0 || age >= WEATHER_CACHE_TTL) {
+      removeWeatherCache();
+      return null;
+    }
+
+    return cache as WeatherMoodCache;
+  } catch {
+    removeWeatherCache();
+    return null;
+  }
+}
+
 const weatherCondition = (code: number): string => {
   if (code === 0) return "Clear sky";
   if ([1, 2, 3].includes(code)) return "Partly cloudy";
@@ -85,14 +138,22 @@ const WEATHER_ICONS: Record<string, LucideIcon> = {
 
 export default function ForYou() {
   const pageRef = useRef<HTMLDivElement>(null);
+  const [initialWeatherCache] = useState(readWeatherCache);
   const [locationStatus, setLocationStatus] = useState<
     "requesting" | "granted" | "unavailable"
-  >("requesting");
-  const [weather, setWeather] = useState<WeatherResponse | null>(null);
+  >(() => initialWeatherCache?.weather.location.is_default ? "unavailable" : initialWeatherCache ? "granted" : "requesting");
+  const [weather, setWeather] = useState<WeatherResponse | null>(
+    () => initialWeatherCache?.weather ?? null,
+  );
   const [weatherError, setWeatherError] = useState(false);
-  const [weatherLoading, setWeatherLoading] = useState(true);
-  const [weatherMood, setWeatherMood] = useState<WeatherMood | null>(null);
-  const [moodLoading, setMoodLoading] = useState(true);
+  const [weatherLoading, setWeatherLoading] = useState(initialWeatherCache === null);
+  const [weatherMood, setWeatherMood] = useState<WeatherMood | null>(
+    () => initialWeatherCache?.mood ?? null,
+  );
+  const [moodLoading, setMoodLoading] = useState(initialWeatherCache === null);
+  const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(
+    () => initialWeatherCache?.cachedAt ?? null,
+  );
   useEntranceAnimation(pageRef);
 
   // TODO: persist in the user's settings once the API exists.
@@ -114,6 +175,9 @@ export default function ForYou() {
           },
         });
         setWeather(data);
+        setWeatherMood(null);
+        setCacheTimestamp(null);
+        removeWeatherCache();
         setWeatherLoading(false);
 
         try {
@@ -128,6 +192,16 @@ export default function ForYou() {
             },
           );
           setWeatherMood(moodData);
+          const cachedAt = Date.now();
+          try {
+            localStorage.setItem(
+              WEATHER_CACHE_KEY,
+              JSON.stringify({ cachedAt, weather: data, mood: moodData } satisfies WeatherMoodCache),
+            );
+            setCacheTimestamp(cachedAt);
+          } catch {
+            // Keep the live response usable if the browser blocks local storage.
+          }
         } catch (moodError) {
           console.error("Unable to load weather mood:", moodError);
         } finally {
@@ -169,10 +243,36 @@ export default function ForYou() {
   }, [fetchWeather]);
 
   useEffect(() => {
+    if (initialWeatherCache) return;
+
     const requestId = window.setTimeout(requestLocation, 0);
 
     return () => window.clearTimeout(requestId);
-  }, [requestLocation]);
+  }, [initialWeatherCache, requestLocation]);
+
+  useEffect(() => {
+    if (cacheTimestamp === null) return;
+
+    const expireCacheAndRefresh = () => {
+      removeWeatherCache();
+      setWeather(null);
+      setWeatherMood(null);
+      setCacheTimestamp(null);
+      setWeatherError(false);
+      setWeatherLoading(true);
+      setMoodLoading(true);
+      requestLocation();
+    };
+    const timeUntilExpiry = cacheTimestamp + WEATHER_CACHE_TTL - Date.now();
+
+    if (timeUntilExpiry <= 0) {
+      expireCacheAndRefresh();
+      return;
+    }
+
+    const timeout = window.setTimeout(expireCacheAndRefresh, timeUntilExpiry);
+    return () => window.clearTimeout(timeout);
+  }, [cacheTimestamp, requestLocation]);
 
   const place = weather?.location.is_default
     ? "Beirut · now"
@@ -240,7 +340,7 @@ export default function ForYou() {
                   {place}
                 </span>
                 <span className={styles.degrees}>
-                  {weatherLoading ? (
+                  {weatherLoading && !current ? (
                     <span className={styles.loadingValue}>Loading…</span>
                   ) : (
                     `${Math.round(current?.temperature_2m ?? 0)}°`
@@ -262,16 +362,16 @@ export default function ForYou() {
                 WEATHER MOOD
               </span>
               <p className={styles.moodTitle}>
-                {moodLoading ? (
+                {moodLoading && !weatherMood ? (
                   <span className={styles.loadingValue}>Loading…</span>
                 ) : (
                   (weatherMood?.mood ?? WEATHER_MOOD.mood)
                 )}
               </p>
               <p className={styles.moodText}>
-                {weatherError
+                {weatherError && !weather
                   ? "Weather data is temporarily unavailable. Please try again shortly."
-                  : moodLoading
+                  : moodLoading && !weatherMood
                     ? "Reading the sky…"
                     : (weatherMood?.description ?? WEATHER_MOOD.moodText)}
               </p>
