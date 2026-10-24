@@ -24,6 +24,10 @@ final readonly class MovieDiscoverQuery
         public ?string $language = null,
         public string $sort = 'popularity',
         public int $page = 1,
+        /** What to browse: 'movie', 'tv' or 'all' (both, merged). */
+        public string $type = 'movie',
+        /** TV genre ids for a combined ('all') browse, where `genres` holds the movie ones. */
+        public ?string $tvGenres = null,
     ) {}
 
     /**
@@ -41,6 +45,8 @@ final readonly class MovieDiscoverQuery
             language: $validated['language'] ?? null,
             sort: $validated['sort'] ?? 'popularity',
             page: (int) ($validated['page'] ?? 1),
+            type: $validated['type'] ?? 'movie',
+            tvGenres: $validated['tv_genres'] ?? null,
         );
     }
 }
