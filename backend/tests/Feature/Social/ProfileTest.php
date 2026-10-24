@@ -113,6 +113,19 @@ class ProfileTest extends SocialTestCase
         $this->as($me)->postJson("/api/users/{$me->username}/follow")->assertForbidden();
     }
 
+    public function test_notifications_say_whether_you_already_follow_the_actor(): void
+    {
+        $me = User::factory()->create();
+        $fan = User::factory()->create();
+        $this->as($fan)->postJson("/api/users/{$me->username}/follow")->assertOk();
+
+        $this->as($me)->getJson('/api/notifications')->assertJsonPath('notifications.0.actor_followed', false);
+
+        // After following back, the notification keeps saying so on the next load.
+        $this->as($me)->postJson("/api/users/{$fan->username}/follow")->assertOk();
+        $this->as($me)->getJson('/api/notifications')->assertJsonPath('notifications.0.actor_followed', true);
+    }
+
     public function test_search_members(): void
     {
         $me = User::factory()->create();

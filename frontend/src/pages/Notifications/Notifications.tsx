@@ -14,7 +14,7 @@ import sparkleIcon from '../../assets/foryou/icon-sparkle-sm.svg'
 import eyeIcon from '../../assets/profile/icon-eye.svg'
 import xIcon from '../../assets/listmodal/icon-x-sm.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { dismiss, markAllRead, markRead, useNotifications, type AppNotification, type NotificationKind } from './notificationsStore.ts'
+import { dismiss, markAllRead, markRead, setActorFollowing, useNotifications, type AppNotification, type NotificationKind } from './notificationsStore.ts'
 import { api, useApi } from '../../lib/api.ts'
 import { setFollowing } from '../../lib/follow.ts'
 import type { ApiMe } from '../../lib/types.ts'
@@ -63,13 +63,12 @@ export default function Notifications() {
     me.setData((current) => ({ ...current, preferences: { ...current.preferences, notifications: { ...current.preferences.notifications, [id]: on } } }))
     api.patch('/me/preferences', { notifications: { [id]: on } }).catch(me.reload)
   }
-  const [followedBack, setFollowedBack] = useState<number[]>([])
+  // The follow state lives in the notifications store (from the API), so it survives leaving the page.
   const followBack = (item: AppNotification) => {
     if (!item.actor) return
-    const following = followedBack.includes(item.id)
-    setFollowedBack((ids) => (following ? ids.filter((id) => id !== item.id) : [...ids, item.id]))
-    const request = setFollowing(item.actor.handle, !following)
-    request.catch(() => setFollowedBack((ids) => (following ? [...ids, item.id] : ids.filter((id) => id !== item.id))))
+    const { handle, following } = item.actor
+    setActorFollowing(handle, !following)
+    setFollowing(handle, !following).catch(() => setActorFollowing(handle, following))
   }
 
   const unread = items.filter((n) => !n.read).length
@@ -125,7 +124,7 @@ export default function Notifications() {
                     <NotificationItem
                       key={n.id}
                       item={n}
-                      followedBack={followedBack.includes(n.id)}
+                      followedBack={n.actor?.following ?? false}
                       onFollowBack={() => followBack(n)}
                     />
                   ))}
