@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Tmdb\InterfaceRepository;
+namespace App\Genre\InterfaceRepository;
 
-use App\Tmdb\Exceptions\TmdbUnavailable;
+use App\Support\Exceptions\TmdbUnavailable;
 
 interface GenreRepositoryInterface
 {

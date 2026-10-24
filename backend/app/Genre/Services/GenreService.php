@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Tmdb\Services;
+namespace App\Genre\Services;
 
-use App\Tmdb\DTOs\Responses\GenreResponse;
-use App\Tmdb\InterfaceRepository\GenreRepositoryInterface;
-use App\Tmdb\InterfaceServices\GenreServiceInterface;
+use App\Genre\DTOs\Responses\GenreResponse;
+use App\Genre\InterfaceRepository\GenreRepositoryInterface;
+use App\Genre\InterfaceServices\GenreServiceInterface;
 use Illuminate\Support\Facades\Cache;
 
 class GenreService implements GenreServiceInterface
