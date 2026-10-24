@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { Link, useParams } from 'react-router'
 import axios from 'axios'
 import AppNav from '../../components/AppNav/AppNav.tsx'
@@ -35,12 +35,13 @@ import mapPinYou from '../../assets/movie/map-pin-you.svg'
 import chatIcon from '../../assets/home/icon-chat.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
-import { getMovieDetails, type MovieDetails as Details } from './movieData.ts'
-import { fetchMovieDetails } from './movieApi.ts'
+import { loadGenres } from '../Discover/discoverApi.ts'
+import { getMovieDetails, type Community, type MovieDetails as Details } from './movieData.ts'
+import { fetchMovieDetails, toDetails, type TmdbMovieDetails as ApiMovie } from './movieApi.ts'
 import styles from './MovieDetails.module.css'
 
 /** What the last request for a TMDB movie returned, tagged with the request it answers. */
-type Loaded = { key: string; details: Details | null; failed: boolean }
+type Loaded = { key: string; movie: ApiMovie | null; failed: boolean }
 
 const MAX_REVIEW = 2000
 
@@ -59,32 +60,34 @@ const PINS = [
   { left: 320, top: 30 },
 ]
 
-function googleCalendarUrl(details: Details) {
+type Premiere = Community['premiere']
+
+function googleCalendarUrl(title: string, premiere: Premiere) {
   const params = new URLSearchParams({
     action: 'TEMPLATE',
-    text: `${details.movie.title} — ${details.premiere.title}`,
-    dates: `${details.premiere.start}/${details.premiere.end}`,
+    text: `${title} — ${premiere.title}`,
+    dates: `${premiere.start}/${premiere.end}`,
   })
   return `https://calendar.google.com/calendar/render?${params}`
 }
 
-function downloadIcs(details: Details) {
+function downloadIcs(slug: string, title: string, premiere: Premiere) {
   const ics = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//WatchWise//EN',
     'BEGIN:VEVENT',
-    `UID:${details.movie.slug}-premiere@watchwise`,
-    `DTSTART:${details.premiere.start}`,
-    `DTEND:${details.premiere.end}`,
-    `SUMMARY:${details.movie.title} — ${details.premiere.title}`,
+    `UID:${slug}-premiere@watchwise`,
+    `DTSTART:${premiere.start}`,
+    `DTEND:${premiere.end}`,
+    `SUMMARY:${title} — ${premiere.title}`,
     'END:VEVENT',
     'END:VCALENDAR',
   ].join('\r\n')
   const url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }))
   const link = document.createElement('a')
   link.href = url
-  link.download = `${details.movie.slug}-premiere.ics`
+  link.download = `${slug}-premiere.ics`
   link.click()
   URL.revokeObjectURL(url)
 }
@@ -105,19 +108,34 @@ function MockMovieDetails({ slug }: { slug: string }) {
 function TmdbMovieDetails({ id }: { id: string }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [retries, setRetries] = useState(0)
+  // Genre names for the "More like this" tiles. Loaded on the side: the movie never waits for them.
+  const [genres, setGenres] = useState<Map<number, string>>(() => new Map())
   const key = `${id}-${retries}`
+
+  useEffect(() => {
+    let active = true
+    loadGenres()
+      .then((map) => active && setGenres(map))
+      .catch((error: unknown) => console.error('Unable to load genre names:', error))
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
     fetchMovieDetails(id, controller.signal)
-      .then((details) => setLoaded({ key, details, failed: false }))
+      .then((movie) => setLoaded({ key, movie, failed: false }))
       .catch((error: unknown) => {
         if (axios.isCancel(error)) return
         console.error('Unable to load the movie:', error)
-        setLoaded({ key, details: null, failed: true })
+        setLoaded({ key, movie: null, failed: true })
       })
     return () => controller.abort()
   }, [id, key])
+
+  const apiMovie = loaded?.key === key ? loaded.movie : null
+  const details = useMemo(() => (apiMovie ? toDetails(apiMovie, genres) : null), [apiMovie, genres])
 
   if (loaded?.key !== key) return <MovieDetailsSkeleton />
 
@@ -148,8 +166,8 @@ function TmdbMovieDetails({ id }: { id: string }) {
     )
   }
 
-  if (!loaded.details) return <Placeholder title="Movie not found" notFound />
-  return <MovieDetailsPage key={id} details={loaded.details} />
+  if (!details) return <Placeholder title="Movie not found" notFound />
+  return <MovieDetailsPage key={id} details={details} />
 }
 
 /** Grey shapes in the page's own layout while a TMDB movie loads, so nothing jumps when it arrives. */
@@ -233,23 +251,26 @@ function MovieDetailsPage({ details }: { details: Details }) {
   const calendarRef = useRef<HTMLElement>(null)
   useEntranceAnimation(pageRef)
 
-  const { movie } = details
+  // WatchWise's own data (reviews, premiere, showtimes, room). Only the design's mock movies have it;
+  // TMDB movies don't, so those sections are hidden rather than filled with sample data.
+  const { movie, community } = details
   // TODO: load and save these through the API once auth is connected.
-  const [userRating, setUserRating] = useState(4)
+  // The mock movies start from the design's state (rated 4, in the watchlist); TMDB movies start empty.
+  const [userRating, setUserRating] = useState(community ? 4 : 0)
   const [hoverRating, setHoverRating] = useState(0)
-  const [onWatchlist, setOnWatchlist] = useState(true)
+  const [onWatchlist, setOnWatchlist] = useState(Boolean(community))
   const [watched, setWatched] = useState(false)
   const [shareNote, setShareNote] = useState('')
   const [playing, setPlaying] = useState(false)
 
-  const [yourReview, setYourReview] = useState<Review | null>(details.yourReview)
+  const [yourReview, setYourReview] = useState<Review | null>(community?.yourReview ?? null)
   const [draft, setDraft] = useState('')
   const [draftRating, setDraftRating] = useState(4)
   const [spoilers, setSpoilers] = useState(false)
   const [sort, setSort] = useState<SortKey>('helpful')
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
 
-  const reviews = [...details.reviews].sort(SORTS[sort].compare)
+  const reviews = [...(community?.reviews ?? [])].sort(SORTS[sort].compare)
   const shownRating = hoverRating || userRating
 
   const scrollTo = (ref: RefObject<HTMLElement | null>) =>
@@ -272,10 +293,10 @@ function MovieDetailsPage({ details }: { details: Details }) {
   const handlePostReview = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const body = draft.trim()
-    if (!body) return
+    if (!body || !community) return
     // TODO: POST the review; sentiment comes back from the backend's sentiment analysis.
     setYourReview({
-      ...details.yourReview,
+      ...community.yourReview,
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       rating: draftRating,
       body: spoilers ? `[Spoiler] ${body}` : body,
@@ -336,14 +357,18 @@ function MovieDetailsPage({ details }: { details: Details }) {
               </p>
 
               <div className={styles.ratings}>
-                <div className={styles.average}>
-                  <span className={styles.averageValue}>{movie.score}</span>
-                  <div className={styles.averageText}>
-                    <RatingStars value={5} label="WatchWise average" />
-                    <span>{details.ratingCount}</span>
-                  </div>
-                </div>
-                <span className={styles.divider} aria-hidden="true" />
+                {community && (
+                  <>
+                    <div className={styles.average}>
+                      <span className={styles.averageValue}>{movie.score}</span>
+                      <div className={styles.averageText}>
+                        <RatingStars value={5} label="WatchWise average" />
+                        <span>{community.ratingCount}</span>
+                      </div>
+                    </div>
+                    <span className={styles.divider} aria-hidden="true" />
+                  </>
+                )}
                 <div className={styles.tmdb}>
                   <span className={styles.ratingLabel}>TMDB</span>
                   <span className={styles.tmdbValue}>{details.tmdbScore}</span>
@@ -413,14 +438,16 @@ function MovieDetailsPage({ details }: { details: Details }) {
                   <img src={listIcon} width={16} height={16} alt="" />
                   Add to list
                 </Link>
-                <button
-                  type="button"
-                  className={styles.iconAction}
-                  aria-label="Add the premiere to your calendar"
-                  onClick={() => scrollTo(calendarRef)}
-                >
-                  <img src={calendarIcon} width={22} height={22} alt="" />
-                </button>
+                {community && (
+                  <button
+                    type="button"
+                    className={styles.iconAction}
+                    aria-label="Add the premiere to your calendar"
+                    onClick={() => scrollTo(calendarRef)}
+                  >
+                    <img src={calendarIcon} width={22} height={22} alt="" />
+                  </button>
+                )}
                 <button type="button" className={styles.iconAction} aria-label="Share" onClick={handleShare}>
                   <img src={shareIcon} width={22} height={22} alt="" />
                 </button>
@@ -521,136 +548,138 @@ function MovieDetailsPage({ details }: { details: Details }) {
               </div>
             </section>
 
-            <section className={styles.reviews} aria-labelledby="reviews-title">
-              <div className={styles.sectionHeader}>
-                <h2 id="reviews-title" className={styles.sectionTitle}>
-                  Reviews
-                </h2>
-                <label className={styles.sort}>
-                  <span className="sr-only">Sort reviews</span>
-                  <select value={sort} onChange={(event) => setSort(event.target.value as SortKey)}>
-                    {Object.entries(SORTS).map(([key, option]) => (
-                      <option key={key} value={key}>
-                        Sort: {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <span aria-hidden="true">▾</span>
-                </label>
-              </div>
-
-              <div className={styles.summary}>
-                <div className={styles.summaryAverage}>
-                  <span className={styles.summaryValue}>{details.reviewSummary.average}</span>
-                  <RatingStars value={5} label="Average review" />
-                  <span className={styles.muted}>{details.reviewSummary.count}</span>
+            {community && (
+              <section className={styles.reviews} aria-labelledby="reviews-title">
+                <div className={styles.sectionHeader}>
+                  <h2 id="reviews-title" className={styles.sectionTitle}>
+                    Reviews
+                  </h2>
+                  <label className={styles.sort}>
+                    <span className="sr-only">Sort reviews</span>
+                    <select value={sort} onChange={(event) => setSort(event.target.value as SortKey)}>
+                      {Object.entries(SORTS).map(([key, option]) => (
+                        <option key={key} value={key}>
+                          Sort: {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span aria-hidden="true">▾</span>
+                  </label>
                 </div>
-                <ul className={styles.distribution} aria-label="Rating distribution">
-                  {details.reviewSummary.distribution.map((percent, index) => (
-                    <li key={index} className={styles.distRow}>
-                      <span className={styles.distStar}>{5 - index}</span>
-                      <span className={styles.track}>
-                        <span className={styles.fill} style={{ width: `${percent}%` }} />
-                      </span>
-                      <span className={styles.muted}>{percent}%</span>
-                    </li>
-                  ))}
-                </ul>
-                <div className={styles.sentiment}>
-                  <p className={styles.sentimentTitle}>Review sentiment</p>
-                  <p className={styles.muted}>Auto-classified with sentiment analysis</p>
-                  <div className={styles.stacked} aria-hidden="true">
-                    <span className={styles.stackPositive} style={{ flexGrow: details.reviewSummary.sentiment.positive }} />
-                    <span className={styles.stackNeutral} style={{ flexGrow: details.reviewSummary.sentiment.neutral }} />
-                    <span className={styles.stackNegative} style={{ flexGrow: details.reviewSummary.sentiment.negative }} />
+  
+                <div className={styles.summary}>
+                  <div className={styles.summaryAverage}>
+                    <span className={styles.summaryValue}>{community.reviewSummary.average}</span>
+                    <RatingStars value={5} label="Average review" />
+                    <span className={styles.muted}>{community.reviewSummary.count}</span>
                   </div>
-                  <ul className={styles.legend}>
-                    {(['positive', 'neutral', 'negative'] as const).map((type) => (
-                      <li key={type}>
-                        <Sentiment type={type} />
-                        <strong>{details.reviewSummary.sentiment[type]}%</strong>
+                  <ul className={styles.distribution} aria-label="Rating distribution">
+                    {community.reviewSummary.distribution.map((percent, index) => (
+                      <li key={index} className={styles.distRow}>
+                        <span className={styles.distStar}>{5 - index}</span>
+                        <span className={styles.track}>
+                          <span className={styles.fill} style={{ width: `${percent}%` }} />
+                        </span>
+                        <span className={styles.muted}>{percent}%</span>
                       </li>
                     ))}
                   </ul>
-                </div>
-              </div>
-
-              <form className={styles.write} onSubmit={handlePostReview} aria-labelledby="write-title">
-                <div className={styles.writeHead}>
-                  <div className={styles.writeWho}>
-                    <span className={styles.avatar} style={{ background: 'var(--accent-mint)' }} aria-hidden="true">
-                      MR
-                    </span>
-                    <h3 id="write-title" className={styles.writeTitle}>
-                      Write a review
-                    </h3>
-                  </div>
-                  <div className={styles.pick}>
-                    <span className={styles.muted}>Your rating</span>
-                    <RatingStars value={draftRating} onChange={setDraftRating} label="Your rating for this review" />
-                  </div>
-                </div>
-                <label className="sr-only" htmlFor="review-text">
-                  Your review
-                </label>
-                <textarea
-                  id="review-text"
-                  className={styles.textarea}
-                  value={draft}
-                  maxLength={MAX_REVIEW}
-                  onChange={(event) => setDraft(event.target.value)}
-                  placeholder="What did you think? Keep it spoiler-free, or tag it below…"
-                />
-                <div className={styles.writeFoot}>
-                  <label className={styles.switch}>
-                    <input
-                      type="checkbox"
-                      role="switch"
-                      checked={spoilers}
-                      onChange={(event) => setSpoilers(event.target.checked)}
-                    />
-                    <span className={styles.switchTrack} aria-hidden="true" />
-                    Contains spoilers
-                  </label>
-                  <div className={styles.writeRight}>
-                    <span className={styles.muted}>
-                      {draft.length} / {MAX_REVIEW}
-                    </span>
-                    <PillButton type="submit" disabled={!draft.trim()}>
-                      Post review
-                    </PillButton>
+                  <div className={styles.sentiment}>
+                    <p className={styles.sentimentTitle}>Review sentiment</p>
+                    <p className={styles.muted}>Auto-classified with sentiment analysis</p>
+                    <div className={styles.stacked} aria-hidden="true">
+                      <span className={styles.stackPositive} style={{ flexGrow: community.reviewSummary.sentiment.positive }} />
+                      <span className={styles.stackNeutral} style={{ flexGrow: community.reviewSummary.sentiment.neutral }} />
+                      <span className={styles.stackNegative} style={{ flexGrow: community.reviewSummary.sentiment.negative }} />
+                    </div>
+                    <ul className={styles.legend}>
+                      {(['positive', 'neutral', 'negative'] as const).map((type) => (
+                        <li key={type}>
+                          <Sentiment type={type} />
+                          <strong>{community.reviewSummary.sentiment[type]}%</strong>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
-              </form>
-
-              {yourReview && (
-                <div className={styles.yourReview}>
-                  <div className={styles.yourHead}>
-                    <span className={styles.yourChip}>Your review</span>
-                    <div className={styles.manage}>
-                      <button type="button" className={styles.edit} onClick={handleEdit}>
-                        <img src={editIcon} width={14} height={14} alt="" />
-                        Edit
-                      </button>
-                      <button type="button" className={styles.delete} onClick={() => setYourReview(null)}>
-                        <img src={trashIcon} width={14} height={14} alt="" />
-                        Delete
-                      </button>
+  
+                <form className={styles.write} onSubmit={handlePostReview} aria-labelledby="write-title">
+                  <div className={styles.writeHead}>
+                    <div className={styles.writeWho}>
+                      <span className={styles.avatar} style={{ background: 'var(--accent-mint)' }} aria-hidden="true">
+                        MR
+                      </span>
+                      <h3 id="write-title" className={styles.writeTitle}>
+                        Write a review
+                      </h3>
+                    </div>
+                    <div className={styles.pick}>
+                      <span className={styles.muted}>Your rating</span>
+                      <RatingStars value={draftRating} onChange={setDraftRating} label="Your rating for this review" />
                     </div>
                   </div>
-                  <ReviewCard review={yourReview} />
-                </div>
-              )}
-
-              {reviews.map((review) => (
-                <ReviewCard key={review.id} review={review} />
-              ))}
-
-              {/* TODO: page through reviews from the API. */}
-              <PillButton variant="outline" className={styles.loadMore}>
-                Load more reviews
-              </PillButton>
-            </section>
+                  <label className="sr-only" htmlFor="review-text">
+                    Your review
+                  </label>
+                  <textarea
+                    id="review-text"
+                    className={styles.textarea}
+                    value={draft}
+                    maxLength={MAX_REVIEW}
+                    onChange={(event) => setDraft(event.target.value)}
+                    placeholder="What did you think? Keep it spoiler-free, or tag it below…"
+                  />
+                  <div className={styles.writeFoot}>
+                    <label className={styles.switch}>
+                      <input
+                        type="checkbox"
+                        role="switch"
+                        checked={spoilers}
+                        onChange={(event) => setSpoilers(event.target.checked)}
+                      />
+                      <span className={styles.switchTrack} aria-hidden="true" />
+                      Contains spoilers
+                    </label>
+                    <div className={styles.writeRight}>
+                      <span className={styles.muted}>
+                        {draft.length} / {MAX_REVIEW}
+                      </span>
+                      <PillButton type="submit" disabled={!draft.trim()}>
+                        Post review
+                      </PillButton>
+                    </div>
+                  </div>
+                </form>
+  
+                {yourReview && (
+                  <div className={styles.yourReview}>
+                    <div className={styles.yourHead}>
+                      <span className={styles.yourChip}>Your review</span>
+                      <div className={styles.manage}>
+                        <button type="button" className={styles.edit} onClick={handleEdit}>
+                          <img src={editIcon} width={14} height={14} alt="" />
+                          Edit
+                        </button>
+                        <button type="button" className={styles.delete} onClick={() => setYourReview(null)}>
+                          <img src={trashIcon} width={14} height={14} alt="" />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                    <ReviewCard review={yourReview} />
+                  </div>
+                )}
+  
+                {reviews.map((review) => (
+                  <ReviewCard key={review.id} review={review} />
+                ))}
+  
+                {/* TODO: page through reviews from the API. */}
+                <PillButton variant="outline" className={styles.loadMore}>
+                  Load more reviews
+                </PillButton>
+              </section>
+            )}
           </div>
 
           <aside className={styles.sidebar} aria-label="Movie details">
@@ -669,107 +698,111 @@ function MovieDetailsPage({ details }: { details: Details }) {
               <span className={styles.source}>Data from TMDB</span>
             </section>
 
-            <section ref={calendarRef} className={styles.calendar} aria-labelledby="premiere-title">
-              <div className={styles.calendarHead}>
-                <span className={styles.calendarIcon} aria-hidden="true">
-                  <img src={calendarInkIcon} width={20} height={20} alt="" />
-                </span>
-                <div>
-                  <h2 id="premiere-title" className={styles.calendarTitle}>
-                    {details.premiere.title}
-                  </h2>
-                  <p className={styles.calendarWhen}>{details.premiere.when}</p>
-                </div>
-              </div>
-              <div className={styles.calendarButtons}>
-                <PillButton href={googleCalendarUrl(details)}>Google Calendar</PillButton>
-                <PillButton variant="outline" onClick={() => downloadIcs(details)}>
-                  Download .ics
-                </PillButton>
-              </div>
-            </section>
-
-            <section className={styles.showtimes} aria-labelledby="showtimes-title">
-              <div className={styles.showtimesHead}>
-                <h2 id="showtimes-title" className={styles.cardTitleSm}>
-                  Showtimes near you
-                </h2>
-                <span className={styles.city}>
-                  <img src={pinIcon} width={14} height={14} alt="" />
-                  {details.city}
-                </span>
-              </div>
-              <div className={styles.map} aria-hidden="true">
-                <img className={styles.mapLayer} src={mapWater} width={388} height={170} alt="" />
-                <img className={styles.mapLayer} src={mapRoads} width={388} height={170} alt="" />
-                {PINS.map((pin) => (
-                  <img
-                    key={`${pin.left}-${pin.top}`}
-                    className={styles.mapPin}
-                    style={{ left: pin.left, top: pin.top }}
-                    src={mapPin}
-                    width={24}
-                    height={24}
-                    alt=""
-                  />
-                ))}
-                <img className={styles.mapPin} style={{ left: 170, top: 120 }} src={mapPinYou} width={24} height={24} alt="" />
-              </div>
-              {details.cinemas.map((cinema) => (
-                <div key={cinema.name} className={styles.cinema}>
-                  <div className={styles.cinemaHead}>
-                    <span className={styles.cinemaName}>{cinema.name}</span>
-                    <span className={styles.muted}>{cinema.distance}</span>
-                  </div>
-                  <div className={styles.times}>
-                    {cinema.times.map((time) => {
-                      const id = `${cinema.name} ${time}`
-                      return (
-                        <button
-                          key={time}
-                          type="button"
-                          className={selectedTime === id ? styles.timeOn : styles.time}
-                          aria-pressed={selectedTime === id}
-                          aria-label={`${time} at ${cinema.name}`}
-                          onClick={() => setSelectedTime(selectedTime === id ? null : id)}
-                        >
-                          {time}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-              <PillButton to="/cinemas" variant="soft">
-                Open cinema map
-              </PillButton>
-            </section>
-
-            <section className={styles.room} aria-labelledby="room-title">
-              <div className={styles.roomHead}>
-                <img src={chatIcon} width={20} height={20} alt="" />
-                <span>LIVE ROOM</span>
-              </div>
-              <h2 id="room-title" className={styles.roomTitle}>
-                {movie.title} — {details.room.title}
-              </h2>
-              <p className={styles.roomText}>{details.room.text}</p>
-              <div className={styles.roomFoot}>
-                <div className={styles.guests} aria-label={`${details.room.guests.length + details.room.extra} fans online`}>
-                  {details.room.guests.map((guest) => (
-                    <span key={guest.initials} className={styles.guest} style={{ background: guest.color }} aria-hidden="true">
-                      {guest.initials}
+            {community && (
+              <>
+                <section ref={calendarRef} className={styles.calendar} aria-labelledby="premiere-title">
+                  <div className={styles.calendarHead}>
+                    <span className={styles.calendarIcon} aria-hidden="true">
+                      <img src={calendarInkIcon} width={20} height={20} alt="" />
                     </span>
+                    <div>
+                      <h2 id="premiere-title" className={styles.calendarTitle}>
+                        {community.premiere.title}
+                      </h2>
+                      <p className={styles.calendarWhen}>{community.premiere.when}</p>
+                    </div>
+                  </div>
+                  <div className={styles.calendarButtons}>
+                    <PillButton href={googleCalendarUrl(movie.title, community.premiere)}>Google Calendar</PillButton>
+                    <PillButton variant="outline" onClick={() => downloadIcs(movie.slug, movie.title, community.premiere)}>
+                      Download .ics
+                    </PillButton>
+                  </div>
+                </section>
+    
+                <section className={styles.showtimes} aria-labelledby="showtimes-title">
+                  <div className={styles.showtimesHead}>
+                    <h2 id="showtimes-title" className={styles.cardTitleSm}>
+                      Showtimes near you
+                    </h2>
+                    <span className={styles.city}>
+                      <img src={pinIcon} width={14} height={14} alt="" />
+                      {community.city}
+                    </span>
+                  </div>
+                  <div className={styles.map} aria-hidden="true">
+                    <img className={styles.mapLayer} src={mapWater} width={388} height={170} alt="" />
+                    <img className={styles.mapLayer} src={mapRoads} width={388} height={170} alt="" />
+                    {PINS.map((pin) => (
+                      <img
+                        key={`${pin.left}-${pin.top}`}
+                        className={styles.mapPin}
+                        style={{ left: pin.left, top: pin.top }}
+                        src={mapPin}
+                        width={24}
+                        height={24}
+                        alt=""
+                      />
+                    ))}
+                    <img className={styles.mapPin} style={{ left: 170, top: 120 }} src={mapPinYou} width={24} height={24} alt="" />
+                  </div>
+                  {community.cinemas.map((cinema) => (
+                    <div key={cinema.name} className={styles.cinema}>
+                      <div className={styles.cinemaHead}>
+                        <span className={styles.cinemaName}>{cinema.name}</span>
+                        <span className={styles.muted}>{cinema.distance}</span>
+                      </div>
+                      <div className={styles.times}>
+                        {cinema.times.map((time) => {
+                          const id = `${cinema.name} ${time}`
+                          return (
+                            <button
+                              key={time}
+                              type="button"
+                              className={selectedTime === id ? styles.timeOn : styles.time}
+                              aria-pressed={selectedTime === id}
+                              aria-label={`${time} at ${cinema.name}`}
+                              onClick={() => setSelectedTime(selectedTime === id ? null : id)}
+                            >
+                              {time}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
                   ))}
-                  <span className={styles.guest} style={{ background: 'var(--surface-violet-tint)' }} aria-hidden="true">
-                    +{details.room.extra}
-                  </span>
-                </div>
-                <PillButton to="/rooms" variant="accent">
-                  Join room
-                </PillButton>
-              </div>
-            </section>
+                  <PillButton to="/cinemas" variant="soft">
+                    Open cinema map
+                  </PillButton>
+                </section>
+    
+                <section className={styles.room} aria-labelledby="room-title">
+                  <div className={styles.roomHead}>
+                    <img src={chatIcon} width={20} height={20} alt="" />
+                    <span>LIVE ROOM</span>
+                  </div>
+                  <h2 id="room-title" className={styles.roomTitle}>
+                    {movie.title} — {community.room.title}
+                  </h2>
+                  <p className={styles.roomText}>{community.room.text}</p>
+                  <div className={styles.roomFoot}>
+                    <div className={styles.guests} aria-label={`${community.room.guests.length + community.room.extra} fans online`}>
+                      {community.room.guests.map((guest) => (
+                        <span key={guest.initials} className={styles.guest} style={{ background: guest.color }} aria-hidden="true">
+                          {guest.initials}
+                        </span>
+                      ))}
+                      <span className={styles.guest} style={{ background: 'var(--surface-violet-tint)' }} aria-hidden="true">
+                        +{community.room.extra}
+                      </span>
+                    </div>
+                    <PillButton to="/rooms" variant="accent">
+                      Join room
+                    </PillButton>
+                  </div>
+                </section>
+              </>
+            )}
           </aside>
         </div>
 

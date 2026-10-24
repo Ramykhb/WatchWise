@@ -21,8 +21,10 @@ require __DIR__.'/auth_flows.php';
 Route::get('/weather', WeatherController::class);
 Route::post('/weather-mood', WeatherMoodController::class);
 Route::get('/movie-recommendations', MovieRecommendationController::class);
-Route::get('/movies', [MovieController::class, 'index']);
-Route::get('/movies/search', [MovieController::class, 'search']);
-Route::get('/movies/discover', [MovieController::class, 'discover']);
-Route::get('/movies/{id}', [MovieController::class, 'show'])->whereNumber('id');
-Route::get('/genres', [GenreController::class, 'index']);
+Route::middleware('throttle:tmdb')->group(function () {
+    Route::get('/movies', [MovieController::class, 'index']);
+    Route::get('/movies/search', [MovieController::class, 'search']);
+    Route::get('/movies/discover', [MovieController::class, 'discover']);
+    Route::get('/movies/{id}', [MovieController::class, 'show'])->whereNumber('id');
+    Route::get('/genres', [GenreController::class, 'index']);
+});

@@ -124,4 +124,37 @@ class MovieDetailsTest extends TestCase
     {
         $this->getJson('/api/movies/abc')->assertNotFound();
     }
+
+    public function test_movie_details_are_cached_after_the_first_request(): void
+    {
+        Http::fake(['https://api.themoviedb.org/*' => Http::response($this->tmdbMovie())]);
+
+        $this->getJson('/api/movies/81920')->assertOk();
+        $this->getJson('/api/movies/81920')->assertOk()->assertJsonPath('title', 'Neon Tide');
+
+        Http::assertSentCount(1);
+    }
+
+    public function test_an_unknown_movie_is_not_cached(): void
+    {
+        Http::fakeSequence('https://api.themoviedb.org/*')
+            ->push(['status_message' => 'Not found'], 404)
+            ->push($this->tmdbMovie());
+
+        $this->getJson('/api/movies/81920')->assertNotFound();
+        $this->getJson('/api/movies/81920')->assertOk();
+    }
+
+    public function test_movie_routes_are_rate_limited_per_ip(): void
+    {
+        Http::fake(['https://api.themoviedb.org/*' => Http::response($this->tmdbMovie())]);
+
+        for ($request = 1; $request <= 60; $request++) {
+            $this->getJson('/api/movies/81920')->assertOk();
+        }
+
+        $this->getJson('/api/movies/81920')->assertTooManyRequests();
+        // The bucket is shared by every TMDB route.
+        $this->getJson('/api/genres')->assertTooManyRequests();
+    }
 }

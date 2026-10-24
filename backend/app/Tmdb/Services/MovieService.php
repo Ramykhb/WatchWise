@@ -14,6 +14,7 @@ use App\Tmdb\DTOs\Responses\PersonResponse;
 use App\Tmdb\DTOs\Responses\TrailerResponse;
 use App\Tmdb\InterfaceRepository\MovieRepositoryInterface;
 use App\Tmdb\InterfaceServices\MovieServiceInterface;
+use Illuminate\Support\Facades\Cache;
 
 class MovieService implements MovieServiceInterface
 {
@@ -23,6 +24,10 @@ class MovieService implements MovieServiceInterface
     private const CAST_LIMIT = 12;
 
     private const SIMILAR_LIMIT = 10;
+
+    private const DETAILS_CACHE_PREFIX = 'tmdb.movie.';
+
+    private const DETAILS_CACHE_HOURS = 6;
 
     public function __construct(private readonly MovieRepositoryInterface $movies) {}
 
@@ -43,7 +48,9 @@ class MovieService implements MovieServiceInterface
 
     public function find(int $id): MovieDetailsResponse
     {
-        $movie = $this->movies->find($id);
+        // A movie's details rarely change, so repeat visits don't spend the TMDB quota.
+        // Only successful answers are cached: MovieNotFound and TmdbUnavailable pass straight through.
+        $movie = Cache::remember(self::DETAILS_CACHE_PREFIX.$id, now()->addHours(self::DETAILS_CACHE_HOURS), fn () => $this->movies->find($id));
 
         // TMDB's recommendations match far better than its "similar" list, which is only the fallback.
         $related = ($movie['recommendations']['results'] ?? []) ?: ($movie['similar']['results'] ?? []);
