@@ -21,7 +21,7 @@ use App\Policies\NotificationPolicy;
 use App\Policies\ReviewPolicy;
 use App\Policies\UserPolicy;
 use App\Policies\UserPreferencePolicy;
-use App\Policies\WatchlistPolicy;
+use App\Watchlist\Policies\WatchlistPolicy;
 use Illuminate\Auth\Access\Gate as AccessGate;
 use Illuminate\Contracts\Auth\Access\Gate as GateContract;
 use Illuminate\Support\Facades\Gate;
