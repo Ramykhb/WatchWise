@@ -2,6 +2,7 @@
 
 namespace App\Tmdb\Support;
 
+use App\Tmdb\Exceptions\TmdbNotFound;
 use App\Tmdb\Exceptions\TmdbUnavailable;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
@@ -15,6 +16,7 @@ class TmdbHttpClient
      *
      * @param  array<string, mixed>  $query
      *
+     * @throws TmdbNotFound when TMDB answers 404
      * @throws TmdbUnavailable
      */
     public function get(string $path, array $query = []): Response
@@ -28,7 +30,13 @@ class TmdbHttpClient
                     ...$query,
                 ])
                 ->throw();
-        } catch (ConnectionException|RequestException $exception) {
+        } catch (RequestException $exception) {
+            if ($exception->response->notFound()) {
+                throw new TmdbNotFound($path);
+            }
+
+            throw TmdbUnavailable::fromFailure($path, $exception);
+        } catch (ConnectionException $exception) {
             throw TmdbUnavailable::fromFailure($path, $exception);
         }
     }

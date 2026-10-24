@@ -2,25 +2,21 @@ import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import type { Review } from '../../components/ReviewCard/ReviewCard.tsx'
 import { MOVIES, type Gradient } from '../Home/homeData.ts'
 
-// Mock content from the Figma "Movie Details — Neon Tide" frame. Every movie reuses it until the
-// backend serves real details from TMDB; only the title, poster and score come from the tile data.
+// Mock content from the Figma "Movie Details — Neon Tide" frame. The design's mock movies (/movies/neon-tide)
+// still use it; TMDB movies (/movies/438631) load their details through movieApi.ts.
 
-export type CastMember = { slug: string; initials: string; name: string; role: string; gradient: Gradient }
+/** `slug` is empty for people the Person page can't open yet; `photoUrl` replaces the initials. */
+export type CastMember = { slug: string; initials: string; name: string; role: string; gradient: Gradient; photoUrl?: string }
 
 export type Cinema = { name: string; distance: string; times: string[] }
 
-export type MovieDetails = {
-  movie: Movie
-  tags: { label: string; highlight?: boolean }[]
-  year: string
-  runtime: string
-  language: string
-  director: string
+/**
+ * WatchWise's own data about a movie: reviews and ratings, premiere, showtimes and the live room.
+ * No API serves it yet, so only the design's mock movies have it; TMDB movies leave it out and
+ * the page hides those sections rather than show sample data.
+ */
+export type Community = {
   ratingCount: string
-  tmdbScore: string
-  overview: string
-  cast: CastMember[]
-  trailer: { label: string; gradient: Gradient }
   reviewSummary: {
     average: string
     count: string
@@ -30,15 +26,30 @@ export type MovieDetails = {
   }
   reviews: Review[]
   yourReview: Review
-  facts: { label: string; value: string }[]
   premiere: { title: string; when: string; start: string; end: string }
   city: string
   cinemas: Cinema[]
   room: { title: string; text: string; guests: { initials: string; color: string }[]; extra: number }
-  similar: Movie[]
 }
 
-const NEON_TIDE: Omit<MovieDetails, 'movie' | 'similar'> = {
+export type MovieDetails = {
+  movie: Movie
+  tags: { label: string; highlight?: boolean }[]
+  year: string
+  runtime: string
+  language: string
+  director: string
+  tmdbScore: string
+  overview: string
+  cast: CastMember[]
+  /** With a YouTube key the trailer plays on the page; the backdrop replaces the gradient art. */
+  trailer: { label: string; gradient: Gradient; youtubeKey?: string; backdropUrl?: string }
+  facts: { label: string; value: string }[]
+  similar: Movie[]
+  community?: Community
+}
+
+const NEON_TIDE: Omit<MovieDetails, 'movie' | 'similar' | 'community'> & Community = {
   tags: [{ label: '#1 Trending', highlight: true }, { label: 'Sci-fi' }, { label: 'Adventure' }, { label: 'PG-13' }],
   year: '2026',
   runtime: '2h 14m',
@@ -147,9 +158,11 @@ const BY_SLUG = new Map<string, Movie>(Object.values(MOVIES).map((movie) => [mov
 export function getMovieDetails(slug: string | undefined): MovieDetails | undefined {
   const movie = slug ? BY_SLUG.get(slug) : undefined
   if (!movie) return undefined
+  const { ratingCount, reviewSummary, reviews, yourReview, premiere, city, cinemas, room, ...core } = NEON_TIDE
   return {
-    ...NEON_TIDE,
+    ...core,
     movie,
     similar: SIMILAR.filter((m) => m.slug !== movie.slug).slice(0, 6),
+    community: { ratingCount, reviewSummary, reviews, yourReview, premiere, city, cinemas, room },
   }
 }

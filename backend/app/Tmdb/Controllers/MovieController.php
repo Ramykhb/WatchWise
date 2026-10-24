@@ -36,4 +36,12 @@ class MovieController extends Controller
     {
         return response()->json($this->movies->discover($request->toDto()));
     }
+
+    /**
+     * One movie with its cast, directors, trailer, certification and related movies.
+     */
+    public function show(int $id): JsonResponse
+    {
+        return response()->json($this->movies->find($id));
+    }
 }
