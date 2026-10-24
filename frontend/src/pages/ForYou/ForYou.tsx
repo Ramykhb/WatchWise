@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import axios from "axios";
 import { Link } from "react-router";
 import {
   Sun,
@@ -23,6 +22,7 @@ import rainSmIcon from "../../assets/foryou/icon-rain-sm.svg";
 import sparkleSmIcon from "../../assets/foryou/icon-sparkle-sm.svg";
 import usersIcon from "../../assets/foryou/icon-users.svg";
 import { useEntranceAnimation } from "../../hooks/useEntranceAnimation.ts";
+import { api } from "../../lib/api.ts";
 import {
   PROFILE,
   SHELVES,
@@ -38,8 +38,6 @@ const SHELF_ICONS: Record<Shelf["icon"], string> = {
   sparkle: sparkleSmIcon,
   users: usersIcon,
 };
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 type WeatherResponse = {
   location: {
@@ -108,22 +106,19 @@ export default function ForYou() {
       setMoodLoading(true);
 
       try {
-        const { data } = await axios.get<WeatherResponse>(
-          `${BACKEND_URL}/api/weather`,
-          {
-            params: {
-              ...(latitude !== undefined && longitude !== undefined
-                ? { latitude, longitude }
-                : {}),
-            },
+        const { data } = await api.get<WeatherResponse>('/weather', {
+          params: {
+            ...(latitude !== undefined && longitude !== undefined
+              ? { latitude, longitude }
+              : {}),
           },
-        );
+        });
         setWeather(data);
         setWeatherLoading(false);
 
         try {
-          const { data: moodData } = await axios.post<WeatherMood>(
-            `${BACKEND_URL}/api/weather-mood`,
+          const { data: moodData } = await api.post<WeatherMood>(
+            '/weather-mood',
             {
               condition: weatherCondition(data.current.weather_code),
               temperature: data.current.temperature_2m,

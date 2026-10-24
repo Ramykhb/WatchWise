@@ -35,7 +35,7 @@ export default function ForgotPassword() {
     setError(undefined)
     setSubmitting(true)
     try {
-      await authApi.post('/forgot-password', { email })
+      await authApi.post('/auth/forgot-password', { email })
       setSentTo(email)
     } catch (requestError) {
       setError(apiErrorMessage(requestError, 'Unable to send a reset link. Please try again.'))
