@@ -1,14 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { authApi, type AuthPayload, type AuthUser } from '../lib/auth.ts'
-
-type AuthContextValue = {
-  user: AuthUser | null
-  loading: boolean
-  setUser: (user: AuthUser | null) => void
-  logout: () => Promise<void>
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null)
+import { clearNotifications } from '../pages/Notifications/notificationsStore.ts'
+import { AuthContext } from './useAuth.ts'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -36,15 +29,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(async () => {
-    try { await authApi.post('/logout') } finally { setUser(null) }
+    try {
+      await authApi.post('/logout')
+    } finally {
+      clearNotifications()
+      setUser(null)
+    }
   }, [])
   const value = useMemo(() => ({ user, loading, setUser, logout }), [user, loading, logout])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) throw new Error('useAuth must be used within AuthProvider')
-  return context
 }

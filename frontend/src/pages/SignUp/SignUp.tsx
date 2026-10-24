@@ -23,7 +23,7 @@ import { AUTH_SWAP_STATE as SWAP, useAuthSwap } from '../../hooks/useAuthSwap.ts
 import { LAST_LAP, NEON_TIDE, PAPER_MOON } from '../authPosters.ts'
 import styles from './SignUp.module.css'
 import { apiErrorMessage, authApi, type AuthPayload } from '../../lib/auth.ts'
-import { useAuth } from '../../contexts/AuthContext.tsx'
+import { useAuth } from '../../contexts/useAuth.ts'
 
 const PROVIDERS: SocialProvider[] = ['google', 'github', 'discord']
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/

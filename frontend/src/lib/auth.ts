@@ -11,8 +11,13 @@ export const authApi = axios.create({
 export type AuthUser = {
   id: number
   name: string
+  username: string
   email: string
+  avatar: string | null
+  bio: string | null
+  location: string | null
   role: string
+  profile_visibility: string
   is_active: boolean
 }
 

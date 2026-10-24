@@ -18,10 +18,13 @@ import crownYellowIcon from '../../assets/night/icon-crown-yellow.svg'
 import crownRowIcon from '../../assets/night/icon-crown-violet-bg.svg'
 import xInkIcon from '../../assets/night/icon-x-ink.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { MOVIES, gradientCss } from '../Home/homeData.ts'
-import { FRIENDS, PAST, YOU, dateTile, formatWhen, type Guest, type Night } from './nightsData.ts'
-import { getNightDetail, movieInfo, type Candidate, type NightDetail, type Rsvp } from './nightDetailData.ts'
-import { useNights } from './nightsStore.ts'
+import { gradientCss } from '../Home/homeData.ts'
+import { useAuth } from '../../contexts/useAuth.ts'
+import { api, isStatus, useApi } from '../../lib/api.ts'
+import { PICKABLE_MOVIES, movieFor, tmdbIdOf } from '../../lib/movies.ts'
+import type { ApiMember, ApiNight } from '../../lib/types.ts'
+import { dateTile, formatWhen, toGuest, toNight, type Night } from './nightsData.ts'
+import { apiRsvp, toNightDetail, type NightDetail, type Rsvp } from './nightDetailData.ts'
 import styles from './NightDetail.module.css'
 
 const RSVP_OPTIONS: { id: Exclude<Rsvp, 'pending'>; label: string; icon?: string }[] = [
@@ -57,62 +60,75 @@ function calendarUrl(night: Night, detail: NightDetail, where: string) {
 
 export default function NightDetailRoute() {
   const { slug } = useParams()
-  const { upcoming, invitations } = useNights()
-  const night = [...upcoming, ...PAST, ...invitations.map((i) => i.night)].find((n) => n.slug === slug)
-  if (!night) return <Placeholder title="Movie night not found" notFound />
-  // Keyed by slug so votes and RSVP reset when moving between nights.
-  return <NightDetailPage key={night.slug} night={night} />
+  const { user } = useAuth()
+  const { data, error, setData } = useApi<{ night: ApiNight }>(`/movie-nights/${Number.parseInt(slug ?? '', 10)}`)
+  // Nights you are not part of answer 403; treat them like missing ones.
+  if (isStatus(error, 404) || isStatus(error, 403)) return <Placeholder title="Movie night not found" notFound />
+  if (error) return <Placeholder title="Couldn't load this movie night" />
+  if (!data) return null
+  // Keyed by id so open popovers reset when moving between nights.
+  return (
+    <NightDetailPage
+      key={data.night.id}
+      night={toNight(data.night, user?.id)}
+      detail={toNightDetail(data.night, user?.id)}
+      onChange={(night) => setData({ night })}
+    />
+  )
 }
 
-function NightDetailPage({ night }: { night: Night }) {
+function NightDetailPage({ night, detail, onChange }: { night: Night; detail: NightDetail; onChange: (night: ApiNight) => void }) {
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
+  const { user } = useAuth()
 
-  const [detail] = useState(() => getNightDetail(night))
-  // TODO: read and write RSVPs, votes and suggestions through the movie nights API.
-  const [rsvp, setRsvp] = useState<Rsvp>(detail.guests.find((g) => g.guest === YOU)?.rsvp ?? 'pending')
-  const [candidates, setCandidates] = useState<Candidate[]>(detail.candidates)
-  const [invited, setInvited] = useState<Guest[]>([])
-  const [closed, setClosed] = useState(night.status === 'picked')
   const [suggesting, setSuggesting] = useState(false)
   const [inviting, setInviting] = useState(false)
   const [shareNote, setShareNote] = useState('')
+  const [actionError, setActionError] = useState('')
 
+  /** Every change goes through the API, which answers with the updated night. */
+  const save = (request: Promise<{ data: { night: ApiNight } }>) => {
+    setActionError('')
+    request.then((response) => onChange(response.data.night)).catch(() => setActionError("Couldn't save that. Please try again."))
+  }
+
+  const { candidates, closed } = detail
+  const rsvp = detail.myRsvp
   const where = night.online ? 'Online' : (detail.where ?? night.where)
-  const myVote = candidates.find((c) => c.voters.includes(YOU))?.slug
+  const myVote = detail.myVote
   const topVotes = Math.max(0, ...candidates.map((c) => c.voters.length))
-  const leaders = candidates.filter((c) => topVotes > 0 && c.voters.length === topVotes)
-  const winner = leaders[0] ? movieInfo(leaders[0].slug) : undefined
+  const leaders = detail.winner
+    ? candidates.filter((c) => c.tmdbId === detail.winner)
+    : candidates.filter((c) => topVotes > 0 && c.voters.length === topVotes)
+  const winner = leaders[0] ? movieFor(leaders[0].tmdbId) : undefined
   const voted = candidates.reduce((sum, c) => sum + c.voters.length, 0)
 
-  const guests = [
-    ...detail.guests.map((g) => (g.guest === YOU ? { ...g, rsvp } : g)),
-    ...invited.map((guest) => ({ guest, rsvp: 'pending' as Rsvp })),
-  ]
+  const guests = detail.guests
   const count = (status: Rsvp) => guests.filter((g) => g.rsvp === status).length
   const summary = [
-    { label: 'going', n: count('going') + detail.hidden.going, className: styles.chipGoing },
+    { label: 'going', n: count('going'), className: styles.chipGoing },
     { label: 'maybe', n: count('maybe'), className: styles.chipPending },
-    { label: 'pending', n: count('pending') + detail.hidden.pending, className: styles.chipPending },
+    { label: 'pending', n: count('pending'), className: styles.chipPending },
     { label: 'declined', n: count('declined'), className: styles.chipDeclined },
   ].filter((s) => s.n > 0)
 
-  const vote = (slug: string) =>
-    setCandidates((list) =>
-      list.map((c) => {
-        const without = c.voters.filter((v) => v !== YOU)
-        // Clicking your current vote takes it back; otherwise the vote moves here (one vote each).
-        return c.slug === slug && myVote !== slug ? { ...c, voters: [...without, YOU] } : { ...c, voters: without }
-      }),
+  // One vote each; voting for another film moves it. Suggesting a film also votes for it.
+  const vote = (tmdbId: number) => {
+    if (tmdbId !== myVote) save(api.put(`/movie-nights/${night.id}/vote`, { tmdb_id: tmdbId }))
+  }
+  const setRsvp = (option: Exclude<Rsvp, 'pending'>) => save(api.put(`/movie-nights/${night.id}/rsvp`, { status: apiRsvp(option) }))
+  const toggleVoting = () =>
+    save(
+      api.patch(`/movie-nights/${night.id}`, closed ? { status: 'pending', winning_tmdb_id: null } : { status: 'confirmed', winning_tmdb_id: leaders[0]?.tmdbId ?? null }),
     )
 
-  const suggestable = Object.values(MOVIES)
-    .map((m) => m.slug)
-    .filter((slug) => !candidates.some((c) => c.slug === slug))
-  const invitable = FRIENDS.filter(
-    // Guest names can be longer ("Omar K."), so match on the first name.
-    (f) => !guests.some((g) => g.guest.name.split(' ')[0] === f.name) && !invited.includes(f),
-  )
+  // The host can invite more of the people they follow.
+  const following = useApi<{ users: ApiMember[] }>(`/users/${user?.username ?? ''}/following`)
+  const suggestable = PICKABLE_MOVIES.filter((m) => !candidates.some((c) => c.tmdbId === tmdbIdOf(m)))
+  const invitable = detail.isHost
+    ? (following.data?.users ?? []).filter((m) => !guests.some((g) => g.guest.id === m.id)).map((m) => toGuest(m, user?.id))
+    : []
 
   const handleShare = async () => {
     const url = window.location.href
@@ -133,9 +149,7 @@ function NightDetailPage({ night }: { night: Night }) {
     ? winner
       ? `Voting closed · ${winner.title} wins`
       : 'Voting closed'
-    : detail.closesIn
-      ? `Voting open · closes in ${detail.closesIn}`
-      : night.statusLabel
+    : night.statusLabel
 
   return (
     <div ref={pageRef} className={styles.page}>
@@ -154,7 +168,7 @@ function NightDetailPage({ night }: { night: Night }) {
                   <img src={clockIcon} width={14} height={14} alt="" />
                   {statusText}
                 </span>
-                <span className={styles.hostChip}>Hosted by {detail.host === YOU ? 'you' : detail.host.name}</span>
+                <span className={styles.hostChip}>Hosted by {detail.isHost ? 'you' : detail.host.name}</span>
               </div>
               <SplitHeadline id="night-title" className={styles.title} lines={[{ text: night.title }]} />
               <ul className={styles.meta}>
@@ -176,6 +190,7 @@ function NightDetailPage({ night }: { night: Night }) {
                 )}
               </ul>
               <div className={styles.actions}>
+                {rsvp !== null && (
                 <div className={styles.rsvp} role="radiogroup" aria-label="Your RSVP">
                   {RSVP_OPTIONS.map((option) => (
                     <button
@@ -191,6 +206,7 @@ function NightDetailPage({ night }: { night: Night }) {
                     </button>
                   ))}
                 </div>
+                )}
                 <a className={styles.heroBtn} href={calendarUrl(night, detail, where)} target="_blank" rel="noreferrer">
                   <img src={calendarCreamIcon} width={16} height={16} alt="" />
                   Add to calendar
@@ -200,7 +216,7 @@ function NightDetailPage({ night }: { night: Night }) {
                   Share invite
                 </button>
                 <span className={styles.shareNote} role="status">
-                  {shareNote}
+                  {actionError || shareNote}
                 </span>
               </div>
             </div>
@@ -216,7 +232,7 @@ function NightDetailPage({ night }: { night: Night }) {
                   Shortlist &amp; votes
                 </h2>
                 <p className={styles.sectionText}>
-                  {voted} of {detail.totalGuests} guests have voted · one vote each
+                  {voted} of {count('going') + count('maybe')} guests have voted · one vote each
                 </p>
               </div>
               {!closed && suggestable.length > 0 && (
@@ -226,23 +242,20 @@ function NightDetailPage({ night }: { night: Night }) {
                   </PillButton>
                   {suggesting && (
                     <ul className={styles.popover}>
-                      {suggestable.map((slug) => {
-                        const movie = movieInfo(slug)!
-                        return (
-                          <li key={slug}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCandidates((list) => [...list, { slug, suggestedBy: 'you', voters: [] }])
-                                setSuggesting(false)
-                              }}
-                            >
-                              <span className={styles.popThumb} style={{ background: gradientCss(movie.gradient) }} aria-hidden="true" />
-                              {movie.title}
-                            </button>
-                          </li>
-                        )
-                      })}
+                      {suggestable.map((movie) => (
+                        <li key={movie.slug}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              vote(tmdbIdOf(movie))
+                              setSuggesting(false)
+                            }}
+                          >
+                            <span className={styles.popThumb} style={{ background: gradientCss(movie.gradient) }} aria-hidden="true" />
+                            {movie.title}
+                          </button>
+                        </li>
+                      ))}
                     </ul>
                   )}
                 </div>
@@ -251,13 +264,12 @@ function NightDetailPage({ night }: { night: Night }) {
 
             <ul className={styles.candidates}>
               {candidates.map((candidate) => {
-                const movie = movieInfo(candidate.slug)
-                if (!movie) return null
+                const movie = movieFor(candidate.tmdbId)
                 const leading = leaders.includes(candidate)
-                const mine = myVote === candidate.slug
+                const mine = myVote === candidate.tmdbId
                 const width = topVotes > 0 ? (candidate.voters.length / topVotes) * 80 : 0
                 return (
-                  <li key={candidate.slug} className={leading ? styles.candidateLeading : styles.candidate}>
+                  <li key={candidate.tmdbId} className={leading ? styles.candidateLeading : styles.candidate}>
                     <span className={styles.thumb} style={{ background: gradientCss(movie.gradient) }} aria-hidden="true" />
                     <div className={styles.candidateInfo}>
                       <div className={styles.candidateTitle}>
@@ -270,7 +282,7 @@ function NightDetailPage({ night }: { night: Night }) {
                         )}
                       </div>
                       <p className={styles.candidateMeta}>
-                        {[movie.meta, candidate.runtime, `suggested by ${candidate.suggestedBy}`].filter(Boolean).join(' · ')}
+                        {[movie.meta, `suggested by ${candidate.suggestedBy}`].join(' · ')}
                       </p>
                       <div className={styles.votes}>
                         <span className={styles.track}>
@@ -282,7 +294,7 @@ function NightDetailPage({ night }: { night: Night }) {
                         {candidate.voters.length > 0 && (
                           <span className={styles.faces}>
                             {candidate.voters.slice(0, 3).map((voter) => (
-                              <span key={voter.initials + voter.name} className={styles.face} style={{ background: voter.color }} title={voter.name}>
+                              <span key={voter.id} className={styles.face} style={{ background: voter.color }} title={voter.name}>
                                 {voter.initials}
                               </span>
                             ))}
@@ -296,12 +308,12 @@ function NightDetailPage({ night }: { night: Night }) {
                       </div>
                     </div>
                     {mine ? (
-                      <button type="button" className={styles.yourVote} disabled={closed} onClick={() => vote(candidate.slug)} aria-pressed="true">
+                      <button type="button" className={styles.yourVote} disabled={closed} aria-pressed="true">
                         <img src={checkIcon} width={14} height={14} alt="" />
                         Your vote
                       </button>
                     ) : (
-                      <PillButton variant="soft" disabled={closed} onClick={() => vote(candidate.slug)}>
+                      <PillButton variant="soft" disabled={closed} onClick={() => vote(candidate.tmdbId)}>
                         Vote<span className="sr-only"> for {movie.title}</span>
                       </PillButton>
                     )}
@@ -329,8 +341,7 @@ function NightDetailPage({ night }: { night: Night }) {
                   </>
                 )}
               </div>
-              {/* TODO: only the host can close voting once auth exists. */}
-              <PillButton onClick={() => setClosed((v) => !v)}>{closed ? 'Reopen voting' : 'Close voting now'}</PillButton>
+              {detail.isHost && <PillButton onClick={toggleVoting}>{closed ? 'Reopen voting' : 'Close voting now'}</PillButton>}
             </div>
           </section>
 
@@ -348,11 +359,11 @@ function NightDetailPage({ night }: { night: Night }) {
                     {inviting && (
                       <ul className={`${styles.popover} ${styles.popoverRight}`}>
                         {invitable.map((friend) => (
-                          <li key={friend.initials}>
+                          <li key={friend.id}>
                             <button
                               type="button"
                               onClick={() => {
-                                setInvited((list) => [...list, friend])
+                                save(api.post(`/movie-nights/${night.id}/invites`, { invitees: [friend.handle] }))
                                 setInviting(false)
                               }}
                             >
@@ -376,11 +387,10 @@ function NightDetailPage({ night }: { night: Night }) {
                 ))}
               </ul>
               <ul className={styles.guestList}>
-                {guests.map(({ guest, rsvp: status }) => {
+                {guests.map(({ guest, rsvp: status, isHost }) => {
                   const chip = RSVP_CHIP[status]
-                  const isHost = guest.initials === detail.host.initials && guest.color === detail.host.color && guest !== YOU
                   return (
-                    <li key={guest.initials + guest.name} className={styles.guest}>
+                    <li key={guest.id} className={styles.guest}>
                       <span className={styles.avatar} style={{ background: guest.color }} aria-hidden="true">
                         {guest.initials}
                       </span>
