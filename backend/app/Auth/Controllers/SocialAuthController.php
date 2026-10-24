@@ -31,6 +31,19 @@ class SocialAuthController extends Controller
     {
         $this->assertProvider($provider);
 
+        $credentials = config("services.{$provider}");
+        abort_if(
+            ! is_array($credentials)
+                || ! is_string($credentials['client_id'] ?? null)
+                || trim($credentials['client_id']) === ''
+                || str_contains(strtoupper($credentials['client_id']), 'CHANGE_ME')
+                || ! is_string($credentials['client_secret'] ?? null)
+                || trim($credentials['client_secret']) === ''
+                || str_contains(strtoupper($credentials['client_secret']), 'CHANGE_ME'),
+            503,
+            ucfirst($provider).' sign-in is not configured. Add valid OAuth client credentials to the backend environment.'
+        );
+
         $state = Str::random(40);
 
         return Socialite::driver($provider)

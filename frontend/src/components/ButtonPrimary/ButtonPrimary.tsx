@@ -7,9 +7,10 @@ type CommonProps = {
   /** Stretch to the container width with the arrow pushed to the end (auth forms). */
   fullWidth?: boolean
   className?: string
+  disabled?: boolean
 }
 
-type LinkProps = CommonProps & { to: string; type?: never; disabled?: never }
+type LinkProps = CommonProps & { to: string; type?: never }
 type ButtonProps = CommonProps & { to?: never; type?: 'button' | 'submit'; disabled?: boolean }
 
 /** Pill-shaped primary call to action with trailing arrow. */
@@ -34,7 +35,7 @@ export default function ButtonPrimary(props: LinkProps | ButtonProps) {
   }
 
   return (
-    <button type={props.type ?? 'button'} disabled={props.disabled} className={classes}>
+    <button type={props.type ?? 'button'} disabled={props.disabled} className={classes} aria-busy={props.disabled || undefined}>
       {content}
     </button>
   )

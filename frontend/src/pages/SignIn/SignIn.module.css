@@ -156,6 +156,11 @@
   color: var(--ink-600);
 }
 
+.formError {
+  color: #c4291e;
+  font-size: 14px;
+}
+
 /* ---------- Artboard (720 x 942, origin = top-left of the right half) ---------- */
 .cardLastLap,
 .cardPaperMoon,

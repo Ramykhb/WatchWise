@@ -13,6 +13,7 @@ import lockIcon from '../../assets/forgot/icon-lock.svg'
 import mailIcon from '../../assets/forgot/icon-mail.svg'
 import { AUTH_SWAP_STATE as SWAP, useAuthSwap } from '../../hooks/useAuthSwap.ts'
 import styles from './ForgotPassword.module.css'
+import { apiErrorMessage, authApi } from '../../lib/auth.ts'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const STEPS = ['Request', 'Check email', 'New password']
@@ -23,7 +24,8 @@ export default function ForgotPassword() {
   const [sentTo, setSentTo] = useState<string>()
   const step = sentTo ? 2 : 1
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const [submitting, setSubmitting] = useState(false)
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const email = String(new FormData(event.currentTarget).get('email') ?? '').trim()
     if (!EMAIL_PATTERN.test(email)) {
@@ -31,8 +33,15 @@ export default function ForgotPassword() {
       return
     }
     setError(undefined)
-    // TODO: call the Laravel API (POST /api/forgot-password) once the backend endpoint exists.
-    setSentTo(email)
+    setSubmitting(true)
+    try {
+      await authApi.post('/forgot-password', { email })
+      setSentTo(email)
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError, 'Unable to send a reset link. Please try again.'))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -140,7 +149,7 @@ export default function ForgotPassword() {
             required
             error={error}
           />
-          <ButtonPrimary type="submit" label={sentTo ? 'Resend reset link' : 'Send reset link'} fullWidth />
+          <ButtonPrimary type="submit" label={submitting ? 'Sending…' : sentTo ? 'Resend reset link' : 'Send reset link'} fullWidth disabled={submitting} />
         </form>
 
         {sentTo ? (
