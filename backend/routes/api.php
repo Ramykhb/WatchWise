@@ -2,12 +2,10 @@
 
 use App\Auth\Controllers\AuthController;
 use App\Http\Controllers\MovieRecommendationController;
-use App\Http\Controllers\TmdbDiscoverController;
-use App\Http\Controllers\TmdbGenresController;
-use App\Http\Controllers\TmdbMoviesController;
-use App\Http\Controllers\TmdbMovieSearchController;
 use App\Http\Controllers\WeatherController;
 use App\Http\Controllers\WeatherMoodController;
+use App\Tmdb\Controllers\GenreController;
+use App\Tmdb\Controllers\MovieController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
@@ -23,7 +21,7 @@ require __DIR__.'/auth_flows.php';
 Route::get('/weather', WeatherController::class);
 Route::post('/weather-mood', WeatherMoodController::class);
 Route::get('/movie-recommendations', MovieRecommendationController::class);
-Route::get('/movies', TmdbMoviesController::class);
-Route::get('/movies/search', TmdbMovieSearchController::class);
-Route::get('/movies/discover', TmdbDiscoverController::class);
-Route::get('/genres', TmdbGenresController::class);
+Route::get('/movies', [MovieController::class, 'index']);
+Route::get('/movies/search', [MovieController::class, 'search']);
+Route::get('/movies/discover', [MovieController::class, 'discover']);
+Route::get('/genres', [GenreController::class, 'index']);
