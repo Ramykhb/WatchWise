@@ -1,6 +1,6 @@
 # Backend Overview
 
-What each module does. Paths are relative to `backend/`. The backend is split into modules under `app/`: `Auth`, `Tmdb`, `Gemini`, `Weather` and `MovieRecommendation`. Everything up to "Tests" describes the Auth module, and each other module has its own section after it.
+What each module does. Paths are relative to `backend/`. The backend is split into modules under `app/`: `Auth`, `Tmdb`, `Gemini`, `Groq`, `Weather` and `MovieRecommendation`. Everything up to "Tests" describes the Auth module, and each other module has its own section after it.
 
 ## Contents
 
@@ -25,6 +25,7 @@ What each module does. Paths are relative to `backend/`. The backend is split in
 - [Tests](#tests)
 - [Tmdb module](#tmdb-module)
 - [Gemini module](#gemini-module)
+- [Groq module](#groq-module)
 - [Weather module](#weather-module)
 - [MovieRecommendation module](#movierecommendation-module)
 - [API documentation (Swagger UI)](#api-documentation-swagger-ui)
@@ -125,7 +126,8 @@ Copy `.env.example` to `.env` (it is gitignored) and set:
 | `MAIL_*` | SMTP settings for the verification and reset emails. For local work, `MAIL_MAILER=log` writes emails to `storage/logs/laravel.log` instead of sending them |
 | `GOOGLE_*`, `GITHUB_*` | OAuth client id, secret and redirect URI. The redirect URI must match the callback route, for example `http://localhost:8000/api/auth/social/google/callback` |
 | `TMDB_API_KEY` | Needed by the Tmdb module. `TMDB_URL` and `TMDB_IMAGE_URL` have defaults |
-| `GEMINI_API_KEY`, `GEMINI_MODEL` | Needed by the weather mood and movie recommendation endpoints. `GEMINI_URL` has a default |
+| `GROQ_API_KEY` | Needed by weather mood. `GROQ_MODEL` defaults to `openai/gpt-oss-20b`; `GROQ_API_URL` has a default |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | Needed by movie recommendations. `GEMINI_URL` has a default |
 | `OPEN_METEO_*` | Optional. The URL, default location and timezone have defaults in `config/services.php` |
 
 Then run `composer install`, `php artisan key:generate` and `php artisan migrate`.
@@ -140,7 +142,7 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `auth-refresh` | `AuthModuleServiceProvider` | 30 | `POST /api/auth/refresh` |
 | `auth-verify-email` | `AuthModuleServiceProvider` | 20 | the verification link |
 | `auth-resend-verification`, `auth-forgot-password` | `AuthModuleServiceProvider` | 3 | the matching auth route |
-| `ai` | `GeminiModuleServiceProvider` | 10 | `POST /api/weather-mood`, `GET /api/movie-recommendations` (both call Gemini, which costs money) |
+| `ai` | `GeminiModuleServiceProvider` | 10 | `POST /api/weather-mood`, `GET /api/movie-recommendations` (both call paid AI APIs) |
 | `weather` | `WeatherModuleServiceProvider` | 30 | `GET /api/weather` |
 | `tmdb` | `TmdbModuleServiceProvider` | 60 | the five TMDB routes |
 
@@ -292,7 +294,7 @@ Policies stay in `app/Policies/` because each belongs to the entity it protects:
 | File | Purpose |
 | --- | --- |
 | `bootstrap/app.php` | Registers the API routes and the four middleware aliases |
-| `bootstrap/providers.php` | Registers `AppServiceProvider`, `AuthorizationServiceProvider` and one provider per module: `AuthModuleServiceProvider`, `TmdbModuleServiceProvider`, `GeminiModuleServiceProvider`, `WeatherModuleServiceProvider` and `MovieRecommendationModuleServiceProvider` |
+| `bootstrap/providers.php` | Registers `AppServiceProvider`, `AuthorizationServiceProvider` and the module service providers, including `GroqModuleServiceProvider` |
 
 ## Tests
 
@@ -342,7 +344,7 @@ app/Tmdb/
 
 ## Gemini module
 
-`app/Gemini/` is the shared client for Google's Gemini API. The Weather and MovieRecommendation modules use it through `GeminiServiceInterface`.
+`app/Gemini/` contains the Google Gemini client used by MovieRecommendation through `GeminiServiceInterface`.
 
 ```
 app/Gemini/
@@ -356,6 +358,13 @@ app/Gemini/
 - `GeminiUnavailable` only carries the HTTP status (for example "Gemini request failed (500)") or a short reason, never Gemini's response body. Callers log it and show the client a fixed message.
 - Requests time out after 60 seconds and are retried up to 3 times.
 
+## Groq module
+
+`app/Groq/` contains the Groq chat-completions client used by Weather mood. It sends the API key as a Bearer token and requests a strict JSON Schema response.
+
+- Setup: set `GROQ_API_KEY` in `.env`. `GROQ_MODEL` defaults to `openai/gpt-oss-20b` and `GROQ_API_URL` defaults to `https://api.groq.com/openai/v1`.
+- `GroqUnavailable` contains only a short failure reason; the provider response body is never returned to clients.
+
 ## Weather module
 
 `app/Weather/` reads the current weather from Open-Meteo and turns it into a movie mood.
@@ -365,7 +374,7 @@ app/Weather/
   Controllers/          WeatherController (show, mood)
   FormRequests/         WeatherRequest, WeatherMoodRequest
   InterfaceServices/    WeatherServiceInterface, WeatherMoodServiceInterface
-  Services/             WeatherService, WeatherMoodService (builds the Gemini prompt)
+  Services/             WeatherService, WeatherMoodService (builds the Groq prompt)
   InterfaceRepository/  WeatherRepositoryInterface
   Repository/           WeatherRepository (the only code that calls Open-Meteo)
   DTOs/Requests/        WeatherQuery, WeatherMoodQuery
@@ -377,7 +386,7 @@ app/Weather/
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /api/weather?latitude=&longitude=` | Current weather. Both coordinates are optional, but if one is sent the other is required. Without them, the default location (Beirut) is used and the response says `is_default: true` |
-| `POST /api/weather-mood` | Body: `condition`, `temperature`, `humidity`, `wind`, `precipitation`. Returns `{"title": "WEATHER MOOD", "mood", "description"}` generated by Gemini |
+| `POST /api/weather-mood` | Body: `condition`, `temperature`, `humidity`, `wind`, `precipitation`. Returns `{"title": "WEATHER MOOD", "mood", "description"}` generated by Groq's `openai/gpt-oss-20b` model |
 
 Setup: the Open-Meteo URL, default location and timezone have defaults in `config/services.php` and can be overridden with the `OPEN_METEO_*` variables.
 
@@ -423,7 +432,7 @@ How it is built (no extra package is needed):
 
 - The page and the spec only work when `APP_ENV` is `local` (or `testing`). In any other environment they return 404.
 - When you add an endpoint, add it to the matching `openapi/paths/*.json` file. The coverage test fails until you do.
-- Some endpoints need keys in `.env` to work for real: `TMDB_API_KEY` for the movie endpoints, `GEMINI_API_KEY` and `GEMINI_MODEL` for weather mood and recommendations, and SMTP or `MAIL_MAILER=log` for the account emails (with `log`, the verification link is in `storage/logs/laravel.log`).
+- Some endpoints need keys in `.env` to work for real: `TMDB_API_KEY` for the movie endpoints, `GROQ_API_KEY` for weather mood, `GEMINI_API_KEY` and `GEMINI_MODEL` for movie recommendations, and SMTP or `MAIL_MAILER=log` for the account emails (with `log`, the verification link is in `storage/logs/laravel.log`).
 
 ## Security notes
 

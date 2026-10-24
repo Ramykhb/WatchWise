@@ -73,4 +73,10 @@ return [
         'url' => env('GEMINI_URL', 'https://generativelanguage.googleapis.com/v1beta/models'),
     ],
 
+    'groq' => [
+        'key' => env('GROQ_API_KEY'),
+        'model' => env('GROQ_MODEL', 'openai/gpt-oss-20b'),
+        'url' => env('GROQ_API_URL', 'https://api.groq.com/openai/v1'),
+    ],
+
 ];

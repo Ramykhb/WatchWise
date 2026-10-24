@@ -5,7 +5,7 @@ namespace App\Weather\Exceptions;
 use Illuminate\Http\JsonResponse;
 use RuntimeException;
 
-/** Gemini could not produce a weather mood. Rendered as a fixed 502, Gemini's own error is only logged. */
+/** Groq could not produce a weather mood. Rendered as a fixed 502; provider errors are only logged. */
 class WeatherMoodUnavailable extends RuntimeException
 {
     public function __construct(string $message = 'Could not generate the weather mood.')
