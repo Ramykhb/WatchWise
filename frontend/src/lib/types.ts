@@ -103,6 +103,8 @@ export type ApiNotification = {
   id: number
   kind: 'invite' | 'vote' | 'mention' | 'follow' | 'like' | 'list' | 'release' | 'watchlist'
   actor: ApiMember | null
+  /** Whether you already follow the actor (drives "Follow back"). */
+  actor_followed: boolean
   text: string
   target: string | null
   detail: string | null

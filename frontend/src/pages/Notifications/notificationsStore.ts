@@ -13,7 +13,7 @@ export type AppNotification = {
   id: number
   kind: NotificationKind
   /** Who did it, shown in bold; omitted for system notices. */
-  actor?: { name: string; initials: string; color: string; handle: string }
+  actor?: { name: string; initials: string; color: string; handle: string; following: boolean }
   /** Sentence after the actor, e.g. "invited you to". */
   text: string
   /** Bold object of the sentence, e.g. "Sci-fi Saturday". */
@@ -48,7 +48,7 @@ const getState = () => state
 const toItem = (n: ApiNotification): AppNotification => ({
   id: n.id,
   kind: n.kind,
-  actor: n.actor ? { name: shortName(n.actor.name), handle: n.actor.username, ...look(n.actor) } : undefined,
+  actor: n.actor ? { name: shortName(n.actor.name), handle: n.actor.username, following: n.actor_followed, ...look(n.actor) } : undefined,
   text: n.text,
   target: n.target ?? undefined,
   detail: n.detail ?? undefined,
@@ -118,6 +118,11 @@ export function markRead(id: number, read = true) {
 export function markAllRead() {
   emit(state.items.map((n) => ({ ...n, read: true })))
   api.post('/notifications/read-all').catch(() => void loadNotifications())
+}
+
+/** After a follow or unfollow, every notification from that person shows the new state. */
+export function setActorFollowing(handle: string, following: boolean) {
+  emit(state.items.map((n) => (n.actor?.handle === handle ? { ...n, actor: { ...n.actor, following } } : n)))
 }
 
 export function dismiss(id: number) {
