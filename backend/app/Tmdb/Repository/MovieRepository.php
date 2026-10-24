@@ -5,6 +5,8 @@ namespace App\Tmdb\Repository;
 use App\Tmdb\DTOs\Requests\MovieDiscoverQuery;
 use App\Tmdb\DTOs\Requests\MovieListQuery;
 use App\Tmdb\DTOs\Requests\MovieSearchQuery;
+use App\Tmdb\Exceptions\MovieNotFound;
+use App\Tmdb\Exceptions\TmdbNotFound;
 use App\Tmdb\InterfaceRepository\MovieRepositoryInterface;
 use App\Tmdb\Support\TmdbHttpClient;
 
@@ -55,5 +57,17 @@ class MovieRepository implements MovieRepositoryInterface
             'page' => $query->page,
             'include_adult' => 'false',
         ], fn ($value): bool => $value !== null))->json();
+    }
+
+    public function find(int $id): array
+    {
+        try {
+            // One call: append_to_response bundles the extra data with the movie.
+            return $this->client->get("/movie/{$id}", [
+                'append_to_response' => 'credits,videos,recommendations,similar,release_dates',
+            ])->json();
+        } catch (TmdbNotFound) {
+            throw new MovieNotFound($id);
+        }
     }
 }

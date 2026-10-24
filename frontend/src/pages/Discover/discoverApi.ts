@@ -28,6 +28,21 @@ export type MoviePage = {
 /** TMDB genre names the design shortens. */
 const GENRE_LABELS: Record<string, string> = { 'Science Fiction': 'Sci-fi' }
 
+/**
+ * TMDB's ids for the design's genre chips. They never change, so filtering by genre keeps working
+ * even when /api/genres is slow or down (that list is only needed for the names on the tiles).
+ */
+export const GENRE_IDS: Record<string, number> = {
+  'Sci-fi': 878,
+  Adventure: 12,
+  Drama: 18,
+  Comedy: 35,
+  Thriller: 53,
+  Horror: 27,
+  Animation: 16,
+  Romance: 10749,
+}
+
 const RUNTIME_PARAMS: Record<string, { runtime_min?: number; runtime_max?: number }> = {
   '< 90m': { runtime_max: 89 },
   '90–120m': { runtime_min: 90, runtime_max: 120 },

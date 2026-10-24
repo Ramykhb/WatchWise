@@ -5,7 +5,9 @@ namespace App\Tmdb\InterfaceServices;
 use App\Tmdb\DTOs\Requests\MovieDiscoverQuery;
 use App\Tmdb\DTOs\Requests\MovieListQuery;
 use App\Tmdb\DTOs\Requests\MovieSearchQuery;
+use App\Tmdb\DTOs\Responses\MovieDetailsResponse;
 use App\Tmdb\DTOs\Responses\MoviePageResponse;
+use App\Tmdb\Exceptions\MovieNotFound;
 use App\Tmdb\Exceptions\TmdbUnavailable;
 
 interface MovieServiceInterface
@@ -18,4 +20,10 @@ interface MovieServiceInterface
 
     /** @throws TmdbUnavailable */
     public function discover(MovieDiscoverQuery $query): MoviePageResponse;
+
+    /**
+     * @throws MovieNotFound
+     * @throws TmdbUnavailable
+     */
+    public function find(int $id): MovieDetailsResponse;
 }

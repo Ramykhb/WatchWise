@@ -2,10 +2,11 @@ import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import type { Review } from '../../components/ReviewCard/ReviewCard.tsx'
 import { MOVIES, type Gradient } from '../Home/homeData.ts'
 
-// Mock content from the Figma "Movie Details — Neon Tide" frame. Every movie reuses it until the
-// backend serves real details from TMDB; only the title, poster and score come from the tile data.
+// Mock content from the Figma "Movie Details — Neon Tide" frame. The design's mock movies (/movies/neon-tide)
+// still use it; TMDB movies (/movies/438631) load their details through movieApi.ts.
 
-export type CastMember = { slug: string; initials: string; name: string; role: string; gradient: Gradient }
+/** `slug` is empty for people the Person page can't open yet; `photoUrl` replaces the initials. */
+export type CastMember = { slug: string; initials: string; name: string; role: string; gradient: Gradient; photoUrl?: string }
 
 export type Cinema = { name: string; distance: string; times: string[] }
 
@@ -20,7 +21,8 @@ export type MovieDetails = {
   tmdbScore: string
   overview: string
   cast: CastMember[]
-  trailer: { label: string; gradient: Gradient }
+  /** With a YouTube key the trailer plays on the page; the backdrop replaces the gradient art. */
+  trailer: { label: string; gradient: Gradient; youtubeKey?: string; backdropUrl?: string }
   reviewSummary: {
     average: string
     count: string
@@ -129,6 +131,9 @@ const NEON_TIDE: Omit<MovieDetails, 'movie' | 'similar'> = {
     extra: 125,
   },
 }
+
+/** The parts TMDB doesn't provide (reviews, premiere, showtimes, room). TMDB movies reuse them until those APIs exist. */
+export const MOCK_EXTRAS = NEON_TIDE
 
 // Order of the Figma "More like this" row.
 const SIMILAR = [

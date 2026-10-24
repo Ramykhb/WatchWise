@@ -306,9 +306,9 @@ app/Tmdb/
   InterfaceRepository/  MovieRepositoryInterface, GenreRepositoryInterface
   Repository/           MovieRepository, GenreRepository (the only code that talks to TMDB)
   DTOs/Requests/        MovieListQuery, MovieSearchQuery, MovieDiscoverQuery
-  DTOs/Responses/       MovieResponse, MoviePageResponse, GenreResponse
+  DTOs/Responses/       MovieResponse, MoviePageResponse, GenreResponse, MovieDetailsResponse (+ CastMemberResponse, PersonResponse, TrailerResponse)
   Support/              TmdbHttpClient (adds the API key, timeout, wraps failures)
-  Exceptions/           TmdbUnavailable (renders a fixed 502 so TMDB's own error never reaches the client)
+  Exceptions/           TmdbUnavailable (renders a fixed 502 so TMDB's own error never reaches the client), TmdbNotFound (TMDB answered 404), MovieNotFound (renders 404 "Movie not found.")
   Providers/            TmdbModuleServiceProvider (interface bindings)
 ```
 
@@ -317,9 +317,10 @@ app/Tmdb/
 | `GET /api/movies?list=&page=` | A page of `popular` (default), `top_rated`, `now_playing` or `upcoming` movies |
 | `GET /api/movies/search?q=&page=&year=` | Search movies by title. `q` is required (max 100 characters) |
 | `GET /api/movies/discover` | Filtered browsing: `genres`, `year_from`, `year_to`, `min_rating` (0 to 5), `runtime_min`, `runtime_max`, `language`, `sort` (`popularity`, `rating`, `release_date`, `title`), `page` |
+| `GET /api/movies/{id}` | One movie with genres, US certification, runtime, original language, directors, top 12 cast, a YouTube trailer, budget, box office and 10 recommended movies (fetched in one TMDB call). Unknown ids return 404 |
 | `GET /api/genres` | The movie genres (id and name), cached for a day |
 
-- All four are public and are not rate limited.
+- All five are public and are not rate limited.
 - Movie lists are paginated with `page` from 1 to 500 and 20 movies per page. Responses include `page`, `total_pages` (capped at 500, TMDB's limit) and `total_results`. Genres are a short fixed list, so they are not paginated.
 - Ratings are converted from TMDB's 0 to 10 scale to 0 to 5. Adult content is always excluded.
 - Setup: set `TMDB_API_KEY` in `.env`. `TMDB_URL` and `TMDB_IMAGE_URL` have working defaults in `config/services.php`.
