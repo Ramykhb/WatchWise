@@ -2,9 +2,9 @@
 
 use App\Auth\Controllers\AuthController;
 use App\Docs\Controllers\DocumentationController;
+use App\Genre\Controllers\GenreController;
+use App\Movie\Controllers\MovieController;
 use App\MovieRecommendation\Controllers\RecommendationController;
-use App\Tmdb\Controllers\GenreController;
-use App\Tmdb\Controllers\MovieController;
 use App\Weather\Controllers\WeatherController;
 use Illuminate\Support\Facades\Route;
 
