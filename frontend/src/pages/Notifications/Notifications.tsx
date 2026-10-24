@@ -16,6 +16,7 @@ import xIcon from '../../assets/listmodal/icon-x-sm.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { dismiss, markAllRead, markRead, useNotifications, type AppNotification, type NotificationKind } from './notificationsStore.ts'
 import { api, useApi } from '../../lib/api.ts'
+import { setFollowing } from '../../lib/follow.ts'
 import type { ApiMe } from '../../lib/types.ts'
 import styles from './Notifications.module.css'
 
@@ -67,7 +68,7 @@ export default function Notifications() {
     if (!item.actor) return
     const following = followedBack.includes(item.id)
     setFollowedBack((ids) => (following ? ids.filter((id) => id !== item.id) : [...ids, item.id]))
-    const request = following ? api.delete(`/users/${item.actor.handle}/follow`) : api.post(`/users/${item.actor.handle}/follow`)
+    const request = setFollowing(item.actor.handle, !following)
     request.catch(() => setFollowedBack((ids) => (following ? [...ids, item.id] : ids.filter((id) => id !== item.id))))
   }
 

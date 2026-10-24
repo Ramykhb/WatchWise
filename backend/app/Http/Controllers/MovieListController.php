@@ -16,13 +16,15 @@ class MovieListController extends Controller
 {
     public function __construct(private readonly ActivityFeedService $activity) {}
 
-    /** GET /api/lists?scope=mine|public|following */
+    /** GET /api/lists?scope=mine|public|following&q= — `q` matches the title (Discover › Lists). */
     public function index(Request $request, CurrentUser $current): JsonResponse
     {
         $scope = $request->query('scope', 'mine');
         abort_unless(in_array($scope, ['mine', 'public', 'following'], true), 422, 'Unknown scope.');
+        $q = trim((string) $request->query('q', ''));
 
         $lists = MovieList::with(['user', 'items'])->withCount('items')
+            ->when($q !== '', fn ($query) => $query->whereRaw("title LIKE ? ESCAPE '!'", [$this->containsPattern($q)]))
             ->when($scope === 'mine', fn ($q) => $q->where('user_id', $current->id()))
             ->when($scope === 'public', fn ($q) => $q->where('is_public', true)->where('user_id', '!=', $current->id()))
             // Public lists by people the user follows.

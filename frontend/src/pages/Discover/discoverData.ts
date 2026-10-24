@@ -2,11 +2,11 @@
 
 export type SearchType = 'movies' | 'people' | 'lists'
 
-/** Movies & TV are searched live (their count comes from the results). People and Lists aren't connected yet, so their counts are still the design's. */
-export const SEARCH_TYPES: { id: SearchType; label: string; count: number }[] = [
-  { id: 'movies', label: 'Movies & TV', count: 0 },
-  { id: 'people', label: 'People', count: 31 },
-  { id: 'lists', label: 'Lists', count: 19 },
+/** Search tabs; their counts are filled from live results. */
+export const SEARCH_TYPES: { id: SearchType; label: string }[] = [
+  { id: 'movies', label: 'Movies & TV' },
+  { id: 'people', label: 'People' },
+  { id: 'lists', label: 'Lists' },
 ]
 
 export const GENRES = ['Sci-fi', 'Adventure', 'Drama', 'Comedy', 'Thriller', 'Horror', 'Animation', 'Romance']

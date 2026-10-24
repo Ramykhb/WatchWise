@@ -5,6 +5,9 @@ import AppNav from '../../components/AppNav/AppNav.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import Checkbox from '../../components/Checkbox/Checkbox.tsx'
 import MovieTile from '../../components/MovieTile/MovieTile.tsx'
+import AvatarImage from '../../components/AvatarImage/AvatarImage.tsx'
+import FollowButton from '../../components/FollowButton/FollowButton.tsx'
+import PosterCollage from '../../components/PosterCollage/PosterCollage.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import searchIcon from '../../assets/discover/icon-search.svg'
 import chevDownSmIcon from '../../assets/discover/icon-chev-down-sm.svg'
@@ -34,7 +37,14 @@ import {
   type SearchType,
 } from './discoverData.ts'
 import { TV_GENRE_IDS, fetchMovies, loadGenres, toTileMovie, type MoviePage } from './discoverApi.ts'
+import { useApi } from '../../lib/api.ts'
+import { colorOf, initialsOf } from '../../lib/format.ts'
+import type { ApiList, ApiUserSearch } from '../../lib/types.ts'
+import { toPublicList } from '../Lists/listsData.ts'
 import styles from './Discover.module.css'
+
+/** URL params for a search: `?q=` and, for people or lists, `&type=`. */
+const searchParamsFor = (q: string, type: SearchType) => ({ ...(q ? { q } : {}), ...(type !== 'movies' ? { type } : {}) })
 
 /** The latest response, tagged with the request it answers so stale ones are easy to spot. */
 type Result = { key: string; data: MoviePage | null; failed: boolean }
@@ -58,7 +68,18 @@ export default function Discover() {
   const [searchParams, setSearchParams] = useSearchParams()
   const submittedQuery = (searchParams.get('q') ?? '').trim()
   const [query, setQuery] = useState(submittedQuery)
-  const [type, setType] = useState<SearchType>('movies')
+  // The tab lives in the URL (?type=people), so the header's "See all people" opens it directly.
+  const typeParam = searchParams.get('type')
+  const type: SearchType = SEARCH_TYPES.some((t) => t.id === typeParam) ? (typeParam as SearchType) : 'movies'
+  const setType = (next: SearchType) => setSearchParams(searchParamsFor(submittedQuery, next))
+
+  // Members and public lists matching the search (all of them while the search is empty).
+  const encodedQuery = submittedQuery ? `&q=${encodeURIComponent(submittedQuery)}` : ''
+  const peopleQuery = useApi<ApiUserSearch>(`/users?limit=30${encodedQuery}`)
+  const listsQuery = useApi<{ lists: ApiList[] }>(`/lists?scope=public${encodedQuery}`)
+  const people = peopleQuery.data?.users ?? []
+  const peopleTotal = peopleQuery.data?.total ?? 0
+  const lists = (listsQuery.data?.lists ?? []).map(toPublicList)
 
   // Draft = what the panel shows; applied = what the results use (committed by "Apply filters").
   const [draft, setDraft] = useState<Filters>(DEFAULT_FILTERS)
@@ -138,7 +159,7 @@ export default function Discover() {
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const q = query.trim()
-    setSearchParams(q ? { q } : {})
+    setSearchParams(searchParamsFor(q, type))
     setPage(1)
   }
 
@@ -182,7 +203,6 @@ export default function Discover() {
     ...(applied.runtime ? [{ label: applied.runtime, remove: () => applyFilters({ ...applied, runtime: null }) }] : []),
   ]
 
-  const activeType = SEARCH_TYPES.find((t) => t.id === type)!
   const movieCount = shown?.total_results ?? 0
   const sliderStyle = { '--from': fraction(draft.years[0]), '--to': fraction(draft.years[1]) } as CSSProperties
 
@@ -232,7 +252,7 @@ export default function Discover() {
                 <span>
                   {t.label}
                   <span className={styles.tabCount}>
-                    {t.id === 'movies' ? movieCount.toLocaleString('en-US') : t.count}
+                    {(t.id === 'movies' ? movieCount : t.id === 'people' ? peopleTotal : lists.length).toLocaleString('en-US')}
                   </span>
                 </span>
               </button>
@@ -241,6 +261,7 @@ export default function Discover() {
         </header>
 
         <div className={styles.body}>
+          {type === 'movies' && (
           <form
             className={styles.filters}
             onSubmit={handleApply}
@@ -415,6 +436,7 @@ export default function Discover() {
 
             <ButtonPrimary label="Apply filters" type="submit" fullWidth />
           </form>
+          )}
 
           <section
             ref={resultsRef}
@@ -426,8 +448,10 @@ export default function Discover() {
           >
             <div className={styles.toolbar}>
               <h2 id="results-title" className={styles.resultsTitle} aria-live="polite">
-                {!isMedia ? (
-                  `${activeType.count} results`
+                {type === 'people' ? (
+                  `${peopleTotal} ${peopleTotal === 1 ? 'person' : 'people'}`
+                ) : type === 'lists' ? (
+                  `${lists.length} public ${lists.length === 1 ? 'list' : 'lists'}`
                 ) : shown ? (
                   `${movieCount.toLocaleString('en-US')} ${movieCount === 1 ? 'result' : 'results'}`
                 ) : (
@@ -443,6 +467,7 @@ export default function Discover() {
                   </>
                 )}
               </h2>
+              {type === 'movies' && (
               <div className={styles.controls}>
                 <label className={styles.sort}>
                   <span className="sr-only">Sort by</span>
@@ -482,9 +507,10 @@ export default function Discover() {
                   <img className={styles.inkIcon} src={listIcon} width={18} height={18} alt="" />
                 </button>
               </div>
+              )}
             </div>
 
-            {activeChips.length > 0 && (
+            {type === 'movies' && activeChips.length > 0 && (
               <div className={styles.activeFilters}>
                 {activeChips.map((chip) => (
                   <button
@@ -527,8 +553,43 @@ export default function Discover() {
               </p>
             )}
 
-            {!isMedia ? (
-              <p className={styles.empty}>{activeType.label} results are coming soon.</p>
+            {type === 'people' ? (
+              <PeopleResults
+                loading={peopleQuery.loading && !peopleQuery.data}
+                failed={Boolean(peopleQuery.error)}
+                people={people}
+                query={submittedQuery}
+                onRetry={peopleQuery.reload}
+              />
+            ) : type === 'lists' ? (
+              listsQuery.error ? (
+                <p className={styles.empty} role="alert">
+                  Couldn't load lists right now.{' '}
+                  <button type="button" className={styles.textButton} onClick={listsQuery.reload}>
+                    Try again
+                  </button>
+                </p>
+              ) : !listsQuery.data ? (
+                <p className={styles.empty}>Loading lists…</p>
+              ) : lists.length === 0 ? (
+                <p className={styles.empty}>{submittedQuery ? `No public lists match “${submittedQuery}”.` : 'No public lists yet.'}</p>
+              ) : (
+                <ul className={styles.listGrid}>
+                  {lists.map((list) => (
+                    <li key={list.id}>
+                      <Link to={`/lists/${list.slug}`} className={styles.listCard}>
+                        <span className={styles.listCover}>
+                          <PosterCollage gradients={list.posters} size="sm" />
+                        </span>
+                        <span className={styles.listCardTitle}>{list.title}</span>
+                        <span className={styles.listCardMeta}>
+                          by {list.author} · {list.films} {list.films === 1 ? 'film' : 'films'}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )
             ) : failed ? (
               <p className={styles.empty} role="alert">
                 Couldn't load results right now.{' '}
@@ -624,6 +685,51 @@ export default function Discover() {
 }
 
 /** Tiles or rows in the results' own shape while the first page loads, so nothing jumps when it arrives. */
+type PeopleResultsProps = {
+  loading: boolean
+  failed: boolean
+  people: ApiUserSearch['users']
+  query: string
+  onRetry: () => void
+}
+
+/** Members matching the search, each with a Follow button (Discover › People). */
+function PeopleResults({ loading, failed, people, query, onRetry }: PeopleResultsProps) {
+  if (failed) {
+    return (
+      <p className={styles.empty} role="alert">
+        Couldn't load people right now.{' '}
+        <button type="button" className={styles.textButton} onClick={onRetry}>
+          Try again
+        </button>
+      </p>
+    )
+  }
+  if (loading) return <p className={styles.empty}>Searching people…</p>
+  if (people.length === 0) return <p className={styles.empty}>{query ? `No one matches “${query}”.` : 'No members yet.'}</p>
+
+  return (
+    <ul className={styles.peopleGrid}>
+      {people.map((person) => (
+        <li key={person.id} className={styles.personCard}>
+          <Link to={`/profile/${person.username}`} className={styles.personLink}>
+            <span className={styles.personAvatar} style={{ background: colorOf(person.id) }} aria-hidden="true">
+              <AvatarImage className={styles.personAvatarImg} src={person.avatar} fallback={initialsOf(person.name)} />
+            </span>
+            <span className={styles.personName}>{person.name}</span>
+            <span className={styles.personMeta}>@{person.username}</span>
+            <span className={styles.personMeta}>
+              {person.followers} follower{person.followers === 1 ? '' : 's'}
+              {person.follows_you && ' · Follows you'}
+            </span>
+          </Link>
+          <FollowButton username={person.username} following={person.is_following} followsYou={person.follows_you} />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function ResultsSkeleton({ view }: { view: 'grid' | 'list' }) {
   if (view === 'list') {
     return (
