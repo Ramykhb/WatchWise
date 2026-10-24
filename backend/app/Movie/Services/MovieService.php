@@ -1,19 +1,19 @@
 <?php
 
-namespace App\Tmdb\Services;
+namespace App\Movie\Services;
 
-use App\Tmdb\DTOs\Requests\MovieDiscoverQuery;
-use App\Tmdb\DTOs\Requests\MovieListQuery;
-use App\Tmdb\DTOs\Requests\MovieSearchQuery;
-use App\Tmdb\DTOs\Responses\CastMemberResponse;
-use App\Tmdb\DTOs\Responses\GenreResponse;
-use App\Tmdb\DTOs\Responses\MovieDetailsResponse;
-use App\Tmdb\DTOs\Responses\MoviePageResponse;
-use App\Tmdb\DTOs\Responses\MovieResponse;
-use App\Tmdb\DTOs\Responses\PersonResponse;
-use App\Tmdb\DTOs\Responses\TrailerResponse;
-use App\Tmdb\InterfaceRepository\MovieRepositoryInterface;
-use App\Tmdb\InterfaceServices\MovieServiceInterface;
+use App\Movie\DTOs\Requests\MovieDiscoverQuery;
+use App\Movie\DTOs\Requests\MovieListQuery;
+use App\Movie\DTOs\Requests\MovieSearchQuery;
+use App\Movie\DTOs\Responses\CastMemberResponse;
+use App\Genre\DTOs\Responses\GenreResponse;
+use App\Movie\DTOs\Responses\MovieDetailsResponse;
+use App\Movie\DTOs\Responses\MoviePageResponse;
+use App\Movie\DTOs\Responses\MovieResponse;
+use App\Movie\DTOs\Responses\PersonResponse;
+use App\Movie\DTOs\Responses\TrailerResponse;
+use App\Movie\InterfaceRepository\MovieRepositoryInterface;
+use App\Movie\InterfaceServices\MovieServiceInterface;
 use Closure;
 use Illuminate\Support\Facades\Cache;
 

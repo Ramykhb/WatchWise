@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Tmdb\Controllers;
+namespace App\Movie\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Tmdb\FormRequests\MovieDiscoverRequest;
-use App\Tmdb\FormRequests\MovieListRequest;
-use App\Tmdb\FormRequests\MovieSearchRequest;
-use App\Tmdb\InterfaceServices\MovieServiceInterface;
+use App\Movie\FormRequests\MovieDiscoverRequest;
+use App\Movie\FormRequests\MovieListRequest;
+use App\Movie\FormRequests\MovieSearchRequest;
+use App\Movie\InterfaceServices\MovieServiceInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 

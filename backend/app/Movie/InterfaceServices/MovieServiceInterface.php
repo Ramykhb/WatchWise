@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Tmdb\InterfaceServices;
+namespace App\Movie\InterfaceServices;
 
-use App\Tmdb\DTOs\Requests\MovieDiscoverQuery;
-use App\Tmdb\DTOs\Requests\MovieListQuery;
-use App\Tmdb\DTOs\Requests\MovieSearchQuery;
-use App\Tmdb\DTOs\Responses\MovieDetailsResponse;
-use App\Tmdb\DTOs\Responses\MoviePageResponse;
-use App\Tmdb\Exceptions\MovieNotFound;
-use App\Tmdb\Exceptions\TmdbUnavailable;
+use App\Movie\DTOs\Requests\MovieDiscoverQuery;
+use App\Movie\DTOs\Requests\MovieListQuery;
+use App\Movie\DTOs\Requests\MovieSearchQuery;
+use App\Movie\DTOs\Responses\MovieDetailsResponse;
+use App\Movie\DTOs\Responses\MoviePageResponse;
+use App\Movie\Exceptions\MovieNotFound;
+use App\Support\Exceptions\TmdbUnavailable;
 
 interface MovieServiceInterface
 {

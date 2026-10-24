@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Tmdb\Repository;
+namespace App\Movie\Repository;
 
-use App\Tmdb\DTOs\Requests\MovieDiscoverQuery;
-use App\Tmdb\DTOs\Requests\MovieListQuery;
-use App\Tmdb\DTOs\Requests\MovieSearchQuery;
-use App\Tmdb\Exceptions\MovieNotFound;
-use App\Tmdb\Exceptions\TmdbNotFound;
-use App\Tmdb\InterfaceRepository\MovieRepositoryInterface;
-use App\Tmdb\Support\TmdbHttpClient;
+use App\Movie\DTOs\Requests\MovieDiscoverQuery;
+use App\Movie\DTOs\Requests\MovieListQuery;
+use App\Movie\DTOs\Requests\MovieSearchQuery;
+use App\Movie\Exceptions\MovieNotFound;
+use App\Support\Exceptions\TmdbNotFound;
+use App\Movie\InterfaceRepository\MovieRepositoryInterface;
+use App\Support\TmdbHttpClient;
 
 class MovieRepository implements MovieRepositoryInterface
 {
