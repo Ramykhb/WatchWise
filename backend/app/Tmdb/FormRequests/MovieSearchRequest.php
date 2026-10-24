@@ -4,6 +4,7 @@ namespace App\Tmdb\FormRequests;
 
 use App\Tmdb\DTOs\Requests\MovieSearchQuery;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class MovieSearchRequest extends FormRequest
 {
@@ -18,6 +19,7 @@ class MovieSearchRequest extends FormRequest
             'q' => ['required', 'string', 'min:1', 'max:100'],
             'page' => ['sometimes', 'integer', 'between:1,500'],
             'year' => ['sometimes', 'integer', 'between:1874,2100'],
+            'type' => ['sometimes', 'string', Rule::in(['movie', 'tv', 'all'])],
         ];
     }
 

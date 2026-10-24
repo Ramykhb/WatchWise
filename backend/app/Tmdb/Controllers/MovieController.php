@@ -8,6 +8,7 @@ use App\Tmdb\FormRequests\MovieListRequest;
 use App\Tmdb\FormRequests\MovieSearchRequest;
 use App\Tmdb\InterfaceServices\MovieServiceInterface;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class MovieController extends Controller
 {
@@ -38,10 +39,12 @@ class MovieController extends Controller
     }
 
     /**
-     * One movie with its cast, directors, trailer, certification and related movies.
+     * One movie (or, with ?type=tv, one TV show) with its cast, directors, trailer, certification and related titles.
      */
-    public function show(int $id): JsonResponse
+    public function show(Request $request, int $id): JsonResponse
     {
-        return response()->json($this->movies->find($id));
+        $type = $request->query('type') === 'tv' ? 'tv' : 'movie';
+
+        return response()->json($this->movies->find($id, $type));
     }
 }

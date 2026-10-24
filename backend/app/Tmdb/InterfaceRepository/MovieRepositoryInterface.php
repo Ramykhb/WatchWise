@@ -36,12 +36,27 @@ interface MovieRepositoryInterface
     public function discover(MovieDiscoverQuery $query): array;
 
     /**
-     * One movie with its credits, videos, recommendations, similar movies and release dates.
+     * @return array<string, mixed>
      *
+     * @throws TmdbUnavailable
+     */
+    public function searchTv(MovieSearchQuery $query): array;
+
+    /**
+     * @return array<string, mixed>
+     *
+     * @throws TmdbUnavailable
+     */
+    public function discoverTv(MovieDiscoverQuery $query): array;
+
+    /**
+     * One movie (or tv show) with its credits, videos, recommendations, similar titles and age ratings.
+     *
+     * @param  'movie'|'tv'  $type
      * @return array<string, mixed>
      *
      * @throws MovieNotFound
      * @throws TmdbUnavailable
      */
-    public function find(int $id): array;
+    public function find(int $id, string $type = 'movie'): array;
 }

@@ -67,6 +67,7 @@ class MovieServiceTest extends TestCase
 
         $this->assertSame([
             'id' => 7,
+            'media_type' => 'movie',
             'title' => 'Dune',
             'overview' => 'Sand.',
             'release_date' => '2021-10-22',
