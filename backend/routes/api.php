@@ -5,6 +5,7 @@ use App\Http\Controllers\MovieRecommendationController;
 use App\Http\Controllers\WeatherController;
 use App\Http\Controllers\WeatherMoodController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\TmdbMoviesController;
 
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register'])->middleware('throttle:auth-register');
@@ -19,3 +20,4 @@ require __DIR__.'/auth_flows.php';
 Route::get('/weather', WeatherController::class);
 Route::post('/weather-mood', WeatherMoodController::class);
 Route::get('/movie-recommendations', MovieRecommendationController::class);
+Route::get('/movies', TmdbMoviesController::class);
