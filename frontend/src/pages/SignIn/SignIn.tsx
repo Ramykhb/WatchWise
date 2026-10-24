@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import AuthShell from '../../components/AuthShell/AuthShell.tsx'
 import AuthWaves from '../../components/AuthWaves/AuthWaves.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
@@ -18,6 +18,8 @@ import dotMintMd from '../../assets/auth/deco-dot-mint-md.svg'
 import dotMintSm from '../../assets/landing/deco-dot-mint-sm.svg'
 import { AUTH_SWAP_STATE as SWAP, useAuthSwap } from '../../hooks/useAuthSwap.ts'
 import { LAST_LAP, NEON_TIDE, PAPER_MOON } from '../authPosters.ts'
+import { apiErrorMessage, authApi, type AuthPayload } from '../../lib/auth.ts'
+import { useAuth } from '../../contexts/AuthContext.tsx'
 import styles from './SignIn.module.css'
 
 const PROVIDERS: SocialProvider[] = ['google', 'github', 'facebook']
@@ -28,8 +30,13 @@ type Errors = Partial<Record<'email' | 'password', string>>
 export default function SignIn() {
   const swapped = useAuthSwap()
   const [errors, setErrors] = useState<Errors>({})
+  const [formError, setFormError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { setUser } = useAuth()
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const email = String(data.get('email') ?? '').trim()
@@ -38,13 +45,27 @@ export default function SignIn() {
     if (!EMAIL_PATTERN.test(email)) next.email = 'Enter a valid email address.'
     if (!password) next.password = 'Enter your password.'
     setErrors(next)
+    setFormError('')
     if (Object.keys(next).length > 0) return
-    // TODO: call the Laravel auth API (POST /api/login) once the backend endpoint exists.
+    setSubmitting(true)
+    try {
+      const response = await authApi.post<AuthPayload>('/login', { email, password })
+      setUser(response.data.user)
+      const state = location.state as { from?: { pathname?: string } } | null
+      navigate(state?.from?.pathname ?? '/Home-Page', { replace: true })
+    } catch (error) {
+      setFormError(apiErrorMessage(error, 'Unable to sign in. Please try again.'))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleSocial = (provider: SocialProvider) => {
-    // TODO: redirect to the backend OAuth route (Laravel Socialite) for this provider.
-    void provider
+    if (provider === 'facebook') {
+      setFormError('Facebook sign-in is not available yet. Choose Google or GitHub.')
+      return
+    }
+    window.location.assign(`${import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000'}/api/auth/social/${provider}`)
   }
 
   return (
@@ -141,7 +162,8 @@ export default function SignIn() {
               Forgot password?
             </Link>
           </div>
-          <ButtonPrimary type="submit" label="Sign in" fullWidth />
+          {formError && <p className={styles.formError} role="alert">{formError}</p>}
+          <ButtonPrimary type="submit" label={submitting ? 'Signing in…' : 'Sign in'} fullWidth disabled={submitting} />
         </form>
 
         <p className={styles.footer}>
