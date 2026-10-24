@@ -8,6 +8,12 @@ return [
         'timezone' => env('OPEN_METEO_TIMEZONE'),
     ],
 
+    'tmdb' => [
+        'key' => env('TMDB_API_KEY'),
+        'url' => env('TMDB_URL', 'https://api.themoviedb.org/3'),
+        'image_url' => env('TMDB_IMAGE_URL', 'https://image.tmdb.org/t/p'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
