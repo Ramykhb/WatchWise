@@ -1,12 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router";
+import {
+  Sun,
+  CloudSun,
+  CloudFog,
+  CloudDrizzle,
+  CloudRain,
+  CloudSnow,
+  CloudLightning,
+  Cloud,
+  type LucideIcon,
+} from "lucide-react";
 import AppNav from "../../components/AppNav/AppNav.tsx";
 import MovieTile from "../../components/MovieTile/MovieTile.tsx";
 import SplitHeadline from "../../components/SplitHeadline/SplitHeadline.tsx";
 import bgBlob from "../../assets/foryou/bg-blob.svg";
 import pinIcon from "../../assets/foryou/icon-pin.svg";
-import rainLgIcon from "../../assets/foryou/icon-rain-lg.svg";
 import sparkleIcon from "../../assets/foryou/icon-sparkle.svg";
 import filmIcon from "../../assets/foryou/icon-film.svg";
 import rainSmIcon from "../../assets/foryou/icon-rain-sm.svg";
@@ -63,6 +73,16 @@ const weatherCondition = (code: number): string => {
   if ([95, 96, 99].includes(code)) return "Thunderstorm";
 
   return "Variable conditions";
+};
+
+const WEATHER_ICONS: Record<string, LucideIcon> = {
+  "Clear sky": Sun,
+  "Partly cloudy": CloudSun,
+  Foggy: CloudFog,
+  Drizzle: CloudDrizzle,
+  Rain: CloudRain,
+  Snow: CloudSnow,
+  Thunderstorm: CloudLightning,
 };
 
 export default function ForYou() {
@@ -166,6 +186,7 @@ export default function ForYou() {
   const condition = current
     ? weatherCondition(current.weather_code)
     : "Loading weather…";
+  const WeatherIcon = WEATHER_ICONS[condition] ?? Cloud;
 
   return (
     <div ref={pageRef} className={styles.page}>
@@ -237,7 +258,7 @@ export default function ForYou() {
                 </span>
               </div>
               <span className={styles.weatherIcon} aria-hidden="true">
-                <img src={rainLgIcon} width={64} height={64} alt="" />
+                <WeatherIcon size={64} strokeWidth={1.5} />
               </span>
             </div>
             <div className={styles.mood}>
