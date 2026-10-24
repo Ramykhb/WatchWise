@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router'
 import Logo from '../Logo/Logo.tsx'
+import AvatarImage from '../AvatarImage/AvatarImage.tsx'
 import searchIcon from '../../assets/home/icon-search.svg'
 import bellIcon from '../../assets/home/icon-bell.svg'
 import { useNotificationPolling, useUnreadCount } from '../../pages/Notifications/notificationsStore.ts'
@@ -70,10 +71,10 @@ export default function AppNav() {
         <Link
           to="/profile"
           className={styles.avatar}
-          style={user && !user.avatar ? { background: colorOf(user.id) } : undefined}
+          style={user ? { background: colorOf(user.id) } : undefined}
           aria-label="Your profile"
         >
-          {user?.avatar ? <img className={styles.avatarImg} src={user.avatar} alt="" /> : initialsOf(user?.name ?? '')}
+          <AvatarImage className={styles.avatarImg} src={user?.avatar} fallback={initialsOf(user?.name ?? '')} />
         </Link>
       </div>
     </header>

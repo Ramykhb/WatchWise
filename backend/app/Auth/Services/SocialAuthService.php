@@ -48,6 +48,7 @@ class SocialAuthService implements SocialAuthServiceInterface
 
             if ($account) {
                 $this->socialAccounts->updateAccessToken($account, $data->accessToken);
+                $this->dropPlaceholderAvatar($account->user, $data);
 
                 return $account->user;
             }
@@ -88,6 +89,17 @@ class SocialAuthService implements SocialAuthServiceInterface
 
             return $user;
         });
+    }
+
+    /**
+     * Clears a placeholder saved by an earlier sign-in. Only a photo that came from Google is
+     * touched; one the user uploaded in Settings stays.
+     */
+    private function dropPlaceholderAvatar(User $user, SocialLoginData $data): void
+    {
+        if ($data->avatarIsPlaceholder && is_string($user->avatar) && str_contains($user->avatar, 'googleusercontent.com')) {
+            $user->forceFill(['avatar' => null])->save();
+        }
     }
 
     private function emailIsVerified(SocialLoginData $data): bool
