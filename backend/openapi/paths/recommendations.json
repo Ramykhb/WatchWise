@@ -1,0 +1,56 @@
+{
+  "paths": {
+    "/api/movie-recommendations": {
+      "get": {
+        "summary": "Get movie recommendations for the current weather",
+        "description": "Fetches the current weather, then asks Gemini for 10 fitting movies. Send latitude and longitude together, or neither to use the default location. Requires GEMINI_API_KEY and GEMINI_MODEL in .env. Counts against the AI limit of 10 requests per minute.",
+        "tags": ["Recommendations"],
+        "parameters": [
+          {"name": "latitude", "in": "query", "required": false, "description": "Required if longitude is sent.", "schema": {"type": "number", "minimum": -90, "maximum": 90}, "example": 33.8938},
+          {"name": "longitude", "in": "query", "required": false, "description": "Required if latitude is sent.", "schema": {"type": "number", "minimum": -180, "maximum": 180}, "example": 35.5018}
+        ],
+        "responses": {
+          "200": {
+            "description": "Ten recommended movies.",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecommendationResponse"}}}
+          },
+          "422": {"description": "Validation failed.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ValidationError"}}}},
+          "429": {"description": "Too many requests.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}}}},
+          "502": {
+            "description": "The weather or Gemini step failed.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/Error"},
+                "examples": {
+                  "weather": {"summary": "Weather lookup failed", "value": {"error": "Could not get the weather"}},
+                  "gemini": {"summary": "Gemini failed", "value": {"error": "Could not generate recommendations"}}
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RecommendedMovie": {
+        "type": "object",
+        "required": ["title", "year", "genre", "reason"],
+        "properties": {
+          "title": {"type": "string", "example": "Singin' in the Rain"},
+          "year": {"type": "integer", "example": 1952},
+          "genre": {"type": "string", "example": "Musical"},
+          "reason": {"type": "string", "example": "A feel-good classic that suits a rainy day."}
+        }
+      },
+      "RecommendationResponse": {
+        "type": "object",
+        "required": ["movies"],
+        "properties": {
+          "movies": {"type": "array", "description": "Gemini is asked for 10 movies. The answer is passed through as it is, so the count is not guaranteed.", "items": {"$ref": "#/components/schemas/RecommendedMovie"}}
+        }
+      }
+    }
+  }
+}
