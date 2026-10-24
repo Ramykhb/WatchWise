@@ -5,6 +5,8 @@ use App\Gemini\Providers\GeminiModuleServiceProvider;
 use App\Genre\Providers\GenreModuleServiceProvider;
 use App\Groq\Providers\GroqModuleServiceProvider;
 use App\Movie\Providers\MovieModuleServiceProvider;
+use App\MovieList\Providers\MovieListModuleServiceProvider;
+use App\MovieNight\Providers\MovieNightModuleServiceProvider;
 use App\MovieRecommendation\Providers\MovieRecommendationModuleServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\AuthorizationServiceProvider;
@@ -16,6 +18,8 @@ return [
     AuthModuleServiceProvider::class,
     GenreModuleServiceProvider::class,
     MovieModuleServiceProvider::class,
+    MovieListModuleServiceProvider::class,
+    MovieNightModuleServiceProvider::class,
     GeminiModuleServiceProvider::class,
     GroqModuleServiceProvider::class,
     WeatherModuleServiceProvider::class,

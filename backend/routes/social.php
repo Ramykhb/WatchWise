@@ -2,12 +2,12 @@
 
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MeController;
-use App\Http\Controllers\MovieListController;
-use App\Http\Controllers\MovieNightController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\WatchlistController;
+use App\MovieList\Controllers\MovieListController;
+use App\MovieNight\Controllers\MovieNightController;
 use Illuminate\Support\Facades\Route;
 
 // Loaded from routes/api.php (already under the /api prefix). Everything here needs a signed-in user.
