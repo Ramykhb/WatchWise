@@ -2,9 +2,10 @@ import { api } from '../../lib/api.ts'
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import type { Filters } from './discoverData.ts'
 
-/** A movie as the backend's TMDB endpoints return it. */
+/** A movie or TV show as the backend's TMDB endpoints return it. */
 export type TmdbMovie = {
   id: number
+  media_type: 'movie' | 'tv'
   title: string
   overview: string
   release_date: string | null
@@ -24,7 +25,11 @@ export type MoviePage = {
 }
 
 /** TMDB genre names the design shortens. */
-const GENRE_LABELS: Record<string, string> = { 'Science Fiction': 'Sci-fi' }
+const GENRE_LABELS: Record<string, string> = {
+  'Science Fiction': 'Sci-fi',
+  'Sci-Fi & Fantasy': 'Sci-fi',
+  'Action & Adventure': 'Adventure',
+}
 
 /** A TMDB genre name as the design writes it ("Science Fiction" → "Sci-fi"). */
 export const genreLabel = (name: string) => GENRE_LABELS[name] ?? name
@@ -42,6 +47,16 @@ export const GENRE_IDS: Record<string, number> = {
   Horror: 27,
   Animation: 16,
   Romance: 10749,
+}
+
+/** TMDB's TV genres are a different list: no Horror or Romance, and Sci-fi / Adventure are combined genres. */
+export const TV_GENRE_IDS: Record<string, number> = {
+  'Sci-fi': 10765,
+  Adventure: 10759,
+  Drama: 18,
+  Comedy: 35,
+  Thriller: 9648,
+  Animation: 16,
 }
 
 const RUNTIME_PARAMS: Record<string, { runtime_min?: number; runtime_max?: number }> = {
@@ -72,11 +87,13 @@ const FALLBACK_GRADIENT: Movie['gradient'] = ['#ccbfff', '#8c66d9', '#331a66']
 
 let genresRequest: Promise<Map<number, string>> | null = null
 
-/** Genre id → display name (e.g. 878 → "Sci-fi"). Fetched once and shared while the app is open. */
+/** Genre id → display name (e.g. 878 → "Sci-fi"), for movies and TV shows. Fetched once and shared while the app is open. */
 export function loadGenres(): Promise<Map<number, string>> {
-  genresRequest ??= api
-    .get<{ genres: { id: number; name: string }[] }>('/genres')
-    .then(({ data }) => new Map(data.genres.map((g) => [g.id, genreLabel(g.name)])))
+  const names = (type: 'movie' | 'tv') =>
+    api.get<{ genres: { id: number; name: string }[] }>('/genres', { params: { type } }).then(({ data }) => data.genres)
+
+  genresRequest ??= Promise.all([names('movie'), names('tv')])
+    .then((lists) => new Map(lists.flat().map((g) => [g.id, genreLabel(g.name)])))
     .catch((error: unknown) => {
       // Let the next call try again instead of keeping the failure.
       genresRequest = null
@@ -91,21 +108,36 @@ type MovieQuery = {
   filters: Filters
   sort: string
   page: number
-  /** Ids of the selected genres. */
-  genreIds: number[]
   signal: AbortSignal
 }
 
-/** One page of results: a title search, or Discover's filtered browse. */
-export async function fetchMovies({ query, filters, sort, page, genreIds, signal }: MovieQuery): Promise<MoviePage> {
+/** The ids TMDB knows for the selected genre chips; chips TMDB has no id for are skipped. */
+const idsFor = (labels: string[], ids: Record<string, number>) =>
+  labels.map((label) => ids[label]).filter((id) => id !== undefined)
+
+/** One page of results: a title search, or Discover's filtered browse, over movies, TV shows or both. */
+export async function fetchMovies({ query, filters, sort, page, signal }: MovieQuery): Promise<MoviePage> {
   if (query) {
-    const { data } = await api.get<MoviePage>('/movies/search', { params: { q: query, page }, signal })
+    const { data } = await api.get<MoviePage>('/movies/search', {
+      params: { q: query, page, type: filters.mediaType },
+      signal,
+    })
     return data
   }
 
+  // TV has no Horror or Romance, so when one is selected only movies can match.
+  const tvCantMatch = filters.genres.some((label) => !(label in TV_GENRE_IDS))
+  const type = filters.mediaType === 'all' && tvCantMatch ? 'movie' : filters.mediaType
+
+  const movieGenres = idsFor(filters.genres, GENRE_IDS)
+  const tvGenres = idsFor(filters.genres, TV_GENRE_IDS)
+
   const { data } = await api.get<MoviePage>('/movies/discover', {
     params: {
-      genres: genreIds.length ? genreIds.join(',') : undefined,
+      type,
+      // TV genre ids differ from movie ones: a TV-only browse sends those as `genres`, a combined one sends both.
+      genres: (type === 'tv' ? tvGenres : movieGenres).join(',') || undefined,
+      tv_genres: type === 'all' ? tvGenres.join(',') || undefined : undefined,
       year_from: filters.years[0],
       year_to: filters.years[1],
       min_rating: filters.minRating || undefined,
@@ -126,11 +158,12 @@ function posterTitle(title: string): [string, string] {
   return [words.slice(0, middle).join(' '), words.slice(middle).join(' ')]
 }
 
-/** Shapes a TMDB movie like the design's mock movies, so MovieTile and the list view can show it. */
+/** Shapes a TMDB movie or TV show like the design's mock movies, so MovieTile and the list view can show it. */
 export function toTileMovie(movie: TmdbMovie, genres: Map<number, string>): Movie {
   const genreNames = movie.genre_ids.map((id) => genres.get(id)).filter(Boolean).slice(0, 2)
   return {
-    slug: String(movie.id),
+    // TV ids overlap movie ids, so a show's slug says what it is ("tv-1399"); the details page reads it back.
+    slug: movie.media_type === 'tv' ? `tv-${movie.id}` : String(movie.id),
     title: movie.title,
     posterTitle: posterTitle(movie.title),
     meta: [movie.year, genreNames.join(', ')].filter(Boolean).join(' · '),

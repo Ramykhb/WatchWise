@@ -57,10 +57,12 @@ const formatMoney = (amount: number) => {
 const formatDate = (date: string) =>
   new Date(`${date}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 
-/** Fetches a TMDB movie through the backend. Resolves to null when TMDB doesn't know the id. */
-export async function fetchMovieDetails(id: string, signal: AbortSignal): Promise<TmdbMovieDetails | null> {
+/** Fetches a TMDB movie or TV show ("438631" or "tv-1399") through the backend. Resolves to null when TMDB doesn't know the id. */
+export async function fetchMovieDetails(slug: string, signal: AbortSignal): Promise<TmdbMovieDetails | null> {
+  const isTv = slug.startsWith('tv-')
+  const id = isTv ? slug.slice('tv-'.length) : slug
   try {
-    const { data } = await api.get<TmdbMovieDetails>(`/movies/${id}`, { signal })
+    const { data } = await api.get<TmdbMovieDetails>(`/movies/${id}`, { params: isTv ? { type: 'tv' } : undefined, signal })
     return data
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) return null
@@ -96,7 +98,11 @@ export function toDetails(api: TmdbMovieDetails, genres: Map<number, string>): M
     api.release_date && { label: 'Release date', value: formatDate(api.release_date) },
     api.runtime && { label: 'Runtime', value: formatRuntime(api.runtime) },
     genreLabels.length > 0 && { label: 'Genres', value: genreLabels.join(', ') },
-    directorNames && { label: api.directors.length > 1 ? 'Directors' : 'Director', value: directorNames },
+    directorNames && {
+      // A TV show's people are its creators.
+      label: `${api.media_type === 'tv' ? 'Creator' : 'Director'}${api.directors.length > 1 ? 's' : ''}`,
+      value: directorNames,
+    },
     api.original_language && { label: 'Original language', value: api.original_language.name },
     api.budget && { label: 'Budget', value: formatMoney(api.budget) },
     api.revenue && { label: 'Box office', value: formatMoney(api.revenue) },
