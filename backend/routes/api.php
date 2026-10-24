@@ -15,6 +15,7 @@ Route::prefix('auth')->group(function () {
 });
 
 require __DIR__.'/auth_flows.php';
+require __DIR__.'/social.php';
 
 Route::get('/weather', WeatherController::class);
 Route::post('/weather-mood', WeatherMoodController::class);
