@@ -3,9 +3,9 @@
 namespace App\Auth\Controllers;
 
 use App\Auth\Exceptions\InvalidResetToken;
+use App\Auth\FormRequests\ForgotPasswordRequest;
+use App\Auth\FormRequests\ResetPasswordRequest;
 use App\Auth\InterfaceServices\PasswordResetServiceInterface;
-use App\Auth\Requests\ForgotPasswordRequest;
-use App\Auth\Requests\ResetPasswordRequest;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 
