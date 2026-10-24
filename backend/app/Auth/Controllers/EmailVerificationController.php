@@ -3,8 +3,8 @@
 namespace App\Auth\Controllers;
 
 use App\Auth\DTOs\Requests\VerifyEmailData;
+use App\Auth\FormRequests\ResendVerificationRequest;
 use App\Auth\InterfaceServices\EmailVerificationServiceInterface;
-use App\Auth\Requests\ResendVerificationRequest;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
