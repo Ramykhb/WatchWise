@@ -21,7 +21,7 @@ export default function AuthCallback() {
         const response = await authApi.get<{ user: AuthUser }>('/me')
         if (active) {
           setUser(response.data.user)
-          navigate('/Home-Page', { replace: true })
+          navigate('/home-page', { replace: true })
         }
       } catch {
         if (active) setMessage('Could not complete sign-in. Please try again.')

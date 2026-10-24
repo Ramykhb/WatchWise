@@ -7,7 +7,7 @@ import { useUnreadCount } from '../../pages/Notifications/notificationsStore.ts'
 import styles from './AppNav.module.css'
 
 const LINKS = [
-  { to: '/Home-Page', label: 'Home' },
+  { to: '/home-page', label: 'Home' },
   { to: '/discover', label: 'Discover' },
   { to: '/for-you', label: 'For You' },
   { to: '/lists', label: 'Lists' },

@@ -61,7 +61,7 @@ export default function SignUp() {
         name, email, password, password_confirmation: passwordConfirmation,
       })
       setUser(response.data.user)
-      navigate('/Home-Page', { replace: true })
+      navigate('/home-page', { replace: true })
     } catch (error) {
       setFormError(apiErrorMessage(error, 'Unable to create your account. Please try again.'))
     } finally {
