@@ -1,6 +1,6 @@
 # WatchWise — Handoff
 
-_Last updated: 2026-10-24 · branch `feat/user-info` (user data from the database: profiles, follows, lists, watchlist, notifications, rooms, movie nights)_
+_Last updated: 2026-10-24 · branch `dev` (latest: Discover lists movies and TV shows together; earlier on `feat/user-info`: user data from the database: profiles, follows, lists, watchlist, notifications, rooms, movie nights)_
 
 WatchWise is the "Modern Movie Discovery & Social Platform" from the Web2 (WEB2PROG302-EC10) project brief.
 So far the work covers **(1) the full product design in Figma**, **(2) every Figma screen in React (23, including the four Admin screens) plus a Notifications page**, **(3) a Laravel API with the database schema, JWT authentication (email/password, verification, password reset, Google/GitHub/Discord sign-in), live weather and Groq GPT-OSS weather moods, plus the user data API (profiles, follows, lists, watchlist, notifications, rooms, movie nights)**, wired into the frontend so signed-in pages show the user's own data, and **(4) a graphify knowledge graph of the codebase**.
@@ -58,8 +58,8 @@ See also the root [README.md](README.md) for the public project overview and set
 | `/auth/callback` | Auth Callback | Landing page after social sign-in: reads `?status=`, loads `/api/auth/me`, then goes to `/home-page` |
 | `/forgot-password` | Forgot Password | **Live**: `POST /api/auth/forgot-password`; step chips (Request → Check email), preview cards |
 | `/home-page` | Home | **Live** (`GET /api/home`): greeting with the user's name, "From people you follow" activity, busiest rooms, your next movie night; the Watchlist button adds Tonight's pick. Picks/carousels/releases are still mock movies |
-| `/discover` | Discover | Search & filters (`discoverData.ts`) |
-| `/movies/:slug` | Movie Details | Reviews, ratings, sentiment, cinemas map (`movieData.ts`) |
+| `/discover` | Discover | **Live TMDB** (`GET /api/movies/discover`, `/api/movies/search`): lists **movies and TV shows together**. A **Type** filter (All / Movies / TV shows) sits at the top of the left filter panel, next to genres, year, rating, runtime and language; the first tab is "Movies & TV". Filters follow draft → "Apply filters"; a text search pauses filters and sort. Code: `discoverData.ts` (options, `Filters.mediaType`), `discoverApi.ts` (`fetchMovies`, `loadGenres`, `toTileMovie`). See "Movies + TV in Discover" in §4 |
+| `/movies/:slug` | Movie Details | Reviews, ratings, sentiment, cinemas map (`movieData.ts`). Numeric slugs (`/movies/603`) and TV slugs (`/movies/tv-1399`) load real TMDB data through `fetchMovieDetails` (`movieApi.ts`); names like `neon-tide` still use the design's mock data |
 | `/people/:slug` | Person | Actor/director page (`personData.ts`) |
 | `/for-you` | For You | **Live weather + Groq GPT-OSS mood**: `/api/weather` (browser geolocation, Beirut fallback), then `POST /api/weather-mood` turns the weather into a viewing mood; recommendation rows still use mock movies |
 | `/lists`, `/lists/:slug` | Lists / List Detail | **Live** (`/api/lists`): My lists, other members' Public lists, and Following (public lists of people you follow). URLs are `/lists/{id}-{title-slug}`. Only the owner sees reorder/remove/add on List Detail; changes are saved with `PATCH /api/lists/{id}`. `myListsStore` keeps the user's lists in sync across pages. Likes / list followers were dropped (no table for them) |
@@ -146,8 +146,17 @@ Env: `frontend/.env` with `VITE_BACKEND_URL=http://localhost:8000` (see `.env.ex
   - **New migrations (2026-10-24):** `users.username` (unique, generated from the name on create and backfilled) + `users.location`, `profile_visibility` now a string (`public` / `followers` / `private`); `user_preferences.settings` (JSON); `movie_list_items.position` + `note`; `discussion_rooms.created_by` + `spoilers`; `movie_nights.note`; invite status string (adds `maybe`).
   - **Demo data:** `php artisan db:seed` runs `DemoSocialSeeder` — six members who follow each other (maya, linasaad, omark, jadn, ranah, samt `@watchwise.test`; password in the seeder's doc comment) with lists, watchlists, reviews, rooms, movie nights and notifications.
   - Authentication now runs **before** route model binding (`bootstrap/app.php`), so guests get 401, not 404.
-- **Tests:** `php artisan test` — **100 tests** (auth + 16 new in `tests/Feature/Social`: profiles, privacy, follows, lists, watchlist, notifications, rooms/mentions, movie nights).
-- **Not yet:** TMDB catalog (remote `feat/back-tmdb-movies`, unmerged), review writing/moderation endpoints, list likes, real-time rooms (Reverb), admin APIs.
+- **Tests:** `php artisan test` — **204 tests** as of 2026-10-24 (auth, `tests/Feature/Social`, and the TMDB suites in `tests/Feature/Tmdb` / `tests/Unit/Tmdb`, with TMDB calls faked).
+- **Movies + TV in Discover (2026-10-24, branch `dev`), `app/Tmdb/` (Controllers → Services → Repositories, DTOs, Form Requests):**
+  - **No new routes and no database changes.** The existing endpoints gained a `type` parameter: `GET /api/movies/search?q=&type=movie|tv|all` and `GET /api/movies/discover?...&type=movie|tv|all&tv_genres=`; `GET /api/movies/{id}?type=tv` for a show; `GET /api/genres?type=tv`. `type` defaults to `movie`, so existing callers behave as before.
+  - Every item now has `media_type` (`movie` | `tv`). A TV show's `name` / `first_air_date` are returned as `title` / `release_date`, so the frontend treats both kinds the same.
+  - `type=all` merges both kinds in one globally sorted list (`MovieService::mergedPage`): combined page N is the slice at offset (N-1)×20 of the two lists merged, built from the first N TMDB pages of each kind (so N×2 TMDB calls). A combined page holds 20 titles and goes at most **10 pages deep** (`MERGED_MAX_PAGES`); `total_results` is the sum of both, `total_pages = min(ceil(total/20), 10)`. The sort is the chosen one (popularity for searches, since TMDB gives no relevance score).
+  - TV genre ids differ from movie ids (Sci-fi 10765, Adventure 10759; **no Thriller, Horror or Romance on TV**, those chips are hidden for "TV shows" and mean movies-only for "All"). With `type=all`, `genres` holds the movie ids and `tv_genres` the TV ids. The frontend sends `type=movie` when a selected genre has no TV id.
+  - TV details: runtime = episode length, `directors` = the show's creators (the page labels them "Creator"), certification from `content_ratings`, no budget / revenue. Caches: `tmdb.tv_genres` (1 day) and `tmdb.movie.tv.<id>` (6 h).
+  - TV slugs are `tv-<id>` (a movie and a show can share an id). Watchlist, ratings and other features that read a numeric id from the slug **don't understand `tv-` slugs yet**.
+  - Runtime filter means episode length for TV (TMDB's data is patchy). Rating / Title sorts need ≥100 votes for both kinds.
+  - Docs: `openapi/paths/tmdb.json` has the new parameters. Tests: `tests/Feature/Tmdb/DiscoverTest.php` (merged browse, TV details). A step-by-step PDF with every changed function and its return value is at `WatchWise-discover-changes.pdf` (outside the repo, in the author's folder).
+- **Not yet:** review writing/moderation endpoints, list likes, real-time rooms (Reverb), admin APIs, a Person/credits TMDB source, TV support in watchlist / lists / ratings.
 - `backend/CLAUDE.md` holds the Laravel Boost guidelines; `backend/.claude/skills/` holds agent skills (excluded from the graph).
 
 ---
@@ -199,7 +208,8 @@ In Claude Code, `/graphify . --update` rebuilds incrementally (docs need the LLM
 ## 8. Current state & known issues
 **Checked on 2026-10-24** (`feat/user-info`):
 - ✅ Frontend `tsc`, `npm run lint` (the 3 Fast Refresh errors are fixed: guards moved to `components/RouteGuards`, `useAuth` to `contexts/useAuth.ts`) and `npm run build` pass.
-- ✅ Backend: **100 / 100 tests pass** locally. `AccountFlowsTest::test_social_redirect_sets_state_cookie` passes only when real Google credentials are in `.env`; on a clean checkout it gets **503** — set fake ones in the test (`config(['services.google.client_id' => 'id', 'services.google.client_secret' => 'secret'])`). **Backend CI only runs `composer install` + `php artisan --version`**, so add `php artisan test` (and frontend lint) to CI.
+- ✅ Movies + TV in Discover (branch `dev`): backend **204 / 204** tests pass (re-run after the PR review fixes), frontend `tsc` and `eslint` on the touched pages are clean. **Not yet checked in a browser** against live TMDB, in particular the TV details page and the merged "All" list.
+- ✅ Backend (earlier check on `feat/user-info`): **100 / 100 tests passed** then. `AccountFlowsTest::test_social_redirect_sets_state_cookie` passes only when real Google credentials are in `.env`; on a clean checkout it gets **503** — set fake ones in the test (`config(['services.google.client_id' => 'id', 'services.google.client_secret' => 'secret'])`). **Backend CI only runs `composer install` + `php artisan --version`**, so add `php artisan test` (and frontend lint) to CI.
 - ✅ Checked in the browser as the demo user `maya`: Home, Profile (own + others, follow → notification), Lists, Watchlist, Notifications, Rooms (send + @mention → notification), Movie Nights and Settings load and save real data.
 - ⚠️ `php artisan serve` handles one request at a time, so pages that fire several requests fill in slowly in dev; fine in production (php-fpm).
 - ⚠️ After pulling, run **`composer install`** in `backend/` (new `firebase/php-jwt` + `laravel/socialite`); with a stale `vendor/`, 20 tests fail with `Class "Firebase\JWT\JWT" not found`. Same for `npm install` in `frontend/`.
@@ -225,7 +235,7 @@ In Claude Code, `/graphify . --update` rebuilds incrementally (docs need the LLM
 1. Fix the review findings in §8: the 3 lint errors, the failing social-redirect test and guest access to `/terms` / `/privacy`; add tests and lint to CI.
 2. Gate `/admin` on `user.role === 'admin'` in the frontend and add admin APIs behind `EnsureRole`.
 3. Finish the auth follow-ups in `backend/Backend.md` (captcha, GitHub verified-email check, real SMTP/OAuth testing).
-4. Merge the TMDB work (`feat/back-tmdb-movies`), replace `movieFor()` in `lib/movies.ts` with real movie data and TMDB search in the pickers, and swap the remaining movie mocks (Discover, Movie Details, Person, For You rows).
+4. Make watchlist, lists, ratings and reviews accept `tv-` slugs (store the media type with the TMDB id), and try Discover → TV details in a browser. Then replace `movieFor()` in `lib/movies.ts` with real movie data and TMDB search in the pickers, and swap the remaining movie mocks (Discover, Movie Details, Person, For You rows).
    Add a real-time channel (e.g. Laravel Reverb) for room messages and notifications instead of polling; add review writing, list likes and admin APIs.
 5. Code-split routes to clear the bundle warning.
 6. Re-run graphify (`/graphify . --update`) after each feature so the graph stays current.

@@ -22,8 +22,10 @@ interface MovieServiceInterface
     public function discover(MovieDiscoverQuery $query): MoviePageResponse;
 
     /**
+     * @param  'movie'|'tv'  $type
+     *
      * @throws MovieNotFound
      * @throws TmdbUnavailable
      */
-    public function find(int $id): MovieDetailsResponse;
+    public function find(int $id, string $type = 'movie'): MovieDetailsResponse;
 }
