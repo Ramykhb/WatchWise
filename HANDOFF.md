@@ -1,9 +1,9 @@
 # WatchWise — Handoff
 
-_Last updated: 2026-10-24 · branch `fix/edit-handoff-graphify` (based on `dev` after PR #23, Discord OAuth and route guards)_
+_Last updated: 2026-10-24 · branch `feat/user-info` (user data from the database: profiles, follows, lists, watchlist, notifications, rooms, movie nights)_
 
 WatchWise is the "Modern Movie Discovery & Social Platform" from the Web2 (WEB2PROG302-EC10) project brief.
-So far the work covers **(1) the full product design in Figma**, **(2) every Figma screen in React (23, including the four Admin screens) plus a Notifications page**, **(3) a Laravel API with the database schema, JWT authentication (email/password, verification, password reset, Google/GitHub/Discord sign-in), live weather and Gemini weather-mood recommendations**, wired into the frontend, and **(4) a graphify knowledge graph of the codebase**.
+So far the work covers **(1) the full product design in Figma**, **(2) every Figma screen in React (23, including the four Admin screens) plus a Notifications page**, **(3) a Laravel API with the database schema, JWT authentication (email/password, verification, password reset, Google/GitHub/Discord sign-in), live weather and Gemini weather-mood recommendations, plus the user data API (profiles, follows, lists, watchlist, notifications, rooms, movie nights)**, wired into the frontend so signed-in pages show the user's own data, and **(4) a graphify knowledge graph of the codebase**.
 See also the root [README.md](README.md) for the public project overview and setup.
 
 ---
@@ -57,27 +57,31 @@ See also the root [README.md](README.md) for the public project overview and set
 | `/signin`, `/signup` | Sign In / Sign Up | **Live**: `POST /api/auth/login` / `register` through `lib/auth.ts`; Google/GitHub/Discord buttons redirect to `/api/auth/social/{provider}`; validation, Show/Hide password; swap animation (below) |
 | `/auth/callback` | Auth Callback | Landing page after social sign-in: reads `?status=`, loads `/api/auth/me`, then goes to `/home-page` |
 | `/forgot-password` | Forgot Password | **Live**: `POST /api/auth/forgot-password`; step chips (Request → Check email), preview cards |
-| `/home-page` | Home | Signed-in home, mock data |
+| `/home-page` | Home | **Live** (`GET /api/home`): greeting with the user's name, "From people you follow" activity, busiest rooms, your next movie night; the Watchlist button adds Tonight's pick. Picks/carousels/releases are still mock movies |
 | `/discover` | Discover | Search & filters (`discoverData.ts`) |
 | `/movies/:slug` | Movie Details | Reviews, ratings, sentiment, cinemas map (`movieData.ts`) |
 | `/people/:slug` | Person | Actor/director page (`personData.ts`) |
 | `/for-you` | For You | **Live weather + Gemini mood**: `/api/weather` (browser geolocation, Beirut fallback), then `POST /api/weather-mood` turns the weather into a viewing mood; recommendation rows still use mock movies |
-| `/lists`, `/lists/:slug` | Lists / List Detail | Public/private lists (`listsData.ts`, `listDetailData.ts`); shared in-memory `myListsStore` |
-| `/lists/new`, `/lists/:slug/edit` | Create/Edit List dialog | `ListDialog`, opens over the Lists page (child routes of `lists`) |
-| `/lists/watchlist` | Watchlist & History | Under Lists so the Lists nav link is active; `/watchlist` redirects here |
-| `/profile`, `/profile/:handle` | Profile | `/profile` = the signed-in user (Maya, **Edit profile**); `/profile/linasaad` = the Figma public profile. Follow/unfollow, 4 tabs, followers/following, top 4, genres (`profileData.ts`) |
-| `/settings` | Settings | Sticky section menu (scroll-spy), profile form + photo preview, password change, privacy visibility + toggles, connected accounts, integrations (Location asks for geolocation) (`settingsData.ts`) |
+| `/lists`, `/lists/:slug` | Lists / List Detail | **Live** (`/api/lists`): My lists, other members' Public lists, and Following (public lists of people you follow). URLs are `/lists/{id}-{title-slug}`. Only the owner sees reorder/remove/add on List Detail; changes are saved with `PATCH /api/lists/{id}`. `myListsStore` keeps the user's lists in sync across pages. Likes / list followers were dropped (no table for them) |
+| `/lists/new`, `/lists/:slug/edit` | Create/Edit List dialog | `ListDialog`, opens over the Lists page; `POST` / `PATCH /api/lists` with the films in order |
+| `/lists/watchlist` | Watchlist & History | **Live** (`/api/watchlist`): queue, mark as watched, remove, history with your review ratings, "What you watch" bars from watched genres. Availability filters wait for TMDB |
+| `/profile`, `/profile/:handle` | Profile | **Live** (`GET /api/users/{username}`): `/profile` = the signed-in user (**Edit profile**, Log out); others show Follow/Unfollow (`POST/DELETE /api/users/{username}/follow`, which notifies them). Activity, reviews, lists, watched, top 4 (highest rated), favourite genres, followers/following. The owner's privacy switches and profile visibility (public / followers / private) are applied by the backend |
+| `/settings` | Settings | **Live** (`/api/me`): profile (name, @username, email, location, bio), photo upload/remove, password change (signs out other devices), visibility + privacy toggles, connected accounts (disconnect; connect = provider sign-in), integrations, delete account (asks for the password) |
 | `/discover/cinemas` | Nearby Cinemas | Illustrated Figma map with pins, popup, zoom; cinemas / movie-locations modes, filters, showtimes, Google Maps directions, "Use my location" (`cinemasData.ts`). Under Discover so that nav link is active; `/cinemas` redirects here and Discover links to it from the "In cinemas near me" filter |
-| `/movie-nights` | Movie Nights | Invitations (accept/decline), upcoming/past nights, "How it works", **Plan a movie night** form (date/time, in person/online, invite friends, shortlist, voting closes) (`nightsData.ts`) |
-| `/movie-nights/:slug` | Movie Night | RSVP, shortlist voting (one vote each, leading/winner), suggest a movie, invite more, close voting, Google Calendar link, share (`nightDetailData.ts`). Nights live in the shared `nightsStore`, so created/accepted nights open here too |
-| `/rooms`, `/rooms/:roomId` | Discussion Rooms | Room list (search, unread, create room), chat (send, emoji, attach name, agree reactions, mute/copy link), room movie, rules, online members (`roomsData.ts`). One route `rooms/:roomId?` so switching rooms keeps chat state. **Real-time is mocked**: demo typing + canned replies until a backend channel exists |
-| `/notifications` | Notifications | **No Figma frame** — designed in the app's style. Grouped feed (Today / Yesterday / This week), All / Unread / Movie nights / Social tabs, open-to-mark-read, read/unread dot, dismiss, mark all as read, Follow back, "Notify me about" toggles. Shared `notificationsStore` drives the unread badge on the header bell (`AppNav`); Settings › Notifications links here |
+| `/movie-nights` | Movie Nights | **Live** (`/api/movie-nights`): pending invitations (accept/decline), upcoming/past nights, **Plan a movie night** (invite people you follow by @username, starting shortlist) — guests get an invite notification |
+| `/movie-nights/:id` | Movie Night | **Live**: RSVP (going / maybe / can't go → notifies the host), one vote each (suggesting a film votes for it), host-only Invite more and Close/Reopen voting, Google Calendar link, share |
+| `/rooms`, `/rooms/:roomId` | Discussion Rooms | **Live** (`/api/rooms`): rooms you posted in first, create room, messages (polled every 5 s — no real-time channel yet), `@username` mentions notify that member, members list with links to profiles. "Agree" reactions are local only |
+| `/notifications` | Notifications | **Live** (`/api/notifications`): grouped feed (Today / Yesterday / This week / Earlier), tabs, mark read/unread, dismiss, mark all read, Follow back, "Notify me about" switches saved in preferences. The header bell polls every minute (`notificationsStore`) |
 | `/admin`, `/admin/users`, `/admin/reviews`, `/admin/movies` | Admin dashboard | `AdminLayout` (sidebar + nested routes): Overview (stats, activity chart, genres, top movies), Users (table, filters, bulk actions), Review Moderation (sentiment, approve/remove/warn), Movie Data (TMDB sync status, edit drawer). Mock data in `adminData.ts`; **no admin role check in the frontend yet** |
 | everything else | Placeholder | "Coming soon" / 404 so every link works (`releases`, `terms`, `privacy`, `movies/:slug/credits`, …) |
 
-Auth (sign in/up, social, forgot password, session, logout) and For You's weather/mood are live; **every other page still uses mock data** in a `*Data.ts` file next to the page — replace those with API calls.
+Everything that belongs to a user now comes from the database. **Still mock:** movie/person/discover/cinemas data and the Home/For You movie rows (waiting for TMDB) and the Admin pages.
 
-**Route guards (`router.tsx`):** `RequireGuest` wraps Landing and the auth pages (a signed-in user is sent to `/home-page`); `RequireAuth` wraps everything else (a guest is sent to `/signin`, remembering where they were going). Both wait for `AuthContext` to finish loading the session. All paths are lowercase.
+**Films are TMDB ids.** Until TMDB is merged, `lib/movies.ts` maps ids **1001–1008** to the eight demo movies (the seeder uses the same ids); any other id shows a neutral "Film #id" poster. Swap `movieFor()` for real TMDB data later.
+
+**Data layer:** `lib/api.ts` = axios for `/api` (cookies; a 401 refreshes the token once and retries) + `useApi(path)` hook (`data`, `error`, `loading`, `setData`, `reload`). API shapes are typed in `lib/types.ts`; each page's `*Data.ts` now holds the adapter from API data to what its components draw. Avatars use initials + a colour picked from the user id (`lib/format.ts`), or the uploaded photo.
+
+**Route guards (`components/RouteGuards/RouteGuards.tsx`, used in `router.tsx`):** `RequireGuest` wraps Landing and the auth pages (a signed-in user is sent to `/home-page`); `RequireAuth` wraps everything else (a guest is sent to `/signin`, remembering where they were going). Both wait for `AuthContext` to finish loading the session. All paths are lowercase.
 
 ### Behaviour worth knowing
 - **Fit to viewport (desktop ≥ 1025px):** `FitToViewport` scales single-screen pages (Landing, auth) to fit the window with no scrolling, using compact `[data-fit]` spacing. Long app pages (Home, Discover, …) scroll normally with Lenis.
@@ -88,22 +92,24 @@ Auth (sign in/up, social, forgot password, session, logout) and For You's weathe
 - **Shared app pieces:** `AppNav` (signed-in header, active link via `NavLink`, search → `/discover?q=`, bell → `/notifications` with unread badge), `MovieTile` (set `--poster-w` for non-196px tiles), `PillButton` (`to` / `href` / button, `disabled`), `Toggle` (48×28 switch, `role="switch"`), `RatingStars`, `ReviewCard`, `Sentiment`, `PosterCollage`.
 - **Highlighting a nav link from a sub-page:** nest the route under the section (`/lists/watchlist`, `/discover/cinemas`) and `NavLink` marks it active; add a `Navigate` redirect for the short URL.
 - **Scrolling to a section:** Lenis owns the page scroll, so `element.scrollIntoView()` gets overridden. Use `useLenis()` and `lenis.scrollTo(element, { offset })` (see `Settings.tsx`). Inner scroll areas need `data-lenis-prevent`.
-- **Auth session:** `AuthProvider` (`contexts/AuthContext.tsx`) loads `GET /api/auth/me` on start and falls back to `POST /api/auth/refresh`. Tokens live in **HTTP-only cookies** (axios `withCredentials`), so the frontend never stores a token. `useAuth()` exposes `user`, `loading`, `setUser` and `logout`. API errors become messages through `apiErrorMessage()` in `lib/auth.ts`.
-- **Forms still mocked:** Settings (profile, password, delete account) and Movie Nights (create) have `TODO`s for their endpoints. Sign in/up and Forgot password are live.
+- **Auth session:** `AuthProvider` (`contexts/AuthContext.tsx`) loads `GET /api/auth/me` on start and falls back to `POST /api/auth/refresh`. Tokens live in **HTTP-only cookies** (axios `withCredentials`), so the frontend never stores a token. `useAuth()` (`contexts/useAuth.ts`) exposes `user` (incl. `username`, `avatar`, `bio`, `location`), `loading`, `setUser` and `logout`; logout also clears the notifications store. API errors become messages through `apiErrorMessage()` in `lib/auth.ts`.
+- **Saving pattern:** buttons change at once and the request runs in the background; a failed request puts the old state back (follows, watchlist, notifications, list order).
 
 ### File map (`frontend/src`)
 ```
-main.tsx, router.tsx (routes + RequireAuth/RequireGuest), index.css (.sr-only utility)
+main.tsx, router.tsx (routes), index.css (.sr-only utility)
 layouts/RootLayout.tsx            Lenis + GSAP ticker, <Outlet/>
-contexts/AuthContext.tsx          AuthProvider + useAuth (session from cookies)
+contexts/AuthContext.tsx          AuthProvider (session from cookies); contexts/useAuth.ts = context + useAuth
 lib/auth.ts                       axios instance for /api/auth, AuthUser type, apiErrorMessage
+lib/api.ts                        axios instance for /api (token refresh on 401) + useApi hook
+lib/types.ts                      API response types · lib/movies.ts TMDB id → demo movie · lib/format.ts avatars, dates
 lib/gsap.ts                       registers GSAP plugins, EASE_OUT_BACK
 styles/tokens.css                 colors, shadows, fonts (mirrors Figma variables)
 styles/motion.css                 view-transition names + auth swap rules
 hooks/  useEntranceAnimation · useAuthSwap · useViewportFit · useFitScale
 components/
   AuthShell, AuthWaves, FitToViewport          auth layout + motion
-  AppNav, MovieTile, PillButton, Toggle, ButtonPrimary, Chip, Logo, ...
+  AppNav, MovieTile, PillButton, Toggle, ButtonPrimary, Chip, Logo, RouteGuards, ...
   RatingStars, ReviewCard, Sentiment, PosterCollage, PosterCardMini, YearInFilmCard, TrendingCard
   TextField, Checkbox, OrDivider, SocialButton, SplitHeadline
   reactbits/SplitText, reactbits/Magnet       (React Bits sources)
@@ -127,8 +133,21 @@ Env: `frontend/.env` with `VITE_BACKEND_URL=http://localhost:8000` (see `.env.ex
   - Middleware: `auth.jwt`, optional auth, `EnsureEmailVerified`, `EnsureRole` (role is on `users.role`). **Policies** for messages, lists, list items, movie nights, notifications, reviews, users, preferences and watchlists.
 - **Weather (PR #15):** `GET /api/weather?latitude=&longitude=` proxies Open-Meteo, falls back to Beirut, returns 502 JSON if the service is down (`OPEN_METEO_*`).
 - **Gemini (merged from `gemini-integeration-test`):** `GeminiService` + `POST /api/weather-mood` (weather → viewing mood) and `GET /api/movie-recommendations`. Config `services.gemini` → `GEMINI_API_KEY`, `GEMINI_MODEL` (**not yet listed in `.env.example`**).
-- **Tests:** `php artisan test` — 84 tests (auth flows, middleware, tokens, policies, weather, Gemini).
-- **Not yet:** TMDB catalog (a remote `feat/back-tmdb-movies` branch exists, unmerged), reviews/lists/watchlist/movie-night/notification APIs, real-time rooms, admin APIs.
+- **User data API (`feat/user-info`), `routes/social.php`, all behind `auth.jwt`:**
+  - `GET /api/home` — friends' activity, busiest rooms, your next movie night.
+  - `GET|PATCH|DELETE /api/me`, `PATCH /api/me/preferences` (genres + `privacy` / `integrations` / `notifications` switches), `PUT /api/me/password` (revokes every refresh token), `POST|DELETE /api/me/avatar` (public disk → run `php artisan storage:link`), `DELETE /api/me/social/{provider}`.
+  - `GET /api/users?q=` (search), `GET /api/users/{username}` (profile; `restricted: true` when private / followers-only and you can't see it), `.../followers`, `.../following`, `POST|DELETE .../follow`.
+  - `apiResource lists` (`?scope=mine|public|following`; `tmdb_ids` replaces the films in order), `apiResource watchlist`.
+  - `GET /api/notifications`, `PATCH /api/notifications/{id}` (`read`), `POST /api/notifications/read-all`, `DELETE /api/notifications/{id}`.
+  - `GET|POST /api/rooms`, `GET /api/rooms/{room}/messages?after=`, `POST /api/rooms/{room}/messages`.
+  - `GET|POST /api/movie-nights`, `GET|PATCH /api/movie-nights/{night}`, `POST .../invites`, `PUT .../rsvp`, `PUT .../vote`.
+  - Controllers in `app/Http/Controllers` (Profile, Me, MovieList, Watchlist, Notification, Room, MovieNight, Home), JSON shapes in `app/Http/Resources`, existing **policies** do the authorization (`UserPolicy` gained `follow` and followers-only visibility).
+  - **Links between users:** `App\Services\Notifier` writes notifications for follows, movie night invites / RSVPs / votes and `@mentions` in rooms (`data` holds the sentence + link + `actor_id`). `App\Services\ActivityFeedService` records list / watchlist / review activity and builds the Profile and Home feeds.
+  - **New migrations (2026-10-24):** `users.username` (unique, generated from the name on create and backfilled) + `users.location`, `profile_visibility` now a string (`public` / `followers` / `private`); `user_preferences.settings` (JSON); `movie_list_items.position` + `note`; `discussion_rooms.created_by` + `spoilers`; `movie_nights.note`; invite status string (adds `maybe`).
+  - **Demo data:** `php artisan db:seed` runs `DemoSocialSeeder` — six members who follow each other (maya, linasaad, omark, jadn, ranah, samt `@watchwise.test`; password in the seeder's doc comment) with lists, watchlists, reviews, rooms, movie nights and notifications.
+  - Authentication now runs **before** route model binding (`bootstrap/app.php`), so guests get 401, not 404.
+- **Tests:** `php artisan test` — **100 tests** (auth + 16 new in `tests/Feature/Social`: profiles, privacy, follows, lists, watchlist, notifications, rooms/mentions, movie nights).
+- **Not yet:** TMDB catalog (remote `feat/back-tmdb-movies`, unmerged), review writing/moderation endpoints, list likes, real-time rooms (Reverb), admin APIs.
 - `backend/CLAUDE.md` holds the Laravel Boost guidelines; `backend/.claude/skills/` holds agent skills (excluded from the graph).
 
 ---
@@ -144,9 +163,10 @@ Env: `frontend/.env` with `VITE_BACKEND_URL=http://localhost:8000` (see `.env.ex
 | `graph.json` | raw graph data (GraphRAG-ready) |
 | `manifest.json`, `.graphify_labels.json`, `cost.json` | state for incremental updates, community names, token cost log |
 
-**Latest update (2026-10-24, with the auth module, Admin pages, Gemini and route guards):** current node / edge / community counts are in the Summary of `graphify-out/GRAPH_REPORT.md` (kept out of this file so updating the graph doesn't change the doc it reads).
+**Latest update (2026-10-24, `feat/user-info`: user data API and wired pages; code re-extracted with `graphify update .`):** current node / edge / community counts are in the Summary of `graphify-out/GRAPH_REPORT.md` (kept out of this file so updating the graph doesn't change the doc it reads).
 - Code is extracted structurally (AST, no tokens). Docs (HANDOFF, READMEs, CLAUDE.md, CI workflows) go through an LLM pass; token cost per run is logged in `cost.json`.
-- **Most connected nodes:** `CurrentUser` (auth), `react`, `react-router`, `UserRepositoryInterface`, `AppNav()`, `useEntranceAnimation()`, `TokenFactory`, `AccountFlowsTest`, `AuthResponse`.
+- **Most connected nodes:** `User` (model), `CurrentUser` (auth), `react`, `AppNav()`, `react-router`, `SplitHeadline()`, `gradientCss()`, `useEntranceAnimation()`, `MovieNight`.
+- `graphify update .` only re-extracts code. The doc nodes for this HANDOFF are from the previous LLM pass; run `/graphify . --update` to refresh them, and `graphify label` to rename communities (45 were renamed after their hub node automatically). Backups it writes (`graphify-out/20*/`) are git-ignored.
 - **Flagged:** one AMBIGUOUS edge: the README roadmap still lists Laravel authentication as not done.
 - **Excluded:** `.graphifyignore` keeps `backend/.claude/` and `.claude/` (agent tooling) out. Figma image assets are not extracted (cost vs. value): their imports appear as bare `frontend_src_assets_*` nodes and the images are listed as "new" on every update. `backend/.npmrc` and `styles/tokens.css` are skipped as "sensitive" by name only.
 - When a doc is rewritten, graphify refuses to save because its old concepts disappear; that is expected — save with `to_json(..., force=True)` after checking the new graph.
@@ -177,16 +197,16 @@ In Claude Code, `/graphify . --update` rebuilds incrementally (docs need the LLM
 - After a pull, run `npm install` in `frontend/` — new dependencies (e.g. axios in PR #15) otherwise break the build with "Cannot find module".
 
 ## 8. Current state & known issues
-**Review on 2026-10-24** (`fix/edit-handoff-graphify`, same code as `dev`):
-- ✅ Frontend `tsc` and `npm run build` pass.
-- ❌ **`npm run lint` fails with 3 errors** (`react-refresh/only-export-components`): `router.tsx` defines `RequireAuth` / `RequireGuest` inline, and `contexts/AuthContext.tsx` exports `useAuth` next to `AuthProvider`. Fix: move the guards to `components/RouteGuards.tsx` and `useAuth` (with the context) to its own file. CI doesn't run lint, so it stays green.
-- ❌ **Backend: 83 of 84 tests pass.** `AccountFlowsTest::test_social_redirect_sets_state_cookie` gets **503** because the Discord commit added the "credentials not configured" guard and the test never sets fake Google credentials. Fix the test (`config(['services.google.client_id' => 'id', 'services.google.client_secret' => 'secret'])`), not the guard. **Backend CI only runs `composer install` + `php artisan --version`**, so add `php artisan test` (and frontend lint) to CI.
+**Checked on 2026-10-24** (`feat/user-info`):
+- ✅ Frontend `tsc`, `npm run lint` (the 3 Fast Refresh errors are fixed: guards moved to `components/RouteGuards`, `useAuth` to `contexts/useAuth.ts`) and `npm run build` pass.
+- ✅ Backend: **100 / 100 tests pass** locally. `AccountFlowsTest::test_social_redirect_sets_state_cookie` passes only when real Google credentials are in `.env`; on a clean checkout it gets **503** — set fake ones in the test (`config(['services.google.client_id' => 'id', 'services.google.client_secret' => 'secret'])`). **Backend CI only runs `composer install` + `php artisan --version`**, so add `php artisan test` (and frontend lint) to CI.
+- ✅ Checked in the browser as the demo user `maya`: Home, Profile (own + others, follow → notification), Lists, Watchlist, Notifications, Rooms (send + @mention → notification), Movie Nights and Settings load and save real data.
+- ⚠️ `php artisan serve` handles one request at a time, so pages that fire several requests fill in slowly in dev; fine in production (php-fpm).
 - ⚠️ After pulling, run **`composer install`** in `backend/` (new `firebase/php-jwt` + `laravel/socialite`); with a stale `vendor/`, 20 tests fail with `Class "Firebase\JWT\JWT" not found`. Same for `npm install` in `frontend/`.
 - ⚠️ `/terms` and `/privacy` sit inside `RequireAuth`, but the Sign Up form links to them, so a guest clicking them is sent to Sign in. Move them (and the 404) out of the guarded group.
 - ⚠️ `/admin/*` only requires a signed-in user; there is no admin role check in the frontend (the backend has `EnsureRole`, but no admin APIs yet).
 - The husky **pre-commit** hook runs the frontend build and `php artisan --version`.
 - Main JS bundle is **950 kB (280 kB gzip)** → Vite size warning. Fix: lazy-load routes (`React.lazy` / route `lazy`), worth doing with 25+ routes.
-- Mock dates for movie nights are in **2025** on purpose: the Figma weekdays ("Fri, Mar 14") only match the 2025 calendar.
 - In stacked mobile layouts, a panel with `flex: 1` and a fixed height collapses or grows (seen on Cinemas and Rooms); set `flex: none` in the media query.
 - Movie Details' in-page jump buttons use `scrollIntoView`, which Lenis may override (the bug fixed in Settings); not checked yet.
 - Animations were checked frame by frame in a throttled preview pane; **live motion should still be checked in a real browser**.
@@ -205,8 +225,8 @@ In Claude Code, `/graphify . --update` rebuilds incrementally (docs need the LLM
 1. Fix the review findings in §8: the 3 lint errors, the failing social-redirect test and guest access to `/terms` / `/privacy`; add tests and lint to CI.
 2. Gate `/admin` on `user.role === 'admin'` in the frontend and add admin APIs behind `EnsureRole`.
 3. Add `GEMINI_API_KEY` / `GEMINI_MODEL` to `backend/.env.example`; finish the auth follow-ups in `backend/Backend.md` (captcha, GitHub verified-email check, real SMTP/OAuth testing).
-4. Merge the TMDB work (`feat/back-tmdb-movies`) and swap the `*Data.ts` mocks for API calls page by page; wire Settings (profile, password, delete account).
-   Movie nights, rooms and notifications need their API plus a real-time channel (e.g. Laravel Reverb) to replace the in-memory stores and demo replies (the backend already has a `notifications` table).
+4. Merge the TMDB work (`feat/back-tmdb-movies`), replace `movieFor()` in `lib/movies.ts` with real movie data and TMDB search in the pickers, and swap the remaining movie mocks (Discover, Movie Details, Person, For You rows).
+   Add a real-time channel (e.g. Laravel Reverb) for room messages and notifications instead of polling; add review writing, list likes and admin APIs.
 5. Code-split routes to clear the bundle warning.
 6. Re-run graphify (`/graphify . --update`) after each feature so the graph stays current.
 
@@ -225,6 +245,8 @@ composer install        # re-run after every pull that touches composer.lock
 cp .env.example .env && php artisan key:generate
 # then set JWT_SECRET, FRONTEND_URL, the OAuth client ids/secrets and GEMINI_API_KEY in .env
 php artisan migrate
+php artisan db:seed       # demo members + their lists, rooms, nights, notifications
+php artisan storage:link  # serves uploaded profile photos
 php artisan serve   # http://localhost:8000
 php artisan test
 ```

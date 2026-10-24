@@ -17,6 +17,7 @@ Route::prefix('auth')->group(function () {
 });
 
 require __DIR__.'/auth_flows.php';
+require __DIR__.'/social.php';
 
 Route::get('/weather', [WeatherController::class, 'show'])->middleware('throttle:weather');
 Route::post('/weather-mood', [WeatherController::class, 'mood'])->middleware('throttle:ai');

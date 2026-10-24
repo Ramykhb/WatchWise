@@ -3,7 +3,9 @@ import { Link, NavLink, useNavigate } from 'react-router'
 import Logo from '../Logo/Logo.tsx'
 import searchIcon from '../../assets/home/icon-search.svg'
 import bellIcon from '../../assets/home/icon-bell.svg'
-import { useUnreadCount } from '../../pages/Notifications/notificationsStore.ts'
+import { useNotificationPolling, useUnreadCount } from '../../pages/Notifications/notificationsStore.ts'
+import { useAuth } from '../../contexts/useAuth.ts'
+import { colorOf, initialsOf } from '../../lib/format.ts'
 import styles from './AppNav.module.css'
 
 const LINKS = [
@@ -15,15 +17,12 @@ const LINKS = [
   { to: '/rooms', label: 'Rooms' },
 ]
 
-type AppNavProps = {
-  /** Initials shown in the avatar (until auth provides the signed-in user). */
-  initials?: string
-}
-
 /** Signed-in app header (Figma "Nav/App"): logo, section links, search, notifications, avatar. */
-export default function AppNav({ initials = 'MR' }: AppNavProps) {
+export default function AppNav() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [query, setQuery] = useState('')
+  useNotificationPolling()
   const unread = useUnreadCount()
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
@@ -68,8 +67,13 @@ export default function AppNav({ initials = 'MR' }: AppNavProps) {
             </span>
           )}
         </NavLink>
-        <Link to="/profile" className={styles.avatar} aria-label="Your profile">
-          {initials}
+        <Link
+          to="/profile"
+          className={styles.avatar}
+          style={user && !user.avatar ? { background: colorOf(user.id) } : undefined}
+          aria-label="Your profile"
+        >
+          {user?.avatar ? <img className={styles.avatarImg} src={user.avatar} alt="" /> : initialsOf(user?.name ?? '')}
         </Link>
       </div>
     </header>
