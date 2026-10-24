@@ -74,7 +74,7 @@ class DiscoverTest extends TestCase
         $this->getJson('/api/movies/discover?type=all&genres=878&tv_genres=10765')
             ->assertOk()
             ->assertJsonPath('total_results', 120)
-            ->assertJsonPath('total_pages', 5)
+            ->assertJsonPath('total_pages', 6)
             ->assertJsonPath('movies.0.title', 'Alpha')
             ->assertJsonPath('movies.0.media_type', 'tv')
             ->assertJsonPath('movies.0.release_date', '2022-05-05')
@@ -82,6 +82,32 @@ class DiscoverTest extends TestCase
 
         Http::assertSent(fn ($request) => str_contains($request->url(), '/discover/tv') && $request['with_genres'] === '10765');
         Http::assertSent(fn ($request) => str_contains($request->url(), '/discover/movie') && $request['with_genres'] === '878');
+    }
+
+    public function test_merged_pages_are_cut_from_the_globally_sorted_list(): void
+    {
+        // Movies are always more popular than shows here, so combined page 2 must be movies 21-40.
+        Http::fake(function ($request) {
+            $page = (int) $request['page'];
+            $isShow = str_contains($request->url(), '/discover/tv');
+
+            $results = array_map(fn (int $i): array => [
+                'id' => ($isShow ? 1000 : 0) + ($page - 1) * 20 + $i,
+                'title' => 'Title',
+                'popularity' => ($isShow ? 500 : 900) - ($page - 1) * 20 - $i,
+            ], range(1, 20));
+
+            return Http::response(['page' => $page, 'total_pages' => 3, 'total_results' => 60, 'results' => $results]);
+        });
+
+        $this->getJson('/api/movies/discover?type=all&page=2')
+            ->assertOk()
+            ->assertJsonPath('page', 2)
+            ->assertJsonPath('total_results', 120)
+            ->assertJsonPath('total_pages', 6)
+            ->assertJsonCount(20, 'movies')
+            ->assertJsonPath('movies.0.id', 21)
+            ->assertJsonPath('movies.19.id', 40);
     }
 
     public function test_tv_details_use_the_tv_endpoint(): void

@@ -75,7 +75,7 @@ export default function Discover() {
 
   // The Movies & TV tab lists movies and TV shows together (the Type filter narrows it); People and Lists aren't connected yet.
   const isMedia = type === 'movies'
-  // TV has no Horror or Romance, so those chips go away while only TV shows are listed.
+  // TV has no Thriller, Horror or Romance, so those chips go away while only TV shows are listed.
   const availableGenres = draft.mediaType === 'tv' ? GENRES.filter((genre) => genre in TV_GENRE_IDS) : GENRES
 
   useEffect(() => {
@@ -449,7 +449,7 @@ export default function Discover() {
                   <select
                     value={sort}
                     disabled={Boolean(submittedQuery)}
-                    title={submittedQuery ? 'Search results are sorted by relevance' : undefined}
+                    title={submittedQuery ? 'Search results come in their own order, so sorting is paused' : undefined}
                     onChange={(event) => {
                       setSort(event.target.value)
                       setPage(1)

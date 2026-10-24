@@ -29,7 +29,7 @@
           {"name": "q", "in": "query", "required": true, "description": "Search text.", "schema": {"type": "string", "minLength": 1, "maxLength": 100}, "example": "inception"},
           {"name": "page", "in": "query", "required": false, "description": "Page number.", "schema": {"type": "integer", "minimum": 1, "maximum": 500, "default": 1}},
           {"name": "year", "in": "query", "required": false, "description": "Restrict to a release year.", "schema": {"type": "integer", "minimum": 1874, "maximum": 2100}, "example": 2010},
-          {"name": "type", "in": "query", "required": false, "description": "What to search: movies, TV shows, or both merged by popularity. Every result carries its media_type.", "schema": {"type": "string", "enum": ["movie", "tv", "all"], "default": "movie"}}
+          {"name": "type", "in": "query", "required": false, "description": "What to search: movies, TV shows, or both ordered together by popularity (20 per page, up to 10 pages deep). Every result carries its media_type.", "schema": {"type": "string", "enum": ["movie", "tv", "all"], "default": "movie"}}
         ],
         "responses": {
           "200": {
@@ -56,7 +56,7 @@
           {"name": "runtime_max", "in": "query", "required": false, "description": "Maximum runtime in minutes.", "schema": {"type": "integer", "minimum": 1}, "example": 180},
           {"name": "language", "in": "query", "required": false, "description": "Original language, 2-letter lowercase code.", "schema": {"type": "string", "pattern": "^[a-z]{2}$"}, "example": "en"},
           {"name": "sort", "in": "query", "required": false, "description": "Sort order.", "schema": {"type": "string", "enum": ["popularity", "rating", "release_date", "title"], "default": "popularity"}},
-          {"name": "type", "in": "query", "required": false, "description": "What to browse: movies, TV shows, or both merged with the chosen sort. With tv, genres are TMDB TV genre ids (GET /api/genres?type=tv). Every result carries its media_type.", "schema": {"type": "string", "enum": ["movie", "tv", "all"], "default": "movie"}},
+          {"name": "type", "in": "query", "required": false, "description": "What to browse: movies, TV shows, or both ordered together by the chosen sort (20 per page, up to 10 pages deep). With tv, genres are TMDB TV genre ids (GET /api/genres?type=tv). Every result carries its media_type.", "schema": {"type": "string", "enum": ["movie", "tv", "all"], "default": "movie"}},
           {"name": "tv_genres", "in": "query", "required": false, "description": "TV genre ids for type=all, where genres holds the movie ones (the two lists differ).", "schema": {"type": "string", "pattern": "^\\d+(,\\d+)*$"}, "example": "18,10759"},
           {"name": "page", "in": "query", "required": false, "description": "Page number.", "schema": {"type": "integer", "minimum": 1, "maximum": 500, "default": 1}}
         ],

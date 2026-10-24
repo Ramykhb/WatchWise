@@ -49,13 +49,12 @@ export const GENRE_IDS: Record<string, number> = {
   Romance: 10749,
 }
 
-/** TMDB's TV genres are a different list: no Horror or Romance, and Sci-fi / Adventure are combined genres. */
+/** TMDB's TV genres are a different list: no Thriller, Horror or Romance, and Sci-fi / Adventure are combined genres. */
 export const TV_GENRE_IDS: Record<string, number> = {
   'Sci-fi': 10765,
   Adventure: 10759,
   Drama: 18,
   Comedy: 35,
-  Thriller: 9648,
   Animation: 16,
 }
 
@@ -125,7 +124,7 @@ export async function fetchMovies({ query, filters, sort, page, signal }: MovieQ
     return data
   }
 
-  // TV has no Horror or Romance, so when one is selected only movies can match.
+  // TV has no Thriller, Horror or Romance, so when one is selected only movies can match.
   const tvCantMatch = filters.genres.some((label) => !(label in TV_GENRE_IDS))
   const type = filters.mediaType === 'all' && tvCantMatch ? 'movie' : filters.mediaType
 
