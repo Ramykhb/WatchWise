@@ -1,6 +1,6 @@
 # Backend Overview
 
-What each file in the Auth and Tmdb modules does. Paths are relative to `backend/`. Everything up to "Tests" describes the Auth module, and the Tmdb module has its own section.
+What each module does. Paths are relative to `backend/`. The backend is split into modules under `app/`: `Auth`, `Tmdb`, `Gemini`, `Weather` and `MovieRecommendation`. Everything up to "Tests" describes the Auth module, and each other module has its own section after it.
 
 ## Contents
 
@@ -24,6 +24,10 @@ What each file in the Auth and Tmdb modules does. Paths are relative to `backend
 - [Wiring](#wiring)
 - [Tests](#tests)
 - [Tmdb module](#tmdb-module)
+- [Gemini module](#gemini-module)
+- [Weather module](#weather-module)
+- [MovieRecommendation module](#movierecommendation-module)
+- [API documentation (Swagger UI)](#api-documentation-swagger-ui)
 - [Security notes](#security-notes)
 - [Known follow-ups](#known-follow-ups)
 - [Adding a new entity](#adding-a-new-entity)
@@ -78,7 +82,7 @@ app/Auth/
 
 | File | Purpose |
 | --- | --- |
-| `routes/api.php` | `/api/auth` register, login, refresh, logout and `me`, with rate limits. It also holds the weather and movie-recommendation routes, which are not part of the auth module |
+| `routes/api.php` | `/api/auth` register, login, refresh, logout and `me`, with rate limits. It also holds the routes of the other modules (TMDB, weather, weather mood and movie recommendations) |
 | `routes/auth_flows.php` | Email verification, password reset and Google/GitHub login routes |
 
 All auth endpoints:
@@ -106,7 +110,7 @@ All auth endpoints:
 | `config/cors.php` | CORS rules for the frontend |
 | `config/services.php` | Google and GitHub OAuth credentials, frontend URL |
 | `phpunit.xml` | Test-only `JWT_SECRET` and `FRONTEND_URL` |
-| `app/Providers/AppServiceProvider.php` | Per-route rate limiters (IP bucket plus per-email bucket) and the `Registered` listener |
+| `app/Providers/AppServiceProvider.php` | Empty on purpose. Every module registers its own bindings, listeners and rate limiters in its own provider |
 
 ## Setup
 
@@ -120,19 +124,27 @@ Copy `.env.example` to `.env` (it is gitignored) and set:
 | `FRONTEND_URL` | Where emails link to and where the social login redirects. Also the CORS origin |
 | `MAIL_*` | SMTP settings for the verification and reset emails. For local work, `MAIL_MAILER=log` writes emails to `storage/logs/laravel.log` instead of sending them |
 | `GOOGLE_*`, `GITHUB_*` | OAuth client id, secret and redirect URI. The redirect URI must match the callback route, for example `http://localhost:8000/api/auth/social/google/callback` |
+| `TMDB_API_KEY` | Needed by the Tmdb module. `TMDB_URL` and `TMDB_IMAGE_URL` have defaults |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | Needed by the weather mood and movie recommendation endpoints. `GEMINI_URL` has a default |
+| `OPEN_METEO_*` | Optional. The URL, default location and timezone have defaults in `config/services.php` |
 
 Then run `composer install`, `php artisan key:generate` and `php artisan migrate`.
 
 ## Rate limits
 
-Defined in `app/Providers/AppServiceProvider.php`. Each route has its own named limiter. A request must pass two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket.
+Every limiter is a named limiter defined in the provider of the module it protects, and routes use it with `throttle:<name>`. The plain `throttle:N,M` middleware is avoided because it shares one bucket per IP across routes.
 
-| Limiter | Per minute |
-| --- | --- |
-| `auth-register`, `auth-login`, `auth-reset-password` | 5 |
-| `auth-refresh` | 30 |
-| `auth-verify-email` | 20 |
-| `auth-resend-verification`, `auth-forgot-password` | 3 |
+| Limiter | Defined in | Per minute | Used by |
+| --- | --- | --- | --- |
+| `auth-register`, `auth-login`, `auth-reset-password` | `AuthModuleServiceProvider` | 5 | the matching auth route |
+| `auth-refresh` | `AuthModuleServiceProvider` | 30 | `POST /api/auth/refresh` |
+| `auth-verify-email` | `AuthModuleServiceProvider` | 20 | the verification link |
+| `auth-resend-verification`, `auth-forgot-password` | `AuthModuleServiceProvider` | 3 | the matching auth route |
+| `ai` | `GeminiModuleServiceProvider` | 10 | `POST /api/weather-mood`, `GET /api/movie-recommendations` (both call Gemini, which costs money) |
+| `weather` | `WeatherModuleServiceProvider` | 30 | `GET /api/weather` |
+| `tmdb` | `TmdbModuleServiceProvider` | 60 | the four TMDB routes |
+
+Each auth limiter is checked in two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket. The other limiters count per IP.
 
 The per-email bucket is shared across IPs, so someone who knows an email can block logins for that account for up to a minute. A captcha would remove that (see [Known follow-ups](#known-follow-ups)).
 
@@ -244,7 +256,7 @@ Do not confuse `FormRequests/` with `DTOs/Requests/`. The form request validates
 
 | File | Purpose |
 | --- | --- |
-| `Listeners/SendEmailVerification.php` | Sends the verification link when a user registers. Registered in `AppServiceProvider` |
+| `Listeners/SendEmailVerification.php` | Sends the verification link when a user registers. Registered in `AuthModuleServiceProvider` |
 | `Mail/VerifyEmailMail.php` | The verification email |
 | `Mail/ResetPasswordMail.php` | The password reset email |
 | `resources/views/mail/verify-email.blade.php` | Template for the verification email |
@@ -280,7 +292,7 @@ Policies stay in `app/Policies/` because each belongs to the entity it protects:
 | File | Purpose |
 | --- | --- |
 | `bootstrap/app.php` | Registers the API routes and the four middleware aliases |
-| `bootstrap/providers.php` | Registers `AppServiceProvider`, `AuthorizationServiceProvider` and `AuthModuleServiceProvider` |
+| `bootstrap/providers.php` | Registers `AppServiceProvider`, `AuthorizationServiceProvider` and one provider per module: `AuthModuleServiceProvider`, `TmdbModuleServiceProvider`, `GeminiModuleServiceProvider`, `WeatherModuleServiceProvider` and `MovieRecommendationModuleServiceProvider` |
 
 ## Tests
 
@@ -319,12 +331,97 @@ app/Tmdb/
 | `GET /api/movies/discover` | Filtered browsing: `genres`, `year_from`, `year_to`, `min_rating` (0 to 5), `runtime_min`, `runtime_max`, `language`, `sort` (`popularity`, `rating`, `release_date`, `title`), `page` |
 | `GET /api/genres` | The movie genres (id and name), cached for a day |
 
-- All four are public and are not rate limited.
+- All four are public and limited to 60 requests a minute per IP (the `tmdb` limiter).
 - Movie lists are paginated with `page` from 1 to 500 and 20 movies per page. Responses include `page`, `total_pages` (capped at 500, TMDB's limit) and `total_results`. Genres are a short fixed list, so they are not paginated.
 - Ratings are converted from TMDB's 0 to 10 scale to 0 to 5. Adult content is always excluded.
 - Setup: set `TMDB_API_KEY` in `.env`. `TMDB_URL` and `TMDB_IMAGE_URL` have working defaults in `config/services.php`.
 - Routes are in `routes/api.php` and the config is the `tmdb` entry in `config/services.php`.
 - Tests: `tests/Feature/Tmdb/` (the endpoints and `Repository/`) and `tests/Unit/Tmdb/` (the services).
+
+## Gemini module
+
+`app/Gemini/` is the shared client for Google's Gemini API. The Weather and MovieRecommendation modules use it through `GeminiServiceInterface`.
+
+```
+app/Gemini/
+  InterfaceServices/  GeminiServiceInterface   ask(string $prompt): array
+  Services/           GeminiService            sends the prompt, asks for JSON and returns it as an array
+  Exceptions/         GeminiUnavailable        thrown on any failure
+  Providers/          GeminiModuleServiceProvider (binding and the `ai` rate limiter)
+```
+
+- Setup: set `GEMINI_API_KEY` and `GEMINI_MODEL` in `.env`. `GEMINI_URL` has a default in `config/services.php`. The key is sent in a header, not in the URL.
+- `GeminiUnavailable` only carries the HTTP status (for example "Gemini request failed (500)") or a short reason, never Gemini's response body. Callers log it and show the client a fixed message.
+- Requests time out after 60 seconds and are retried up to 3 times.
+
+## Weather module
+
+`app/Weather/` reads the current weather from Open-Meteo and turns it into a movie mood.
+
+```
+app/Weather/
+  Controllers/          WeatherController (show, mood)
+  FormRequests/         WeatherRequest, WeatherMoodRequest
+  InterfaceServices/    WeatherServiceInterface, WeatherMoodServiceInterface
+  Services/             WeatherService, WeatherMoodService (builds the Gemini prompt)
+  InterfaceRepository/  WeatherRepositoryInterface
+  Repository/           WeatherRepository (the only code that calls Open-Meteo)
+  DTOs/Requests/        WeatherQuery, WeatherMoodQuery
+  DTOs/Responses/       WeatherResponse, WeatherMoodResponse
+  Exceptions/           WeatherUnavailable, WeatherMoodUnavailable (fixed 502 responses)
+  Providers/            WeatherModuleServiceProvider (bindings and the `weather` limiter)
+```
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/weather?latitude=&longitude=` | Current weather. Both coordinates are optional, but if one is sent the other is required. Without them, the default location (Beirut) is used and the response says `is_default: true` |
+| `POST /api/weather-mood` | Body: `condition`, `temperature`, `humidity`, `wind`, `precipitation`. Returns `{"title": "WEATHER MOOD", "mood", "description"}` generated by Gemini |
+
+Setup: the Open-Meteo URL, default location and timezone have defaults in `config/services.php` and can be overridden with the `OPEN_METEO_*` variables.
+
+## MovieRecommendation module
+
+`app/MovieRecommendation/` asks Gemini for 10 movies that fit the current weather.
+
+```
+app/MovieRecommendation/
+  Controllers/          RecommendationController (index)
+  FormRequests/         RecommendationRequest
+  InterfaceServices/    RecommendationServiceInterface
+  Services/             RecommendationService (weather description, prompt, calls Weather and Gemini)
+  DTOs/Requests/        RecommendationQuery
+  DTOs/Responses/       RecommendationResponse
+  Exceptions/           RecommendationUnavailable (fixed 502 responses)
+  Providers/            MovieRecommendationModuleServiceProvider
+```
+
+- `GET /api/movie-recommendations?latitude=&longitude=` returns `{"movies": [{"title", "year", "genre", "reason"}]}`. The coordinates are validated like `/api/weather` and optional.
+- It reuses `WeatherServiceInterface` for the weather and `GeminiServiceInterface` for the answer. It has no HTTP code of its own.
+- Errors are fixed messages: `{"error": "Could not get the weather"}` or `{"error": "Could not generate recommendations"}`, both with status 502. The real failure is logged.
+- The `ai` rate limiter applies (10 a minute per IP).
+
+## API documentation (Swagger UI)
+
+A Swagger UI page is served by the backend so every API can be tried in the browser.
+
+1. Run `php artisan serve`.
+2. Open `http://127.0.0.1:8000/api/documentation`.
+3. Log in with `POST /api/auth/login` using "Try it out". The browser keeps the HttpOnly cookies, so protected endpoints such as `GET /api/auth/me` then work without pasting a token.
+
+How it is built (no extra package is needed):
+
+| Part | What it does |
+| --- | --- |
+| `openapi/base.json` | The title, security schemes (the `access_token` cookie and a Bearer token) and shared schemas |
+| `openapi/paths/*.json` | One file per module: `auth.json`, `tmdb.json`, `weather.json`, `recommendations.json` |
+| `app/Docs/Services/OpenApiSpec.php` | Merges those files into one OpenAPI 3 document and fails on a duplicate path |
+| `app/Docs/Controllers/DocumentationController.php` | Serves the page (`/api/documentation`) and the spec (`/api/documentation/openapi.json`) |
+| `resources/views/docs/swagger.blade.php` | The page. Swagger UI 5.17.14 is loaded from a CDN |
+| `tests/Feature/Docs/OpenApiCoverageTest.php` | Fails if an `/api` route is missing from the spec, or the spec lists a route that does not exist |
+
+- The page and the spec only work when `APP_ENV` is `local` (or `testing`). In any other environment they return 404.
+- When you add an endpoint, add it to the matching `openapi/paths/*.json` file. The coverage test fails until you do.
+- Some endpoints need keys in `.env` to work for real: `TMDB_API_KEY` for the movie endpoints, `GEMINI_API_KEY` and `GEMINI_MODEL` for weather mood and recommendations, and SMTP or `MAIL_MAILER=log` for the account emails (with `log`, the verification link is in `storage/logs/laravel.log`).
 
 ## Security notes
 
@@ -338,6 +435,7 @@ app/Tmdb/
 - Add a captcha to login, register and forgot-password (there is a `TODO` in `AuthController::login`).
 - GitHub emails are treated as verified without checking. Check the verified flag from GitHub's email list before launch.
 - The real SMTP delivery and the Google and GitHub logins have only been tested with fakes and mocks.
+- `MovieNightPolicy` runs a database query (`invites()->exists()`) inside the policy. Leave it until the movie night feature exists, then move that check into a repository.
 - `MessagePolicy::view` lets any logged-in user read any message. This is fine while discussion rooms are public per movie, and needs a membership check if private rooms are added.
 
 ## Adding a new entity
