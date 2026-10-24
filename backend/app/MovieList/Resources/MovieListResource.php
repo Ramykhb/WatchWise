@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Resources;
+namespace App\MovieList\Resources;
 
+use App\Http\Resources\MemberResource;
 use App\Models\MovieList;
 use App\Models\MovieListItem;
 use Illuminate\Http\Request;
