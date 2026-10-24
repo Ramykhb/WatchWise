@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { authApi, type AuthPayload, type AuthUser } from '../lib/auth.ts'
 import { clearNotifications } from '../pages/Notifications/notificationsStore.ts'
+import { clearApiCache } from '../lib/api.ts'
 import { AuthContext } from './useAuth.ts'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -33,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authApi.post('/logout')
     } finally {
       clearNotifications()
+      clearApiCache()
       setUser(null)
     }
   }, [])
