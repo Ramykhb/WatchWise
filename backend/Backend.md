@@ -1,6 +1,6 @@
 # Backend Overview
 
-What each module does. Paths are relative to `backend/`. The backend is split into modules under `app/`: `Auth`, `Tmdb`, `Gemini`, `Groq`, `Weather` and `MovieRecommendation`. Everything up to "Tests" describes the Auth module, and each other module has its own section after it.
+What each module does. Paths are relative to `backend/`. The backend is split into modules under `app/`: `Auth`, `Genre`, `Movie`, `Gemini`, `Groq`, `Weather` and `MovieRecommendation`. Everything up to "Tests" describes the Auth module, and each other module has its own section after it.
 
 ## Contents
 
@@ -23,7 +23,7 @@ What each module does. Paths are relative to `backend/`. The backend is split in
 - [Authorization](#authorization)
 - [Wiring](#wiring)
 - [Tests](#tests)
-- [Tmdb module](#tmdb-module)
+- [Genre and Movie modules](#genre-and-movie-modules)
 - [Gemini module](#gemini-module)
 - [Groq module](#groq-module)
 - [Weather module](#weather-module)
@@ -125,7 +125,7 @@ Copy `.env.example` to `.env` (it is gitignored) and set:
 | `FRONTEND_URL` | Where emails link to and where the social login redirects. Also the CORS origin |
 | `MAIL_*` | SMTP settings for the verification and reset emails. For local work, `MAIL_MAILER=log` writes emails to `storage/logs/laravel.log` instead of sending them |
 | `GOOGLE_*`, `GITHUB_*` | OAuth client id, secret and redirect URI. The redirect URI must match the callback route, for example `http://localhost:8000/api/auth/social/google/callback` |
-| `TMDB_API_KEY` | Needed by the Tmdb module. `TMDB_URL` and `TMDB_IMAGE_URL` have defaults |
+| `TMDB_API_KEY` | Needed by the Genre and Movie modules. `TMDB_URL` and `TMDB_IMAGE_URL` have defaults |
 | `GROQ_API_KEY` | Needed by weather mood. `GROQ_MODEL` defaults to `openai/gpt-oss-20b`; `GROQ_API_URL` has a default |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Needed by movie recommendations. `GEMINI_URL` has a default |
 | `OPEN_METEO_*` | Optional. The URL, default location and timezone have defaults in `config/services.php` |
@@ -144,7 +144,7 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `auth-resend-verification`, `auth-forgot-password` | `AuthModuleServiceProvider` | 3 | the matching auth route |
 | `ai` | `GeminiModuleServiceProvider` | 10 | `POST /api/weather-mood`, `GET /api/movie-recommendations` (both call paid AI APIs) |
 | `weather` | `WeatherModuleServiceProvider` | 30 | `GET /api/weather` |
-| `tmdb` | `TmdbModuleServiceProvider` | 60 | the five TMDB routes |
+| `tmdb` | `AppServiceProvider` | 60 | the five TMDB routes |
 
 Each auth limiter is checked in two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket. The other limiters count per IP.
 
@@ -226,7 +226,7 @@ All in `app/Auth/Middleware/`.
 Each module keeps its Laravel form requests in a `FormRequests/` folder:
 
 - `app/Auth/FormRequests/`: `RegisterRequest`, `LoginRequest`, `ForgotPasswordRequest`, `ResetPasswordRequest`, `ResendVerificationRequest`.
-- `app/Tmdb/FormRequests/`: `MovieListRequest`, `MovieSearchRequest`, `MovieDiscoverRequest`.
+- `app/Movie/FormRequests/`: `MovieListRequest`, `MovieSearchRequest`, `MovieDiscoverRequest`.
 
 A form request checks the incoming HTTP request before the controller runs, and turns it into a clean object for the service.
 
@@ -307,23 +307,32 @@ Policies stay in `app/Policies/` because each belongs to the entity it protects:
 | `tests/Feature/Auth/Repository/` | Each repository against the database |
 | `tests/Unit/Auth/` | Each service with fake repositories, and `UserResponse` matching the model's JSON |
 
-## Tmdb module
+## Genre and Movie modules
 
-`app/Tmdb/` uses the same layers as Auth. TMDB has no database, so the repositories call the TMDB web API instead of Eloquent.
+`app/Genre/` and `app/Movie/` use the same layers as Auth. TMDB has no database, so the repositories call the TMDB web API instead of Eloquent. Movie uses Genre's `GenreResponse`.
 
 ```
-app/Tmdb/
-  Controllers/          MovieController, GenreController
+app/Genre/
+  Controllers/          GenreController
+  InterfaceServices/    GenreServiceInterface
+  Services/             GenreService (maps TMDB data to DTOs, caches genres for a day)
+  InterfaceRepository/  GenreRepositoryInterface
+  Repository/           GenreRepository
+  DTOs/Responses/       GenreResponse
+  Providers/            GenreModuleServiceProvider (interface bindings)
+app/Movie/
+  Controllers/          MovieController
   FormRequests/         MovieListRequest, MovieSearchRequest, MovieDiscoverRequest
-  InterfaceServices/    MovieServiceInterface, GenreServiceInterface
-  Services/             MovieService, GenreService (maps TMDB data to DTOs, caches genres for a day)
-  InterfaceRepository/  MovieRepositoryInterface, GenreRepositoryInterface
-  Repository/           MovieRepository, GenreRepository (the only code that talks to TMDB)
+  InterfaceServices/    MovieServiceInterface
+  Services/             MovieService
+  InterfaceRepository/  MovieRepositoryInterface
+  Repository/           MovieRepository
   DTOs/Requests/        MovieListQuery, MovieSearchQuery, MovieDiscoverQuery
-  DTOs/Responses/       MovieResponse, MoviePageResponse, GenreResponse, MovieDetailsResponse (+ CastMemberResponse, PersonResponse, TrailerResponse)
-  Support/              TmdbHttpClient (adds the API key, timeout, wraps failures)
-  Exceptions/           TmdbUnavailable (renders a fixed 502 so TMDB's own error never reaches the client), TmdbNotFound (TMDB answered 404), MovieNotFound (renders 404 "Movie not found.")
-  Providers/            TmdbModuleServiceProvider (interface bindings)
+  DTOs/Responses/       MovieResponse, MoviePageResponse, MovieDetailsResponse (+ CastMemberResponse, PersonResponse, TrailerResponse)
+  Exceptions/           MovieNotFound (renders 404 "Movie not found.")
+  Providers/            MovieModuleServiceProvider (interface bindings)
+app/Support/            Shared by both: TmdbHttpClient (adds the API key, timeout, wraps failures)
+  Exceptions/           TmdbUnavailable (renders a fixed 502 so TMDB's own error never reaches the client), TmdbNotFound (TMDB answered 404)
 ```
 
 | Endpoint | Purpose |
@@ -340,7 +349,7 @@ app/Tmdb/
 - Ratings are converted from TMDB's 0 to 10 scale to 0 to 5. Adult content is always excluded.
 - Setup: set `TMDB_API_KEY` in `.env`. `TMDB_URL` and `TMDB_IMAGE_URL` have working defaults in `config/services.php`.
 - Routes are in `routes/api.php` and the config is the `tmdb` entry in `config/services.php`.
-- Tests: `tests/Feature/Tmdb/` (the endpoints and `Repository/`) and `tests/Unit/Tmdb/` (the services).
+- Tests: `tests/Feature/Movie/`, `tests/Feature/Genre/` and `tests/Feature/Support/` (the endpoints, repositories and `TmdbHttpClient`), and `tests/Unit/Movie/` and `tests/Unit/Genre/` (the services).
 
 ## Gemini module
 
