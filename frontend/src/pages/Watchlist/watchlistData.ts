@@ -1,53 +1,69 @@
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
-import { MOVIES } from '../Home/homeData.ts'
+import { timeAgo } from '../../lib/format.ts'
+import { movieFor } from '../../lib/movies.ts'
+import type { ApiWatchItem } from '../../lib/types.ts'
 
-// Mock content from the Figma "Watchlist & History" frame. Replace with the user's watchlist and
-// watch history from the API once auth is connected.
+// Turns GET /api/watchlist into the queue, history and taste bars the Watchlist page draws.
+// Availability (in cinemas / streaming) and runtimes need TMDB, so they are not shown yet.
 
-export type Availability = 'cinemas' | 'streaming' | 'soon'
+/** Until TMDB runtimes exist, a film counts as about two hours. */
+const DEFAULT_RUNTIME = 118
 
 export type QueueItem = {
+  id: number
   movie: Movie
   details: string
   runtimeMinutes: number
-  availability: Availability
-  availabilityLabel: string
   added: string
   /** Higher = added more recently (for "Recently added"). */
   addedOrder: number
   watched: boolean
 }
 
-export type HistoryEntry = { month: string; date: string; movie: Movie; rating: number }
+export type HistoryEntry = { id: number; month: string; date: string; movie: Movie; rating: number }
 
-export const TOTALS = { toWatch: 18, watched: 142, queuedHours: 38 }
+export const toQueueItem = (item: ApiWatchItem): QueueItem => {
+  const movie = movieFor(item.tmdb_id)
+  return {
+    id: item.id,
+    movie,
+    details: movie.meta,
+    runtimeMinutes: DEFAULT_RUNTIME,
+    added: `Added ${timeAgo(item.created_at)}`,
+    addedOrder: new Date(item.created_at).getTime(),
+    watched: item.status === 'watched',
+  }
+}
 
-export const FILTERS: { id: Availability | 'all'; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'cinemas', label: 'In cinemas' },
-  { id: 'streaming', label: 'Streaming' },
-  { id: 'soon', label: 'Coming soon' },
-]
+/** Watched films, newest first, with the user's rating from their reviews (0 = not rated). */
+export function toHistory(items: ApiWatchItem[], ratings: Record<string, number>): HistoryEntry[] {
+  return items
+    .filter((item) => item.status === 'watched' && item.watched_at)
+    .sort((a, b) => b.watched_at!.localeCompare(a.watched_at!))
+    .map((item) => {
+      const date = new Date(item.watched_at!)
+      return {
+        id: item.id,
+        month: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase(),
+        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        movie: movieFor(item.tmdb_id),
+        rating: ratings[item.tmdb_id] ?? 0,
+      }
+    })
+}
 
-export const QUEUE: QueueItem[] = [
-  { movie: MOVIES.deepBlue, details: '2025 · Thriller · 1h 58m', runtimeMinutes: 118, availability: 'cinemas', availabilityLabel: 'In cinemas', added: 'Added 2 days ago', addedOrder: 5, watched: false },
-  { movie: MOVIES.stardust, details: '2025 · Fantasy · 2h 06m', runtimeMinutes: 126, availability: 'streaming', availabilityLabel: 'Streaming', added: 'Added 5 days ago', addedOrder: 4, watched: false },
-  { movie: MOVIES.velvetHour, details: '2026 · Romance · 1h 49m', runtimeMinutes: 109, availability: 'streaming', availabilityLabel: 'Streaming', added: 'Added Mar 1', addedOrder: 3, watched: false },
-  { movie: MOVIES.wildFern, details: '2024 · Adventure · 2h 11m', runtimeMinutes: 131, availability: 'streaming', availabilityLabel: 'Streaming', added: 'Added Feb 24', addedOrder: 2, watched: true },
-  { movie: MOVIES.redSignal, details: '2026 · Action · 1h 54m', runtimeMinutes: 114, availability: 'soon', availabilityLabel: 'Coming Apr 2', added: 'Added Feb 20', addedOrder: 1, watched: false },
-]
+const TASTE_COLORS = ['var(--accent-coral)', 'var(--accent-yellow)', 'var(--accent-mint)', 'var(--surface-violet-tint)']
 
-export const HISTORY: HistoryEntry[] = [
-  { month: 'MARCH 2026', date: 'Mar 9', movie: MOVIES.neonTide, rating: 5 },
-  { month: 'MARCH 2026', date: 'Mar 6', movie: MOVIES.paperMoon, rating: 4 },
-  { month: 'MARCH 2026', date: 'Mar 2', movie: MOVIES.lastLap, rating: 4 },
-  { month: 'FEBRUARY 2026', date: 'Feb 26', movie: MOVIES.wildFern, rating: 3 },
-  { month: 'FEBRUARY 2026', date: 'Feb 18', movie: MOVIES.stardust, rating: 5 },
-]
-
-export const TASTE = [
-  { genre: 'Sci-fi', percent: 38, color: 'var(--accent-coral)' },
-  { genre: 'Drama', percent: 27, color: 'var(--accent-yellow)' },
-  { genre: 'Thriller', percent: 18, color: 'var(--accent-mint)' },
-  { genre: 'Comedy', percent: 11, color: 'var(--surface-violet-tint)' },
-]
+/** Share of each genre among watched films (genre = the part after "·" in the movie meta). */
+export function tasteOf(movies: Movie[]) {
+  const counts = new Map<string, number>()
+  for (const movie of movies) {
+    const genre = movie.meta.split('·')[1]?.trim()
+    if (genre) counts.set(genre, (counts.get(genre) ?? 0) + 1)
+  }
+  const total = [...counts.values()].reduce((sum, n) => sum + n, 0)
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([genre, n], index) => ({ genre, percent: Math.round((n / total) * 100), color: TASTE_COLORS[index] }))
+}

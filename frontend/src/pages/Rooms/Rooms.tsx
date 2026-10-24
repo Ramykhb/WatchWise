@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
 import plusIcon from '../../assets/rooms/icon-plus.svg'
@@ -7,7 +7,6 @@ import searchIcon from '../../assets/listdetail/icon-search.svg'
 import dotSmIcon from '../../assets/rooms/dot-sm.svg'
 import dotIcon from '../../assets/home/dot-online.svg'
 import dotsIcon from '../../assets/rooms/icon-dots.svg'
-import typingDots from '../../assets/rooms/typing-dots.svg'
 import smileIcon from '../../assets/rooms/icon-smile.svg'
 import clipIcon from '../../assets/rooms/icon-clip.svg'
 import sendIcon from '../../assets/rooms/icon-send.svg'
@@ -15,35 +14,34 @@ import starIcon from '../../assets/cinemas/icon-star.svg'
 import shieldIcon from '../../assets/rooms/icon-shield.svg'
 import checkIcon from '../../assets/rooms/icon-check.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { MOVIES, gradientCss } from '../Home/homeData.ts'
-import { EMOJIS, ROOMS, YOU, channelName, clockTime, type Member, type Message, type Room } from './roomsData.ts'
+import { useAuth } from '../../contexts/useAuth.ts'
+import { api, useApi } from '../../lib/api.ts'
+import { apiErrorMessage } from '../../lib/auth.ts'
+import { PICKABLE_MOVIES, tmdbIdOf } from '../../lib/movies.ts'
+import type { ApiMessage, ApiRoom } from '../../lib/types.ts'
+import { gradientCss } from '../Home/homeData.ts'
+import { EMOJIS, channelName, toMessages, toRoom, type Member } from './roomsData.ts'
 import styles from './Rooms.module.css'
 
-const ALL_MOVIES = Object.values(MOVIES)
-
-// Demo only: canned replies so the room feels live until the real-time channel exists.
-const REPLIES = ['Okay that reading changes everything.', 'Agreed — the score sells it too.', 'Rewatching this weekend because of you all.']
+/** How often an open room checks for new messages (no real-time channel yet). */
+const POLL_MS = 5000
 
 export default function Rooms() {
   const { roomId } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const pageRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef<HTMLDivElement>(null)
-  const timers = useRef<number[]>([])
   useEntranceAnimation(pageRef)
 
-  const [rooms, setRooms] = useState<Room[]>(() =>
-    ROOMS.map((r) => (r.id === (roomId ?? ROOMS[0].id) ? { ...r, unread: 0 } : r)),
-  )
+  const roomsQuery = useApi<{ rooms: ApiRoom[] }>('/rooms')
+  const rooms = (roomsQuery.data?.rooms ?? []).map(toRoom)
   const [query, setQuery] = useState('')
   const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
   const [draft, setDraft] = useState('')
+  const [sendError, setSendError] = useState('')
   const [agreed, setAgreed] = useState<string[]>([])
-  // Figma shows Rana typing in the first room; her message lands a few seconds after opening.
-  const [typing, setTyping] = useState<{ roomId: string; member: Member } | null>(() => {
-    const rana = ROOMS[0].members.find((m) => m.initials === 'RH')
-    return rana ? { roomId: ROOMS[0].id, member: rana } : null
-  })
   const [showEmoji, setShowEmoji] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [muted, setMuted] = useState<string[]>([])
@@ -52,97 +50,98 @@ export default function Rooms() {
   const room = rooms.find((r) => r.id === roomId) ?? rooms[0]
   const visibleRooms = rooms.filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase()))
 
-  const append = (id: string, message: Message, preview: string) =>
-    setRooms((list) => list.map((r) => (r.id === id ? { ...r, messages: [...r.messages, message], preview } : r)))
+  // Messages of the open room: loaded once, then only newer ones every few seconds.
+  const [thread, setThread] = useState<{ roomId: string; messages: ApiMessage[] }>({ roomId: '', messages: [] })
+  const messages = thread.roomId === room?.id ? thread.messages : []
+  useEffect(() => {
+    if (!room) return
+    let active = true
+    let lastId = 0
+    const fetchNew = async () => {
+      try {
+        const response = await api.get<{ messages: ApiMessage[] }>(`/rooms/${room.id}/messages`, { params: lastId ? { after: lastId } : {} })
+        if (!active) return
+        const incoming = response.data.messages
+        if (incoming.length) lastId = incoming.at(-1)!.id
+        setThread((current) => {
+          const base = current.roomId === room.id && lastId ? current.messages : []
+          const known = new Set(base.map((m) => m.id))
+          return { roomId: room.id, messages: [...base, ...incoming.filter((m) => !known.has(m.id))] }
+        })
+      } catch {
+        // Try again on the next tick.
+      }
+    }
+    void fetchNew()
+    const timer = window.setInterval(() => void fetchNew(), POLL_MS)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [room?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const roomMessages = toMessages(messages)
 
   // Keep the newest message in view.
   useEffect(() => {
     const el = messagesRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [room.id, room.messages.length, typing])
-
-  // Rana's reply from the Figma frame, then clear every pending demo timer on unmount.
-  useEffect(() => {
-    const pending = timers.current
-    pending.push(
-      window.setTimeout(() => {
-        const rana = ROOMS[0].members.find((m) => m.initials === 'RH')!
-        append(ROOMS[0].id, { id: 'n6', kind: 'message', from: rana, time: clockTime(), text: "I think the lighthouse is a time beacon. That's why it only lights up in the memories." }, 'Rana: the lighthouse is a time beacon')
-        setTyping(null)
-      }, 4500),
-    )
-    return () => pending.forEach((t) => window.clearTimeout(t))
-  }, [])
+  }, [room?.id, messages.length])
 
   const openRoom = (id: string) => {
-    setRooms((list) => list.map((r) => (r.id === id ? { ...r, unread: 0 } : r)))
     setShowMenu(false)
     setShowEmoji(false)
     setMenuNote('')
     navigate(`/rooms/${id}`, { replace: true })
   }
 
-  const send = (text: string) => {
+  const send = async (text: string) => {
     const body = text.trim()
-    if (!body) return
-    const target = room
-    // TODO: post to the room's real-time channel instead of local state.
-    append(target.id, { id: crypto.randomUUID(), kind: 'message', from: YOU, time: clockTime(), text: body, seenBy: 0 }, `You: ${body}`)
+    if (!body || !room) return
     setDraft('')
     setShowEmoji(false)
-    const replier = target.members.find((m) => m !== YOU)
-    if (!replier) return
-    timers.current.push(
-      window.setTimeout(() => setTyping({ roomId: target.id, member: replier }), 900),
-      window.setTimeout(() => {
-        const reply = REPLIES[Math.floor(Math.random() * REPLIES.length)]
-        append(
-          target.id,
-          { id: crypto.randomUUID(), kind: 'message', from: replier, time: clockTime(), text: reply },
-          `${replier.name.split(' ')[0]}: ${reply}`,
-        )
-        setTyping(null)
-      }, 3200),
-    )
+    setSendError('')
+    try {
+      const response = await api.post<{ message: ApiMessage }>(`/rooms/${room.id}/messages`, { content: body })
+      setThread((current) =>
+        current.roomId === room.id && !current.messages.some((m) => m.id === response.data.message.id)
+          ? { ...current, messages: [...current.messages, response.data.message] }
+          : current,
+      )
+      if (!room.joined) roomsQuery.reload()
+    } catch (error) {
+      setDraft(body)
+      setSendError(apiErrorMessage(error, "Couldn't send your message. Please try again."))
+    }
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    send(draft)
+    void send(draft)
   }
 
   const handleFile = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     // TODO: upload attachments through the API; for now only the file name is shared.
-    if (file) send(`📎 ${file.name}`)
+    if (file) void send(`📎 ${file.name}`)
     event.target.value = ''
   }
 
-  const handleCreate = (event: FormEvent<HTMLFormElement>) => {
+  const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const name = String(data.get('name') ?? '').trim()
     if (name.length < 3) return
-    const movie = ALL_MOVIES.find((m) => m.slug === data.get('movie')) ?? MOVIES.neonTide
-    let id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'room'
-    while (rooms.some((r) => r.id === id)) id += '-2'
-    // TODO: create the room through the API.
-    const created: Room = {
-      id,
-      name,
-      movie,
-      online: 1,
-      unread: 0,
-      spoilers: data.get('spoilers') === 'on',
-      host: YOU,
-      members: [],
-      preview: 'You created the room',
-      rules: ['Be kind — critique films, not people', data.get('spoilers') === 'on' ? 'Spoilers allowed in this room' : 'No spoilers — use spoiler tags', 'No links to pirated content'],
-      messages: [{ id: 'created', kind: 'system', text: 'You created the room' }],
+    const movie = PICKABLE_MOVIES.find((m) => m.slug === data.get('movie')) ?? PICKABLE_MOVIES[0]
+    setCreateError('')
+    try {
+      const response = await api.post<{ room: { id: number } }>('/rooms', { name, tmdb_id: tmdbIdOf(movie), spoilers: data.get('spoilers') === 'on' })
+      setCreating(false)
+      roomsQuery.reload()
+      navigate(`/rooms/${response.data.room.id}`, { replace: true })
+    } catch (error) {
+      setCreateError(apiErrorMessage(error, "Couldn't create the room."))
     }
-    setRooms((list) => [created, ...list])
-    setCreating(false)
-    navigate(`/rooms/${id}`, { replace: true })
   }
 
   const copyLink = async () => {
@@ -155,11 +154,21 @@ export default function Rooms() {
     setShowMenu(false)
   }
 
+  if (!room) {
+    return (
+      <div ref={pageRef} className={styles.page}>
+        <AppNav />
+        <p className={styles.noRooms} role="status">
+          {roomsQuery.loading ? 'Loading rooms…' : 'No rooms yet.'}
+        </p>
+      </div>
+    )
+  }
+
   const isMuted = muted.includes(room.id)
-  const online = [room.host, ...room.members.filter((m) => m !== room.host), YOU].filter(
-    (m, i, list) => list.findIndex((x) => x.initials === m.initials && x.name === m.name) === i,
-  )
-  const roomTyping = typing && typing.roomId === room.id ? typing.member : null
+  const isMine = (member: Member) => member.id === user?.id
+  // Everyone who has posted, host first; there is no presence channel yet.
+  const people = [room.host, ...room.members].filter((m, i, list): m is Member => m !== null && list.findIndex((x) => x?.id === m.id) === i)
 
   return (
     <div ref={pageRef} className={styles.page}>
@@ -178,7 +187,7 @@ export default function Rooms() {
             <form className={styles.createForm} onSubmit={handleCreate}>
               <input name="name" className={styles.createInput} placeholder="Room name" aria-label="Room name" required minLength={3} autoFocus />
               <select name="movie" className={styles.createInput} aria-label="Movie" defaultValue="neon-tide">
-                {ALL_MOVIES.map((m) => (
+                {PICKABLE_MOVIES.map((m) => (
                   <option key={m.slug} value={m.slug}>
                     {m.title}
                   </option>
@@ -188,6 +197,7 @@ export default function Rooms() {
                 <input type="checkbox" name="spoilers" /> Spoilers allowed
               </label>
               <PillButton type="submit">Create room</PillButton>
+              {createError && <p className={styles.noRooms} role="alert">{createError}</p>}
             </form>
           )}
 
@@ -196,7 +206,7 @@ export default function Rooms() {
             <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search rooms" aria-label="Search rooms" />
           </label>
 
-          <p className={styles.liveLabel}>LIVE NOW</p>
+          <p className={styles.liveLabel}>ROOMS</p>
           <ul className={styles.roomList} data-lenis-prevent>
             {visibleRooms.map((r) => (
               <li key={r.id}>
@@ -208,21 +218,15 @@ export default function Rooms() {
                 >
                   <span className={styles.roomThumb} style={{ background: gradientCss(r.movie.gradient) }} aria-hidden="true" />
                   <span className={styles.roomText}>
-                    <span className={styles.roomName}>{r.short ?? r.name}</span>
+                    <span className={styles.roomName}>{r.name}</span>
                     <span className={styles.roomPreview}>{r.preview}</span>
                   </span>
                   <span className={styles.roomMeta}>
                     <span className={styles.roomOnline}>
                       <img src={dotSmIcon} width={7} height={7} alt="" />
-                      {r.online}
-                      <span className="sr-only"> online</span>
+                      {r.members.length}
+                      <span className="sr-only"> members</span>
                     </span>
-                    {r.unread > 0 && (
-                      <span className={styles.unread}>
-                        {r.unread}
-                        <span className="sr-only"> unread</span>
-                      </span>
-                    )}
                   </span>
                 </button>
               </li>
@@ -238,7 +242,7 @@ export default function Rooms() {
               <h2 id="room-title">{room.name}</h2>
               <p className={styles.live}>
                 <img src={dotIcon} width={8} height={8} alt="" />
-                {room.online} online · real-time
+                {people.length} {people.length === 1 ? 'member' : 'members'} · updates every few seconds
               </p>
             </div>
             {isMuted && <span className={styles.mutedChip}>Muted</span>}
@@ -276,18 +280,20 @@ export default function Rooms() {
           )}
 
           <div ref={messagesRef} className={styles.messages} data-lenis-prevent role="log" aria-live="polite" aria-label={`${room.name} messages`}>
-            {room.messages.map((message) =>
+            {roomMessages.length === 0 && (
+              <p className={styles.system}>
+                <span>No messages yet — start the conversation.</span>
+              </p>
+            )}
+            {roomMessages.map((message) =>
               message.kind === 'system' ? (
                 <p key={message.id} className={styles.system}>
                   <span>{message.text}</span>
                 </p>
-              ) : message.from === YOU ? (
+              ) : isMine(message.from) ? (
                 <div key={message.id} className={styles.own}>
                   <p className={styles.ownBubble}>{message.text}</p>
-                  <p className={styles.time}>
-                    {message.time}
-                    {message.seenBy !== undefined && ` · seen by ${message.seenBy}`}
-                  </p>
+                  <p className={styles.time}>{message.time}</p>
                 </div>
               ) : (
                 <div key={message.id} className={styles.message}>
@@ -300,32 +306,29 @@ export default function Rooms() {
                       <span className={styles.time}>{message.time}</span>
                     </p>
                     <p className={styles.bubble}>{message.text}</p>
-                    {(message.agree !== undefined || message.extra) && (
-                      <div className={styles.reactions}>
-                        <button
-                          type="button"
-                          className={styles.reaction}
-                          aria-pressed={agreed.includes(message.id)}
-                          onClick={() =>
-                            setAgreed((list) => (list.includes(message.id) ? list.filter((id) => id !== message.id) : [...list, message.id]))
-                          }
-                        >
-                          {(message.agree ?? 0) + (agreed.includes(message.id) ? 1 : 0)} agree
-                        </button>
-                        {message.extra ? <span className={styles.reactionStatic}>+{message.extra}</span> : null}
-                      </div>
-                    )}
+                    {/* TODO: store reactions in the API; "agree" is only kept on this device for now. */}
+                    <div className={styles.reactions}>
+                      <button
+                        type="button"
+                        className={styles.reaction}
+                        aria-pressed={agreed.includes(message.id)}
+                        onClick={() =>
+                          setAgreed((list) => (list.includes(message.id) ? list.filter((id) => id !== message.id) : [...list, message.id]))
+                        }
+                      >
+                        {agreed.includes(message.id) ? '1 agree' : 'Agree'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ),
             )}
-            {roomTyping && (
-              <p className={styles.typing}>
-                <img src={typingDots} width={57} height={27} alt="" />
-                {roomTyping.name.split(' ')[0]} is typing…
-              </p>
-            )}
           </div>
+          {sendError && (
+            <p className={styles.menuNote} role="alert">
+              {sendError}
+            </p>
+          )}
 
           <form className={styles.composer} onSubmit={handleSubmit}>
             <div className={styles.inputWrap}>
@@ -397,16 +400,18 @@ export default function Rooms() {
 
           <section className={styles.online} aria-labelledby="online-title">
             <h3 id="online-title" className={styles.cardTitle}>
-              Online now · {room.online}
+              In this room · {people.length}
             </h3>
             <ul data-lenis-prevent>
-              {online.map((member) => (
-                <li key={member.initials + member.name}>
+              {people.map((member) => (
+                <li key={member.id}>
                   <span className={styles.avatar} style={{ background: member.color }} aria-hidden="true">
                     {member.initials}
                   </span>
-                  <span className={styles.memberName}>{member.name}</span>
-                  {member === room.host ? <span className={styles.hostChip}>Host</span> : <img src={dotIcon} width={8} height={8} alt="Online" />}
+                  <Link className={styles.memberName} to={isMine(member) ? '/profile' : `/profile/${member.handle}`}>
+                    {isMine(member) ? `${member.name} (you)` : member.name}
+                  </Link>
+                  {member.id === room.host?.id && <span className={styles.hostChip}>Host</span>}
                 </li>
               ))}
             </ul>

@@ -15,6 +15,8 @@ import eyeIcon from '../../assets/profile/icon-eye.svg'
 import xIcon from '../../assets/listmodal/icon-x-sm.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { dismiss, markAllRead, markRead, useNotifications, type AppNotification, type NotificationKind } from './notificationsStore.ts'
+import { api, useApi } from '../../lib/api.ts'
+import type { ApiMe } from '../../lib/types.ts'
 import styles from './Notifications.module.css'
 
 type Tab = 'all' | 'unread' | 'nights' | 'social'
@@ -36,11 +38,13 @@ const KIND_STYLE: Record<NotificationKind, { icon: string; bg: string; label: st
   watchlist: { icon: eyeIcon, bg: 'var(--surface-cream-deep)', label: 'Watchlist' },
 }
 
-const PREFERENCES = [
-  { id: 'nights', title: 'Movie night invites & votes', on: true },
-  { id: 'mentions', title: 'Mentions in rooms', on: true },
-  { id: 'social', title: 'Followers, likes & lists', on: true },
-  { id: 'releases', title: 'New releases near you', on: false },
+type PreferenceKey = keyof ApiMe['preferences']['notifications']
+
+const PREFERENCES: { id: PreferenceKey; title: string }[] = [
+  { id: 'nights', title: 'Movie night invites & votes' },
+  { id: 'mentions', title: 'Mentions in rooms' },
+  { id: 'social', title: 'Followers, likes & lists' },
+  { id: 'releases', title: 'New releases near you' },
 ]
 
 const maskIcon = (icon: string) => ({ '--icon': `url("${icon}")` }) as CSSProperties
@@ -49,17 +53,29 @@ export default function Notifications() {
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
 
-  const items = useNotifications()
+  const { items, loaded } = useNotifications()
   const [tab, setTab] = useState<Tab>('all')
-  // TODO: save these through the settings API (same switches as Settings › Integrations).
-  const [prefs, setPrefs] = useState(() => Object.fromEntries(PREFERENCES.map((p) => [p.id, p.on])) as Record<string, boolean>)
-  const [followedBack, setFollowedBack] = useState<string[]>([])
+  // The switches are saved with the account preferences (GET/PATCH /api/me).
+  const me = useApi<ApiMe>('/me')
+  const prefs = me.data?.preferences.notifications
+  const setPref = (id: PreferenceKey, on: boolean) => {
+    me.setData((current) => ({ ...current, preferences: { ...current.preferences, notifications: { ...current.preferences.notifications, [id]: on } } }))
+    api.patch('/me/preferences', { notifications: { [id]: on } }).catch(me.reload)
+  }
+  const [followedBack, setFollowedBack] = useState<number[]>([])
+  const followBack = (item: AppNotification) => {
+    if (!item.actor) return
+    const following = followedBack.includes(item.id)
+    setFollowedBack((ids) => (following ? ids.filter((id) => id !== item.id) : [...ids, item.id]))
+    const request = following ? api.delete(`/users/${item.actor.handle}/follow`) : api.post(`/users/${item.actor.handle}/follow`)
+    request.catch(() => setFollowedBack((ids) => (following ? [...ids, item.id] : ids.filter((id) => id !== item.id))))
+  }
 
   const unread = items.filter((n) => !n.read).length
   const visible = items.filter((n) =>
     tab === 'all' ? true : tab === 'unread' ? !n.read : TAB_KINDS[tab].includes(n.kind),
   )
-  const groups = (['Today', 'Yesterday', 'This week'] as const)
+  const groups = (['Today', 'Yesterday', 'This week', 'Earlier'] as const)
     .map((group) => ({ group, list: visible.filter((n) => n.group === group) }))
     .filter((g) => g.list.length > 0)
 
@@ -109,13 +125,13 @@ export default function Notifications() {
                       key={n.id}
                       item={n}
                       followedBack={followedBack.includes(n.id)}
-                      onFollowBack={() => setFollowedBack((ids) => (ids.includes(n.id) ? ids.filter((id) => id !== n.id) : [...ids, n.id]))}
+                      onFollowBack={() => followBack(n)}
                     />
                   ))}
                 </ul>
               </div>
             ))}
-            {groups.length === 0 && (
+            {groups.length === 0 && loaded && (
               <p className={styles.empty}>{tab === 'unread' ? 'No unread notifications. Nice.' : 'Nothing here yet.'}</p>
             )}
           </section>
@@ -128,7 +144,7 @@ export default function Notifications() {
               {PREFERENCES.map((p) => (
                 <li key={p.id}>
                   <span id={`pref-${p.id}`}>{p.title}</span>
-                  <Toggle checked={prefs[p.id]} labelledBy={`pref-${p.id}`} onChange={(on) => setPrefs((c) => ({ ...c, [p.id]: on }))} />
+                  <Toggle checked={prefs?.[p.id] ?? false} labelledBy={`pref-${p.id}`} onChange={(on) => setPref(p.id, on)} />
                 </li>
               ))}
             </ul>

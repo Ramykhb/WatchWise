@@ -1,173 +1,95 @@
-import { MOVIES, type Gradient } from '../Home/homeData.ts'
-import { MEMBERS, type Member } from '../Profile/profileData.ts'
+import type { Gradient } from '../Home/homeData.ts'
+import { look, shortName } from '../../lib/format.ts'
+import { movieFor } from '../../lib/movies.ts'
+import type { ApiMember, ApiNight } from '../../lib/types.ts'
 
-// Mock content from the Figma "Movie Nights — Planner" frame. Replace with the movie nights API
-// (movie_nights, invites, candidates and votes tables already exist in the backend schema).
+// Turns movie nights from GET /api/movie-nights into the cards and invites the planner draws.
 
 export type NightStatus = 'voting' | 'picked' | 'shortlisting'
 
-export type Guest = Pick<Member, 'initials' | 'color'> & { name: string }
+export type Guest = { id: number; handle: string; name: string; initials: string; color: string }
 
 export type Night = {
+  id: number
   slug: string
   title: string
-  /** ISO date, e.g. "2025-03-14". */
+  /** Local ISO date, e.g. "2025-03-14". */
   date: string
-  /** 24h time, e.g. "20:30". */
+  /** Local 24h time, e.g. "20:30". */
   time: string
   status: NightStatus
-  /** Status chip text, e.g. "Voting open · 18h left". */
+  /** Status chip text, e.g. "Voting open". */
   statusLabel: string
   /** Line next to the crown, e.g. "Deep Blue leads · 5 votes". */
   lead: string
   where: string
   online: boolean
+  /** Host and guests who are going; the first three get faces. */
   guests: Guest[]
   /** Shown as "+N" after the faces. */
   moreGuests: number
-  /** Movie slugs on the shortlist. */
-  candidates: string[]
+  /** TMDB ids on the shortlist. */
+  candidates: number[]
   gradient: Gradient
 }
 
-export type Invitation = {
-  id: string
-  host: Guest
-  night: Night
+export type Invitation = { id: number; host: Guest; night: Night }
+
+/** "You" for the signed-in user, "Lina S." for everyone else. */
+export const toGuest = (member: ApiMember, viewerId: number | undefined): Guest => ({
+  id: member.id,
+  handle: member.username,
+  name: member.id === viewerId ? 'You' : shortName(member.name),
+  ...look(member),
+})
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+/** Local { date: "2025-03-14", time: "20:30" } of an API timestamp. */
+export function localDateTime(iso: string) {
+  const when = new Date(iso)
+  return { date: `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}`, time: `${pad(when.getHours())}:${pad(when.getMinutes())}` }
 }
 
-const guest = (m: Member): Guest => ({ name: m.name.split(' ')[0], initials: m.initials, color: m.color })
-export const YOU: Guest = { ...guest(MEMBERS.maya), name: 'You' }
-const OMAR = guest(MEMBERS.omark)
-const LINA = guest(MEMBERS.linasaad)
-const JAD = { ...guest(MEMBERS.jadn), color: 'var(--accent-mint)' }
-const RANA = guest(MEMBERS.ranah)
-const SARA: Guest = { name: 'Sara', initials: 'SA', color: 'var(--accent-coral)' }
+/** Leading film: the winner once picked, else the most-voted candidate. */
+export function leaderOf(night: ApiNight) {
+  const picked = night.winning_tmdb_id ? night.candidates.find((c) => c.tmdb_id === night.winning_tmdb_id) : undefined
+  return picked ?? night.candidates[0]
+}
 
-/** People you follow, offered in "Invite friends". */
-export const FRIENDS: Guest[] = [OMAR, LINA, JAD, { ...RANA, color: 'var(--surface-violet-tint)' }, SARA]
+export function toNight(night: ApiNight, viewerId: number | undefined): Night {
+  const when = new Date(night.scheduled_at)
+  const past = when.getTime() < Date.now()
+  const picked = night.winning_tmdb_id !== null || night.status === 'confirmed'
+  const status: NightStatus = picked ? 'picked' : night.candidates.length > 1 ? 'voting' : 'shortlisting'
+  const leader = leaderOf(night)
+  const leaderVotes = leader?.voters.length ?? 0
+  const leaderTitle = leader ? movieFor(leader.tmdb_id).title : ''
+  const going = [night.organizer, ...night.guests.filter((g) => g.status === 'accepted').map((g) => g.user)]
 
-export const UPCOMING: Night[] = [
-  {
-    slug: 'friday-frights',
-    title: 'Friday Frights',
-    date: '2025-03-14',
-    time: '20:30',
-    status: 'voting',
-    statusLabel: 'Voting open · 18h left',
-    lead: 'Deep Blue leads · 5 votes',
-    where: "Lina's place",
-    online: false,
-    guests: [YOU, OMAR, LINA],
-    moreGuests: 3,
-    candidates: ['deep-blue', 'red-signal', 'neon-tide'],
-    gradient: MOVIES.deepBlue.gradient,
-  },
-  {
-    slug: 'comedy-night',
-    title: 'Comedy Night',
-    date: '2025-03-22',
-    time: '21:00',
-    status: 'picked',
-    statusLabel: 'Movie picked',
-    lead: 'Paper Moon · 6 votes',
-    where: 'Online',
-    online: true,
-    guests: [JAD, RANA],
-    moreGuests: 2,
-    candidates: ['paper-moon', 'wild-fern'],
-    gradient: MOVIES.paperMoon.gradient,
-  },
-  {
-    slug: 'date-night',
-    title: 'Date Night',
-    date: '2025-04-05',
-    time: '20:00',
-    status: 'shortlisting',
-    statusLabel: 'Shortlisting',
-    lead: '3 films so far',
-    where: 'Grand ABC',
-    online: false,
-    guests: [YOU, SARA],
-    moreGuests: 0,
-    candidates: ['velvet-hour', 'stardust', 'paper-moon'],
-    gradient: MOVIES.velvetHour.gradient,
-  },
-]
-
-export const INVITATIONS: Invitation[] = [
-  {
-    id: 'scifi-saturday',
-    host: OMAR,
-    night: {
-      slug: 'sci-fi-saturday',
-      title: 'Sci-fi Saturday',
-      date: '2025-03-15',
-      time: '21:00',
-      status: 'voting',
-      statusLabel: 'Voting open',
-      lead: 'Neon Tide leads · 3 votes',
-      where: 'meet.watchwise.app/scifi',
-      online: true,
-      guests: [OMAR, YOU, JAD],
-      moreGuests: 1,
-      candidates: ['neon-tide', 'stardust'],
-      gradient: MOVIES.neonTide.gradient,
-    },
-  },
-  {
-    id: 'oscars-watch-party',
-    host: RANA,
-    night: {
-      slug: 'oscars-watch-party',
-      title: 'Oscars Watch Party',
-      date: '2025-03-16',
-      time: '19:00',
-      status: 'picked',
-      statusLabel: 'Movie picked',
-      lead: 'Velvet Hour · 7 votes',
-      where: "Rana's place, Achrafieh",
-      online: false,
-      guests: [RANA, YOU, LINA],
-      moreGuests: 4,
-      candidates: ['velvet-hour'],
-      gradient: MOVIES.redSignal.gradient,
-    },
-  },
-]
-
-export const PAST: Night[] = [
-  {
-    slug: 'valentines-rewatch',
-    title: "Valentine's Rewatch",
-    date: '2025-02-14',
-    time: '20:00',
-    status: 'picked',
-    statusLabel: 'Watched',
-    lead: 'Velvet Hour · 4 votes',
-    where: 'Online',
-    online: true,
-    guests: [YOU, LINA],
-    moreGuests: 1,
-    candidates: ['velvet-hour'],
-    gradient: MOVIES.velvetHour.gradient,
-  },
-  {
-    slug: 'thriller-thursday',
-    title: 'Thriller Thursday',
-    date: '2025-02-05',
-    time: '21:30',
-    status: 'picked',
-    statusLabel: 'Watched',
-    lead: 'Deep Blue · 5 votes',
-    where: "Omar's place",
-    online: false,
-    guests: [OMAR, YOU, JAD],
-    moreGuests: 2,
-    candidates: ['deep-blue'],
-    gradient: MOVIES.wildFern.gradient,
-  },
-]
+  return {
+    id: night.id,
+    slug: String(night.id),
+    title: night.title,
+    ...localDateTime(night.scheduled_at),
+    status,
+    statusLabel: past ? 'Watched' : status === 'picked' ? 'Movie picked' : status === 'voting' ? 'Voting open' : 'Shortlisting',
+    lead:
+      status === 'picked' && leader
+        ? `${leaderTitle} · ${leaderVotes} vote${leaderVotes === 1 ? '' : 's'}`
+        : status === 'voting'
+          ? leaderVotes > 0
+            ? `${leaderTitle} leads · ${leaderVotes} vote${leaderVotes === 1 ? '' : 's'}`
+            : `${night.candidates.length} films to vote on`
+          : `${night.candidates.length} film${night.candidates.length === 1 ? '' : 's'} so far`,
+    where: night.meeting_link ?? night.location ?? 'TBD',
+    online: night.meeting_link !== null,
+    guests: going.slice(0, 3).map((m) => toGuest(m, viewerId)),
+    moreGuests: Math.max(0, going.length - 3),
+    candidates: night.candidates.map((c) => c.tmdb_id),
+    gradient: movieFor(leader?.tmdb_id ?? 0).gradient,
+  }
+}
 
 const DATE = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
 

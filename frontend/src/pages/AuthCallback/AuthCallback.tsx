@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
-import { useAuth } from '../../contexts/AuthContext.tsx'
+import { useAuth } from '../../contexts/useAuth.ts'
 import { authApi, type AuthUser } from '../../lib/auth.ts'
 
 export default function AuthCallback() {

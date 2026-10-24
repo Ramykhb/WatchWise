@@ -2,10 +2,10 @@
 
 return [
     'open_meteo' => [
-        'url' => env('OPEN_METEO_URL'),
-        'default_latitude' => (float) env('OPEN_METEO_DEFAULT_LATITUDE'),
-        'default_longitude' => (float) env('OPEN_METEO_DEFAULT_LONGITUDE'),
-        'timezone' => env('OPEN_METEO_TIMEZONE'),
+        'url' => env('OPEN_METEO_URL', 'https://api.open-meteo.com/v1/forecast'),
+        'default_latitude' => (float) env('OPEN_METEO_DEFAULT_LATITUDE', 33.8938),
+        'default_longitude' => (float) env('OPEN_METEO_DEFAULT_LONGITUDE', 35.5018),
+        'timezone' => env('OPEN_METEO_TIMEZONE', 'Asia/Beirut'),
     ],
 
     'tmdb' => [
@@ -70,6 +70,7 @@ return [
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL'),
+        'url' => env('GEMINI_URL', 'https://generativelanguage.googleapis.com/v1beta/models'),
     ],
 
 ];

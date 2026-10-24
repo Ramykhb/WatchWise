@@ -22,6 +22,6 @@ class MovieList extends Model
 
     public function items(): HasMany
     {
-        return $this->hasMany(MovieListItem::class);
+        return $this->hasMany(MovieListItem::class)->orderBy('position')->orderBy('id');
     }
 }

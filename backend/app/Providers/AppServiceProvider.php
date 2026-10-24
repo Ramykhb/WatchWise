@@ -2,30 +2,22 @@
 
 namespace App\Providers;
 
-use App\Auth\Listeners\SendEmailVerification;
-use Illuminate\Auth\Events\Registered;
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Str;
 
+/**
+ * App-wide setup only. Each module (Auth, Tmdb, Gemini, Weather, MovieRecommendation)
+ * registers its own bindings, listeners and rate limiters in its own provider.
+ */
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
         //
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
+<<<<<<< HEAD
         Event::listen(Registered::class, SendEmailVerification::class);
 
         $this->configureAuthRateLimiting();
@@ -70,5 +62,8 @@ class AppServiceProvider extends ServiceProvider
                 return $limits;
             });
         }
+=======
+        //
+>>>>>>> origin/dev
     }
 }

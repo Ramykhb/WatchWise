@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { useLenis } from 'lenis/react'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
@@ -23,17 +23,14 @@ import googleIcon from '../../assets/auth/icon-google.svg'
 import githubIcon from '../../assets/auth/icon-github.svg'
 import discordIcon from '../../assets/auth/icon-discord.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import {
-  ACCOUNT,
-  CONNECTED,
-  INTEGRATIONS,
-  PRIVACY,
-  VISIBILITY,
-  type IntegrationKey,
-  type PrivacyKey,
-  type Visibility,
-} from './settingsData.ts'
+import { INTEGRATIONS, PRIVACY, VISIBILITY, type IntegrationKey, type Visibility } from './settingsData.ts'
 import styles from './Settings.module.css'
+import { useAuth } from '../../contexts/useAuth.ts'
+import { api, useApi } from '../../lib/api.ts'
+import { apiErrorMessage } from '../../lib/auth.ts'
+import { colorOf, initialsOf } from '../../lib/format.ts'
+import type { ApiMe } from '../../lib/types.ts'
+import axios from 'axios'
 
 type Section = 'profile' | 'account' | 'privacy' | 'connected' | 'integrations'
 
@@ -69,24 +66,67 @@ type PasswordErrors = Partial<Record<'current' | 'next' | 'confirm', string>>
 /** Menu icons are masks filled with the text colour, so they follow the active item. */
 const maskIcon = (icon: string) => ({ '--icon': `url("${icon}")` }) as CSSProperties
 
+const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000').replace(/\/$/, '')
+
+/** Field errors from a Laravel 422 response, e.g. { username: 'The username has already been taken.' }. */
+function fieldErrors(error: unknown): Record<string, string> {
+  if (!axios.isAxiosError(error)) return {}
+  const errors = (error.response?.data as { errors?: Record<string, string[]> } | undefined)?.errors ?? {}
+  return Object.fromEntries(Object.entries(errors).map(([key, messages]) => [key, messages[0]]))
+}
+
+/** Loads the account (GET /api/me) before showing the forms, so their fields start filled in. */
 export default function Settings() {
+  const { data, setData } = useApi<ApiMe>('/me')
+  if (!data) {
+    return (
+      <div className={styles.page}>
+        <AppNav />
+        <p className={styles.subtitle} role="status">
+          Loading your settings…
+        </p>
+      </div>
+    )
+  }
+  return <SettingsPage key={data.user.id} me={data} onChange={setData} />
+}
+
+function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => void }) {
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
   const lenis = useLenis()
+  const navigate = useNavigate()
+  const { setUser, logout } = useAuth()
 
   const [active, setActive] = useState<Section>('profile')
-  const [photo, setPhoto] = useState<string>()
   const [profileErrors, setProfileErrors] = useState<ProfileErrors>({})
   const [profileNote, setProfileNote] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<PasswordErrors>({})
   const [passwordNote, setPasswordNote] = useState('')
-  const [visibility, setVisibility] = useState<Visibility>('public')
-  const [privacy, setPrivacy] = useState(() => Object.fromEntries(PRIVACY.map((p) => [p.id, p.on])) as Record<PrivacyKey, boolean>)
-  const [connected, setConnected] = useState(CONNECTED)
-  const [integrations, setIntegrations] = useState(
-    () => Object.fromEntries(INTEGRATIONS.map((i) => [i.id, i.on])) as Record<IntegrationKey, boolean>,
-  )
+  const [photoNote, setPhotoNote] = useState('')
+  const [settingsNote, setSettingsNote] = useState('')
   const [locationNote, setLocationNote] = useState('')
+  const photo = me.user.avatar ?? undefined
+  const visibility = me.user.profile_visibility
+  const privacy = me.preferences.privacy
+  const connected = me.connected
+  const integrations = me.preferences.integrations
+
+  /** Saves a change; the API answers with the whole account, which refreshes the page and header. */
+  const apply = async (request: Promise<{ data: ApiMe }>) => {
+    const response = await request
+    onChange(response.data)
+    setUser(response.data.user)
+    return response.data
+  }
+  const saveSettings = (body: Partial<Record<'privacy' | 'integrations', Record<string, boolean>>>) => {
+    setSettingsNote('')
+    onChange({ ...me, preferences: { ...me.preferences, ...Object.fromEntries(Object.entries(body).map(([k, v]) => [k, { ...me.preferences[k as 'privacy'], ...v }])) } })
+    apply(api.patch('/me/preferences', body)).catch(() => {
+      onChange(me)
+      setSettingsNote("Couldn't save that setting. Please try again.")
+    })
+  }
 
   // Highlight the menu item of the panel in the middle of the screen.
   useEffect(() => {
@@ -109,11 +149,6 @@ export default function Settings() {
     }
   }, [])
 
-  // Release the previewed photo's object URL when it is replaced or the page closes.
-  useEffect(() => () => {
-    if (photo) URL.revokeObjectURL(photo)
-  }, [photo])
-
   const goTo = (section: Section) => {
     setActive(section)
     const panel = document.getElementById(section)
@@ -125,12 +160,22 @@ export default function Settings() {
 
   const handlePhoto = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    // TODO: upload the photo to the API (multipart) once the endpoint exists.
-    if (file) setPhoto(URL.createObjectURL(file))
     event.target.value = ''
+    if (!file) return
+    const body = new FormData()
+    body.append('avatar', file)
+    setPhotoNote('Uploading…')
+    apply(api.post('/me/avatar', body))
+      .then(() => setPhotoNote('Photo updated.'))
+      .catch((error) => setPhotoNote(apiErrorMessage(error, "Couldn't upload that photo (images up to 2 MB).")))
   }
 
-  const handleProfile = (event: FormEvent<HTMLFormElement>) => {
+  const removePhoto = () => {
+    setPhotoNote('')
+    apply(api.delete('/me/avatar')).catch(() => setPhotoNote("Couldn't remove the photo."))
+  }
+
+  const handleProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const name = String(data.get('name') ?? '').trim()
@@ -145,11 +190,25 @@ export default function Settings() {
       setProfileNote('')
       return
     }
-    // TODO: save through the API (PATCH /api/user) once the endpoint exists.
-    setProfileNote('Profile saved.')
+    setProfileNote('Saving…')
+    try {
+      const saved = await apply(
+        api.patch('/me', {
+          name,
+          username,
+          email,
+          location: String(data.get('location') ?? '').trim() || null,
+          bio: String(data.get('bio') ?? '').trim() || null,
+        }),
+      )
+      setProfileNote(saved.user.email_verified_at ? 'Profile saved.' : 'Profile saved. Check your inbox to confirm your new email.')
+    } catch (error) {
+      setProfileErrors(fieldErrors(error))
+      setProfileNote(apiErrorMessage(error, "Couldn't save your profile."))
+    }
   }
 
-  const handlePassword = (event: FormEvent<HTMLFormElement>) => {
+  const handlePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const form = event.currentTarget
     const data = new FormData(form)
@@ -166,40 +225,63 @@ export default function Settings() {
       setPasswordNote('')
       return
     }
-    // TODO: send to the API (PUT /api/user/password); it signs out other devices.
-    form.reset()
-    setPasswordNote('Password updated. Other devices have been signed out.')
+    setPasswordNote('Saving…')
+    try {
+      await api.put('/me/password', { current_password: current, password: nextPassword, password_confirmation: confirm })
+      form.reset()
+      setPasswordNote('Password updated. Other devices have been signed out.')
+    } catch (error) {
+      const errors = fieldErrors(error)
+      setPasswordErrors({ current: errors.current_password, next: errors.password })
+      setPasswordNote(apiErrorMessage(error, "Couldn't update your password."))
+    }
   }
 
   const toggleProvider = (provider: SocialProvider) => {
-    // TODO: connect through the Laravel Socialite redirect and disconnect through the API.
-    setConnected((accounts) => ({ ...accounts, [provider]: accounts[provider] ? null : 'Connected just now' }))
+    if (connected[provider]) {
+      apply(api.delete(`/me/social/${provider}`)).catch(() => setSettingsNote(`Couldn't disconnect ${provider}.`))
+      return
+    }
+    // Linking goes through the provider's sign-in; an account with the same verified email is linked.
+    window.location.assign(`${backendUrl}/api/auth/social/${provider}`)
   }
 
   const toggleIntegration = (id: IntegrationKey, on: boolean) => {
-    setIntegrations((current) => ({ ...current, [id]: on }))
     if (id !== 'location' || !on) {
       if (id === 'location') setLocationNote('')
+      saveSettings({ integrations: { [id]: on } })
       return
     }
     // Turning location on asks the browser for permission straight away.
     if (!navigator.geolocation) {
-      setIntegrations((current) => ({ ...current, location: false }))
       setLocationNote("This browser can't share your location.")
       return
     }
     navigator.geolocation.getCurrentPosition(
-      () => setLocationNote('Location allowed. Nearby cinemas will use where you are.'),
       () => {
-        setIntegrations((current) => ({ ...current, location: false }))
-        setLocationNote('Location permission was blocked. Allow it in your browser to use this.')
+        saveSettings({ integrations: { location: true } })
+        setLocationNote('Location allowed. Nearby cinemas will use where you are.')
       },
+      () => setLocationNote('Location permission was blocked. Allow it in your browser to use this.'),
     )
   }
 
-  const handleDelete = () => {
-    // TODO: call DELETE /api/user and sign out once the endpoint exists.
-    window.confirm('Delete your WatchWise account? Your reviews, lists and history will be removed. This cannot be undone.')
+  const setVisibility = (value: Visibility) => {
+    setSettingsNote('')
+    apply(api.patch('/me', { profile_visibility: value })).catch(() => setSettingsNote("Couldn't change who can see your profile."))
+  }
+
+  const handleDelete = async () => {
+    if (!window.confirm('Delete your WatchWise account? Your reviews, lists and history will be removed. This cannot be undone.')) return
+    const password = window.prompt('Enter your password to delete your account.')
+    if (!password) return
+    try {
+      await api.delete('/me', { data: { password } })
+      await logout().catch(() => undefined)
+      navigate('/signin', { replace: true })
+    } catch (error) {
+      window.alert(apiErrorMessage(error, "Couldn't delete your account."))
+    }
   }
 
   return (
@@ -241,8 +323,8 @@ export default function Settings() {
               <PanelHead id="profile-title" title="Profile" text="This is how other members see you." />
               <form className={styles.form} onSubmit={handleProfile} noValidate>
                 <div className={styles.avatarRow}>
-                  <span className={styles.avatar} aria-hidden={!photo}>
-                    {photo ? <img src={photo} alt="Your new profile photo" /> : ACCOUNT.initials}
+                  <span className={styles.avatar} aria-hidden={!photo} style={photo ? undefined : { background: colorOf(me.user.id) }}>
+                    {photo ? <img src={photo} alt="Your profile photo" /> : initialsOf(me.user.name)}
                   </span>
                   <div className={styles.avatarButtons}>
                     <label className={styles.upload}>
@@ -250,22 +332,25 @@ export default function Settings() {
                       <img src={cameraIcon} width={16} height={16} alt="" />
                       Upload photo
                     </label>
-                    <PillButton variant="outline" disabled={!photo} onClick={() => setPhoto(undefined)}>
+                    <PillButton variant="outline" disabled={!photo} onClick={removePhoto}>
                       Remove
                     </PillButton>
+                    <span className={styles.note} role="status">
+                      {photoNote}
+                    </span>
                   </div>
                 </div>
                 <div className={styles.row}>
-                  <TextField label="Display name" name="name" defaultValue={ACCOUNT.displayName} autoComplete="name" error={profileErrors.name} />
-                  <TextField label="Username" name="username" defaultValue={ACCOUNT.username} autoComplete="username" error={profileErrors.username} />
+                  <TextField label="Display name" name="name" defaultValue={me.user.name} autoComplete="name" error={profileErrors.name} />
+                  <TextField label="Username" name="username" defaultValue={`@${me.user.username}`} autoComplete="username" error={profileErrors.username} />
                 </div>
                 <div className={styles.row}>
-                  <TextField label="Email" name="email" type="email" defaultValue={ACCOUNT.email} autoComplete="email" error={profileErrors.email} />
-                  <TextField label="Location" name="location" defaultValue={ACCOUNT.location} autoComplete="address-level2" />
+                  <TextField label="Email" name="email" type="email" defaultValue={me.user.email} autoComplete="email" error={profileErrors.email} />
+                  <TextField label="Location" name="location" defaultValue={me.user.location ?? ''} autoComplete="address-level2" />
                 </div>
                 <label className={styles.bio}>
                   <span className={styles.bioLabel}>Bio</span>
-                  <textarea name="bio" className={styles.textarea} defaultValue={ACCOUNT.bio} maxLength={160} rows={2} />
+                  <textarea name="bio" className={styles.textarea} defaultValue={me.user.bio ?? ''} maxLength={160} rows={2} />
                 </label>
                 <div className={styles.actions}>
                   <PillButton type="submit">Save profile</PillButton>
@@ -328,11 +413,14 @@ export default function Settings() {
                     <Toggle
                       checked={privacy[item.id]}
                       labelledBy={`privacy-${item.id}`}
-                      onChange={(on) => setPrivacy((current) => ({ ...current, [item.id]: on }))}
+                      onChange={(on) => saveSettings({ privacy: { [item.id]: on } })}
                     />
                   </li>
                 ))}
               </ul>
+              <p className={styles.note} role="status">
+                {settingsNote}
+              </p>
             </section>
 
             <section id="connected" data-section className={styles.panel} aria-labelledby="connected-title">
@@ -346,7 +434,7 @@ export default function Settings() {
                       <span className={styles.rowText}>
                         <span className={styles.rowTitle}>{provider.label}</span>
                         <span className={account ? styles.accountOn : styles.rowDesc}>
-                          {account ? `Connected · ${account}` : 'Not connected'}
+                          {account ? `Connected · since ${new Date(account).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : 'Not connected'}
                         </span>
                       </span>
                       <PillButton variant={account ? 'outline' : 'solid'} onClick={() => toggleProvider(provider.id)}>
