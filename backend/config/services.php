@@ -8,7 +8,6 @@ return [
         'timezone' => env('OPEN_METEO_TIMEZONE'),
     ],
 
-
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
@@ -41,6 +40,20 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+    ],
+
+    'github' => [
+        'client_id' => env('GITHUB_CLIENT_ID'),
+        'client_secret' => env('GITHUB_CLIENT_SECRET'),
+        'redirect' => env('GITHUB_REDIRECT_URI'),
+    ],
+
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
 
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
