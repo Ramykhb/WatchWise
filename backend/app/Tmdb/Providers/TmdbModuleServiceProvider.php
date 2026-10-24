@@ -10,6 +10,9 @@ use App\Tmdb\Repository\GenreRepository;
 use App\Tmdb\Repository\MovieRepository;
 use App\Tmdb\Services\GenreService;
 use App\Tmdb\Services\MovieService;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -27,4 +30,9 @@ class TmdbModuleServiceProvider extends ServiceProvider
         MovieServiceInterface::class => MovieService::class,
         GenreServiceInterface::class => GenreService::class,
     ];
+
+    public function boot(): void
+    {
+        RateLimiter::for('tmdb', fn (Request $request) => Limit::perMinute(60)->by('ip:'.$request->ip()));
+    }
 }
