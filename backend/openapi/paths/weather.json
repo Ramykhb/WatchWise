@@ -1,0 +1,103 @@
+{
+  "paths": {
+    "/api/weather": {
+      "get": {
+        "summary": "Get current weather",
+        "description": "Current weather from Open-Meteo. Send latitude and longitude together, or neither to use the default location. Limited to 30 requests per minute.",
+        "tags": ["Weather"],
+        "parameters": [
+          {"name": "latitude", "in": "query", "required": false, "description": "Required if longitude is sent.", "schema": {"type": "number", "minimum": -90, "maximum": 90}, "example": 33.8938},
+          {"name": "longitude", "in": "query", "required": false, "description": "Required if latitude is sent.", "schema": {"type": "number", "minimum": -180, "maximum": 180}, "example": 35.5018}
+        ],
+        "responses": {
+          "200": {
+            "description": "Current weather at the location.",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WeatherResponse"}}}
+          },
+          "422": {"description": "Validation failed.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ValidationError"}}}},
+          "429": {"description": "Too many requests.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}}}},
+          "502": {"description": "The weather provider is unavailable.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}, "example": {"message": "Weather service is temporarily unavailable."}}}}
+        }
+      }
+    },
+    "/api/weather-mood": {
+      "post": {
+        "summary": "Get the movie mood for the weather",
+        "description": "Asks Gemini which movie mood the given weather calls for. Requires GEMINI_API_KEY and GEMINI_MODEL in .env. Counts against the shared AI limit of 10 requests per minute.",
+        "tags": ["Weather"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/WeatherMoodRequest"},
+              "example": {"condition": "Rain", "temperature": 14.5, "humidity": 82, "wind": 12.3, "precipitation": 1.2}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The generated mood.",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WeatherMoodResponse"}}}
+          },
+          "422": {"description": "Validation failed.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ValidationError"}}}},
+          "429": {"description": "Too many requests.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}}}},
+          "502": {"description": "Gemini failed or returned an unusable answer.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}, "example": {"error": "Could not generate the weather mood"}}}}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "WeatherResponse": {
+        "type": "object",
+        "required": ["location", "current"],
+        "properties": {
+          "location": {
+            "type": "object",
+            "required": ["latitude", "longitude", "is_default"],
+            "properties": {
+              "latitude": {"type": "number", "example": 33.8938},
+              "longitude": {"type": "number", "example": 35.5018},
+              "is_default": {"type": "boolean", "description": "True when no coordinates were sent and the default location was used."}
+            }
+          },
+          "current": {
+            "type": "object",
+            "nullable": true,
+            "description": "Open-Meteo's current block, passed through as is.",
+            "additionalProperties": true,
+            "properties": {
+              "time": {"type": "string", "example": "2026-10-24T12:00"},
+              "temperature_2m": {"type": "number", "example": 21.4},
+              "relative_humidity_2m": {"type": "number", "example": 60},
+              "apparent_temperature": {"type": "number", "example": 20.9},
+              "precipitation": {"type": "number", "example": 0},
+              "weather_code": {"type": "integer", "example": 1},
+              "wind_speed_10m": {"type": "number", "example": 9.7}
+            }
+          }
+        }
+      },
+      "WeatherMoodRequest": {
+        "type": "object",
+        "required": ["condition", "temperature", "humidity", "wind", "precipitation"],
+        "properties": {
+          "condition": {"type": "string", "maxLength": 50, "example": "Rain"},
+          "temperature": {"type": "number", "example": 14.5},
+          "humidity": {"type": "number", "example": 82},
+          "wind": {"type": "number", "example": 12.3},
+          "precipitation": {"type": "number", "example": 1.2}
+        }
+      },
+      "WeatherMoodResponse": {
+        "type": "object",
+        "required": ["title", "mood", "description"],
+        "properties": {
+          "title": {"type": "string", "example": "WEATHER MOOD"},
+          "mood": {"type": "string", "example": "Cozy"},
+          "description": {"type": "string"}
+        }
+      }
+    }
+  }
+}
