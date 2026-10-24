@@ -1,407 +1,579 @@
-# Graph Report - Web2-Project  (2026-10-22)
+# Graph Report - Web2-Project  (2026-10-24)
 
 ## Corpus Check
-- 353 files · ~63,704 words
+- 479 files · ~81,083 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1242 nodes · 2162 edges · 109 communities (60 shown, 49 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 23 edges (avg confidence: 0.84)
-- Token cost: 81,819 input · 0 output
+- 1994 nodes · 4014 edges · 156 communities (88 shown, 68 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 169 edges (avg confidence: 0.85)
+- Token cost: 103,711 input · 0 output
 
 ## Community Hubs (Navigation)
-- Frontend Dependencies & Lint
-- SplitText Headline Animation
-- App Nav & Notifications
-- User Model & Relations
-- Weather API (Open-Meteo)
-- Nearby Cinemas Map
-- Discussion Rooms Chat
-- Movie Details Page
-- Discover Page & Filters
-- Profile Page
-- Settings Page
-- Backend Vite/Tailwind Tooling
-- Viewport Fit Scaling
-- Auth Page Components
-- Animated Auth Waves
-- List Detail Page
-- Movie Nights Planner
-- Home Page
-- Watchlist & History Page
-- Movie Night Detail Data
-- Sign In & Poster Stack
-- Shared Header Components
-- Movie Night Detail & Voting
-- Frontend TS App Config
-- Calendar & Follow Models
-- Create/Edit List Dialog
-- Magnet Interaction
-- Frontend TS Node Config
-- Root Repo & Husky Setup
-- Lists Page & Data
-- Person Page
-- Reviews & Sentiment
-- Movie Tile & Movie Data
-- Movie Nights Store
-- Discussion Rooms & Movie Nights Models
-- Core Laravel Migrations
-- Frontend Docs & Motion
-- Auth Shell
-- Notifications & Password Resets
+- Auth: PasswordResetService
+- MovieDetails
+- Auth: User
+- Settings
+- Tests: AccountFlowsTest
+- Model: User
+- PosterCardMini: SignUp
+- Auth: RefreshTokenRepositoryInterface
+- AuthService #8
+- Auth: RefreshToken
+- Cinemas
+- Rooms
+- adminData
+- AdminMovies
+- Discover
+- Profile
+- AdminOverview
+- Lists
+- Policy: CurrentUser
+- Auth: Request
+- AdminUsers
+- Auth: router
+- AuthResponse
+- ButtonPrimary: react-router
+- ForYou
+- homeData
+- MovieNights
+- Tests: GuestUser
+- Auth: JsonResponse
+- YearInFilmCard: TrendingCard
+- Watchlist
+- MovieNights: nightsData
+- Notifications
+- MovieNights: NightDetail
+- Auth: {closure#1}
+- AuthShell: react
+- compilerOptions #36
+- Auth: EmailVerificationServiceTest
+- MovieDetails: MovieTile
+- Model: BelongsTo
+- frontend/package
+- AuthWaves: useEntranceAnimation
+- Lists: ListDialog
+- Reactbits: Magnet
+- compilerOptions #44
+- npm: package
+- Auth: ResendVerificationData
+- Auth: TokenFactory
+- npm: backend/package
+- Tests: AuthenticationTest
+- AdminLayout
+- Person
+- Reactbits: SplitHeadline
+- MovieNights: nightsStore
+- MovieRecommendationController
+- AppServiceProvider
+- Landing
+- Auth: EmailVerificationServiceInterface
+- ListDetail
+- notificationsStore
+- Model: HasMany
+- Migration: Blueprint
+- devDependencies
+- listDetailData
+- Policy: id
+- Policy: AuthorizationServiceProvider
+- Model
+- Auth: JwtCurrentUser
+- MovieListPolicy
+- SocialAuthController #69
+- AuthService #70
+- AuthProvider / useAuth (AuthContext
 - Laravel Boost Guidelines
-- Trending Card
-- Pages & Stores Overview
-- Chips & Year-in-Film Card
-- App Shell, Router & Lenis
-- My Lists Store
-- Composer Package Config
-- Composer Plugins & Platform
-- Composer Scripts
-- Calendar Export & Rating Helpers
-- CI Workflows
-- Composer Dev Dependencies
-- Pill Button
-- Settings Data
-- Social Login Buttons
-- App Service Provider
-- Poster Collage
-- Figma Design & Admin Screens
-- Project Tooling & Schema
-- Mock Data & External APIs
-- Movie List Model
-- Movie Night Candidates
-- Movie Night Votes
-- Composer Autoload
-- Cache Table Migration
-- Social Accounts Migration
-- Activity Feed Migration
-- Rating Stars
-- Activity Feed Model
-- Movie List Item Model
-- Review Model
-- User Preference Model
-- Watchlist Model
-- Composer Requirements
-- Reviews Migration
-- Watchlists Migration
-- User Preferences Migration
-- Discussion Rooms Migration
-- Messages Migration
-- Movie Lists Migration
-- Movie List Items Migration
-- Follows Migration
-- Movie Nights Migration
-- Movie Night Invites Migration
-- Movie Night Candidates Migration
-- Movie Night Votes Migration
-- Calendar Events Migration
-- Notifications Migration
-- Unit Test Example
-- Toggle Switch
-- Test Autoload
-- Laravel Package Discovery
-- Laravel Boost MCP
-- TS Project References
-- Planned Product Capabilities
-- Fonts & HTML Entry
-- Contributing Guidelines
-- Roadmap
+- Tests: MiddlewareTest
+- Docs: Frontend Stack (React 19, Vite 8, CSS Mo
+- composer
+- Composer: config
+- Composer: scripts
+- Tests: WeatherTest
+- Laravel Framework (default README
+- Policy: owns
+- ReviewPolicy
+- WatchlistPolicy
+- WatchWise Handoff
+- TokenFactory
+- bootstrap/app
+- Composer: require-dev
+- dependencies
+- PillButton
+- MovieListItemPolicy
+- WeatherController
+- Auth Middleware (auth.jwt, auth.optional
+- Docs: Laravel 12 Backend
+- Composer: require
+- npm: devDependencies
+- AppNav
+- PosterCollage: Gradient
+- Model: MovieList
+- Model: MovieNightCandidate
+- Model: MovieNightVote
+- SocialAuthController #100
+- Composer: psr-4
+- Migration: 0001_01_01_000001_create_cache_table
+- Migration: Schema
+- Migration
+- Tests: GeminiWeatherRecommendation
+- scripts
+- Checkbox
+- Docs: Auth Page Swap (View Transitions
+- Auth: LoginRequest
+- Model: ActivityFeed
+- Model: MovieListItem
+- Model: Review
+- Model: UserPreference
+- Model: Watchlist
+- Migration: 2026_10_22_000003_create_social_accounts
+- Migration: 2026_10_22_000004_create_reviews_table
+- Migration: 2026_10_22_000005_create_watchlists_tabl
+- Migration: 2026_10_22_000006_create_user_preference
+- Migration: 2026_10_22_000007_create_discussion_room
+- Migration: 2026_10_22_000008_create_messages_table
+- Migration: 2026_10_22_000011_create_follows_table
+- Migration: 2026_10_22_000012_create_activity_feed_t
+- Migration: 2026_10_22_000013_create_movie_nights_ta
+- Migration: 2026_10_22_000014_create_movie_night_inv
+- Migration: 2026_10_22_000015_create_movie_night_can
+- Migration: 2026_10_22_000016_create_movie_night_vot
+- Migration: 2026_10_22_000017_create_calendar_events
+- Migration: 2026_10_22_000018_create_notifications_t
+- Migration: 2026_10_22_000019_create_refresh_tokens_
+- TextField
+- Docs: *Data.ts Mock Data Files
+- Composer: autoload-dev
+- Composer: extra
+- laravel-boost
+- tsconfig
+- vite.config
+- Docs: In-memory Stores (myListsStore, nightsSt
+- Google Fonts (DM Sans, Outfit
+- Docs: Working Agreements (user commits/pushes,
+- Docs: Movie Nights (invitations, voting, RSVP
+- Docs: FitToViewport
 
 ## God Nodes (most connected - your core abstractions)
-1. `react` - 41 edges
-2. `react-router` - 32 edges
-3. `useEntranceAnimation()` - 26 edges
-4. `AppNav()` - 24 edges
-5. `User` - 22 edges
-6. `SplitHeadline()` - 22 edges
-7. `gradientCss()` - 19 edges
-8. `compilerOptions` - 18 edges
-9. `MOVIES` - 17 edges
-10. `ButtonPrimary()` - 15 edges
+1. `CurrentUser` - 83 edges
+2. `react` - 47 edges
+3. `react-router` - 37 edges
+4. `UserRepositoryInterface` - 28 edges
+5. `AppNav()` - 26 edges
+6. `useEntranceAnimation()` - 25 edges
+7. `TokenFactory` - 24 edges
+8. `AccountFlowsTest` - 24 edges
+9. `gradientCss()` - 22 edges
+10. `AuthResponse` - 22 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `TypeScript Check and Build job (npm ci, tsc --noEmit, npm run build)` --conceptually_related_to--> `Frontend Stack (React 19, Vite, React Router, CSS Modules)`  [INFERRED]
+- `RequireAuth / RequireGuest Route Guards` --semantically_similar_to--> `Auth Middleware (auth.jwt, auth.optional, verified.email, role)`  [INFERRED] [semantically similar]
+  HANDOFF.md → backend/Backend.md
+- `TypeScript Check and Build job (npm ci, tsc --noEmit, npm run build)` --conceptually_related_to--> `Frontend Stack (React 19, Vite 8, CSS Modules)`  [INFERRED]
   .github/workflows/frontend-ci.yml → HANDOFF.md
-- `React + TypeScript + Vite template README` --conceptually_related_to--> `Frontend Stack (React 19, Vite, React Router, CSS Modules)`  [INFERRED]
+- `Roadmap` --conceptually_related_to--> `Backend Auth Module (app/Auth)`  [AMBIGUOUS]
+  README.md → backend/Backend.md
+- `React + TypeScript + Vite template README` --conceptually_related_to--> `Frontend Stack (React 19, Vite 8, CSS Modules)`  [INFERRED]
   frontend/README.md → HANDOFF.md
-- `Laravel Checks job (PHP 8.4, composer install, artisan --version)` --references--> `Laravel Framework (default README)`  [INFERRED]
-  .github/workflows/backend-ci.yml → backend/README.md
-- `Laravel 12 Streamlined Structure (bootstrap/app.php, casts() method)` --conceptually_related_to--> `Backend Stack (Laravel 12, PHP 8.2+, Eloquent, SQLite, PHPUnit)`  [INFERRED]
-  backend/CLAUDE.md → README.md
-- `Separated Frontend/Backend Architecture` --conceptually_related_to--> `Frontend Stack (React 19, Vite, React Router, CSS Modules)`  [INFERRED]
-  README.md → HANDOFF.md
+- `AuthProvider / useAuth (AuthContext)` --references--> `AuthController`  [INFERRED]
+  HANDOFF.md → backend/Backend.md
 
 ## Import Cycles
 - None detected.
 
 ## Hyperedges (group relationships)
 - **Backend agent coding rules (Laravel Boost)** — backend_claude_php_rules, backend_claude_laravel_way, backend_claude_laravel12_structure, backend_claude_pint, backend_claude_phpunit [EXTRACTED 1.00]
-- **Auth page swap motion system** — handoff_auth_page_swap, handoff_authwaves, handoff_use_auth_swap, handoff_use_entrance_animation, handoff_gsap [EXTRACTED 1.00]
-- **Shared in-memory stores awaiting backend/real-time** — handoff_mylistsstore, handoff_nightsstore, handoff_notificationsstore, handoff_laravel_reverb [INFERRED 0.85]
-- **Live weather flow via Laravel proxy** — handoff_for_you_page, handoff_weather_api, handoff_open_meteo, handoff_external_apis_via_laravel [EXTRACTED 1.00]
+- **JWT Auth Request Flow** — backend_backend_auth_middleware, backend_backend_currentuserfactory, backend_backend_currentuser, backend_backend_policies, backend_backend_tokenfactory [EXTRACTED 1.00]
+- **Auth Repository Layer** — backend_backend_userrepository, backend_backend_refreshtokenrepository, backend_backend_passwordresetrepository, backend_backend_socialaccountrepository [EXTRACTED 1.00]
+- **Frontend Cookie Session Auth Flow** — handoff_authprovider, handoff_route_guards, backend_backend_authcontroller, backend_backend_authcookies [INFERRED 0.85]
 
-## Communities (109 total, 49 thin omitted)
+## Communities (156 total, 68 thin omitted)
 
-### Community 0 - "Frontend Dependencies & Lint"
+### Community 0 - "Auth: PasswordResetService"
+Cohesion: 0.06
+Nodes (13): PasswordResetController, ForgotPasswordData, ResetPasswordData, InvalidResetToken, PasswordResetRepositoryInterface, PasswordResetServiceInterface, PasswordResetRepository, ForgotPasswordRequest (+5 more)
+
+### Community 1 - "MovieDetails"
 Cohesion: 0.05
-Nodes (43): dependencies, axios, gsap, @gsap/react, lenis, react, react-dom, react-router (+35 more)
+Nodes (15): RatingStars(), RatingStarsProps, Review, ReviewCard(), Sentiment(), SentimentType, VARIANTS, getMovieDetails() (+7 more)
 
-### Community 1 - "SplitText Headline Animation"
+### Community 2 - "Auth: User"
+Cohesion: 0.09
+Nodes (4): UserRepositoryInterface, UserRepository, UserRepositoryTest, UserResponseTest
+
+### Community 3 - "Settings"
 Cohesion: 0.06
-Nodes (26): DEFAULT_FROM, DEFAULT_TO, fontsAreLoaded(), getEffect(), Kick, Look, SplitText(), SplitTextEffect (+18 more)
+Nodes (19): PROVIDERS, SocialButtonProps, SocialProvider, INTEGRATION_ICONS, maskIcon(), MENU, PanelHead(), PasswordErrors (+11 more)
 
-### Community 2 - "App Nav & Notifications"
-Cohesion: 0.07
-Nodes (25): AppNavProps, LINKS, KIND_STYLE, maskIcon(), NotificationItem(), Notifications(), PREFERENCES, Tab (+17 more)
+### Community 4 - "Tests: AccountFlowsTest"
+Cohesion: 0.09
+Nodes (4): ResetPasswordMail, VerifyEmailMail, AccountFlowsTest, {closure#3}()
 
-### Community 3 - "User Model & Relations"
+### Community 5 - "Model: User"
 Cohesion: 0.06
-Nodes (3): User, UserFactory, DatabaseSeeder
+Nodes (4): User, RefreshTokenFactory, UserFactory, DatabaseSeeder
 
-### Community 4 - "Weather API (Open-Meteo)"
-Cohesion: 0.07
-Nodes (8): Controller, WeatherController, {closure#1}(), {closure#2}(), {closure#3}(), ExampleTest, WeatherTest, TestCase
+### Community 6 - "PosterCardMini: SignUp"
+Cohesion: 0.08
+Nodes (11): MiniPoster, PosterCardMiniProps, AUTH_SWAP_STATE, AuthSwapState, LAST_LAP, NEON_TIDE, PAPER_MOON, Errors (+3 more)
 
-### Community 5 - "Nearby Cinemas Map"
+### Community 7 - "Auth: RefreshTokenRepositoryInterface"
+Cohesion: 0.13
+Nodes (8): SocialLoginData, AccountDisabled, EmailRequired, UnverifiedProviderEmail, RefreshTokenRepositoryInterface, SocialAuthServiceInterface, SocialAuthService, SocialAuthServiceTest
+
+### Community 8 - "AuthService #8"
+Cohesion: 0.14
+Nodes (7): LoginData, RegisterData, InvalidCredentials, InvalidRefreshToken, AuthServiceInterface, AuthService, AuthServiceTest
+
+### Community 9 - "Auth: RefreshToken"
+Cohesion: 0.09
+Nodes (4): RefreshTokenRepository, RefreshToken, {closure#1}(), RefreshTokenRepositoryTest
+
+### Community 10 - "Cinemas"
 Cohesion: 0.08
 Nodes (15): Cinemas(), directionsUrl(), Mode, placeAt(), Cinema, CINEMAS, DEFAULT_LOCATION, Feature (+7 more)
 
-### Community 6 - "Discussion Rooms Chat"
+### Community 11 - "Rooms"
 Cohesion: 0.08
 Nodes (16): ALL_MOVIES, REPLIES, Rooms(), channelName(), clockTime(), EMOJIS, JAD, LINA (+8 more)
 
-### Community 7 - "Movie Details Page"
-Cohesion: 0.07
-Nodes (5): getMovieDetails(), MovieDetails(), PINS, SortKey, SORTS
+### Community 12 - "adminData"
+Cohesion: 0.09
+Nodes (21): FLAG_REASONS, FlagReason, GUIDELINES, MODERATION_REVIEWS, MODERATION_WEEK, ModerationReview, ModerationStatus, MOVIE_GENRES (+13 more)
 
-### Community 8 - "Discover Page & Filters"
+### Community 13 - "AdminMovies"
+Cohesion: 0.09
+Nodes (18): Toggle(), ToggleProps, ADMIN_MOVIES, AdminMovie, MOVIE_SYNC, MovieFields, AdminMovies(), CONTENT_KEYS (+10 more)
+
+### Community 14 - "Discover"
 Cohesion: 0.10
 Nodes (15): Discover(), fraction(), pageItems(), DEFAULT_FILTERS, Filters, GENRES, INITIAL_FILTERS, LANGUAGES (+7 more)
 
-### Community 9 - "Profile Page"
+### Community 15 - "Profile"
 Cohesion: 0.11
 Nodes (22): ACTIVITY_ICON, ActivityCard(), ActivityHead(), GENRE_COLORS, ListPreview(), PeopleTab, PersonRow(), Profile() (+14 more)
 
-### Community 10 - "Settings Page"
-Cohesion: 0.08
-Nodes (9): INTEGRATION_ICONS, maskIcon(), MENU, PanelHead(), PasswordErrors, ProfileErrors, PROVIDERS, Section (+1 more)
-
-### Community 11 - "Backend Vite/Tailwind Tooling"
-Cohesion: 0.08
-Nodes (21): devDependencies, concurrently, laravel-vite-plugin, tailwindcss, @tailwindcss/vite, vite, vite, optionalDependencies (+13 more)
-
-### Community 12 - "Viewport Fit Scaling"
+### Community 16 - "AdminOverview"
 Cohesion: 0.09
-Nodes (9): FitToViewport(), FitToViewportProps, measure(), useViewportFit(), ViewportFit, HEADLINE, NAV_LINKS, STATS (+1 more)
+Nodes (14): StatCard(), StatCardProps, ACTIVITY_LABELS, HIGHEST_RATED, MOST_WATCHED, POPULAR_GENRES, RANGES, RankedMovie (+6 more)
 
-### Community 13 - "Auth Page Components"
+### Community 17 - "Lists"
+Cohesion: 0.12
+Nodes (15): Lists(), PublicListCard(), Tab, FOLLOWING_COUNT, G, MY_LISTS, MyList, PUBLIC_LISTS (+7 more)
+
+### Community 18 - "Policy: CurrentUser"
+Cohesion: 0.19
+Nodes (3): CurrentUser, MessagePolicy, UserPolicy
+
+### Community 19 - "Auth: Request"
+Cohesion: 0.22
+Nodes (5): CurrentUserFactory, AuthenticateJwt, AuthenticateOptional, EnsureEmailVerified, EnsureRole
+
+### Community 20 - "AdminUsers"
+Cohesion: 0.09
+Nodes (11): AdminUserRow, USER_STATUSES, USER_TOTALS, UserRole, UserStatus, AdminUsers(), fmt(), Menu (+3 more)
+
+### Community 21 - "Auth: router"
 Cohesion: 0.16
-Nodes (13): AuthShell(), AuthWaves(), Checkbox(), OrDivider(), PosterCardMini(), SocialButton(), TextField(), useAuthSwap() (+5 more)
+Nodes (18): SocialButton(), AuthContext, AuthContextValue, AuthProvider(), useAuth(), apiErrorMessage(), authApi, AuthPayload (+10 more)
 
-### Community 14 - "Animated Auth Waves"
-Cohesion: 0.09
-Nodes (11): AuthWavesProps, bandPath(), LAYERS, Point, WaveSide, ButtonProps, CommonProps, LinkProps (+3 more)
+### Community 22 - "AuthResponse"
+Cohesion: 0.15
+Nodes (3): AuthResponse, UserResponse, TokenPair
 
-### Community 15 - "List Detail Page"
+### Community 23 - "ButtonPrimary: react-router"
 Cohesion: 0.11
-Nodes (15): compact(), SortKey, SORTS, ALL_MOVIES, entriesFor(), FOLLOWER_FACES, getListDetail(), ListDetail (+7 more)
+Nodes (9): ButtonPrimary(), ButtonProps, CommonProps, LinkProps, LogoProps, STEPS, Placeholder(), PlaceholderProps (+1 more)
 
-### Community 16 - "Movie Nights Planner"
+### Community 24 - "ForYou"
+Cohesion: 0.11
+Nodes (11): ForYou(), SHELF_ICONS, weatherCondition(), WeatherMood, WeatherResponse, PROFILE, Shelf, SHELVES (+3 more)
+
+### Community 25 - "homeData"
+Cohesion: 0.12
+Nodes (10): greeting(), ACTIVITY, BECAUSE_YOU_LOVED, G, MOVIE_NIGHT, POPULAR, RELEASES, ROOMS (+2 more)
+
+### Community 26 - "MovieNights"
 Cohesion: 0.11
 Nodes (12): ALL_MOVIES, FormErrors, HOW_IT_WORKS, maskIcon(), movieBySlug(), MovieNights(), NightCard(), STATUS_CLASS (+4 more)
 
-### Community 17 - "Home Page"
-Cohesion: 0.13
-Nodes (10): greeting(), ACTIVITY, BECAUSE_YOU_LOVED, G, MOVIE_NIGHT, POPULAR, RELEASES, ROOMS (+2 more)
+### Community 27 - "Tests: GuestUser"
+Cohesion: 0.16
+Nodes (3): GuestUser, {closure#1}(), PolicyTest
 
-### Community 18 - "Watchlist & History Page"
-Cohesion: 0.13
-Nodes (12): MAX_TASTE, SortKey, SORTS, Tab, Availability, FILTERS, HISTORY, HistoryEntry (+4 more)
+### Community 28 - "Auth: JsonResponse"
+Cohesion: 0.19
+Nodes (3): AuthController, RegisterRequest, AuthCookies
 
-### Community 19 - "Movie Night Detail Data"
+### Community 29 - "YearInFilmCard: TrendingCard"
 Cohesion: 0.11
-Nodes (20): Candidate, DETAILS, EXTRA_A, EXTRA_B, NightDetail, Rsvp, SAMI, DATE (+12 more)
+Nodes (8): Chip(), TrendingCard(), TrendingCardProps, TrendingMovie, GENRES, Month, MONTHS, YearInFilmCard()
 
-### Community 20 - "Sign In & Poster Stack"
-Cohesion: 0.12
-Nodes (8): MiniPoster, PosterCardMiniProps, SocialProvider, LAST_LAP, NEON_TIDE, PAPER_MOON, Errors, PROVIDERS
-
-### Community 21 - "Shared Header Components"
-Cohesion: 0.17
-Nodes (16): AppNav(), ButtonPrimary(), Logo(), LogoProps, MovieTile(), SplitHeadline(), useEntranceAnimation(), ForYou() (+8 more)
-
-### Community 22 - "Movie Night Detail & Voting"
+### Community 30 - "Watchlist"
 Cohesion: 0.13
-Nodes (9): calendarUrl(), DetailRow(), maskIcon(), NightDetailPage(), NightDetailRoute(), RSVP_CHIP, RSVP_OPTIONS, getNightDetail() (+1 more)
+Nodes (14): byMonth(), HistoryList(), MAX_TASTE, SortKey, SORTS, Tab, Availability, FILTERS (+6 more)
 
-### Community 23 - "Frontend TS App Config"
+### Community 31 - "MovieNights: nightsData"
+Cohesion: 0.11
+Nodes (20): MOVIES, Candidate, DETAILS, EXTRA_A, EXTRA_B, NightDetail, Rsvp, SAMI (+12 more)
+
+### Community 32 - "Notifications"
+Cohesion: 0.13
+Nodes (12): AppNav(), KIND_STYLE, maskIcon(), NotificationItem(), Notifications(), PREFERENCES, Tab, TAB_KINDS (+4 more)
+
+### Community 33 - "MovieNights: NightDetail"
+Cohesion: 0.12
+Nodes (8): calendarUrl(), DetailRow(), maskIcon(), NightDetailPage(), RSVP_CHIP, RSVP_OPTIONS, getNightDetail(), movieInfo()
+
+### Community 34 - "Auth: {closure#1}"
+Cohesion: 0.19
+Nodes (5): SocialAccountRepositoryInterface, SocialAccountRepository, {closure#3}(), {closure#1}(), SocialAccountRepositoryTest
+
+### Community 35 - "AuthShell: react"
+Cohesion: 0.18
+Nodes (14): ARTBOARD_WIDTH, AuthShell(), AuthShellProps, FitToViewport(), FitToViewportProps, Logo(), useAuthSwap(), useEntranceAnimation() (+6 more)
+
+### Community 36 - "compilerOptions #36"
 Cohesion: 0.10
 Nodes (19): compilerOptions, allowArbitraryExtensions, allowImportingTsExtensions, erasableSyntaxOnly, jsx, lib, module, moduleDetection (+11 more)
 
-### Community 24 - "Calendar & Follow Models"
+### Community 37 - "Auth: EmailVerificationServiceTest"
+Cohesion: 0.20
+Nodes (4): VerifyEmailData, {closure#2}(), EmailVerificationService, EmailVerificationServiceTest
+
+### Community 38 - "MovieDetails: MovieTile"
+Cohesion: 0.12
+Nodes (12): Movie, BY_SLUG, CastMember, Cinema, MovieDetails, NEON_TIDE, SIMILAR, Collaborator (+4 more)
+
+### Community 39 - "Model: BelongsTo"
 Cohesion: 0.16
 Nodes (4): CalendarEvent, Follow, Message, MovieNightInvite
 
-### Community 25 - "Create/Edit List Dialog"
+### Community 40 - "frontend/package"
+Cohesion: 0.14
+Nodes (16): vite, name, private, type, version, axios, eslint, @eslint/js (+8 more)
+
+### Community 41 - "AuthWaves: useEntranceAnimation"
+Cohesion: 0.14
+Nodes (10): AuthWaves(), AuthWavesProps, bandPath(), LAYERS, Point, WaveSide, EASE_OUT_BACK, gsap (+2 more)
+
+### Community 42 - "Lists: ListDialog"
 Cohesion: 0.15
 Nodes (7): ALL_MOVIES, Dialog(), initialPicks(), ListDialog(), ListDialogProps, getMyLists(), uniqueSlug()
 
-### Community 26 - "Magnet Interaction"
+### Community 43 - "Reactbits: Magnet"
 Cohesion: 0.17
 Nodes (16): arbitrate(), attach(), DEFAULT_SPRING, Entry, field, Magnet(), wake(), MagnetAxis (+8 more)
 
-### Community 27 - "Frontend TS Node Config"
+### Community 44 - "compilerOptions #44"
 Cohesion: 0.12
 Nodes (16): compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, lib, module, moduleDetection, noEmit, noFallthroughCasesInSwitch (+8 more)
 
-### Community 28 - "Root Repo & Husky Setup"
+### Community 45 - "npm: package"
 Cohesion: 0.12
 Nodes (16): author, description, devDependencies, husky, keywords, license, main, name (+8 more)
 
-### Community 29 - "Lists Page & Data"
-Cohesion: 0.15
-Nodes (7): Tab, FOLLOWING_COUNT, G, MY_LISTS, MyList, PUBLIC_LISTS, PublicList
+### Community 48 - "npm: backend/package"
+Cohesion: 0.13
+Nodes (14): vite, optionalDependencies, @laravel/multiplex, private, $schema, scripts, build, dev (+6 more)
 
-### Community 30 - "Person Page"
-Cohesion: 0.15
-Nodes (6): Collaborator, Credit, getPerson(), LENA, OTHERS, Person
+### Community 50 - "AdminLayout"
+Cohesion: 0.13
+Nodes (5): ADMIN_USER, AdminLayout(), LINKS, MaskIcon(), UPCOMING
 
-### Community 31 - "Reviews & Sentiment"
+### Community 51 - "Person"
+Cohesion: 0.20
+Nodes (9): MovieTile(), PillButton(), SplitHeadline(), Home(), gradientCss(), Person(), PersonPage(), getPerson() (+1 more)
+
+### Community 52 - "Reactbits: SplitHeadline"
+Cohesion: 0.17
+Nodes (14): DEFAULT_FROM, DEFAULT_TO, fontsAreLoaded(), getEffect(), Kick, Look, SplitText(), SplitTextEffect (+6 more)
+
+### Community 53 - "MovieNights: nightsStore"
+Cohesion: 0.17
+Nodes (14): NightDetailRoute(), Invitation, INVITATIONS, Night, UPCOMING, addNight(), answerInvitation(), byDate() (+6 more)
+
+### Community 54 - "MovieRecommendationController"
+Cohesion: 0.20
+Nodes (3): MovieRecommendationController, WeatherMoodController, GeminiService
+
+### Community 55 - "AppServiceProvider"
+Cohesion: 0.17
+Nodes (4): AuthModuleServiceProvider, AppServiceProvider, {closure#1}(), AuthorizationServiceProvider
+
+### Community 56 - "Landing"
+Cohesion: 0.13
+Nodes (4): HEADLINE, NAV_LINKS, STATS, TRENDING
+
+### Community 57 - "Auth: EmailVerificationServiceInterface"
+Cohesion: 0.22
+Nodes (3): EmailVerificationController, EmailVerificationServiceInterface, SendEmailVerification
+
+### Community 58 - "ListDetail"
+Cohesion: 0.16
+Nodes (5): compact(), ListDetail(), ListDetailPage(), SortKey, SORTS
+
+### Community 59 - "notificationsStore"
 Cohesion: 0.18
-Nodes (5): Review, ReviewCard(), Sentiment(), SentimentType, VARIANTS
+Nodes (12): AppNotification, getItems(), INITIAL, JAD, LINA, listeners, NotificationKind, OMAR (+4 more)
 
-### Community 32 - "Movie Tile & Movie Data"
-Cohesion: 0.15
-Nodes (8): Movie, MOVIES, BY_SLUG, CastMember, Cinema, MovieDetails, NEON_TIDE, SIMILAR
-
-### Community 33 - "Movie Nights Store"
-Cohesion: 0.21
-Nodes (12): Invitation, INVITATIONS, UPCOMING, addNight(), answerInvitation(), byDate(), emit(), getState() (+4 more)
-
-### Community 35 - "Core Laravel Migrations"
+### Community 61 - "Migration: Blueprint"
 Cohesion: 0.23
 Nodes (6): {closure#1}(), {closure#2}(), {closure#3}(), {closure#1}(), {closure#2}(), {closure#3}()
 
-### Community 36 - "Frontend Docs & Motion"
+### Community 62 - "devDependencies"
+Cohesion: 0.15
+Nodes (13): devDependencies, eslint, @eslint/js, eslint-plugin-react-hooks, eslint-plugin-react-refresh, globals, @types/node, @types/react (+5 more)
+
+### Community 63 - "listDetailData"
 Cohesion: 0.19
-Nodes (12): React + TypeScript + Vite template README, Type-aware ESLint configuration, AuthWaves (GSAP-tweened SVG waves), Main bundle size warning (route code-splitting), Design Tokens (Color variables, Elevation styles), FitToViewport (desktop single-screen scaling), Frontend Stack (React 19, Vite, React Router, CSS Modules), GSAP (+4 more)
+Nodes (12): ALL_MOVIES, entriesFor(), FOLLOWER_FACES, getListDetail(), ListDetail, ListEntry, ME, moviesToEntries() (+4 more)
 
-### Community 37 - "Auth Shell"
-Cohesion: 0.18
-Nodes (6): ARTBOARD_WIDTH, AuthShellProps, CheckboxProps, TextFieldProps, useFitScale(), react
-
-### Community 38 - "Notifications & Password Resets"
+### Community 66 - "Model"
 Cohesion: 0.21
 Nodes (3): Notification, PasswordReset, SocialAccount
 
-### Community 39 - "Laravel Boost Guidelines"
-Cohesion: 0.18
-Nodes (9): .ai/rules project rules, Laravel 12 Streamlined Structure (bootstrap/app.php, casts() method), Laravel Boost Guidelines, Laravel Boost MCP Tools (database-query, database-schema, search-docs, browser-logs), Laravel Cloud Deployment, PHPUnit Testing Rules, Laravel Pint Formatter, Skills Activation (testing-best-practices, deploying-to-cloud) (+1 more)
+### Community 70 - "AuthService #70"
+Cohesion: 0.20
+Nodes (9): AppServiceProvider, Auth Domain Exceptions, AuthController, AuthService, EmailVerificationController, EmailVerificationService, Auth Known Follow-ups (captcha, GitHub verified email), SendEmailVerification Listener (+1 more)
 
-### Community 41 - "Pages & Stores Overview"
-Cohesion: 0.21
-Nodes (11): AppNav (signed-in header), Nearby Cinemas page, Laravel Reverb (real-time channel), Lists / List Detail / ListDialog, Movie Nights / Movie Night Detail, myListsStore (shared in-memory store), nightsStore (shared in-memory store), Notifications page (+3 more)
+### Community 71 - "AuthProvider / useAuth (AuthContext"
+Cohesion: 0.22
+Nodes (10): Auth DTOs (Request/Response data objects), AuthCookies, AuthResponse, Auth Form Requests, TokenPair, AuthProvider / useAuth (AuthContext), CI Workflows (frontend-ci, backend-ci), Known Issue: 3 react-refresh Lint Errors (+2 more)
 
-### Community 42 - "Chips & Year-in-Film Card"
-Cohesion: 0.24
-Nodes (6): Chip(), TrendingCard(), GENRES, Month, MONTHS, YearInFilmCard()
+### Community 72 - "Laravel Boost Guidelines"
+Cohesion: 0.22
+Nodes (8): .ai/rules project rules, Laravel 12 Streamlined Structure (bootstrap/app.php, casts() method), Laravel Boost Guidelines, Laravel Boost MCP Tools (database-query, database-schema, search-docs, browser-logs), Laravel Cloud Deployment, PHPUnit Testing Rules, Laravel Pint Formatter, Skills Activation (testing-best-practices, deploying-to-cloud)
 
-### Community 43 - "App Shell, Router & Lenis"
-Cohesion: 0.29
-Nodes (3): router, lenis, react-router
+### Community 74 - "Docs: Frontend Stack (React 19, Vite 8, CSS Mo"
+Cohesion: 0.20
+Nodes (9): React + TypeScript + Vite template README, Type-aware ESLint configuration, Known Issue: 950 kB Bundle (lazy-load routes), Figma Color Variable Tokens, Figma Design File (WatchWise), Figma MCP 20 calls/month limit, Figma Prototype Flows, Frontend Stack (React 19, Vite 8, CSS Modules) (+1 more)
 
-### Community 44 - "My Lists Store"
-Cohesion: 0.29
-Nodes (8): Lists(), PublicListCard(), deleteMyList(), emit(), listeners, saveMyList(), subscribe(), useMyLists()
-
-### Community 45 - "Composer Package Config"
+### Community 75 - "composer"
 Cohesion: 0.22
 Nodes (8): description, keywords, license, minimum-stability, name, prefer-stable, $schema, type
 
-### Community 46 - "Composer Plugins & Platform"
+### Community 76 - "Composer: config"
 Cohesion: 0.22
 Nodes (9): pestphp/pest-plugin, php-http/discovery, config, allow-plugins, optimize-autoloader, platform, preferred-install, sort-packages (+1 more)
 
-### Community 47 - "Composer Scripts"
+### Community 77 - "Composer: scripts"
 Cohesion: 0.22
 Nodes (9): scripts, dev, post-autoload-dump, post-create-project-cmd, post-root-package-install, post-update-cmd, pre-package-uninstall, setup (+1 more)
 
-### Community 48 - "Calendar Export & Rating Helpers"
-Cohesion: 0.33
-Nodes (9): PillButton(), RatingStars(), gradientCss(), downloadIcs(), googleCalendarUrl(), MovieDetailsPage(), byMonth(), HistoryList() (+1 more)
-
-### Community 49 - "CI Workflows"
+### Community 79 - "Laravel Framework (default README"
 Cohesion: 0.25
 Nodes (8): Backend CI Workflow, Laravel Checks job (PHP 8.4, composer install, artisan --version), Frontend CI Workflow, TypeScript Check and Build job (npm ci, tsc --noEmit, npm run build), Laravel Boost bootstrap guidelines (AGENTS.md), robots.txt (allow all), Laravel Boost, Laravel Framework (default README)
 
-### Community 50 - "Composer Dev Dependencies"
+### Community 83 - "WatchWise Handoff"
+Cohesion: 0.29
+Nodes (6): Backend Auth Module (app/Auth), AuthModuleServiceProvider, graphify Codebase Knowledge Graph, Web2 Project Brief (Modern Movie Discovery & Social Platform), WatchWise Handoff, WatchWise README
+
+### Community 84 - "TokenFactory"
+Cohesion: 0.29
+Nodes (5): PasswordResetController, PasswordResetRepository, PasswordResetService, RefreshTokenRepository, TokenFactory
+
+### Community 85 - "bootstrap/app"
+Cohesion: 0.32
+Nodes (3): {closure#1}(), {closure#2}(), {closure#3}()
+
+### Community 86 - "Composer: require-dev"
 Cohesion: 0.25
 Nodes (8): require-dev, fakerphp/faker, laravel/boost, laravel/pail, laravel/pint, mockery/mockery, nunomaduro/collision, phpunit/phpunit
 
-### Community 51 - "Pill Button"
+### Community 87 - "dependencies"
+Cohesion: 0.25
+Nodes (8): dependencies, axios, gsap, @gsap/react, lenis, react, react-dom, react-router
+
+### Community 88 - "PillButton"
 Cohesion: 0.25
 Nodes (6): ButtonProps, CommonProps, ExternalProps, LinkProps, Never, PillVariant
 
-### Community 52 - "Settings Data"
-Cohesion: 0.25
-Nodes (7): ACCOUNT, CONNECTED, IntegrationKey, INTEGRATIONS, PRIVACY, PrivacyKey, VISIBILITY
+### Community 91 - "Auth Middleware (auth.jwt, auth.optional"
+Cohesion: 0.33
+Nodes (7): Auth Middleware (auth.jwt, auth.optional, verified.email, role), AuthorizationServiceProvider, CurrentUser (JwtCurrentUser / GuestUser), CurrentUserFactory, EnsureRole Middleware, Policies (Review, Watchlist, MovieList, MovieNight, Message, Notification, User, ...), Admin Dashboard (AdminLayout)
 
-### Community 55 - "Poster Collage"
+### Community 92 - "Docs: Laravel 12 Backend"
+Cohesion: 0.38
+Nodes (5): Database Schema (PR #7), For You Weather + Gemini Mood, GeminiService, Laravel 12 Backend, Weather API (Open-Meteo proxy)
+
+### Community 93 - "Composer: require"
+Cohesion: 0.33
+Nodes (6): require, firebase/php-jwt, laravel/framework, laravel/socialite, laravel/tinker, php
+
+### Community 94 - "npm: devDependencies"
+Cohesion: 0.33
+Nodes (6): devDependencies, concurrently, laravel-vite-plugin, tailwindcss, @tailwindcss/vite, vite
+
+### Community 96 - "PosterCollage: Gradient"
 Cohesion: 0.40
 Nodes (4): gradientCss(), PosterCollage(), PosterCollageProps, Gradient
 
-### Community 56 - "Figma Design & Admin Screens"
-Cohesion: 0.33
-Nodes (6): Admin Screens (Overview, Users, Review Moderation, Movie Data), Figma Components Frame, Figma Design File, Figma MCP call limits (Starter plan), Figma Prototype Flows, Owl Logo (Light/Dark variants)
+### Community 100 - "SocialAuthController #100"
+Cohesion: 0.40
+Nodes (5): Auth Test Suite, SocialAccountRepository, SocialAuthController, SocialAuthService, Known Issue: test_social_redirect_sets_state_cookie returns 503
 
-### Community 57 - "Project Tooling & Schema"
-Cohesion: 0.33
-Nodes (6): CI workflows (frontend-ci, backend-ci), Database Schema (PR #7), graphify knowledge graph, Laravel 12 Backend, WatchWise (Modern Movie Discovery & Social Platform), Validation (CI-equivalent checks)
-
-### Community 58 - "Mock Data & External APIs"
-Cohesion: 0.33
-Nodes (5): For You page (live weather), Mock *Data.ts files, Open-Meteo, TMDB integration, GET /api/weather (WeatherController)
-
-### Community 62 - "Composer Autoload"
+### Community 101 - "Composer: psr-4"
 Cohesion: 0.40
 Nodes (5): autoload, psr-4, App\\, Database\\Factories\\, Database\\Seeders\\
 
-### Community 73 - "Composer Requirements"
-Cohesion: 0.50
-Nodes (4): require, laravel/framework, laravel/tinker, php
+### Community 107 - "scripts"
+Cohesion: 0.40
+Nodes (5): scripts, build, dev, lint, preview
 
-### Community 92 - "Test Autoload"
+### Community 109 - "Docs: Auth Page Swap (View Transitions"
+Cohesion: 0.40
+Nodes (3): AuthWaves, useEntranceAnimation (GSAP entrance motion), Lenis Smooth Scrolling
+
+### Community 134 - "Docs: *Data.ts Mock Data Files"
+Cohesion: 0.50
+Nodes (4): Discussion Rooms (mocked real-time), *Data.ts Mock Data Files, TMDB Catalog (feat/back-tmdb-movies, unmerged), Roadmap
+
+### Community 136 - "Composer: autoload-dev"
 Cohesion: 0.67
 Nodes (3): autoload-dev, psr-4, Tests\\
 
-### Community 93 - "Laravel Package Discovery"
+### Community 137 - "Composer: extra"
 Cohesion: 0.67
 Nodes (3): extra, laravel, dont-discover
 
-### Community 96 - "Planned Product Capabilities"
+### Community 141 - "Docs: In-memory Stores (myListsStore, nightsSt"
 Cohesion: 0.67
-Nodes (3): External Services (TMDB, weather, maps, sentiment, calendar, real-time rooms), Planned Product Capabilities (auth, discovery, reviews, watchlist, recommendations, lists, social, movie nights, admin), WatchWise README
+Nodes (3): AppNav, Notifications Page, In-memory Stores (myListsStore, nightsStore, notificationsStore)
+
+## Ambiguous Edges - Review These
+- `Roadmap` → `Backend Auth Module (app/Auth)`  [AMBIGUOUS]
+  README.md · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **39 isolated node(s):** `vite`, `@types/node`, `@types/react`, `@types/react-dom`, `typescript` (+34 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 650 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **49 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **48 isolated node(s):** `vite`, `@types/node`, `@types/react`, `@types/react-dom`, `typescript` (+43 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 821 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **68 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `Auth Shell` to `Frontend Dependencies & Lint`, `SplitText Headline Animation`, `App Nav & Notifications`, `Nearby Cinemas Map`, `Discussion Rooms Chat`, `Movie Details Page`, `Discover Page & Filters`, `Profile Page`, `Settings Page`, `Viewport Fit Scaling`, `Auth Page Components`, `Animated Auth Waves`, `List Detail Page`, `Movie Nights Planner`, `Home Page`, `Watchlist & History Page`, `Sign In & Poster Stack`, `Movie Night Detail & Voting`, `Create/Edit List Dialog`, `Magnet Interaction`, `Lists Page & Data`, `Person Page`, `Reviews & Sentiment`, `Movie Nights Store`, `Chips & Year-in-Film Card`, `App Shell, Router & Lenis`, `My Lists Store`, `Pill Button`?**
-  _High betweenness centrality (0.107) - this node is a cross-community bridge._
+- **Why does `react` connect `AuthShell: react` to `MovieDetails`, `Settings`, `TextField`, `PosterCardMini: SignUp`, `Cinemas`, `Rooms`, `adminData`, `AdminMovies`, `Discover`, `Profile`, `AdminOverview`, `Lists`, `AdminUsers`, `Auth: router`, `ButtonPrimary: react-router`, `ForYou`, `homeData`, `MovieNights`, `YearInFilmCard: TrendingCard`, `Watchlist`, `Notifications`, `MovieNights: NightDetail`, `frontend/package`, `AuthWaves: useEntranceAnimation`, `Lists: ListDialog`, `Reactbits: Magnet`, `Person`, `Reactbits: SplitHeadline`, `MovieNights: nightsStore`, `Landing`, `ListDetail`, `notificationsStore`, `PillButton`, `AppNav`, `Checkbox`?**
+  _High betweenness centrality (0.058) - this node is a cross-community bridge._
 - **What connects `vite`, `@types/node`, `@types/react` to the rest of the system?**
-  _39 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Frontend Dependencies & Lint` be split into smaller, more focused modules?**
-  _Cohesion score 0.049494949494949494 - nodes in this community are weakly interconnected._
-- **Why does `react-router` connect `App Shell, Router & Lenis` to `Frontend Dependencies & Lint`, `SplitText Headline Animation`, `App Nav & Notifications`, `Nearby Cinemas Map`, `Discussion Rooms Chat`, `Movie Details Page`, `Discover Page & Filters`, `Profile Page`, `Settings Page`, `Viewport Fit Scaling`, `Auth Page Components`, `Animated Auth Waves`, `List Detail Page`, `Movie Nights Planner`, `Home Page`, `Watchlist & History Page`, `Sign In & Poster Stack`, `Shared Header Components`, `Movie Night Detail & Voting`, `Create/Edit List Dialog`, `Lists Page & Data`, `Person Page`, `Movie Tile & Movie Data`, `Trending Card`, `Pill Button`?**
-  _High betweenness centrality (0.052) - this node is a cross-community bridge._
-- **Should `SplitText Headline Animation` be split into smaller, more focused modules?**
-  _Cohesion score 0.06090808416389812 - nodes in this community are weakly interconnected._
-- **Why does `@vitejs/plugin-react` connect `Backend Vite/Tailwind Tooling` to `Frontend Dependencies & Lint`?**
-  _High betweenness centrality (0.024) - this node is a cross-community bridge._
-- **Should `App Nav & Notifications` be split into smaller, more focused modules?**
-  _Cohesion score 0.07435897435897436 - nodes in this community are weakly interconnected._
+  _48 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Auth: PasswordResetService` be split into smaller, more focused modules?**
+  _Cohesion score 0.05926251097453907 - nodes in this community are weakly interconnected._
+- **Why does `RefreshToken` connect `Auth: RefreshToken` to `Model`, `Auth: User`, `Model: User`, `Auth: TokenFactory`?**
+  _High betweenness centrality (0.048) - this node is a cross-community bridge._
+- **Should `MovieDetails` be split into smaller, more focused modules?**
+  _Cohesion score 0.05333333333333334 - nodes in this community are weakly interconnected._
+- **Why does `react-router` connect `ButtonPrimary: react-router` to `MovieDetails`, `Settings`, `PosterCardMini: SignUp`, `Cinemas`, `Rooms`, `adminData`, `Discover`, `Profile`, `AdminOverview`, `Lists`, `AdminUsers`, `Auth: router`, `ForYou`, `homeData`, `MovieNights`, `YearInFilmCard: TrendingCard`, `Watchlist`, `Notifications`, `MovieNights: NightDetail`, `MovieDetails: MovieTile`, `frontend/package`, `AuthWaves: useEntranceAnimation`, `Lists: ListDialog`, `AdminLayout`, `Person`, `Landing`, `ListDetail`, `PillButton`, `AppNav`?**
+  _High betweenness centrality (0.027) - this node is a cross-community bridge._
+
+### Low-confidence Hints
+_AMBIGUOUS edges — the extractor was unsure. Verify before acting on these._
+
+- **What is the exact relationship between `Roadmap` and `Backend Auth Module (app/Auth)`?**
+  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
+
+## Run notes
+- 2026-10-24 incremental update: 124 code files re-extracted (AST), 3 docs (HANDOFF.md, README.md, backend/Backend.md) through one extraction pass (103,711 tokens total), 4 deleted files pruned.
+- Figma image assets are not extracted (cost vs. value); their imports appear as bare `frontend_src_assets_*` nodes.
+- Community names are generated from each community's most connected node and its area of the codebase.
+- Health: 0 dangling/missing endpoints, 0 collapsed edges, 11 self-loops.
+- AMBIGUOUS: the README roadmap still lists Laravel authentication as not done, while the auth module is built.
