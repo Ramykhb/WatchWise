@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Auth\Requests;
+namespace App\Auth\FormRequests;
 
 use App\Auth\DTOs\Requests\ForgotPasswordData;
 use Illuminate\Foundation\Http\FormRequest;
