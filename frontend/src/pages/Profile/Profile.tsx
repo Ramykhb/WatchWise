@@ -23,6 +23,7 @@ import { compactCount, toMember, toProfile, type ActivityItem, type Member, type
 import styles from './Profile.module.css'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, isStatus, useApi } from '../../lib/api.ts'
+import { setFollowing as saveFollow } from '../../lib/follow.ts'
 import type { ApiMember, ApiProfile } from '../../lib/types.ts'
 
 type Tab = 'activity' | 'reviews' | 'lists' | 'watched'
@@ -78,7 +79,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
     const was = following.includes(member.id)
     const flip = (list: number[]) => (list.includes(member.id) ? list.filter((id) => id !== member.id) : [...list, member.id])
     setFollowing(flip)
-    const request = was ? api.delete(`/users/${member.handle}/follow`) : api.post(`/users/${member.handle}/follow`)
+    const request = saveFollow(member.handle, !was)
     request.catch(() => setFollowing(flip))
   }
   // The follower count moves with the main Follow button.
