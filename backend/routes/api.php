@@ -1,11 +1,11 @@
 <?php
 
 use App\Auth\Controllers\AuthController;
-use App\Http\Controllers\MovieRecommendationController;
-use App\Http\Controllers\WeatherController;
-use App\Http\Controllers\WeatherMoodController;
+use App\Docs\Controllers\DocumentationController;
+use App\MovieRecommendation\Controllers\RecommendationController;
 use App\Tmdb\Controllers\GenreController;
 use App\Tmdb\Controllers\MovieController;
+use App\Weather\Controllers\WeatherController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
@@ -18,10 +18,16 @@ Route::prefix('auth')->group(function () {
 
 require __DIR__.'/auth_flows.php';
 
-Route::get('/weather', WeatherController::class);
-Route::post('/weather-mood', WeatherMoodController::class);
-Route::get('/movie-recommendations', MovieRecommendationController::class);
-Route::get('/movies', [MovieController::class, 'index']);
-Route::get('/movies/search', [MovieController::class, 'search']);
-Route::get('/movies/discover', [MovieController::class, 'discover']);
-Route::get('/genres', [GenreController::class, 'index']);
+Route::get('/weather', [WeatherController::class, 'show'])->middleware('throttle:weather');
+Route::post('/weather-mood', [WeatherController::class, 'mood'])->middleware('throttle:ai');
+Route::get('/movie-recommendations', [RecommendationController::class, 'index'])->middleware('throttle:ai');
+
+Route::middleware('throttle:tmdb')->group(function () {
+    Route::get('/movies', [MovieController::class, 'index']);
+    Route::get('/movies/search', [MovieController::class, 'search']);
+    Route::get('/movies/discover', [MovieController::class, 'discover']);
+    Route::get('/genres', [GenreController::class, 'index']);
+});
+
+Route::get('/documentation', [DocumentationController::class, 'ui'])->name('documentation');
+Route::get('/documentation/openapi.json', [DocumentationController::class, 'spec'])->name('documentation.spec');
