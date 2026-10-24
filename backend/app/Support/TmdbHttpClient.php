@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Tmdb\Support;
+namespace App\Support;
 
-use App\Tmdb\Exceptions\TmdbNotFound;
-use App\Tmdb\Exceptions\TmdbUnavailable;
+use App\Support\Exceptions\TmdbNotFound;
+use App\Support\Exceptions\TmdbUnavailable;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;

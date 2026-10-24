@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Tmdb\Exceptions;
+namespace App\Support\Exceptions;
 
 use Illuminate\Http\JsonResponse;
 use RuntimeException;
