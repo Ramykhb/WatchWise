@@ -134,15 +134,6 @@ Then run `composer install`, `php artisan key:generate` and `php artisan migrate
 
 Every limiter is a named limiter defined in the provider of the module it protects, and routes use it with `throttle:<name>`. The plain `throttle:N,M` middleware is avoided because it shares one bucket per IP across routes.
 
-<<<<<<< HEAD
-| Limiter | Per minute |
-| --- | --- |
-| `auth-register`, `auth-login`, `auth-reset-password` | 5 |
-| `auth-refresh` | 30 |
-| `auth-verify-email` | 20 |
-| `auth-resend-verification`, `auth-forgot-password` | 3 |
-| `tmdb` (all movie and genre routes, per IP only) | 60 |
-=======
 | Limiter | Defined in | Per minute | Used by |
 | --- | --- | --- | --- |
 | `auth-register`, `auth-login`, `auth-reset-password` | `AuthModuleServiceProvider` | 5 | the matching auth route |
@@ -151,10 +142,9 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `auth-resend-verification`, `auth-forgot-password` | `AuthModuleServiceProvider` | 3 | the matching auth route |
 | `ai` | `GeminiModuleServiceProvider` | 10 | `POST /api/weather-mood`, `GET /api/movie-recommendations` (both call Gemini, which costs money) |
 | `weather` | `WeatherModuleServiceProvider` | 30 | `GET /api/weather` |
-| `tmdb` | `TmdbModuleServiceProvider` | 60 | the four TMDB routes |
+| `tmdb` | `TmdbModuleServiceProvider` | 60 | the five TMDB routes |
 
 Each auth limiter is checked in two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket. The other limiters count per IP.
->>>>>>> origin/dev
 
 The per-email bucket is shared across IPs, so someone who knows an email can block logins for that account for up to a minute. A captcha would remove that (see [Known follow-ups](#known-follow-ups)).
 
@@ -342,12 +332,8 @@ app/Tmdb/
 | `GET /api/movies/{id}` | One movie with genres, US certification, runtime, original language, directors, top 12 cast, a YouTube trailer, budget, box office and 10 recommended movies (fetched in one TMDB call). Unknown ids return 404 |
 | `GET /api/genres` | The movie genres (id and name), cached for a day |
 
-<<<<<<< HEAD
 - All five are public. They share the `tmdb` rate limit: 60 requests per minute per IP (see [Rate limits](#rate-limits)), so one client cannot use up the TMDB quota.
 - Movie details are cached for 6 hours per movie (`tmdb.movie.{id}`); unknown movies and TMDB failures are not cached.
-=======
-- All four are public and limited to 60 requests a minute per IP (the `tmdb` limiter).
->>>>>>> origin/dev
 - Movie lists are paginated with `page` from 1 to 500 and 20 movies per page. Responses include `page`, `total_pages` (capped at 500, TMDB's limit) and `total_results`. Genres are a short fixed list, so they are not paginated.
 - Ratings are converted from TMDB's 0 to 10 scale to 0 to 5. Adult content is always excluded.
 - Setup: set `TMDB_API_KEY` in `.env`. `TMDB_URL` and `TMDB_IMAGE_URL` have working defaults in `config/services.php`.

@@ -15,7 +15,8 @@
         { "name": "Movies" },
         { "name": "Genres" },
         { "name": "Weather" },
-        { "name": "Recommendations" }
+        { "name": "Recommendations" },
+        { "name": "Social" }
     ],
     "paths": {},
     "components": {
