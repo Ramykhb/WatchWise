@@ -2,28 +2,32 @@
 
 namespace App\Weather\Services;
 
-use App\Gemini\Exceptions\GeminiUnavailable;
-use App\Gemini\InterfaceServices\GeminiServiceInterface;
+use App\Groq\Exceptions\GroqUnavailable;
+use App\Groq\InterfaceServices\GroqServiceInterface;
 use App\Weather\DTOs\Requests\WeatherMoodQuery;
 use App\Weather\DTOs\Responses\WeatherMoodResponse;
 use App\Weather\Exceptions\WeatherMoodUnavailable;
 use App\Weather\InterfaceServices\WeatherMoodServiceInterface;
+use Illuminate\Support\Str;
 
 class WeatherMoodService implements WeatherMoodServiceInterface
 {
-    public function __construct(private readonly GeminiServiceInterface $gemini) {}
+    public function __construct(private readonly GroqServiceInterface $groq) {}
 
     public function mood(WeatherMoodQuery $query): WeatherMoodResponse
     {
         try {
-            $result = $this->gemini->ask($this->prompt($query));
-        } catch (GeminiUnavailable $e) {
+            $result = $this->groq->ask($this->prompt($query));
+        } catch (GroqUnavailable $e) {
             report($e);
 
             throw new WeatherMoodUnavailable;
         }
 
-        return new WeatherMoodResponse($result['mood'] ?? '', $result['description'] ?? '');
+        return new WeatherMoodResponse(
+            is_string($result['mood'] ?? null) ? Str::limit($result['mood'], 30, '') : '',
+            is_string($result['description'] ?? null) ? Str::limit($result['description'], 60, '') : '',
+        );
     }
 
     private function prompt(WeatherMoodQuery $query): string
@@ -38,6 +42,6 @@ class WeatherMoodService implements WeatherMoodServiceInterface
             .'(example style: Rainy evenings → slower, atmospheric picks. Sunny weekends → feel-good & adventure.). '
             .'Do not copy the examples, base it on the current weather. '
             .'Return ONLY valid JSON in this format: {"mood":"","description":""}'
-            .'also the max character count for mood should be 30, and the max character count for description should be 60';
+            .' Keep mood to at most 30 characters and description to at most 60 characters.';
     }
 }

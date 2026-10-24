@@ -25,17 +25,15 @@ class WeatherMoodTest extends TestCase
     {
         parent::setUp();
 
-        config(['services.gemini.key' => 'k', 'services.gemini.model' => 'm']);
+        config(['services.groq.key' => 'k', 'services.groq.model' => 'openai/gpt-oss-20b']);
     }
 
     public function test_it_returns_the_weather_mood(): void
     {
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::response([
-                'candidates' => [[
-                    'content' => ['parts' => [[
-                        'text' => json_encode(['mood' => 'Cozy dramas', 'description' => 'Rainy evenings call for slow picks.']),
-                    ]]],
+            'api.groq.com/openai/v1/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => ['content' => json_encode(['mood' => 'Cozy dramas', 'description' => 'Rainy evenings call for slow picks.'])],
                 ]],
             ]),
         ]);
@@ -56,24 +54,24 @@ class WeatherMoodTest extends TestCase
             ->assertJsonValidationErrors(['condition', 'temperature', 'humidity', 'wind', 'precipitation']);
     }
 
-    public function test_it_returns_502_without_leaking_gemini_errors(): void
+    public function test_it_returns_502_without_leaking_groq_errors(): void
     {
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::response(['error' => ['message' => 'SECRET_GEMINI_MARKER']], 500),
+            'api.groq.com/openai/v1/chat/completions' => Http::response(['error' => ['message' => 'SECRET_GROQ_MARKER']], 500),
         ]);
 
         $response = $this->postJson('/api/weather-mood', $this->payload())
             ->assertStatus(502)
             ->assertExactJson(['error' => 'Could not generate the weather mood']);
 
-        $this->assertStringNotContainsString('SECRET_GEMINI_MARKER', $response->getContent());
+        $this->assertStringNotContainsString('SECRET_GROQ_MARKER', $response->getContent());
     }
 
     public function test_it_is_throttled_to_ten_requests_a_minute(): void
     {
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::response([
-                'candidates' => [['content' => ['parts' => [['text' => '{"mood":"a","description":"b"}']]]]],
+            'api.groq.com/openai/v1/chat/completions' => Http::response([
+                'choices' => [['message' => ['content' => '{"mood":"a","description":"b"}']]],
             ]),
         ]);
 

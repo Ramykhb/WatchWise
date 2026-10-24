@@ -23,7 +23,7 @@
     "/api/weather-mood": {
       "post": {
         "summary": "Get the movie mood for the weather",
-        "description": "Asks Gemini which movie mood the given weather calls for. Requires GEMINI_API_KEY and GEMINI_MODEL in .env. Counts against the shared AI limit of 10 requests per minute.",
+        "description": "Asks Groq's openai/gpt-oss-20b model which movie mood the given weather calls for. Requires GROQ_API_KEY in .env. Counts against the shared AI limit of 10 requests per minute.",
         "tags": ["Weather"],
         "requestBody": {
           "required": true,
@@ -41,7 +41,7 @@
           },
           "422": {"description": "Validation failed.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ValidationError"}}}},
           "429": {"description": "Too many requests.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}}}},
-          "502": {"description": "Gemini failed or returned an unusable answer.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}, "example": {"error": "Could not generate the weather mood"}}}}
+          "502": {"description": "Groq failed or returned an unusable answer.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}, "example": {"error": "Could not generate the weather mood"}}}}
         }
       }
     }

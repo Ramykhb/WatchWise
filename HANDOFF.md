@@ -3,7 +3,7 @@
 _Last updated: 2026-10-24 · branch `feat/user-info` (user data from the database: profiles, follows, lists, watchlist, notifications, rooms, movie nights)_
 
 WatchWise is the "Modern Movie Discovery & Social Platform" from the Web2 (WEB2PROG302-EC10) project brief.
-So far the work covers **(1) the full product design in Figma**, **(2) every Figma screen in React (23, including the four Admin screens) plus a Notifications page**, **(3) a Laravel API with the database schema, JWT authentication (email/password, verification, password reset, Google/GitHub/Discord sign-in), live weather and Gemini weather-mood recommendations, plus the user data API (profiles, follows, lists, watchlist, notifications, rooms, movie nights)**, wired into the frontend so signed-in pages show the user's own data, and **(4) a graphify knowledge graph of the codebase**.
+So far the work covers **(1) the full product design in Figma**, **(2) every Figma screen in React (23, including the four Admin screens) plus a Notifications page**, **(3) a Laravel API with the database schema, JWT authentication (email/password, verification, password reset, Google/GitHub/Discord sign-in), live weather and Groq GPT-OSS weather moods, plus the user data API (profiles, follows, lists, watchlist, notifications, rooms, movie nights)**, wired into the frontend so signed-in pages show the user's own data, and **(4) a graphify knowledge graph of the codebase**.
 See also the root [README.md](README.md) for the public project overview and setup.
 
 ---
@@ -61,7 +61,7 @@ See also the root [README.md](README.md) for the public project overview and set
 | `/discover` | Discover | Search & filters (`discoverData.ts`) |
 | `/movies/:slug` | Movie Details | Reviews, ratings, sentiment, cinemas map (`movieData.ts`) |
 | `/people/:slug` | Person | Actor/director page (`personData.ts`) |
-| `/for-you` | For You | **Live weather + Gemini mood**: `/api/weather` (browser geolocation, Beirut fallback), then `POST /api/weather-mood` turns the weather into a viewing mood; recommendation rows still use mock movies |
+| `/for-you` | For You | **Live weather + Groq GPT-OSS mood**: `/api/weather` (browser geolocation, Beirut fallback), then `POST /api/weather-mood` turns the weather into a viewing mood; recommendation rows still use mock movies |
 | `/lists`, `/lists/:slug` | Lists / List Detail | **Live** (`/api/lists`): My lists, other members' Public lists, and Following (public lists of people you follow). URLs are `/lists/{id}-{title-slug}`. Only the owner sees reorder/remove/add on List Detail; changes are saved with `PATCH /api/lists/{id}`. `myListsStore` keeps the user's lists in sync across pages. Likes / list followers were dropped (no table for them) |
 | `/lists/new`, `/lists/:slug/edit` | Create/Edit List dialog | `ListDialog`, opens over the Lists page; `POST` / `PATCH /api/lists` with the films in order |
 | `/lists/watchlist` | Watchlist & History | **Live** (`/api/watchlist`): queue, mark as watched, remove, history with your review ratings, "What you watch" bars from watched genres. Availability filters wait for TMDB |
@@ -132,7 +132,7 @@ Env: `frontend/.env` with `VITE_BACKEND_URL=http://localhost:8000` (see `.env.ex
   - Social: Google and GitHub through **Socialite**; **Discord through a manual OAuth flow** in `SocialAuthController`. The redirect returns **503** when a provider's credentials are missing or still `CHANGE_ME`. After the callback the user lands on the frontend's `/auth/callback`.
   - Middleware: `auth.jwt`, optional auth, `EnsureEmailVerified`, `EnsureRole` (role is on `users.role`). **Policies** for messages, lists, list items, movie nights, notifications, reviews, users, preferences and watchlists.
 - **Weather (PR #15):** `GET /api/weather?latitude=&longitude=` proxies Open-Meteo, falls back to Beirut, returns 502 JSON if the service is down (`OPEN_METEO_*`).
-- **Gemini (merged from `gemini-integeration-test`):** `GeminiService` + `POST /api/weather-mood` (weather → viewing mood) and `GET /api/movie-recommendations`. Config `services.gemini` → `GEMINI_API_KEY`, `GEMINI_MODEL` (**not yet listed in `.env.example`**).
+- **AI providers:** `POST /api/weather-mood` uses Groq's `openai/gpt-oss-20b` model (`GROQ_API_KEY`; model and URL have defaults). `GET /api/movie-recommendations` uses Gemini (`GEMINI_API_KEY`, `GEMINI_MODEL`).
 - **User data API (`feat/user-info`), `routes/social.php`, all behind `auth.jwt`:**
   - `GET /api/home` — friends' activity, busiest rooms, your next movie night.
   - `GET|PATCH|DELETE /api/me`, `PATCH /api/me/preferences` (genres + `privacy` / `integrations` / `notifications` switches), `PUT /api/me/password` (revokes every refresh token), `POST|DELETE /api/me/avatar` (public disk → run `php artisan storage:link`), `DELETE /api/me/social/{provider}`.
@@ -224,7 +224,7 @@ In Claude Code, `/graphify . --update` rebuilds incrementally (docs need the LLM
 ## 10. Suggested next steps
 1. Fix the review findings in §8: the 3 lint errors, the failing social-redirect test and guest access to `/terms` / `/privacy`; add tests and lint to CI.
 2. Gate `/admin` on `user.role === 'admin'` in the frontend and add admin APIs behind `EnsureRole`.
-3. Add `GEMINI_API_KEY` / `GEMINI_MODEL` to `backend/.env.example`; finish the auth follow-ups in `backend/Backend.md` (captcha, GitHub verified-email check, real SMTP/OAuth testing).
+3. Finish the auth follow-ups in `backend/Backend.md` (captcha, GitHub verified-email check, real SMTP/OAuth testing).
 4. Merge the TMDB work (`feat/back-tmdb-movies`), replace `movieFor()` in `lib/movies.ts` with real movie data and TMDB search in the pickers, and swap the remaining movie mocks (Discover, Movie Details, Person, For You rows).
    Add a real-time channel (e.g. Laravel Reverb) for room messages and notifications instead of polling; add review writing, list likes and admin APIs.
 5. Code-split routes to clear the bundle warning.
@@ -243,7 +243,7 @@ npm run lint
 cd backend
 composer install        # re-run after every pull that touches composer.lock
 cp .env.example .env && php artisan key:generate
-# then set JWT_SECRET, FRONTEND_URL, the OAuth client ids/secrets and GEMINI_API_KEY in .env
+# then set JWT_SECRET, FRONTEND_URL, OAuth client ids/secrets, GROQ_API_KEY and Gemini credentials for movie recommendations in .env
 php artisan migrate
 php artisan db:seed       # demo members + their lists, rooms, nights, notifications
 php artisan storage:link  # serves uploaded profile photos

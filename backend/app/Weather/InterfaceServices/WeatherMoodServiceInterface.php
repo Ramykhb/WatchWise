@@ -9,7 +9,7 @@ use App\Weather\Exceptions\WeatherMoodUnavailable;
 interface WeatherMoodServiceInterface
 {
     /**
-     * Ask Gemini which kind of movies this weather calls for.
+     * Ask Groq which kind of movies this weather calls for.
      *
      * @throws WeatherMoodUnavailable
      */
