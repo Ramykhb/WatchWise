@@ -1,9 +1,9 @@
 <?php
 
-namespace Tests\Feature\Tmdb\Repository;
+namespace Tests\Feature\Genre;
 
-use App\Tmdb\Exceptions\TmdbUnavailable;
-use App\Tmdb\InterfaceRepository\GenreRepositoryInterface;
+use App\Support\Exceptions\TmdbUnavailable;
+use App\Genre\InterfaceRepository\GenreRepositoryInterface;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;

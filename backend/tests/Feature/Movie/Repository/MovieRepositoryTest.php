@@ -1,13 +1,13 @@
 <?php
 
-namespace Tests\Feature\Tmdb\Repository;
+namespace Tests\Feature\Movie\Repository;
 
-use App\Tmdb\DTOs\Requests\MovieDiscoverQuery;
-use App\Tmdb\DTOs\Requests\MovieListQuery;
-use App\Tmdb\DTOs\Requests\MovieSearchQuery;
-use App\Tmdb\Exceptions\MovieNotFound;
-use App\Tmdb\Exceptions\TmdbUnavailable;
-use App\Tmdb\InterfaceRepository\MovieRepositoryInterface;
+use App\Movie\DTOs\Requests\MovieDiscoverQuery;
+use App\Movie\DTOs\Requests\MovieListQuery;
+use App\Movie\DTOs\Requests\MovieSearchQuery;
+use App\Movie\Exceptions\MovieNotFound;
+use App\Support\Exceptions\TmdbUnavailable;
+use App\Movie\InterfaceRepository\MovieRepositoryInterface;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;

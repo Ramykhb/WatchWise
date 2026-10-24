@@ -1,12 +1,12 @@
 <?php
 
-namespace Tests\Unit\Tmdb;
+namespace Tests\Unit\Movie;
 
-use App\Tmdb\DTOs\Requests\MovieDiscoverQuery;
-use App\Tmdb\DTOs\Requests\MovieListQuery;
-use App\Tmdb\DTOs\Requests\MovieSearchQuery;
-use App\Tmdb\InterfaceRepository\MovieRepositoryInterface;
-use App\Tmdb\Services\MovieService;
+use App\Movie\DTOs\Requests\MovieDiscoverQuery;
+use App\Movie\DTOs\Requests\MovieListQuery;
+use App\Movie\DTOs\Requests\MovieSearchQuery;
+use App\Movie\InterfaceRepository\MovieRepositoryInterface;
+use App\Movie\Services\MovieService;
 use Mockery;
 use Mockery\MockInterface;
 use Tests\TestCase;
