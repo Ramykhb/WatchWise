@@ -59,10 +59,14 @@ const toItem = (n: ApiNotification): AppNotification => ({
   read: n.read,
 })
 
+// Bumped on every account change, so a response for the previous account is ignored.
+let generation = 0
+
 export async function loadNotifications() {
+  const started = generation
   try {
     const response = await api.get<{ notifications: ApiNotification[] }>('/notifications')
-    emit(response.data.notifications.map(toItem))
+    if (started === generation) emit(response.data.notifications.map(toItem))
   } catch {
     // Keep what is on screen; the next poll tries again.
   }
@@ -70,6 +74,7 @@ export async function loadNotifications() {
 
 /** Drops everything on sign-out so the next account starts clean. */
 export function clearNotifications() {
+  generation++
   lastLoad = 0
   state = { items: [], loaded: false }
   listeners.forEach((listener) => listener())

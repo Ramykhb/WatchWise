@@ -26,7 +26,7 @@ return new class extends Migration
             $base = Str::of($user->name ?: Str::before($user->email, '@'))->ascii()->lower()->replaceMatches('/[^a-z0-9]+/', '')->limit(20, '')->toString() ?: 'member';
             $username = $base;
             for ($n = 2; in_array($username, $taken, true); $n++) {
-                $username = $base.$n;
+                $username = substr($base, 0, 20 - strlen((string) $n)).$n;
             }
             $taken[] = $username;
             DB::table('users')->where('id', $user->id)->update(['username' => $username]);

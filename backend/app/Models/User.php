@@ -34,12 +34,16 @@ class User extends Authenticatable
         });
     }
 
+    /** Handles are at most 20 characters (Settings validates the same), suffix included. */
+    public const USERNAME_MAX = 20;
+
     public static function uniqueUsername(string $from): string
     {
-        $base = Str::of($from)->ascii()->lower()->replaceMatches('/[^a-z0-9]+/', '')->limit(20, '')->toString() ?: 'member';
+        $base = Str::of($from)->ascii()->lower()->replaceMatches('/[^a-z0-9]+/', '')->limit(self::USERNAME_MAX, '')->toString() ?: 'member';
         $username = $base;
         for ($n = 2; static::where('username', $username)->exists(); $n++) {
-            $username = $base.$n;
+            // Shorten the base so "name" + number still fits.
+            $username = substr($base, 0, self::USERNAME_MAX - strlen((string) $n)).$n;
         }
 
         return $username;

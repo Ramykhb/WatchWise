@@ -138,6 +138,8 @@ class MovieNightController extends Controller
         $id = $current->id();
         $invite = $night->invites()->where('user_id', $id)->first();
         abort_if($night->organizer_id !== $id && $invite?->status === 'declined', 403, 'Declined guests cannot vote.');
+        // The host closes voting by confirming the night (with a winner) or cancels it.
+        abort_if($night->status !== 'pending' || $night->winning_tmdb_id !== null, 422, 'Voting is closed for this movie night.');
 
         DB::transaction(function () use ($night, $tmdbId, $id) {
             $night->candidates()->firstOrCreate(['tmdb_id' => $tmdbId], ['added_by' => $id]);
@@ -160,7 +162,8 @@ class MovieNightController extends Controller
             'meeting_link' => ['sometimes', 'nullable', 'url', 'max:255'],
             'note' => ['sometimes', 'nullable', 'string', 'max:500'],
             'status' => ['sometimes', Rule::in(['pending', 'confirmed', 'cancelled'])],
-            'winning_tmdb_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
+            // The winner has to be on this night's shortlist.
+            'winning_tmdb_id' => ['sometimes', 'nullable', 'integer', Rule::exists('movie_night_candidates', 'tmdb_id')->where('movie_night_id', $night->id)],
         ]);
         $night->update($data);
 

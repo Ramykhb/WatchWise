@@ -41,11 +41,12 @@ export type ApiActivity = {
 )
 
 export type ApiProfile = {
-  user: ApiMember & { bio: string | null; location: string | null; profile_visibility: string; member_since: string }
+  user: ApiMember & { bio: string | null; location: string | null; profile_visibility: string; member_since: string | null }
   is_me: boolean
   is_following: boolean
   follows_you: boolean
-  counts: { followers: number; following: number; reviews: number; lists: number; films: number }
+  /** null for a restricted profile; a section the owner hid has a null count. */
+  counts: { followers: number; following: number | null; reviews: number | null; lists: number | null; films: number | null } | null
   restricted: boolean
   activity?: ApiActivity[]
   reviews?: ApiReview[]

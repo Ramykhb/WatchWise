@@ -9,6 +9,7 @@ use App\Http\Resources\ReviewResource;
 use App\Models\User;
 use App\Services\ActivityFeedService;
 use App\Services\Notifier;
+use App\Services\ProfilePrivacy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -19,6 +20,7 @@ class ProfileController extends Controller
     public function __construct(
         private readonly ActivityFeedService $activity,
         private readonly Notifier $notifier,
+        private readonly ProfilePrivacy $privacy,
     ) {}
 
     /** GET /api/users?q= — find members by name or @username (invite pickers, search). */
@@ -45,8 +47,41 @@ class ProfileController extends Controller
         $user->load('preferences');
         $isMe = $current->id() === $user->id;
         $viewer = $current->user();
+        $relation = [
+            'is_me' => $isMe,
+            'is_following' => ! $isMe && $user->isFollowedBy($current->id()),
+            'follows_you' => ! $isMe && $viewer !== null && $viewer->isFollowedBy($user->id),
+            'my_following' => $viewer?->following()->pluck('users.id') ?? [],
+        ];
 
-        $summary = [
+        // A profile the viewer may not open shows only the name and handle (enough to follow them).
+        if (! $this->privacy->canView($user, $current)) {
+            return response()->json([
+                ...$relation,
+                'user' => [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'name' => $user->name,
+                    'avatar' => null,
+                    'bio' => null,
+                    'location' => null,
+                    'profile_visibility' => $user->profile_visibility,
+                    'member_since' => null,
+                ],
+                'counts' => null,
+                'restricted' => true,
+            ]);
+        }
+
+        $shows = fn (string $section) => $this->privacy->shows($user, $current, $section);
+        $approvedOnly = ! $this->privacy->seesUnapprovedReviews($user, $current);
+        $reviewQuery = fn () => $user->reviews()->when($approvedOnly, fn ($q) => $q->where('is_approved', true));
+        $listQuery = fn () => $user->movieLists()->when(! $isMe, fn ($q) => $q->where('is_public', true));
+        // Sections the owner hid come back as null (counts) or empty (content).
+        $count = fn (string $section, callable $query) => $shows($section) ? $query()->count() : null;
+
+        return response()->json([
+            ...$relation,
             'user' => [
                 ...(new MemberResource($user))->resolve(),
                 'bio' => $user->bio,
@@ -54,61 +89,31 @@ class ProfileController extends Controller
                 'profile_visibility' => $user->profile_visibility,
                 'member_since' => $user->created_at?->toJSON(),
             ],
-            'is_me' => $isMe,
-            'is_following' => ! $isMe && $user->isFollowedBy($current->id()),
-            'follows_you' => ! $isMe && $viewer !== null && $viewer->isFollowedBy($user->id),
             'counts' => [
+                // The follower count stays visible so the Follow button can show it.
                 'followers' => $user->followers()->count(),
-                'following' => $user->following()->count(),
-                'reviews' => $user->reviews()->count(),
-                'lists' => $user->movieLists()->when(! $isMe, fn ($q) => $q->where('is_public', true))->count(),
-                'films' => $user->watchlists()->where('status', 'watched')->count(),
+                'following' => $count('following', fn () => $user->following()),
+                'reviews' => $count('reviews', $reviewQuery),
+                'lists' => $count('lists', $listQuery),
+                'films' => $count('history', fn () => $user->watchlists()->where('status', 'watched')),
             ],
-        ];
-
-        if (! Gate::allows('view', $user)) {
-            return response()->json([...$summary, 'restricted' => true]);
-        }
-
-        $shows = fn (string $key) => $isMe || $user->shares($key);
-
-        $reviews = $shows('reviews')
-            ? $user->reviews()->with('user')->latest()->limit(20)->get()
-            : collect();
-        $lists = $shows('lists')
-            ? $user->movieLists()->with(['user', 'items'])->withCount('items')
-                ->when(! $isMe, fn ($q) => $q->where('is_public', true))
-                ->latest('updated_at')->get()
-            : collect();
-        $watched = $shows('history')
-            ? $user->watchlists()->where('status', 'watched')->latest('watched_at')->limit(24)->pluck('tmdb_id')
-            : collect();
-        $activity = $this->activity->forUsers([$user->id], 20, $isMe)
-            ->reject(fn ($item) => ! $shows('ratings') && $item['kind'] === 'rated')
-            ->reject(fn ($item) => ! $shows('reviews') && $item['kind'] === 'reviewed')
-            ->reject(fn ($item) => ! $shows('watchlist') && $item['kind'] === 'watchlist')
-            ->values();
-
-        return response()->json([
-            ...$summary,
             'restricted' => false,
-            'activity' => $activity,
-            'reviews' => ReviewResource::collection($reviews),
-            'lists' => MovieListResource::collection($lists),
-            'watched' => $watched->values(),
+            'activity' => $this->activity->forUsers([$user->id], $current, 20),
+            'reviews' => ReviewResource::collection($shows('reviews') ? $reviewQuery()->with('user')->latest()->limit(20)->get() : []),
+            'lists' => MovieListResource::collection($shows('lists') ? $listQuery()->with(['user', 'items'])->withCount('items')->latest('updated_at')->get() : []),
+            'watched' => $shows('history') ? $user->watchlists()->where('status', 'watched')->latest('watched_at')->limit(24)->pluck('tmdb_id') : [],
             // Highest-rated films first; ties go to the most recent review.
-            'top4' => $user->reviews()->orderByDesc('rating')->latest()->limit(4)->pluck('tmdb_id'),
+            'top4' => $shows('ratings') ? $reviewQuery()->orderByDesc('rating')->latest()->limit(4)->pluck('tmdb_id') : [],
             'genres' => $user->preferences?->favorite_genres ?? [],
-            'followers' => MemberResource::collection($user->followers()->limit(8)->get()),
+            'followers' => $shows('following') ? MemberResource::collection($user->followers()->limit(8)->get()) : [],
             'following' => $shows('following') ? MemberResource::collection($user->following()->limit(8)->get()) : [],
-            'my_following' => $current->user()?->following()->pluck('users.id') ?? [],
         ]);
     }
 
     /** GET /api/users/{username}/followers */
-    public function followers(User $user): JsonResponse
+    public function followers(User $user, CurrentUser $current): JsonResponse
     {
-        Gate::authorize('view', $user);
+        abort_unless($this->privacy->shows($user, $current, 'following'), 403);
 
         return response()->json(['users' => MemberResource::collection($user->followers()->orderBy('name')->get())]);
     }
@@ -116,8 +121,7 @@ class ProfileController extends Controller
     /** GET /api/users/{username}/following */
     public function following(User $user, CurrentUser $current): JsonResponse
     {
-        Gate::authorize('view', $user);
-        abort_unless($current->id() === $user->id || $user->shares('following'), 403);
+        abort_unless($this->privacy->shows($user, $current, 'following'), 403);
 
         return response()->json(['users' => MemberResource::collection($user->following()->orderBy('name')->get())]);
     }

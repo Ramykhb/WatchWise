@@ -99,9 +99,9 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: 'activity', label: 'Activity' },
-    { id: 'reviews', label: 'Reviews', count: profile.reviews },
-    { id: 'lists', label: 'Lists', count: profile.lists },
-    { id: 'watched', label: 'Watched', count: profile.films },
+    { id: 'reviews', label: 'Reviews', count: profile.reviews ?? undefined },
+    { id: 'lists', label: 'Lists', count: profile.lists ?? undefined },
+    { id: 'watched', label: 'Watched', count: profile.films ?? undefined },
   ]
   const stats = [
     { label: 'Followers', value: compactCount(followers) },
@@ -114,7 +114,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
   const [fullLists, setFullLists] = useState<Partial<Record<PeopleTab, Member[]>>>({})
   const [loadingAll, setLoadingAll] = useState(false)
   const people = fullLists[peopleTab] ?? (peopleTab === 'followers' ? profile.followerList : profile.followingList)
-  const peopleTotal = peopleTab === 'followers' ? followers : profile.following
+  const peopleTotal = peopleTab === 'followers' ? followers : (profile.following ?? 0)
   const showAll = async () => {
     setLoadingAll(true)
     try {
@@ -153,7 +153,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                         {profile.location}
                       </span>
                     )}
-                    <span>· Member since {profile.since}</span>
+                    {profile.since && <span>· Member since {profile.since}</span>}
                     {profile.followsYou && <span>· Follows you</span>}
                   </p>
                 </div>
@@ -282,7 +282,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                       className={styles.segment}
                       onClick={() => setPeopleTab(id)}
                     >
-                      {id === 'followers' ? `Followers ${compactCount(followers)}` : `Following ${profile.following}`}
+                      {id === 'followers' ? `Followers ${compactCount(followers)}` : `Following ${compactCount(profile.following)}`}
                     </button>
                   ))}
                 </div>

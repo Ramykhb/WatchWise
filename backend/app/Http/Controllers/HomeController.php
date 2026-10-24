@@ -38,7 +38,7 @@ class HomeController extends Controller
         $leader = $night?->votes->groupBy('tmdb_id')->sortByDesc(fn ($votes) => $votes->count())->first();
 
         return response()->json([
-            'activity' => $activity->forUsers($followingIds, 8),
+            'activity' => $activity->forUsers($followingIds, $current, 8),
             'rooms' => $rooms,
             'next_night' => $night ? [
                 'id' => $night->id,
