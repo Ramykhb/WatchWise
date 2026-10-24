@@ -21,7 +21,7 @@ import bellVioletIcon from '../../assets/settings/icon-bell-violet.svg'
 import chatIcon from '../../assets/settings/icon-chat.svg'
 import googleIcon from '../../assets/auth/icon-google.svg'
 import githubIcon from '../../assets/auth/icon-github.svg'
-import facebookIcon from '../../assets/auth/icon-facebook.svg'
+import discordIcon from '../../assets/auth/icon-discord.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import {
   ACCOUNT,
@@ -49,7 +49,7 @@ const MENU: { id: Section; label: string; icon: string }[] = [
 const PROVIDERS: { id: SocialProvider; label: string; icon: string }[] = [
   { id: 'google', label: 'Google', icon: googleIcon },
   { id: 'github', label: 'GitHub', icon: githubIcon },
-  { id: 'facebook', label: 'Facebook', icon: facebookIcon },
+  { id: 'discord', label: 'Discord', icon: discordIcon },
 ]
 
 const INTEGRATION_ICONS: Record<IntegrationKey, string> = {
@@ -336,7 +336,7 @@ export default function Settings() {
             </section>
 
             <section id="connected" data-section className={styles.panel} aria-labelledby="connected-title">
-              <PanelHead id="connected-title" title="Connected accounts" text="Sign in faster with Google, GitHub or Facebook." />
+              <PanelHead id="connected-title" title="Connected accounts" text="Sign in faster with Google, GitHub or Discord." />
               <ul className={styles.accounts}>
                 {PROVIDERS.map((provider) => {
                   const account = connected[provider.id]

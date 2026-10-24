@@ -12,13 +12,14 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 use Throwable;
 
 class SocialAuthController extends Controller
 {
-    private const PROVIDERS = ['google', 'github'];
+    private const PROVIDERS = ['google', 'github', 'discord'];
 
     private const STATE_COOKIE = 'oauth_state';
 
@@ -46,6 +47,19 @@ class SocialAuthController extends Controller
 
         $state = Str::random(40);
 
+        if ($provider === 'discord') {
+            $query = http_build_query([
+                'client_id' => $credentials['client_id'],
+                'redirect_uri' => $credentials['redirect'],
+                'response_type' => 'code',
+                'scope' => 'identify email',
+                'state' => $state,
+            ]);
+
+            return redirect('https://discord.com/oauth2/authorize?'.$query)
+                ->withCookie(cookie(self::STATE_COOKIE, $state, 10, '/', null, ! app()->environment('local', 'testing'), true, false, 'lax'));
+        }
+
         return Socialite::driver($provider)
             ->stateless()
             ->with(['state' => $state])
@@ -65,13 +79,15 @@ class SocialAuthController extends Controller
         }
 
         try {
-            $socialUser = Socialite::driver($provider)->stateless()->user();
+            $socialData = $provider === 'discord'
+                ? $this->discordUser($request)
+                : SocialLoginData::fromSocialite($provider, Socialite::driver($provider)->stateless()->user());
         } catch (Throwable) {
             return $this->failure('provider_error');
         }
 
         try {
-            $authResponse = $this->social->loginWithProvider(SocialLoginData::fromSocialite($provider, $socialUser), $request);
+            $authResponse = $this->social->loginWithProvider($socialData, $request);
         } catch (EmailRequired) {
             return $this->failure('email_required');
         } catch (UnverifiedProviderEmail) {
@@ -93,6 +109,43 @@ class SocialAuthController extends Controller
     private function assertProvider(string $provider): void
     {
         abort_unless(in_array($provider, self::PROVIDERS, true), 404);
+    }
+
+    private function discordUser(Request $request): SocialLoginData
+    {
+        $code = $request->query('code');
+        abort_if(! is_string($code) || $code === '', 400, 'Discord did not return an authorization code.');
+
+        $credentials = config('services.discord');
+        $tokenResponse = Http::asForm()->post('https://discord.com/api/oauth2/token', [
+            'client_id' => $credentials['client_id'],
+            'client_secret' => $credentials['client_secret'],
+            'grant_type' => 'authorization_code',
+            'code' => $code,
+            'redirect_uri' => $credentials['redirect'],
+        ])->throw()->json();
+
+        $accessToken = $tokenResponse['access_token'] ?? null;
+        abort_if(! is_string($accessToken) || $accessToken === '', 502, 'Discord did not return an access token.');
+
+        $user = Http::withToken($accessToken)->get('https://discord.com/api/users/@me')->throw()->json();
+        $id = $user['id'] ?? null;
+        abort_if(! is_string($id) || $id === '', 502, 'Discord did not return a user ID.');
+
+        $avatar = isset($user['avatar']) && is_string($user['avatar'])
+            ? "https://cdn.discordapp.com/avatars/{$id}/{$user['avatar']}.png"
+            : null;
+
+        return new SocialLoginData(
+            provider: 'discord',
+            providerId: $id,
+            email: is_string($user['email'] ?? null) ? $user['email'] : null,
+            name: is_string($user['global_name'] ?? null) ? $user['global_name'] : (is_string($user['username'] ?? null) ? $user['username'] : null),
+            nickname: is_string($user['username'] ?? null) ? $user['username'] : null,
+            avatar: $avatar,
+            accessToken: $accessToken,
+            providerReportsEmailVerified: (bool) ($user['verified'] ?? false),
+        );
     }
 
     private function failure(string $reason): RedirectResponse

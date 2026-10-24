@@ -34,7 +34,7 @@ export const PRIVACY: { id: PrivacyKey; title: string; text: string; on: boolean
 export const CONNECTED: Record<SocialProvider, string | null> = {
   google: 'maya.rivera@gmail.com',
   github: '@mayarivera',
-  facebook: null,
+  discord: null,
 }
 
 export type IntegrationKey = 'calendar' | 'location' | 'weather' | 'digest'
