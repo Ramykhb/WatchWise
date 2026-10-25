@@ -355,14 +355,14 @@ app/Support/            Shared by both: TmdbHttpClient (adds the API key, timeou
 
 ## MovieList and MovieNight modules
 
-`app/MovieList/` and `app/MovieNight/` use the same layers as Auth. Their Eloquent models stay in `app/Models/`, and `MovieListResource` stays in `app/MovieList/Resources/` because the profile and activity feed also use it.
+`app/MovieList/` and `app/MovieNight/` use the same layers as Auth. Their Eloquent models stay in `app/Models/`, and `MovieListResource` stays in `app/MovieList/Resources/` because the profile also uses it.
 
 ```
 app/MovieList/
   Controllers/          MovieListController
   FormRequests/         MovieListIndexRequest, StoreMovieListRequest, UpdateMovieListRequest
   InterfaceServices/    MovieListServiceInterface
-  Services/             MovieListService (transactions, activity feed entries)
+  Services/             MovieListService (transactions)
   InterfaceRepository/  MovieListRepositoryInterface
   Repository/           MovieListRepository (scopes, search, syncing films)
   DTOs/Requests/        MovieListSearchQuery, CreateMovieListData, UpdateMovieListData
@@ -373,7 +373,7 @@ app/MovieNight/
   Controllers/          MovieNightController
   FormRequests/         StoreMovieNightRequest, UpdateMovieNightRequest, InviteGuestsRequest, RsvpRequest, VoteRequest
   InterfaceServices/    MovieNightServiceInterface
-  Services/             MovieNightService (invites, RSVPs, votes, notifications through Notifier)
+  Services/             MovieNightService (invites, RSVPs, votes)
   InterfaceRepository/  MovieNightRepositoryInterface
   Repository/           MovieNightRepository
   DTOs/Requests/        CreateMovieNightData, UpdateMovieNightData, InviteGuestsData, RsvpData, VoteData
@@ -397,7 +397,7 @@ app/Watchlist/
   Controllers/          WatchlistController
   FormRequests/         StoreWatchlistRequest, UpdateWatchlistRequest
   InterfaceServices/    WatchlistServiceInterface
-  Services/             WatchlistService (sets watched_at from the status, records new films in the activity feed)
+  Services/             WatchlistService (sets watched_at from the status)
   InterfaceRepository/  WatchlistRepositoryInterface
   Repository/           WatchlistRepository
   DTOs/Requests/        AddToWatchlistData, UpdateWatchlistStatusData
@@ -431,22 +431,18 @@ app/User/
 ```
 
 - The routes did not change (`routes/social.php`).
-- `ProfilePrivacy` is also used by the activity feed, so profile pages and feeds follow the same visibility rules.
+- `ProfilePrivacy` decides what a viewer may see of a profile.
 - Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php` and `AccountRulesTest.php`.
 
-## Notification, Room, Review, ActivityFeed and Support
+## Removed code
 
-`app/Http/` and `app/Services/` no longer exist. What was left in them moved next to the feature it belongs to (the code is unchanged, only the namespaces):
+`app/Http/` and `app/Services/` no longer exist. The base `Controller` class is gone too (controllers are plain classes), and so is everything that only lived in those two folders:
 
-| Class | Now in |
-| --- | --- |
-| `NotificationController`, `NotificationResource`, `Notifier` | `app/Notification/` (`Controllers/`, `Resources/`, `Services/`) |
-| `RoomController` | `app/Room/Controllers/` |
-| `ReviewResource` | `app/Review/Resources/` |
-| `ActivityFeedService` | `app/ActivityFeed/Services/` |
-| `Controller` (the base class every controller extends) | `app/Support/Controller.php` |
+- the notifications API (`/api/notifications`) and the `Notifier` that created notifications when someone followed, invited, voted or mentioned another user;
+- the discussion rooms API (`/api/rooms`);
+- the activity feed (`ActivityFeedService`), so `/api/home` no longer returns `activity` and `/api/users/{username}` no longer returns `activity` or the `reviews` list (the `counts.reviews` number is still there).
 
-These four folders have not been split into services and repositories yet. `NotificationPolicy`, `MessagePolicy` and `ReviewPolicy` stay in `app/Policies/`.
+The database tables, models and policies for notifications, rooms, messages, reviews and the activity feed are still in place (`app/Models/`, `app/Policies/`, the migrations), so no data was dropped. `/api/home` still returns the busiest rooms and the next movie night.
 
 ## Gemini module
 
