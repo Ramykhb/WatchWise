@@ -3,11 +3,10 @@
 namespace App\Docs\Controllers;
 
 use App\Docs\Services\OpenApiSpec;
-use App\Support\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 
-class DocumentationController extends Controller
+class DocumentationController
 {
     /**
      * Swagger UI page (local and testing environments only).

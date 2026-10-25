@@ -9,12 +9,11 @@ use App\MovieList\FormRequests\StoreMovieListRequest;
 use App\MovieList\FormRequests\UpdateMovieListRequest;
 use App\MovieList\InterfaceServices\MovieListServiceInterface;
 use App\MovieList\Resources\MovieListResource;
-use App\Support\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
 /** The signed-in user's lists, other members' public lists and the films inside them. */
-class MovieListController extends Controller
+class MovieListController
 {
     public function __construct(private readonly MovieListServiceInterface $lists) {}
 
@@ -43,9 +42,9 @@ class MovieListController extends Controller
     }
 
     /** PATCH /api/lists/{list} — `tmdb_ids` replaces the films in that order (add, remove, reorder). */
-    public function update(UpdateMovieListRequest $request, MovieList $list, CurrentUser $current): JsonResponse
+    public function update(UpdateMovieListRequest $request, MovieList $list): JsonResponse
     {
-        $list = $this->lists->update($list, $request->toDto(), $current->user());
+        $list = $this->lists->update($list, $request->toDto());
 
         return response()->json(['list' => $this->present($list)]);
     }

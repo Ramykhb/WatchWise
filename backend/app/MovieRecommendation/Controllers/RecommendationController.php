@@ -4,10 +4,9 @@ namespace App\MovieRecommendation\Controllers;
 
 use App\MovieRecommendation\FormRequests\RecommendationRequest;
 use App\MovieRecommendation\InterfaceServices\RecommendationServiceInterface;
-use App\Support\Controller;
 use Illuminate\Http\JsonResponse;
 
-class RecommendationController extends Controller
+class RecommendationController
 {
     public function __construct(private readonly RecommendationServiceInterface $recommendations) {}
 
