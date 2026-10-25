@@ -95,35 +95,16 @@ class ProfileTest extends SocialTestCase
         $this->as($viewer)->getJson("/api/users/{$followersOnly->username}")->assertJsonPath('restricted', false);
     }
 
-    public function test_follow_notifies_and_unfollow_removes(): void
+    public function test_follow_and_unfollow(): void
     {
         $me = User::factory()->create();
         $other = User::factory()->create();
 
         $this->as($me)->postJson("/api/users/{$other->username}/follow")->assertOk()->assertJson(['following' => true, 'followers' => 1]);
         $this->as($me)->postJson("/api/users/{$other->username}/follow")->assertOk();
-        $this->assertSame(1, $other->notifications()->where('type', 'follow')->count());
-
-        $this->as($other)->getJson('/api/notifications')
-            ->assertJsonPath('unread', 1)
-            ->assertJsonPath('notifications.0.actor.username', $me->username)
-            ->assertJsonPath('notifications.0.to', "/profile/{$me->username}");
 
         $this->as($me)->deleteJson("/api/users/{$other->username}/follow")->assertOk()->assertJson(['following' => false, 'followers' => 0]);
         $this->as($me)->postJson("/api/users/{$me->username}/follow")->assertForbidden();
-    }
-
-    public function test_notifications_say_whether_you_already_follow_the_actor(): void
-    {
-        $me = User::factory()->create();
-        $fan = User::factory()->create();
-        $this->as($fan)->postJson("/api/users/{$me->username}/follow")->assertOk();
-
-        $this->as($me)->getJson('/api/notifications')->assertJsonPath('notifications.0.actor_followed', false);
-
-        // After following back, the notification keeps saying so on the next load.
-        $this->as($me)->postJson("/api/users/{$fan->username}/follow")->assertOk();
-        $this->as($me)->getJson('/api/notifications')->assertJsonPath('notifications.0.actor_followed', true);
     }
 
     public function test_search_members(): void

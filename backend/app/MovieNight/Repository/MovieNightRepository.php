@@ -26,11 +26,6 @@ class MovieNightRepository implements MovieNightRepositoryInterface
         return $night->load(self::RELATIONS);
     }
 
-    public function loadOrganizer(MovieNight $night): MovieNight
-    {
-        return $night->load('organizer');
-    }
-
     public function create(array $attributes): MovieNight
     {
         return MovieNight::create($attributes);

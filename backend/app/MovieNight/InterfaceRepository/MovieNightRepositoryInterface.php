@@ -19,8 +19,6 @@ interface MovieNightRepositoryInterface
     /** Loads the organizer, invites with their users, candidates with who added them, and votes with their users. */
     public function loadRelations(MovieNight $night): MovieNight;
 
-    public function loadOrganizer(MovieNight $night): MovieNight;
-
     /**
      * @param  array{organizer_id: int, title: string, scheduled_at: string, location: string|null, meeting_link: string|null, note: string|null}  $attributes
      */
