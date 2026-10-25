@@ -2,14 +2,14 @@
 
 namespace Database\Seeders;
 
+use App\ActivityFeed\Services\ActivityFeedService;
 use App\Models\DiscussionRoom;
 use App\Models\MovieList;
 use App\Models\MovieNight;
 use App\Models\Review;
 use App\Models\User;
 use App\Models\UserPreference;
-use App\Services\ActivityFeedService;
-use App\Services\Notifier;
+use App\Notification\Services\Notifier;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 

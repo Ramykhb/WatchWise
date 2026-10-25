@@ -2,9 +2,9 @@
 
 namespace App\Watchlist\Services;
 
+use App\ActivityFeed\Services\ActivityFeedService;
 use App\Models\User;
 use App\Models\Watchlist;
-use App\Services\ActivityFeedService;
 use App\Watchlist\DTOs\Requests\AddToWatchlistData;
 use App\Watchlist\DTOs\Requests\UpdateWatchlistStatusData;
 use App\Watchlist\DTOs\Responses\AddToWatchlistResponse;

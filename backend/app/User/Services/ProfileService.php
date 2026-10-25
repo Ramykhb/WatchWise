@@ -2,12 +2,12 @@
 
 namespace App\User\Services;
 
+use App\ActivityFeed\Services\ActivityFeedService;
 use App\Auth\CurrentUser\CurrentUser;
-use App\Http\Resources\ReviewResource;
 use App\Models\User;
 use App\MovieList\Resources\MovieListResource;
-use App\Services\ActivityFeedService;
-use App\Services\Notifier;
+use App\Notification\Services\Notifier;
+use App\Review\Resources\ReviewResource;
 use App\User\DTOs\Requests\UserSearchQuery;
 use App\User\DTOs\Responses\FollowResponse;
 use App\User\DTOs\Responses\ProfileResponse;

@@ -16,7 +16,7 @@ use App\MovieNight\Exceptions\NotInvitedToMovieNight;
 use App\MovieNight\Exceptions\VotingClosed;
 use App\MovieNight\InterfaceRepository\MovieNightRepositoryInterface;
 use App\MovieNight\InterfaceServices\MovieNightServiceInterface;
-use App\Services\Notifier;
+use App\Notification\Services\Notifier;
 use Illuminate\Support\Facades\DB;
 
 class MovieNightService implements MovieNightServiceInterface

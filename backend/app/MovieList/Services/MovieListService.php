@@ -2,6 +2,7 @@
 
 namespace App\MovieList\Services;
 
+use App\ActivityFeed\Services\ActivityFeedService;
 use App\Models\MovieList;
 use App\Models\User;
 use App\MovieList\DTOs\Requests\CreateMovieListData;
@@ -9,7 +10,6 @@ use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\DTOs\Requests\UpdateMovieListData;
 use App\MovieList\InterfaceRepository\MovieListRepositoryInterface;
 use App\MovieList\InterfaceServices\MovieListServiceInterface;
-use App\Services\ActivityFeedService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
