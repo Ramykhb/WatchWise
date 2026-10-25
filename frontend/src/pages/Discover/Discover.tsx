@@ -39,7 +39,7 @@ import {
 import { TV_GENRE_IDS, fetchMovies, loadGenres, toTileMovie, type MoviePage } from './discoverApi.ts'
 import { useApi } from '../../lib/api.ts'
 import { colorOf, initialsOf } from '../../lib/format.ts'
-import { useMovies } from '../../lib/movieDetails.ts'
+import { isLoading, useMovies } from '../../lib/movieDetails.ts'
 import type { ApiList, ApiUserSearch } from '../../lib/types.ts'
 import { toPublicList } from '../Lists/listsData.ts'
 import styles from './Discover.module.css'
@@ -585,6 +585,7 @@ export default function Discover() {
                           <PosterCollage
                             gradients={list.posters}
                             images={list.posterIds.map((id) => movieOf(id).posterUrl)}
+                            pending={list.posterIds.map((id) => isLoading(movieOf(id)))}
                             size="sm"
                           />
                         </span>

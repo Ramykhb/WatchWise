@@ -14,7 +14,7 @@ import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import { gradientCss } from '../Home/homeData.ts'
 import { apiErrorMessage } from '../../lib/auth.ts'
 import { api, useApi } from '../../lib/api.ts'
-import { rememberMovie, useMovies } from '../../lib/movieDetails.ts'
+import { isLoading, posterAt, rememberMovie, useMovies } from '../../lib/movieDetails.ts'
 import { movieFor, tmdbIdOf } from '../../lib/movies.ts'
 import type { ApiList } from '../../lib/types.ts'
 import { loadGenres, toTileMovie, type MoviePage } from '../Discover/discoverApi.ts'
@@ -26,7 +26,8 @@ import styles from './ListDialog.module.css'
 const CLOSE_MS = 220
 /** Wait this long after the last keystroke before searching, so typing doesn't use up the TMDB rate limit. */
 const SEARCH_DELAY_MS = 250
-const MAX_RESULTS = 6
+/** One page of TMDB results; the dropdown shows three at a time and scrolls for the rest. */
+const MAX_RESULTS = 20
 /** Used when the genre names can't be loaded: the results then only show the year. */
 const NO_GENRES = new Map<number, string>()
 
@@ -280,7 +281,20 @@ function Dialog({ existing }: { existing?: ApiList }) {
               </div>
               {q && (
                 <ul id={`${titleId}-results`} className={styles.results} aria-label="Search results" aria-busy={searching}>
-                  {searching && <li className={styles.noResults}>Searching…</li>}
+                  {searching && (
+                    <li className={styles.searching} role="status">
+                      <span className="sr-only">Searching…</span>
+                    </li>
+                  )}
+                  {/* Placeholder rows while the first answer loads; later searches keep the last answer, dimmed. */}
+                  {searching &&
+                    results.length === 0 &&
+                    [0, 1, 2].map((row) => (
+                      <li key={`skeleton-${row}`} className={styles.skeleton} aria-hidden="true">
+                        <span className={styles.skeletonThumb} />
+                        <span className={styles.skeletonLine} />
+                      </li>
+                    ))}
                   {failed && <li className={styles.noResults}>Couldn't search right now. Try again in a moment.</li>}
                   {!searching && !failed && results.length === 0 && <li className={styles.noResults}>No films match “{q}”.</li>}
                   {results.map((movie) => (
@@ -333,14 +347,17 @@ function Dialog({ existing }: { existing?: ApiList }) {
   )
 }
 
-/** A small poster; the gradient shows while it loads and when TMDB has none (or it fails to load). */
+/** A small poster; it shimmers while the film loads, and shows the gradient when TMDB has none. */
 function Thumb({ movie, className }: { movie: Movie; className: string }) {
   return (
-    <span className={className} style={{ background: gradientCss(movie.gradient) }}>
+    <span
+      className={isLoading(movie) ? `${className} ${styles.thumbLoading}` : className}
+      style={{ background: gradientCss(movie.gradient) }}
+    >
       {movie.posterUrl && (
         <img
           className={styles.thumbImg}
-          src={movie.posterUrl}
+          src={posterAt(movie.posterUrl, 'w92')}
           alt=""
           loading="lazy"
           onError={(event) => {

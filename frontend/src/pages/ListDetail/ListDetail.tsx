@@ -19,7 +19,7 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { isStatus, useApi } from '../../lib/api.ts'
-import { useMovies } from '../../lib/movieDetails.ts'
+import { isLoading, posterAt, useMovies } from '../../lib/movieDetails.ts'
 import { tmdbIdOf } from '../../lib/movies.ts'
 import type { ApiList } from '../../lib/types.ts'
 import { listIdFrom } from '../Lists/listsData.ts'
@@ -239,6 +239,7 @@ function ListDetailPage({ detail }: { detail: Detail }) {
               <PosterCollage
                 gradients={cover.length ? cover.map((entry) => entry.movie.gradient) : detail.posters}
                 images={cover.map((entry) => entry.movie.posterUrl)}
+                pending={cover.map((entry) => isLoading(entry.movie))}
                 size="xl"
               />
             </div>
@@ -343,7 +344,7 @@ function ListDetailPage({ detail }: { detail: Detail }) {
                   <span className={styles.rank}>{String(index + 1).padStart(2, '0')}</span>
                   <Link
                     to={`/movies/${entry.movie.slug}`}
-                    className={styles.thumb}
+                    className={isLoading(entry.movie) ? `${styles.thumb} ${styles.thumbLoading}` : styles.thumb}
                     style={{ background: gradientCss(entry.movie.gradient) }}
                     aria-label={entry.movie.title}
                     draggable={false}
@@ -351,7 +352,7 @@ function ListDetailPage({ detail }: { detail: Detail }) {
                     {entry.movie.posterUrl && (
                       <img
                         className={styles.thumbImg}
-                        src={entry.movie.posterUrl}
+                        src={posterAt(entry.movie.posterUrl, 'w185')}
                         alt=""
                         loading="lazy"
                         draggable={false}
@@ -437,7 +438,7 @@ function ListDetailPage({ detail }: { detail: Detail }) {
                         {list.posterId > 0 && similarMovieOf(list.posterId).posterUrl && (
                           <img
                             className={styles.thumbImg}
-                            src={similarMovieOf(list.posterId).posterUrl}
+                            src={posterAt(similarMovieOf(list.posterId).posterUrl, 'w92')}
                             alt=""
                             loading="lazy"
                             onError={(event) => {

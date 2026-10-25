@@ -235,6 +235,104 @@
   background: var(--surface-white);
   box-shadow: var(--elevation-soft);
   list-style: none;
+  /* Three results (50px rows) show at a time; the rest scroll inside the dropdown. */
+  max-height: calc(3 * 50px + 12px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-subtle) transparent;
+}
+
+/* A thin bar sweeping along the top of the dropdown while a search runs. */
+.searching {
+  position: sticky;
+  z-index: 1;
+  top: -6px;
+  overflow: hidden;
+  height: 3px;
+  margin: -3px 4px 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-violet-tint);
+}
+
+.searching::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  border-radius: inherit;
+  background: var(--ground-violet);
+  animation: search-bar 1s ease-in-out infinite;
+}
+
+@keyframes search-bar {
+  from {
+    translate: -100% 0;
+  }
+
+  to {
+    translate: 250% 0;
+  }
+}
+
+/* Placeholder rows shaped like results, shimmering until the first answer arrives. */
+.skeleton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 50px;
+  padding: 8px 10px;
+}
+
+.skeletonThumb,
+.skeletonLine,
+.thumbLoading {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-cream-deep) !important;
+}
+
+.skeletonThumb {
+  flex-shrink: 0;
+  width: 24px;
+  height: 34px;
+  border-radius: 6px;
+}
+
+.skeletonLine {
+  width: 55%;
+  height: 12px;
+  border-radius: var(--radius-pill);
+}
+
+.skeleton:nth-child(odd) .skeletonLine {
+  width: 40%;
+}
+
+.skeletonThumb::after,
+.skeletonLine::after,
+.thumbLoading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.7) 50%, transparent 80%);
+  translate: -100% 0;
+  animation: sweep 1.3s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  to {
+    translate: 100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .searching::after,
+  .skeletonThumb::after,
+  .skeletonLine::after,
+  .thumbLoading::after {
+    animation: none;
+  }
 }
 
 .result {
