@@ -2,8 +2,8 @@
 
 namespace App\Genre\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Genre\InterfaceServices\GenreServiceInterface;
+use App\Support\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 

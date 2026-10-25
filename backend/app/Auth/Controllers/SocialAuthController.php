@@ -9,7 +9,7 @@ use App\Auth\Exceptions\UnverifiedProviderEmail;
 use App\Auth\InterfaceServices\SocialAuthServiceInterface;
 use App\Auth\Support\AuthCookies;
 use App\Auth\Support\GooglePhoto;
-use App\Http\Controllers\Controller;
+use App\Support\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;

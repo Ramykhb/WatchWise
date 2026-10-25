@@ -3,8 +3,8 @@
 namespace App\Watchlist\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
-use App\Http\Controllers\Controller;
 use App\Models\Watchlist;
+use App\Support\Controller;
 use App\Watchlist\FormRequests\StoreWatchlistRequest;
 use App\Watchlist\FormRequests\UpdateWatchlistRequest;
 use App\Watchlist\InterfaceServices\WatchlistServiceInterface;

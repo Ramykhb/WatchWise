@@ -2,11 +2,11 @@
 
 namespace App\Movie\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Movie\FormRequests\MovieDiscoverRequest;
 use App\Movie\FormRequests\MovieListRequest;
 use App\Movie\FormRequests\MovieSearchRequest;
 use App\Movie\InterfaceServices\MovieServiceInterface;
+use App\Support\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 

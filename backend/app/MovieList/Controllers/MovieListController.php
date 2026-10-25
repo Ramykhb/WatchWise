@@ -3,13 +3,13 @@
 namespace App\MovieList\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
-use App\Http\Controllers\Controller;
 use App\Models\MovieList;
 use App\MovieList\FormRequests\MovieListIndexRequest;
 use App\MovieList\FormRequests\StoreMovieListRequest;
 use App\MovieList\FormRequests\UpdateMovieListRequest;
 use App\MovieList\InterfaceServices\MovieListServiceInterface;
 use App\MovieList\Resources\MovieListResource;
+use App\Support\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 

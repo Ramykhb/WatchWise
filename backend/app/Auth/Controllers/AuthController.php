@@ -10,7 +10,7 @@ use App\Auth\FormRequests\LoginRequest;
 use App\Auth\FormRequests\RegisterRequest;
 use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Auth\Support\AuthCookies;
-use App\Http\Controllers\Controller;
+use App\Support\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 

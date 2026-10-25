@@ -3,7 +3,7 @@
 namespace App\Docs\Controllers;
 
 use App\Docs\Services\OpenApiSpec;
-use App\Http\Controllers\Controller;
+use App\Support\Controller;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 

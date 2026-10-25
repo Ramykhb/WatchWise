@@ -4,8 +4,8 @@ namespace App\User\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Auth\Support\AuthCookies;
-use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\Controller;
 use App\User\FormRequests\DeleteAccountRequest;
 use App\User\FormRequests\UpdatePasswordRequest;
 use App\User\FormRequests\UpdatePreferencesRequest;
