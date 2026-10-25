@@ -2,14 +2,13 @@
 
 namespace App\Weather\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Weather\FormRequests\WeatherMoodRequest;
 use App\Weather\FormRequests\WeatherRequest;
 use App\Weather\InterfaceServices\WeatherMoodServiceInterface;
 use App\Weather\InterfaceServices\WeatherServiceInterface;
 use Illuminate\Http\JsonResponse;
 
-class WeatherController extends Controller
+class WeatherController
 {
     public function __construct(
         private readonly WeatherServiceInterface $weather,

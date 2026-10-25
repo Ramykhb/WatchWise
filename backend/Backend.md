@@ -1,6 +1,6 @@
 # Backend Overview
 
-What each module does. Paths are relative to `backend/`. The backend is split into modules under `app/`: `Auth`, `Tmdb`, `Gemini`, `Groq`, `Weather` and `MovieRecommendation`. Everything up to "Tests" describes the Auth module, and each other module has its own section after it.
+What each module does. Paths are relative to `backend/`. The backend is split into modules under `app/`: `Auth`, `Genre`, `Movie`, `Gemini`, `Groq`, `Weather` and `MovieRecommendation`. Everything up to "Tests" describes the Auth module, and each other module has its own section after it.
 
 ## Contents
 
@@ -23,7 +23,7 @@ What each module does. Paths are relative to `backend/`. The backend is split in
 - [Authorization](#authorization)
 - [Wiring](#wiring)
 - [Tests](#tests)
-- [Tmdb module](#tmdb-module)
+- [Genre and Movie modules](#genre-and-movie-modules)
 - [Gemini module](#gemini-module)
 - [Groq module](#groq-module)
 - [Weather module](#weather-module)
@@ -125,7 +125,7 @@ Copy `.env.example` to `.env` (it is gitignored) and set:
 | `FRONTEND_URL` | Where emails link to and where the social login redirects. Also the CORS origin |
 | `MAIL_*` | SMTP settings for the verification and reset emails. For local work, `MAIL_MAILER=log` writes emails to `storage/logs/laravel.log` instead of sending them |
 | `GOOGLE_*`, `GITHUB_*` | OAuth client id, secret and redirect URI. The redirect URI must match the callback route, for example `http://localhost:8000/api/auth/social/google/callback` |
-| `TMDB_API_KEY` | Needed by the Tmdb module. `TMDB_URL` and `TMDB_IMAGE_URL` have defaults |
+| `TMDB_API_KEY` | Needed by the Genre and Movie modules. `TMDB_URL` and `TMDB_IMAGE_URL` have defaults |
 | `GROQ_API_KEY` | Needed by weather mood. `GROQ_MODEL` defaults to `openai/gpt-oss-20b`; `GROQ_API_URL` has a default |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Needed by movie recommendations. `GEMINI_URL` has a default |
 | `OPEN_METEO_*` | Optional. The URL, default location and timezone have defaults in `config/services.php` |
@@ -144,7 +144,7 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `auth-resend-verification`, `auth-forgot-password` | `AuthModuleServiceProvider` | 3 | the matching auth route |
 | `ai` | `GeminiModuleServiceProvider` | 10 | `POST /api/weather-mood`, `GET /api/movie-recommendations` (both call paid AI APIs) |
 | `weather` | `WeatherModuleServiceProvider` | 30 | `GET /api/weather` |
-| `tmdb` | `TmdbModuleServiceProvider` | 60 | the five TMDB routes |
+| `tmdb` | `AppServiceProvider` | 60 | the five TMDB routes |
 
 Each auth limiter is checked in two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket. The other limiters count per IP.
 
@@ -226,7 +226,7 @@ All in `app/Auth/Middleware/`.
 Each module keeps its Laravel form requests in a `FormRequests/` folder:
 
 - `app/Auth/FormRequests/`: `RegisterRequest`, `LoginRequest`, `ForgotPasswordRequest`, `ResetPasswordRequest`, `ResendVerificationRequest`.
-- `app/Tmdb/FormRequests/`: `MovieListRequest`, `MovieSearchRequest`, `MovieDiscoverRequest`.
+- `app/Movie/FormRequests/`: `MovieListRequest`, `MovieSearchRequest`, `MovieDiscoverRequest`.
 
 A form request checks the incoming HTTP request before the controller runs, and turns it into a clean object for the service.
 
@@ -278,16 +278,18 @@ In `app/Auth/Exceptions/`. Services throw them and controllers turn them into re
 | --- | --- |
 | `app/Providers/AuthorizationServiceProvider.php` | Maps models to policies, binds the guest as the default current user, makes the Gate use `CurrentUser` |
 
-Policies stay in `app/Policies/` because each belongs to the entity it protects:
+Most policies stay in `app/Policies/` because each belongs to the entity it protects. The Movie List, Movie Night, Watchlist and User policies live in their own module folders (`app/MovieList/Policies/`, `app/MovieNight/Policies/`, `app/Watchlist/Policies/`, `app/User/Policies/`):
 
 | Policy | Rule |
 | --- | --- |
-| `ReviewPolicy`, `WatchlistPolicy`, `UserPreferencePolicy` | Owner-based access |
-| `MovieListPolicy`, `MovieListItemPolicy` | Private lists are visible to their owner only |
-| `MovieNightPolicy` | Organizer and invitees can view a night; only the organizer can change it |
+| `ReviewPolicy` | Owner-based access |
+| `UserPreferencePolicy` (`app/User/Policies/`) | Owner-based access |
+| `WatchlistPolicy` (`app/Watchlist/Policies/`) | Owner-based access |
+| `MovieListPolicy`, `MovieListItemPolicy` (`app/MovieList/Policies/`) | Private lists are visible to their owner only |
+| `MovieNightPolicy` (`app/MovieNight/Policies/`) | Organizer and invitees can view a night; only the organizer can change it |
 | `MessagePolicy` | Authenticated users can read and post in discussion rooms; author edits, author or admin deletes |
 | `NotificationPolicy` | Access to notifications |
-| `UserPolicy` | Private profiles are visible to the owner and admins |
+| `UserPolicy` (`app/User/Policies/`) | Private profiles are visible to the owner and admins |
 
 ## Wiring
 
@@ -307,23 +309,32 @@ Policies stay in `app/Policies/` because each belongs to the entity it protects:
 | `tests/Feature/Auth/Repository/` | Each repository against the database |
 | `tests/Unit/Auth/` | Each service with fake repositories, and `UserResponse` matching the model's JSON |
 
-## Tmdb module
+## Genre and Movie modules
 
-`app/Tmdb/` uses the same layers as Auth. TMDB has no database, so the repositories call the TMDB web API instead of Eloquent.
+`app/Genre/` and `app/Movie/` use the same layers as Auth. TMDB has no database, so the repositories call the TMDB web API instead of Eloquent. Movie uses Genre's `GenreResponse`.
 
 ```
-app/Tmdb/
-  Controllers/          MovieController, GenreController
+app/Genre/
+  Controllers/          GenreController
+  InterfaceServices/    GenreServiceInterface
+  Services/             GenreService (maps TMDB data to DTOs, caches genres for a day)
+  InterfaceRepository/  GenreRepositoryInterface
+  Repository/           GenreRepository
+  DTOs/Responses/       GenreResponse
+  Providers/            GenreModuleServiceProvider (interface bindings)
+app/Movie/
+  Controllers/          MovieController
   FormRequests/         MovieListRequest, MovieSearchRequest, MovieDiscoverRequest
-  InterfaceServices/    MovieServiceInterface, GenreServiceInterface
-  Services/             MovieService, GenreService (maps TMDB data to DTOs, caches genres for a day)
-  InterfaceRepository/  MovieRepositoryInterface, GenreRepositoryInterface
-  Repository/           MovieRepository, GenreRepository (the only code that talks to TMDB)
+  InterfaceServices/    MovieServiceInterface
+  Services/             MovieService
+  InterfaceRepository/  MovieRepositoryInterface
+  Repository/           MovieRepository
   DTOs/Requests/        MovieListQuery, MovieSearchQuery, MovieDiscoverQuery
-  DTOs/Responses/       MovieResponse, MoviePageResponse, GenreResponse, MovieDetailsResponse (+ CastMemberResponse, PersonResponse, TrailerResponse)
-  Support/              TmdbHttpClient (adds the API key, timeout, wraps failures)
-  Exceptions/           TmdbUnavailable (renders a fixed 502 so TMDB's own error never reaches the client), TmdbNotFound (TMDB answered 404), MovieNotFound (renders 404 "Movie not found.")
-  Providers/            TmdbModuleServiceProvider (interface bindings)
+  DTOs/Responses/       MovieResponse, MoviePageResponse, MovieDetailsResponse (+ CastMemberResponse, PersonResponse, TrailerResponse)
+  Exceptions/           MovieNotFound (renders 404 "Movie not found.")
+  Providers/            MovieModuleServiceProvider (interface bindings)
+app/Support/            Shared by both: TmdbHttpClient (adds the API key, timeout, wraps failures)
+  Exceptions/           TmdbUnavailable (renders a fixed 502 so TMDB's own error never reaches the client), TmdbNotFound (TMDB answered 404)
 ```
 
 | Endpoint | Purpose |
@@ -340,7 +351,98 @@ app/Tmdb/
 - Ratings are converted from TMDB's 0 to 10 scale to 0 to 5. Adult content is always excluded.
 - Setup: set `TMDB_API_KEY` in `.env`. `TMDB_URL` and `TMDB_IMAGE_URL` have working defaults in `config/services.php`.
 - Routes are in `routes/api.php` and the config is the `tmdb` entry in `config/services.php`.
-- Tests: `tests/Feature/Tmdb/` (the endpoints and `Repository/`) and `tests/Unit/Tmdb/` (the services).
+- Tests: `tests/Feature/Movie/`, `tests/Feature/Genre/` and `tests/Feature/Support/` (the endpoints, repositories and `TmdbHttpClient`), and `tests/Unit/Movie/` and `tests/Unit/Genre/` (the services).
+
+## MovieList and MovieNight modules
+
+`app/MovieList/` and `app/MovieNight/` use the same layers as Auth. Their Eloquent models stay in `app/Models/`, and `MovieListResource` stays in `app/MovieList/Resources/` because the profile also uses it.
+
+```
+app/MovieList/
+  Controllers/          MovieListController
+  FormRequests/         MovieListIndexRequest, StoreMovieListRequest, UpdateMovieListRequest
+  InterfaceServices/    MovieListServiceInterface
+  Services/             MovieListService (transactions)
+  InterfaceRepository/  MovieListRepositoryInterface
+  Repository/           MovieListRepository (scopes, search, syncing films)
+  DTOs/Requests/        MovieListSearchQuery, CreateMovieListData, UpdateMovieListData
+  Resources/            MovieListResource
+  Policies/             MovieListPolicy, MovieListItemPolicy
+  Providers/            MovieListModuleServiceProvider (interface bindings)
+app/MovieNight/
+  Controllers/          MovieNightController
+  FormRequests/         StoreMovieNightRequest, UpdateMovieNightRequest, InviteGuestsRequest, RsvpRequest, VoteRequest
+  InterfaceServices/    MovieNightServiceInterface
+  Services/             MovieNightService (invites, RSVPs, votes)
+  InterfaceRepository/  MovieNightRepositoryInterface
+  Repository/           MovieNightRepository
+  DTOs/Requests/        CreateMovieNightData, UpdateMovieNightData, InviteGuestsData, RsvpData, VoteData
+  DTOs/Responses/       MovieNightResponse, MovieNightOverviewResponse
+  Exceptions/           NotInvitedToMovieNight (403), DeclinedGuestCannotVote (403), VotingClosed (422)
+  Policies/             MovieNightPolicy
+  Providers/            MovieNightModuleServiceProvider (interface bindings)
+```
+
+- The routes did not change (`/api/lists` and `/api/movie-nights`, in `routes/social.php`).
+- The form requests run the policy check in `authorize()`, so a forbidden request is rejected before validation, as before.
+- `GET /api/lists` with an unknown `scope` now fails validation (422 with an `errors` object) instead of returning the message "Unknown scope.".
+- Tests: `tests/Feature/Social/ContentTest.php` and `tests/Feature/Social/MovieNightRulesTest.php`.
+
+## Watchlist module
+
+`app/Watchlist/` uses the same layers as Auth. The user's want-to-watch list and watch history are the same rows: a film with status `watched` is history. The `Watchlist` model stays in `app/Models/`.
+
+```
+app/Watchlist/
+  Controllers/          WatchlistController
+  FormRequests/         StoreWatchlistRequest, UpdateWatchlistRequest
+  InterfaceServices/    WatchlistServiceInterface
+  Services/             WatchlistService (sets watched_at from the status)
+  InterfaceRepository/  WatchlistRepositoryInterface
+  Repository/           WatchlistRepository
+  DTOs/Requests/        AddToWatchlistData, UpdateWatchlistStatusData
+  DTOs/Responses/       WatchlistResponse, WatchlistItemResponse, AddToWatchlistResponse
+  Policies/             WatchlistPolicy
+  Providers/            WatchlistModuleServiceProvider (interface bindings)
+```
+
+- The routes did not change (`/api/watchlist`, in `routes/social.php`).
+- `POST /api/watchlist` answers 201 for a new film and 200 when the film was already there.
+- Tests: `tests/Feature/Social/ContentTest.php` and `tests/Feature/Social/WatchlistRulesTest.php`.
+
+## User module
+
+`app/User/` holds everything about the person behind the account, in the same layers as Auth: their own account (`/api/me`), public profiles and following (`/api/users`) and the Home page (`/api/home`). The `User`, `UserPreference` and `Follow` models stay in `app/Models/`. Sign-in, registration and tokens stay in the Auth module.
+
+```
+app/User/
+  Controllers/          UserController (account under /me, profiles and following under /users, and /home)
+  FormRequests/         UpdateProfileRequest, UpdatePreferencesRequest, UpdatePasswordRequest, UploadAvatarRequest, DeleteAccountRequest, UserSearchRequest
+  InterfaceServices/    AccountServiceInterface, ProfileServiceInterface, HomeServiceInterface
+  Services/             AccountService (settings, password, avatar, delete), ProfileService (search, profile page, follow), HomeService, ProfilePrivacy (what a viewer may see of a profile)
+  InterfaceRepository/  AccountRepositoryInterface, ProfileRepositoryInterface, HomeRepositoryInterface
+  Repository/           AccountRepository, ProfileRepository, HomeRepository
+  DTOs/Requests/        UpdateProfileData, UpdatePreferencesData, ChangePasswordData, DeleteAccountData, UserSearchQuery
+  DTOs/Responses/       AccountResponse, ProfileResponse, UserSearchResponse, FollowResponse, HomeResponse
+  Resources/            MemberResource (the small public card of a user, used by many modules)
+  Exceptions/           IncorrectPassword (422 on the wrong field), ProfileSectionHidden (403)
+  Policies/             UserPolicy, UserPreferencePolicy
+  Providers/            UserModuleServiceProvider (interface bindings)
+```
+
+- The routes did not change (`routes/social.php`).
+- `ProfilePrivacy` decides what a viewer may see of a profile.
+- Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php` and `AccountRulesTest.php`.
+
+## Removed code
+
+`app/Http/` and `app/Services/` no longer exist. The base `Controller` class is gone too (controllers are plain classes), and so is everything that only lived in those two folders:
+
+- the notifications API (`/api/notifications`) and the `Notifier` that created notifications when someone followed, invited, voted or mentioned another user;
+- the discussion rooms API (`/api/rooms`);
+- the activity feed (`ActivityFeedService`), so `/api/home` no longer returns `activity` and `/api/users/{username}` no longer returns `activity` or the `reviews` list (the `counts.reviews` number is still there).
+
+The database tables, models and policies for notifications, rooms, messages, reviews and the activity feed are still in place (`app/Models/`, `app/Policies/`, the migrations), so no data was dropped. `/api/home` still returns the busiest rooms and the next movie night.
 
 ## Gemini module
 

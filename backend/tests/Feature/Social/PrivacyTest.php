@@ -6,16 +6,12 @@ use App\Models\MovieNight;
 use App\Models\Review;
 use App\Models\User;
 use App\Models\UserPreference;
-use App\Services\ActivityFeedService;
 
 class PrivacyTest extends SocialTestCase
 {
     private function review(User $user, int $tmdbId, int $rating, bool $approved = true): Review
     {
-        $review = Review::create(['user_id' => $user->id, 'tmdb_id' => $tmdbId, 'rating' => $rating, 'content' => 'Good', 'sentiment' => 'positive', 'is_approved' => $approved]);
-        app(ActivityFeedService::class)->record($user, 'review', $review, $tmdbId);
-
-        return $review;
+        return Review::create(['user_id' => $user->id, 'tmdb_id' => $tmdbId, 'rating' => $rating, 'content' => 'Good', 'sentiment' => 'positive', 'is_approved' => $approved]);
     }
 
     private function hide(User $user, array $sections): void
@@ -36,8 +32,7 @@ class PrivacyTest extends SocialTestCase
             ->assertJsonPath('user.location', null)
             ->assertJsonPath('user.avatar', null)
             ->assertJsonPath('user.member_since', null)
-            ->assertJsonPath('counts', null)
-            ->assertJsonMissingPath('activity');
+            ->assertJsonPath('counts', null);
     }
 
     public function test_hidden_sections_are_removed_from_the_profile(): void
@@ -52,10 +47,8 @@ class PrivacyTest extends SocialTestCase
         $this->as($viewer)->getJson("/api/users/{$owner->username}")
             ->assertOk()
             ->assertJsonPath('top4', [])
-            ->assertJsonPath('reviews', [])
             ->assertJsonPath('followers', [])
             ->assertJsonPath('following', [])
-            ->assertJsonPath('activity', [])
             ->assertJsonPath('counts.reviews', null)
             ->assertJsonPath('counts.following', null)
             ->assertJsonPath('counts.followers', 1);
@@ -64,7 +57,7 @@ class PrivacyTest extends SocialTestCase
         // The owner still sees everything.
         $this->as($owner)->getJson("/api/users/{$owner->username}")
             ->assertJsonPath('top4', [1001])
-            ->assertJsonCount(1, 'reviews')
+            ->assertJsonPath('counts.reviews', 1)
             ->assertJsonCount(1, 'followers');
     }
 
@@ -75,31 +68,11 @@ class PrivacyTest extends SocialTestCase
         $this->review($owner, 1003, 4, approved: false);
 
         $this->as($viewer)->getJson("/api/users/{$owner->username}")
-            ->assertJsonPath('reviews', [])
-            ->assertJsonPath('activity', [])
             ->assertJsonPath('top4', [])
             ->assertJsonPath('counts.reviews', 0);
         $this->as($owner)->getJson("/api/users/{$owner->username}")
-            ->assertJsonCount(1, 'reviews')
-            ->assertJsonCount(1, 'activity');
-    }
-
-    public function test_home_feed_uses_current_privacy_settings(): void
-    {
-        $me = User::factory()->create();
-        $friend = User::factory()->create();
-        $me->following()->attach($friend->id);
-        $this->review($friend, 1002, 5);
-        $this->as($me)->getJson('/api/home')->assertJsonCount(1, 'activity');
-
-        // Hiding reviews later removes the old activity too.
-        $this->hide($friend, ['reviews']);
-        $this->as($me)->getJson('/api/home')->assertJsonCount(0, 'activity');
-
-        // So does making the whole profile private.
-        UserPreference::where('user_id', $friend->id)->delete();
-        $friend->forceFill(['profile_visibility' => 'private'])->save();
-        $this->as($me)->getJson('/api/home')->assertJsonCount(0, 'activity');
+            ->assertJsonPath('top4', [1003])
+            ->assertJsonPath('counts.reviews', 1);
     }
 
     public function test_votes_are_rejected_once_voting_is_closed_or_cancelled(): void

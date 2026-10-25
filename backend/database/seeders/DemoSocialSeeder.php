@@ -8,8 +8,6 @@ use App\Models\MovieNight;
 use App\Models\Review;
 use App\Models\User;
 use App\Models\UserPreference;
-use App\Services\ActivityFeedService;
-use App\Services\Notifier;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -39,7 +37,7 @@ class DemoSocialSeeder extends Seeder
 
     private const RED_SIGNAL = 1008;
 
-    public function run(ActivityFeedService $activity, Notifier $notifier): void
+    public function run(): void
     {
         $password = Hash::make('watchwise1');
         $member = function (string $username, string $name, string $bio, string $location, string $since) use ($password) {
@@ -85,13 +83,10 @@ class DemoSocialSeeder extends Seeder
         }
 
         // Lists.
-        $list = function (User $owner, string $title, string $description, bool $public, array $films) use ($activity) {
+        $list = function (User $owner, string $title, string $description, bool $public, array $films) {
             $list = MovieList::firstOrCreate(['user_id' => $owner->id, 'title' => $title], ['description' => $description, 'is_public' => $public]);
             foreach ($films as $position => $tmdbId) {
                 $list->items()->updateOrCreate(['tmdb_id' => $tmdbId], ['position' => $position]);
-            }
-            if ($list->wasRecentlyCreated) {
-                $activity->record($owner, 'list_created', $list, null, $public);
             }
 
             return $list;
@@ -104,11 +99,8 @@ class DemoSocialSeeder extends Seeder
         $list($omar, 'Under 90 Minutes', 'Tight, lean, no filler.', true, [self::RED_SIGNAL, self::PAPER_MOON, self::WILD_FERN]);
 
         // Watchlists and watch history.
-        $watch = function (User $user, int $tmdbId, string $status, ?string $watchedAt = null) use ($activity) {
-            $item = $user->watchlists()->updateOrCreate(['tmdb_id' => $tmdbId], ['status' => $status, 'watched_at' => $watchedAt]);
-            if ($item->wasRecentlyCreated) {
-                $activity->record($user, 'watchlist_add', $item, $tmdbId, $user->shares('watchlist'));
-            }
+        $watch = function (User $user, int $tmdbId, string $status, ?string $watchedAt = null) {
+            $user->watchlists()->updateOrCreate(['tmdb_id' => $tmdbId], ['status' => $status, 'watched_at' => $watchedAt]);
         };
         foreach ([self::DEEP_BLUE, self::STARDUST, self::VELVET_HOUR, self::RED_SIGNAL] as $tmdbId) {
             $watch($maya, $tmdbId, 'to_watch');
@@ -124,14 +116,11 @@ class DemoSocialSeeder extends Seeder
         $watch($rana, self::STARDUST, 'to_watch');
 
         // Reviews (approved so they show on movie pages later).
-        $review = function (User $user, int $tmdbId, int $rating, string $content, string $sentiment = 'positive') use ($activity) {
-            $review = Review::firstOrCreate(
+        $review = function (User $user, int $tmdbId, int $rating, string $content, string $sentiment = 'positive') {
+            Review::firstOrCreate(
                 ['user_id' => $user->id, 'tmdb_id' => $tmdbId],
                 ['rating' => $rating, 'content' => $content, 'sentiment' => $sentiment, 'is_approved' => true],
             );
-            if ($review->wasRecentlyCreated) {
-                $activity->record($user, 'review', $review, $tmdbId);
-            }
         };
         $review($maya, self::NEON_TIDE, 5, 'The ocean scenes alone are worth it. I cried twice and would happily cry again.');
         $review($maya, self::PAPER_MOON, 4, 'Light, quick and genuinely funny — the perfect Friday film.');
@@ -153,7 +142,7 @@ class DemoSocialSeeder extends Seeder
 
             return $room;
         };
-        $neonRoom = $room('Neon Tide — ending explained', self::NEON_TIDE, $jad, true, [
+        $room('Neon Tide — ending explained', self::NEON_TIDE, $jad, true, [
             [$jad, 'Okay so the lighthouse scene — was she actually back in 2019 or is the current just replaying the memory?'],
             [$lina, "Replaying! The colour grading switches to the cooler palette every time it's a memory."],
             [$maya, 'YES. And the final shot is warm again, which means she chose the present.'],
@@ -190,7 +179,6 @@ class DemoSocialSeeder extends Seeder
             $scifi->candidates()->create(['tmdb_id' => self::STARDUST, 'added_by' => $omar->id]);
             foreach ([$maya, $jad] as $guest) {
                 $scifi->invites()->create(['user_id' => $guest->id]);
-                $notifier->invited($omar, $guest, $scifi);
             }
 
             $comedy = MovieNight::create(['organizer_id' => $maya->id, 'title' => 'Comedy Night', 'scheduled_at' => now()->addDays(12)->setTime(21, 0), 'meeting_link' => 'https://meet.watchwise.app/comedy']);
@@ -200,14 +188,6 @@ class DemoSocialSeeder extends Seeder
                 $comedy->invites()->create(['user_id' => $guest->id, 'status' => $status]);
             }
             $comedy->votes()->create(['user_id' => $jad->id, 'tmdb_id' => self::PAPER_MOON]);
-
-            // A few notifications between members.
-            $notifier->followed($lina, $maya);
-            $notifier->followed($jad, $maya);
-            $mention = $neonRoom->messages()->create(['user_id' => $jad->id, 'content' => '@maya you called the lighthouse thing before anyone.']);
-            $notifier->mentioned($jad, $neonRoom, $mention);
-            $notifier->answered($jad, $comedy, 'accepted');
-            $notifier->voted($jad, $comedy);
         }
     }
 
