@@ -20,7 +20,7 @@ import { apiErrorMessage } from '../../lib/auth.ts'
 import { PICKABLE_MOVIES, tmdbIdOf } from '../../lib/movies.ts'
 import type { ApiMessage, ApiRoom } from '../../lib/types.ts'
 import { gradientCss } from '../Home/homeData.ts'
-import { EMOJIS, channelName, toMessages, toRoom, type Member } from './roomsData.ts'
+import { EMOJIS, channelName, rulesFor, toMessages, toRoom, type Member } from './roomsData.ts'
 import styles from './Rooms.module.css'
 
 /** How often an open room checks for new messages (no real-time channel yet). */
@@ -154,21 +154,16 @@ export default function Rooms() {
     setShowMenu(false)
   }
 
-  if (!room) {
-    return (
-      <div ref={pageRef} className={styles.page}>
-        <AppNav />
-        <p className={styles.noRooms} role="status">
-          {roomsQuery.loading ? 'Loading rooms…' : 'No rooms yet.'}
-        </p>
-      </div>
-    )
-  }
+  // With no rooms (or while they load) the page keeps its normal layout: each column shows an empty state.
+  const loadingRooms = roomsQuery.loading && rooms.length === 0
+  const openCreate = () => setCreating(true)
 
-  const isMuted = muted.includes(room.id)
+  const isMuted = room ? muted.includes(room.id) : false
   const isMine = (member: Member) => member.id === user?.id
   // Everyone who has posted, host first; there is no presence channel yet.
-  const people = [room.host, ...room.members].filter((m, i, list): m is Member => m !== null && list.findIndex((x) => x?.id === m.id) === i)
+  const people = room
+    ? [room.host, ...room.members].filter((m, i, list): m is Member => m !== null && list.findIndex((x) => x?.id === m.id) === i)
+    : []
 
   return (
     <div ref={pageRef} className={styles.page}>
@@ -213,7 +208,7 @@ export default function Rooms() {
                 <button
                   type="button"
                   className={styles.roomItem}
-                  aria-current={r.id === room.id ? 'true' : undefined}
+                  aria-current={r.id === room?.id ? 'true' : undefined}
                   onClick={() => openRoom(r.id)}
                 >
                   <span className={styles.roomThumb} style={{ background: gradientCss(r.movie.gradient) }} aria-hidden="true" />
@@ -231,10 +226,111 @@ export default function Rooms() {
                 </button>
               </li>
             ))}
-            {visibleRooms.length === 0 && <li className={styles.noRooms}>No rooms match “{query}”.</li>}
+            {loadingRooms && (
+              <li className={styles.noRooms} role="status">
+                Loading rooms…
+              </li>
+            )}
+            {!loadingRooms && rooms.length === 0 && (
+              <li className={styles.emptyList}>
+                <p className={styles.emptyListTitle}>No rooms yet</p>
+                <p className={styles.noRooms}>Start one about a film and invite people to talk about it.</p>
+                {!creating && (
+                  <PillButton variant="soft" onClick={openCreate}>
+                    Create a room
+                  </PillButton>
+                )}
+              </li>
+            )}
+            {rooms.length > 0 && visibleRooms.length === 0 && <li className={styles.noRooms}>No rooms match “{query}”.</li>}
           </ul>
         </aside>
 
+        {!room && (
+          <section className={styles.chat} aria-labelledby="room-title" data-enter data-enter-delay="0.15">
+            <header className={styles.chatHead}>
+              <span className={`${styles.chatThumb} ${styles.thumbPlaceholder}`} aria-hidden="true" />
+              <div className={styles.chatTitle}>
+                <h2 id="room-title">{loadingRooms ? 'Loading rooms…' : 'No room open'}</h2>
+                <p className={styles.live}>Rooms are live chats about a film.</p>
+              </div>
+            </header>
+
+            <div className={styles.messages}>
+              {loadingRooms ? (
+                <p className={styles.system}>
+                  <span>Loading rooms…</span>
+                </p>
+              ) : (
+                <div className={styles.emptyChat}>
+                  <p className={styles.emptyChatTitle}>Start the first conversation</p>
+                  <p className={styles.emptyChatText}>
+                    Create a room for a film: an ending to explain, a theory to argue, or a watch-along tonight.
+                  </p>
+                  <PillButton onClick={openCreate}>Create a room</PillButton>
+                </div>
+              )}
+            </div>
+
+            {/* The composer keeps its place, disabled until there is a room to write in. */}
+            <div className={styles.composer} aria-hidden="true">
+              <div className={`${styles.inputWrap} ${styles.composerDisabled}`}>
+                <span className={styles.iconBtn}>
+                  <img src={smileIcon} width={20} height={20} alt="" />
+                </span>
+                <input className={styles.input} placeholder="Create a room to start chatting…" disabled tabIndex={-1} />
+                <span className={styles.iconBtn}>
+                  <img src={clipIcon} width={20} height={20} alt="" />
+                </span>
+              </div>
+              <button type="button" className={styles.send} disabled tabIndex={-1}>
+                <img src={sendIcon} width={22} height={22} alt="" />
+              </button>
+            </div>
+          </section>
+        )}
+
+        {!room && (
+          <aside className={styles.info} aria-label="Room info" data-enter data-enter-delay="0.25">
+            <section className={styles.movie}>
+              <div className={styles.movieRow}>
+                <span className={`${styles.moviePoster} ${styles.thumbPlaceholder}`} aria-hidden="true" />
+                <div className={styles.movieText}>
+                  <p className={styles.movieTitle}>No movie yet</p>
+                  <p className={styles.movieMeta}>Each room is about one film. You pick it when you create the room.</p>
+                </div>
+              </div>
+              <PillButton variant="accent" to="/discover">
+                Browse movies
+              </PillButton>
+            </section>
+
+            <section className={styles.rules} aria-labelledby="rules-title">
+              <h3 id="rules-title" className={styles.cardTitle}>
+                <img src={shieldIcon} width={18} height={18} alt="" />
+                Room rules
+              </h3>
+              <ul>
+                {rulesFor(false).map((rule) => (
+                  <li key={rule}>
+                    <img src={checkIcon} width={14} height={14} alt="" />
+                    {rule}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section className={styles.online} aria-labelledby="online-title">
+              <h3 id="online-title" className={styles.cardTitle}>
+                In this room · 0
+              </h3>
+              <p className={styles.noRooms}>No one here yet.</p>
+            </section>
+          </aside>
+        )}
+
+        {room && (
+        <>
         <section className={styles.chat} aria-labelledby="room-title" data-enter data-enter-delay="0.15">
           <header className={styles.chatHead}>
             <span className={styles.chatThumb} style={{ background: gradientCss(room.movie.gradient) }} aria-hidden="true" />
@@ -417,6 +513,8 @@ export default function Rooms() {
             </ul>
           </section>
         </aside>
+        </>
+        )}
       </main>
     </div>
   )
