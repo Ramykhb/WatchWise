@@ -226,6 +226,65 @@
   color: var(--ink-400);
 }
 
+/* ---------- Empty states (no rooms yet) ---------- */
+.emptyList {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 16px 12px;
+  border-radius: 18px;
+  background: var(--ground-cream);
+}
+
+.emptyList .noRooms {
+  padding: 0 0 8px;
+  line-height: 1.5;
+}
+
+.emptyListTitle {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ink-900);
+}
+
+/* Stands in for a room or movie poster before there is one. */
+.thumbPlaceholder {
+  background: var(--surface-cream-deep);
+}
+
+.emptyChat {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  max-width: 420px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.emptyChatTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
+}
+
+.emptyChatText {
+  margin-bottom: 8px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+.composerDisabled {
+  opacity: 0.55;
+}
+
 /* ---------- Chat ---------- */
 .chat {
   display: flex;
