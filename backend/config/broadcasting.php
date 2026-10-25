@@ -10,14 +10,14 @@ return [
             'app_id' => env('REVERB_APP_ID'),
             'options' => [
                 'host' => env('REVERB_HOST', 'localhost'),
-                'port' => env('REVERB_PORT', 8080),
+                'port' => env('REVERB_PORT', 18080),
                 'scheme' => env('REVERB_SCHEME', 'http'),
                 'useTLS' => env('REVERB_SCHEME', 'http') === 'https',
                 'path' => env('REVERB_SERVER_PATH', ''),
             ],
             'public' => [
                 'host' => env('REVERB_PUBLIC_HOST', env('REVERB_HOST', 'localhost')),
-                'port' => (int) env('REVERB_PUBLIC_PORT', env('REVERB_PORT', 8080)),
+                'port' => (int) env('REVERB_PUBLIC_PORT', env('REVERB_PORT', 18080)),
                 'scheme' => env('REVERB_PUBLIC_SCHEME', env('REVERB_SCHEME', 'http')),
             ],
             'client_options' => ['connect_timeout' => 3, 'timeout' => 5],
