@@ -6,8 +6,16 @@
 
 .poster {
   position: absolute;
+  overflow: hidden;
   border: 4px solid var(--surface-white);
   border-radius: 14px;
+}
+
+.image:not([hidden]) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .poster:nth-child(1) {

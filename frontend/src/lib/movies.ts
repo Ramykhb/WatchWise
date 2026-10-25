@@ -35,6 +35,9 @@ export function movieFor(tmdbId: number): Movie {
   )
 }
 
+/** True for the eight demo movies' ids (1001–1008), which have no TMDB details to load. */
+export const isDemoId = (tmdbId: number) => BY_ID.has(tmdbId)
+
 export function tmdbIdOf(movie: Movie): number {
   return DEMO_IDS[movie.slug] ?? Number(movie.slug)
 }

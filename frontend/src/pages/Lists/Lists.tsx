@@ -13,6 +13,7 @@ import trashIcon from '../../assets/lists/icon-trash.svg'
 import plusIcon from '../../assets/lists/icon-plus.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { useApi } from '../../lib/api.ts'
+import { useMovies } from '../../lib/movieDetails.ts'
 import type { ApiList } from '../../lib/types.ts'
 import { toPublicList, type MyList, type PublicList } from './listsData.ts'
 import { deleteList, useMyLists } from './myListsStore.ts'
@@ -29,11 +30,11 @@ const afterMotion = (ms: number) =>
     window.setTimeout(resolve, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : ms),
   )
 
-function PublicListCard({ list }: { list: PublicList }) {
+function PublicListCard({ list, images }: { list: PublicList; images: (string | undefined)[] }) {
   return (
     <Link to={`/lists/${list.slug}`} className={styles.publicCard}>
       <span className={styles.publicCover}>
-        <PosterCollage gradients={list.posters} size="sm" />
+        <PosterCollage gradients={list.posters} images={images} size="sm" />
       </span>
       <span className={styles.publicTitle}>{list.title}</span>
       <span className={styles.publicMeta}>
@@ -66,6 +67,10 @@ export default function Lists() {
   // The card fading out after a successful delete.
   const [leavingId, setLeavingId] = useState<number | null>(null)
   const [toast, setToast] = useState<{ id: number; message: string } | null>(null)
+
+  // The cards' cover posters arrive as TMDB ids; load their images (each film once).
+  const movieOf = useMovies([...myLists, ...publicLists, ...followingLists].flatMap((list) => list.posterIds))
+  const coverImages = (list: { posterIds: number[] }) => list.posterIds.map((id) => movieOf(id).posterUrl)
 
   const confirmDelete = async () => {
     if (!confirming) return
@@ -137,7 +142,7 @@ export default function Lists() {
                   style={{ background: list.cover }}
                   aria-label={`Open ${list.title}`}
                 >
-                  <PosterCollage gradients={list.posters} />
+                  <PosterCollage gradients={list.posters} images={coverImages(list)} />
                 </Link>
                 <div className={styles.titleRow}>
                   <Link to={`/lists/${list.slug}`} className={styles.cardTitle}>
@@ -185,7 +190,7 @@ export default function Lists() {
           <ul className={styles.publicGrid}>
             {(tab === 'public' ? publicLists : followingLists).map((list) => (
               <li key={list.id}>
-                <PublicListCard list={list} />
+                <PublicListCard list={list} images={coverImages(list)} />
               </li>
             ))}
             {(tab === 'public' ? publicLists : followingLists).length === 0 && (
@@ -209,7 +214,7 @@ export default function Lists() {
             <ul className={styles.publicGrid}>
               {publicLists.slice(0, 3).map((list) => (
                 <li key={list.id}>
-                  <PublicListCard list={list} />
+                  <PublicListCard list={list} images={coverImages(list)} />
                 </li>
               ))}
             </ul>
@@ -227,7 +232,7 @@ export default function Lists() {
           title={`Delete “${confirming.list.title}”?`}
           media={
             <span className={styles.dialogCover} style={{ background: confirming.list.cover }}>
-              <PosterCollage gradients={confirming.list.posters} size="sm" />
+              <PosterCollage gradients={confirming.list.posters} images={coverImages(confirming.list)} size="sm" />
             </span>
           }
           message={
