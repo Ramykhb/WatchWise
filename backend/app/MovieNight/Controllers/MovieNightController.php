@@ -3,7 +3,6 @@
 namespace App\MovieNight\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
-use App\Http\Controllers\Controller;
 use App\Models\MovieNight;
 use App\MovieNight\FormRequests\InviteGuestsRequest;
 use App\MovieNight\FormRequests\RsvpRequest;
@@ -11,6 +10,7 @@ use App\MovieNight\FormRequests\StoreMovieNightRequest;
 use App\MovieNight\FormRequests\UpdateMovieNightRequest;
 use App\MovieNight\FormRequests\VoteRequest;
 use App\MovieNight\InterfaceServices\MovieNightServiceInterface;
+use App\Support\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 

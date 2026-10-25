@@ -2,7 +2,7 @@
 
 namespace App\Weather\Controllers;
 
-use App\Http\Controllers\Controller;
+use App\Support\Controller;
 use App\Weather\FormRequests\WeatherMoodRequest;
 use App\Weather\FormRequests\WeatherRequest;
 use App\Weather\InterfaceServices\WeatherMoodServiceInterface;
