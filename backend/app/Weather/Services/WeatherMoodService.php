@@ -18,6 +18,7 @@ class WeatherMoodService implements WeatherMoodServiceInterface
     {
         try {
             $result = $this->groq->ask($this->prompt($query));
+            $mood = is_string($result['mood'] ?? null) ? trim($result['mood']) : '';
         } catch (GroqUnavailable $e) {
             report($e);
 
@@ -25,7 +26,7 @@ class WeatherMoodService implements WeatherMoodServiceInterface
         }
 
         return new WeatherMoodResponse(
-            is_string($result['mood'] ?? null) ? Str::limit($result['mood'], 30, '') : '',
+            $mood,
             is_string($result['description'] ?? null) ? Str::limit($result['description'], 60, '') : '',
         );
     }
@@ -37,11 +38,14 @@ class WeatherMoodService implements WeatherMoodServiceInterface
             ."humidity {$query->humidity}%, wind {$query->wind} km/h, "
             ."precipitation {$query->precipitation} mm. "
             .'Decide the movie mood this weather calls for. '
-            ."'mood' must be a short genre phrase, max 6 words (example style: Cozy thrillers & comfort dramas), and max 30 characters. "
+            ."Create 'mood' as a compact, complete genre title, ideally 24–30 characters including spaces and punctuation. "
+            .'Examples of this compact style: Rainy-night mysteries; Mellow mystery & romance. '
+            .'Count the characters before answering and shorten by choosing concise words or removing a descriptor. '
+            .'Never cut a word or leave a title unfinished; a complete title slightly over 30 characters is preferable to a cut-off one. '
             ."'description' must be 1-2 short sentences linking weather types to picks "
             .'(example style: Rainy evenings → slower, atmospheric picks. Sunny weekends → feel-good & adventure.). '
             .'Do not copy the examples, base it on the current weather. '
             .'Return ONLY valid JSON in this format: {"mood":"","description":""}'
-            .' Keep mood to at most 30 characters and description to at most 60 characters.';
+            .' Keep mood around 30 characters and description to at most 60 characters.';
     }
 }
