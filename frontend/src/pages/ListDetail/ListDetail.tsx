@@ -1,5 +1,6 @@
-import { useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { Link, useParams } from 'react-router'
+import { useLenis } from 'lenis/react'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
 import PosterCollage from '../../components/PosterCollage/PosterCollage.tsx'
@@ -18,6 +19,7 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { isStatus, useApi } from '../../lib/api.ts'
+import { useMovies } from '../../lib/movieDetails.ts'
 import { tmdbIdOf } from '../../lib/movies.ts'
 import type { ApiList } from '../../lib/types.ts'
 import { listIdFrom } from '../Lists/listsData.ts'
@@ -33,6 +35,29 @@ const SORTS = {
 }
 type SortKey = keyof typeof SORTS
 
+/**
+ * A row being dragged by its handle: where it started, the slot it would drop into, how far it has
+ * moved, and the rows' page positions (top, middle, bottom) measured when the drag began.
+ */
+type Drag = { from: number; over: number; dy: number; startY: number; step: number; tops: number[]; mids: number[]; bottoms: number[] }
+
+/** Dragging this close (px) to the top or bottom of the window scrolls the page. */
+const SCROLL_EDGE = 90
+
+/**
+ * Moves the dragged row to follow the pointer (kept within the list) and picks its slot: it takes a
+ * neighbour's place as soon as its leading edge passes that neighbour's middle.
+ */
+function dragTo(drag: Drag, clientY: number): Drag {
+  const { from, tops, mids, bottoms } = drag
+  const last = mids.length - 1
+  const dy = Math.min(Math.max(clientY + window.scrollY - drag.startY, tops[0] - tops[from]), bottoms[last] - bottoms[from])
+  let over = from
+  for (let i = from + 1; i <= last; i++) if (bottoms[from] + dy > mids[i]) over = i
+  for (let i = from - 1; i >= 0; i--) if (tops[from] + dy < mids[i]) over = i
+  return { ...drag, dy, over }
+}
+
 export default function ListDetail() {
   const { slug } = useParams()
   const { user } = useAuth()
@@ -41,8 +66,10 @@ export default function ListDetail() {
   if (isStatus(error, 404) || isStatus(error, 403) || Number.isNaN(listIdFrom(slug))) return <Placeholder title="List not found" notFound />
   if (error) return <Placeholder title="Couldn't load this list" />
   if (!data) return null
-  // Keyed by id so local state (order, search) resets when moving between lists.
-  return <ListDetailPage key={data.list.id} detail={toListDetail(data.list, user?.id)} />
+  // Keyed by the list and its films, so local state (order, search) resets when moving between lists
+  // and when a fresh copy arrives after an edit (the first render may use the copy from an earlier visit).
+  const films = (data.list.items ?? []).map((item) => item.tmdb_id).join(',')
+  return <ListDetailPage key={`${data.list.id}:${films}`} detail={toListDetail(data.list, user?.id)} />
 }
 
 function ListDetailPage({ detail }: { detail: Detail }) {
@@ -51,13 +78,52 @@ function ListDetailPage({ detail }: { detail: Detail }) {
 
   // The owner's reorder and remove are saved through PATCH /api/lists/{id}; others only read.
   const [entries, setEntries] = useState(detail.entries)
+  // The films arrive as ids only; load their real titles and posters.
+  const [savedIds] = useState(() => detail.entries.map((entry) => tmdbIdOf(entry.movie)))
+  const movieOf = useMovies(savedIds)
+  const resolved = entries.map((entry) => ({ ...entry, movie: movieOf(tmdbIdOf(entry.movie), entry.movie) }))
+  // The header collage shows the list's first three films, so it follows reorders and removals.
+  const cover = resolved.slice(0, 3)
   const similar = (useApi<{ lists: ApiList[] }>('/lists?scope=public').data?.lists ?? [])
     .filter((list) => list.id !== detail.id)
     .slice(0, 3)
     .map(toSimilarList)
+  const similarMovieOf = useMovies(similar.map((list) => list.posterId).filter(Boolean))
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SortKey>('custom')
-  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const listRef = useRef<HTMLOListElement>(null)
+  const [drag, setDrag] = useState<Drag | null>(null)
+  // True for one frame after a drop, so rows jump straight to their new places instead of sliding back.
+  const [settling, setSettling] = useState(false)
+
+  useEffect(() => {
+    if (!settling) return
+    const frame = requestAnimationFrame(() => setSettling(false))
+    return () => cancelAnimationFrame(frame)
+  }, [settling])
+
+  // While dragging near the top or bottom of the window, scroll the page so any slot can be reached.
+  const lenis = useLenis()
+  const pointerY = useRef(0)
+  const dragging = drag !== null
+  useEffect(() => {
+    if (!dragging) return
+    let frame = 0
+    const tick = () => {
+      const y = pointerY.current
+      const speed =
+        y < SCROLL_EDGE ? -(SCROLL_EDGE - y) / 4 : y > window.innerHeight - SCROLL_EDGE ? (y - window.innerHeight + SCROLL_EDGE) / 4 : 0
+      if (speed) {
+        const target = window.scrollY + Math.round(speed)
+        if (lenis) lenis.scrollTo(target, { immediate: true })
+        else window.scrollTo(0, target)
+        setDrag((current) => current && dragTo(current, y))
+      }
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [dragging, lenis])
   const [shareNote, setShareNote] = useState('')
   const [status, setStatus] = useState('')
 
@@ -65,7 +131,7 @@ function ListDetailPage({ detail }: { detail: Detail }) {
 
   const q = query.trim().toLowerCase()
   const compare = SORTS[sort].compare
-  const shown = entries
+  const shown = resolved
     .map((entry, index) => ({ entry, index }))
     .filter(({ entry }) => !q || entry.movie.title.toLowerCase().includes(q))
     .sort((a, b) => (compare ? compare(a.entry, b.entry) : 0))
@@ -88,7 +154,7 @@ function ListDetailPage({ detail }: { detail: Detail }) {
     const next = [...entries]
     const [item] = next.splice(from, 1)
     next.splice(to, 0, item)
-    save(next, `${entries[from].movie.title} moved to position ${to + 1}`)
+    save(next, `${resolved[from].movie.title} moved to position ${to + 1}`)
   }
 
   const handleKeyMove = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -98,10 +164,53 @@ function ListDetailPage({ detail }: { detail: Detail }) {
     }
   }
 
+  /** Lifts the row under the handle; it follows the pointer and the others slide out of its way. */
+  const startDrag = (event: PointerEvent<HTMLButtonElement>, index: number) => {
+    const rows = [...(listRef.current?.children ?? [])]
+    if (!canReorder || event.button !== 0 || rows.length < 2) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const rects = rows.map((row) => row.getBoundingClientRect())
+    const gap = parseFloat(getComputedStyle(listRef.current as HTMLOListElement).rowGap) || 0
+    // Page positions, so they stay right while the page scrolls during the drag.
+    const scrollY = window.scrollY
+    pointerY.current = event.clientY
+    setDrag({
+      from: index,
+      over: index,
+      dy: 0,
+      startY: event.clientY + scrollY,
+      step: rects[index].height + gap,
+      tops: rects.map((rect) => rect.top + scrollY),
+      mids: rects.map((rect) => rect.top + rect.height / 2 + scrollY),
+      bottoms: rects.map((rect) => rect.bottom + scrollY),
+    })
+  }
+
+  const moveDrag = (event: PointerEvent<HTMLButtonElement>) => {
+    pointerY.current = event.clientY
+    setDrag((current) => current && dragTo(current, event.clientY))
+  }
+
+  const endDrag = (drop: boolean) => {
+    if (!drag) return
+    if (drop && drag.over !== drag.from) move(drag.from, drag.over)
+    setSettling(true)
+    setDrag(null)
+  }
+
+  /** How far a row slides to make room for the dragged one. */
+  const shiftFor = (index: number) => {
+    if (!drag || index === drag.from) return 0
+    if (drag.from < drag.over && index > drag.from && index <= drag.over) return -drag.step
+    if (drag.over < drag.from && index >= drag.over && index < drag.from) return drag.step
+    return 0
+  }
+
   const remove = (index: number) => {
     save(
       entries.filter((_, i) => i !== index),
-      `${entries[index].movie.title} removed from the list`,
+      `${resolved[index].movie.title} removed from the list`,
     )
   }
 
@@ -127,7 +236,11 @@ function ListDetailPage({ detail }: { detail: Detail }) {
         <section className={styles.header} aria-labelledby="list-title">
           <div className={styles.headerInner}>
             <div className={styles.cover} data-enter data-enter-delay="0.1" data-enter-rise="80">
-              <PosterCollage gradients={detail.posters} size="xl" />
+              <PosterCollage
+                gradients={cover.length ? cover.map((entry) => entry.movie.gradient) : detail.posters}
+                images={cover.map((entry) => entry.movie.posterUrl)}
+                size="xl"
+              />
             </div>
             <div className={styles.info} data-enter data-enter-delay="0.25">
               <ul className={styles.tags}>
@@ -198,27 +311,31 @@ function ListDetailPage({ detail }: { detail: Detail }) {
               <p className={styles.empty}>{q ? `No films in this list match “${query}”.` : 'This list has no films yet.'}</p>
             )}
 
-            <ol className={styles.entries}>
+            <ol
+              ref={listRef}
+              className={styles.entries}
+              data-dragging={drag ? '' : undefined}
+              data-settling={settling ? '' : undefined}
+            >
               {shown.map(({ entry, index }) => (
                 <li
                   key={entry.movie.slug}
-                  className={dragIndex === index ? styles.entryDragging : styles.entry}
-                  draggable={canReorder}
-                  onDragStart={() => setDragIndex(index)}
-                  onDragOver={(event) => canReorder && event.preventDefault()}
-                  onDrop={() => {
-                    if (dragIndex !== null) move(dragIndex, index)
-                    setDragIndex(null)
+                  className={drag?.from === index ? styles.entryLifted : styles.entry}
+                  style={{
+                    transform: drag?.from === index ? `translateY(${drag.dy}px)` : shiftFor(index) ? `translateY(${shiftFor(index)}px)` : undefined,
                   }}
-                  onDragEnd={() => setDragIndex(null)}
                 >
                   {detail.isOwner && (
                     <button
                       type="button"
                       className={styles.drag}
                       disabled={!canReorder}
-                      aria-label={`Reorder ${entry.movie.title}: use the up and down arrow keys`}
+                      aria-label={`Reorder ${entry.movie.title}: drag, or use the up and down arrow keys`}
                       onKeyDown={(event) => handleKeyMove(event, index)}
+                      onPointerDown={(event) => startDrag(event, index)}
+                      onPointerMove={moveDrag}
+                      onPointerUp={() => endDrag(true)}
+                      onPointerCancel={() => endDrag(false)}
                     >
                       <img src={dragIcon} width={18} height={18} alt="" />
                     </button>
@@ -230,7 +347,20 @@ function ListDetailPage({ detail }: { detail: Detail }) {
                     style={{ background: gradientCss(entry.movie.gradient) }}
                     aria-label={entry.movie.title}
                     draggable={false}
-                  />
+                  >
+                    {entry.movie.posterUrl && (
+                      <img
+                        className={styles.thumbImg}
+                        src={entry.movie.posterUrl}
+                        alt=""
+                        loading="lazy"
+                        draggable={false}
+                        onError={(event) => {
+                          event.currentTarget.hidden = true
+                        }}
+                      />
+                    )}
+                  </Link>
                   <div className={styles.entryInfo}>
                     <Link to={`/movies/${entry.movie.slug}`} className={styles.entryTitle} draggable={false}>
                       {entry.movie.title}
@@ -303,7 +433,19 @@ function ListDetailPage({ detail }: { detail: Detail }) {
                 {similar.map((list) => (
                   <li key={list.slug}>
                     <Link to={`/lists/${list.slug}`} className={styles.similarItem}>
-                      <span className={styles.similarThumb} style={{ background: gradientCss(list.poster) }} />
+                      <span className={styles.similarThumb} style={{ background: gradientCss(list.poster) }}>
+                        {list.posterId > 0 && similarMovieOf(list.posterId).posterUrl && (
+                          <img
+                            className={styles.thumbImg}
+                            src={similarMovieOf(list.posterId).posterUrl}
+                            alt=""
+                            loading="lazy"
+                            onError={(event) => {
+                              event.currentTarget.hidden = true
+                            }}
+                          />
+                        )}
+                      </span>
                       <span className={styles.similarText}>
                         <span className={styles.similarTitle}>{list.title}</span>
                         <span className={styles.similarAuthor}>by {list.author}</span>

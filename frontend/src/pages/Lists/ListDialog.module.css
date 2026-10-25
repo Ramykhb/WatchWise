@@ -252,10 +252,24 @@
   background: var(--surface-violet-tint);
 }
 
+/* The previous answer stays visible, dimmed, while a new search runs. */
+.results[aria-busy='true'] .result {
+  opacity: 0.55;
+  transition: opacity 0.15s ease-out;
+}
+
 .resultThumb,
 .pickedThumb {
   flex-shrink: 0;
+  overflow: hidden;
   border-radius: 6px;
+}
+
+.thumbImg:not([hidden]) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .resultThumb {

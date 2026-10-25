@@ -25,7 +25,8 @@ export type ListDetail = {
   entries: ListEntry[]
 }
 
-export type SimilarList = { slug: string; title: string; author: string; poster: Gradient }
+/** `posterId`: the TMDB id of the cover film, to load its image (0 when the list is empty). */
+export type SimilarList = { slug: string; title: string; author: string; poster: Gradient; posterId: number }
 
 /** Rough total until TMDB runtimes exist: about two hours a film. */
 export const runtimeFor = (films: number) => {
@@ -60,4 +61,5 @@ export const toSimilarList = (list: ApiList): SimilarList => ({
   title: list.title,
   author: list.owner ? shortName(list.owner.name) : 'Member',
   poster: movieFor(list.posters[0] ?? 0).gradient,
+  posterId: list.posters[0] ?? 0,
 })

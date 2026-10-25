@@ -6,16 +6,31 @@ const gradientCss = ([top, middle, bottom]: Gradient) => `linear-gradient(180deg
 type PosterCollageProps = {
   /** Up to three posters, back to front. */
   gradients: Gradient[]
+  /** Poster images in the same order; a missing one (or one still loading) shows its gradient. */
+  images?: (string | undefined)[]
   /** "xl" = 260×220 (List Detail header), "lg" = 210×150 (My lists cards), "sm" = 180×120 (public list cards). */
   size?: 'xl' | 'lg' | 'sm'
 }
 
 /** Three tilted, white-framed poster thumbs fanned out (Figma "Cover collage"). */
-export default function PosterCollage({ gradients, size = 'lg' }: PosterCollageProps) {
+export default function PosterCollage({ gradients, images = [], size = 'lg' }: PosterCollageProps) {
   return (
     <div className={`${styles.collage} ${styles[size]}`} aria-hidden="true">
       {gradients.slice(0, 3).map((gradient, index) => (
-        <span key={index} className={styles.poster} style={{ background: gradientCss(gradient) }} />
+        <span key={index} className={styles.poster} style={{ background: gradientCss(gradient) }}>
+          {images[index] && (
+            <img
+              className={styles.image}
+              src={images[index]}
+              alt=""
+              loading="lazy"
+              draggable={false}
+              onError={(event) => {
+                event.currentTarget.hidden = true
+              }}
+            />
+          )}
+        </span>
       ))}
     </div>
   )
