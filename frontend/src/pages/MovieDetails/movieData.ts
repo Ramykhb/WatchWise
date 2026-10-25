@@ -5,7 +5,7 @@ import { MOVIES, type Gradient } from '../Home/homeData.ts'
 // Mock content from the Figma "Movie Details — Neon Tide" frame. The design's mock movies (/movies/neon-tide)
 // still use it; TMDB movies (/movies/438631) load their details through movieApi.ts.
 
-/** `slug` is empty for people the Person page can't open yet; `photoUrl` replaces the initials. */
+/** `slug` builds the link to /people/{slug} (a TMDB person id for real movies); `photoUrl` replaces the initials. */
 export type CastMember = { slug: string; initials: string; name: string; role: string; gradient: Gradient; photoUrl?: string }
 
 export type Cinema = { name: string; distance: string; times: string[] }
