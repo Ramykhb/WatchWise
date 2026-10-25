@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { Link, useParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
-import MovieTile from '../../components/MovieTile/MovieTile.tsx'
+import MovieTile, { type Movie } from '../../components/MovieTile/MovieTile.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import Placeholder from '../Placeholder/Placeholder.tsx'
 import headerWave from '../../assets/person/header-wave.svg'
@@ -10,9 +10,15 @@ import plusIcon from '../../assets/person/icon-plus.svg'
 import awardIcon from '../../assets/person/icon-award.svg'
 import checkIcon from '../../assets/person/icon-check.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
+import { api, useApi } from '../../lib/api.ts'
+import { tmdbIdOf } from '../../lib/movies.ts'
+import type { ApiWatchItem } from '../../lib/types.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { getPerson, type Person as PersonData } from './personData.ts'
 import styles from './Person.module.css'
+
+/** GET /api/watchlist (the same shape the Watchlist page reads). */
+type WatchlistResponse = { items: ApiWatchItem[]; ratings: Record<string, number> }
 
 export default function Person() {
   const { slug } = useParams()
@@ -27,10 +33,23 @@ function PersonPage({ person }: { person: PersonData }) {
   const filmographyRef = useRef<HTMLElement>(null)
   useEntranceAnimation(pageRef)
 
-  // TODO: read and write the signed-in user's watchlist through the API.
-  const [watchlist, setWatchlist] = useState<string[]>([])
-  const toggleWatchlist = (slug: string) =>
-    setWatchlist((list) => (list.includes(slug) ? list.filter((s) => s !== slug) : [...list, slug]))
+  // The signed-in user's watchlist: "+" adds a film, the green tick removes it again.
+  const { data: watchlistData, setData: setWatchlistData, reload: reloadWatchlist } = useApi<WatchlistResponse>('/watchlist')
+  const watchItems = watchlistData?.items ?? []
+  const watchItemFor = (movie: Movie) => watchItems.find((item) => item.tmdb_id === tmdbIdOf(movie))
+
+  const toggleWatchlist = (movie: Movie) => {
+    const item = watchItemFor(movie)
+    if (item) {
+      setWatchlistData((current) => ({ ...current, items: current.items.filter((i) => i.id !== item.id) }))
+      api.delete(`/watchlist/${item.id}`).catch(reloadWatchlist)
+      return
+    }
+    api
+      .post<{ item: ApiWatchItem }>('/watchlist', { tmdb_id: tmdbIdOf(movie) })
+      .then(({ data }) => setWatchlistData((current) => ({ ...current, items: [data.item, ...current.items] })))
+      .catch(reloadWatchlist)
+  }
 
   return (
     <div ref={pageRef} className={styles.page}>
@@ -98,7 +117,7 @@ function PersonPage({ person }: { person: PersonData }) {
             </h2>
             <ul className={styles.credits}>
               {person.filmography.map((credit) => {
-                const added = watchlist.includes(credit.movie.slug)
+                const added = Boolean(watchItemFor(credit.movie))
                 return (
                   <li key={credit.movie.slug} className={styles.credit}>
                     <span className={styles.year}>{credit.year}</span>
@@ -119,7 +138,7 @@ function PersonPage({ person }: { person: PersonData }) {
                       className={added ? styles.addOn : styles.add}
                       aria-pressed={added}
                       aria-label={added ? `Remove ${credit.movie.title} from watchlist` : `Add ${credit.movie.title} to watchlist`}
-                      onClick={() => toggleWatchlist(credit.movie.slug)}
+                      onClick={() => toggleWatchlist(credit.movie)}
                     >
                       <img src={added ? checkIcon : plusIcon} width={16} height={16} alt="" />
                     </button>
