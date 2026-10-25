@@ -85,8 +85,8 @@ export function toDetails(api: TmdbMovieDetails, genres: Map<number, string>): M
     ...api.cast.map((person) => ({ id: person.id, name: person.name, role: person.character, photo: person.profile_url })),
   ]
   const cast: CastMember[] = people.slice(0, PEOPLE_SHOWN).map((person, index) => ({
-    // No slug: the Person page doesn't load TMDB people yet, so these aren't links.
-    slug: '',
+    // The TMDB person id, so the cast links to /people/{id}.
+    slug: String(person.id),
     initials: initials(person.name),
     name: person.name,
     role: person.role,
