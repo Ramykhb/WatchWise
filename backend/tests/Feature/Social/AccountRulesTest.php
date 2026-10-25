@@ -73,7 +73,7 @@ class AccountRulesTest extends SocialTestCase
     {
         $this->as(User::factory()->create())->getJson('/api/home')
             ->assertOk()
-            ->assertJsonStructure(['activity', 'rooms', 'next_night'])
+            ->assertJsonStructure(['rooms', 'next_night'])
             ->assertJsonPath('next_night', null);
     }
 }

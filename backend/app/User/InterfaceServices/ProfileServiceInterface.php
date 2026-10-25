@@ -36,7 +36,7 @@ interface ProfileServiceInterface
      */
     public function following(User $user, CurrentUser $viewer): Collection;
 
-    /** Follows the user (a no-op when already following) and notifies them the first time. */
+    /** Follows the user; a no-op when already following. */
     public function follow(User $follower, User $target): FollowResponse;
 
     public function unfollow(User $follower, User $target): FollowResponse;

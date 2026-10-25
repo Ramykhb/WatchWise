@@ -4,7 +4,7 @@ namespace App\User\DTOs\Responses;
 
 use JsonSerializable;
 
-/** The signed-in Home page: friends' activity, busy rooms and the user's next movie night. */
+/** The signed-in Home page: busy rooms and the user's next movie night. */
 final readonly class HomeResponse implements JsonSerializable
 {
     /**
@@ -12,7 +12,6 @@ final readonly class HomeResponse implements JsonSerializable
      * @param  array<string, mixed>|null  $nextNight
      */
     public function __construct(
-        public mixed $activity,
         public array $rooms,
         public ?array $nextNight,
     ) {}
@@ -23,7 +22,6 @@ final readonly class HomeResponse implements JsonSerializable
     public function jsonSerialize(): array
     {
         return [
-            'activity' => $this->activity,
             'rooms' => $this->rooms,
             'next_night' => $this->nextNight,
         ];

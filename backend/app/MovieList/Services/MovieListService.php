@@ -2,7 +2,6 @@
 
 namespace App\MovieList\Services;
 
-use App\ActivityFeed\Services\ActivityFeedService;
 use App\Models\MovieList;
 use App\Models\User;
 use App\MovieList\DTOs\Requests\CreateMovieListData;
@@ -15,10 +14,7 @@ use Illuminate\Support\Facades\DB;
 
 class MovieListService implements MovieListServiceInterface
 {
-    public function __construct(
-        private readonly MovieListRepositoryInterface $lists,
-        private readonly ActivityFeedService $activity,
-    ) {}
+    public function __construct(private readonly MovieListRepositoryInterface $lists) {}
 
     public function search(MovieListSearchQuery $query, User $viewer): Collection
     {
@@ -27,7 +23,7 @@ class MovieListService implements MovieListServiceInterface
 
     public function create(CreateMovieListData $data, User $owner): MovieList
     {
-        $list = DB::transaction(function () use ($data, $owner) {
+        return $this->detail(DB::transaction(function () use ($data, $owner) {
             $list = $this->lists->create([
                 'user_id' => $owner->id,
                 'title' => $data->title,
@@ -37,11 +33,7 @@ class MovieListService implements MovieListServiceInterface
             $this->lists->syncItems($list, $data->tmdbIds);
 
             return $list;
-        });
-
-        $this->activity->record($owner, 'list_created', $list, null, $list->is_public);
-
-        return $this->detail($list);
+        }));
     }
 
     public function detail(MovieList $list): MovieList
@@ -49,15 +41,13 @@ class MovieListService implements MovieListServiceInterface
         return $this->lists->loadDetail($list);
     }
 
-    public function update(MovieList $list, UpdateMovieListData $data, User $editor): MovieList
+    public function update(MovieList $list, UpdateMovieListData $data): MovieList
     {
-        DB::transaction(function () use ($list, $data, $editor) {
+        DB::transaction(function () use ($list, $data) {
             $this->lists->update($list, $data->attributes);
 
             if ($data->tmdbIds !== null) {
-                foreach ($this->lists->syncItems($list, $data->tmdbIds) as $tmdbId) {
-                    $this->activity->record($editor, 'list_movie_added', $list, $tmdbId, $list->is_public);
-                }
+                $this->lists->syncItems($list, $data->tmdbIds);
             }
         });
 

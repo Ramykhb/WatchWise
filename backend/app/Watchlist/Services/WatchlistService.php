@@ -2,7 +2,6 @@
 
 namespace App\Watchlist\Services;
 
-use App\ActivityFeed\Services\ActivityFeedService;
 use App\Models\User;
 use App\Models\Watchlist;
 use App\Watchlist\DTOs\Requests\AddToWatchlistData;
@@ -15,10 +14,7 @@ use App\Watchlist\InterfaceServices\WatchlistServiceInterface;
 
 class WatchlistService implements WatchlistServiceInterface
 {
-    public function __construct(
-        private readonly WatchlistRepositoryInterface $watchlist,
-        private readonly ActivityFeedService $activity,
-    ) {}
+    public function __construct(private readonly WatchlistRepositoryInterface $watchlist) {}
 
     public function overview(User $user): WatchlistResponse
     {
@@ -35,10 +31,6 @@ class WatchlistService implements WatchlistServiceInterface
         $item->status = $data->status ?? $item->status ?? 'to_watch';
         $item->watched_at = $item->status === 'watched' ? ($item->watched_at ?? now()) : null;
         $this->watchlist->save($item);
-
-        if ($isNew) {
-            $this->activity->record($user, 'watchlist_add', $item, $item->tmdb_id, $user->shares('watchlist'));
-        }
 
         return new AddToWatchlistResponse(WatchlistItemResponse::fromModel($item), $isNew);
     }

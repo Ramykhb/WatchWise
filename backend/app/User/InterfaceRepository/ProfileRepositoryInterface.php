@@ -3,7 +3,6 @@
 namespace App\User\InterfaceRepository;
 
 use App\Models\MovieList;
-use App\Models\Review;
 use App\Models\User;
 use App\User\DTOs\Requests\UserSearchQuery;
 use Illuminate\Database\Eloquent\Collection;
@@ -49,11 +48,6 @@ interface ProfileRepositoryInterface
     public function followingCount(User $user): int;
 
     public function reviewsCount(User $user, bool $approvedOnly): int;
-
-    /**
-     * @return Collection<int, Review> newest first, with their author
-     */
-    public function recentReviews(User $user, bool $approvedOnly, int $limit): Collection;
 
     /**
      * Highest-rated films first; ties go to the most recent review.
