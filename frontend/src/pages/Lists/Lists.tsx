@@ -2,8 +2,10 @@ import { useRef, useState } from 'react'
 import { Link, Outlet } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
+import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog.tsx'
 import PosterCollage from '../../components/PosterCollage/PosterCollage.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
+import Toast from '../../components/Toast/Toast.tsx'
 import globeIcon from '../../assets/lists/icon-globe.svg'
 import lockIcon from '../../assets/lists/icon-lock.svg'
 import editIcon from '../../assets/lists/icon-edit.svg'
@@ -12,11 +14,20 @@ import plusIcon from '../../assets/lists/icon-plus.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { useApi } from '../../lib/api.ts'
 import type { ApiList } from '../../lib/types.ts'
-import { toPublicList, type PublicList } from './listsData.ts'
+import { toPublicList, type MyList, type PublicList } from './listsData.ts'
 import { deleteList, useMyLists } from './myListsStore.ts'
 import styles from './Lists.module.css'
 
 type Tab = 'mine' | 'public' | 'following'
+
+/** Matches the card's fade-out in Lists.module.css. */
+const CARD_EXIT_MS = 300
+
+/** Waits for an animation to finish; no wait when the user turned animations off. */
+const afterMotion = (ms: number) =>
+  new Promise<void>((resolve) =>
+    window.setTimeout(resolve, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : ms),
+  )
 
 function PublicListCard({ list }: { list: PublicList }) {
   return (
@@ -50,13 +61,24 @@ export default function Lists() {
   // Other members' public lists, and those by people you follow.
   const publicLists = (useApi<{ lists: ApiList[] }>('/lists?scope=public').data?.lists ?? []).map(toPublicList)
   const followingLists = (useApi<{ lists: ApiList[] }>('/lists?scope=following').data?.lists ?? []).map(toPublicList)
-  const [deleteError, setDeleteError] = useState('')
+  // The list waiting for "Delete list?"; `open` turns false first so the dialog can animate out.
+  const [confirming, setConfirming] = useState<{ list: MyList; open: boolean } | null>(null)
+  // The card fading out after a successful delete.
+  const [leavingId, setLeavingId] = useState<number | null>(null)
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(null)
 
-  const remove = (id: number, title: string) => {
-    if (window.confirm(`Delete “${title}”? This can't be undone.`)) {
-      setDeleteError('')
-      deleteList(id).catch(() => setDeleteError(`Couldn't delete “${title}”. Please try again.`))
-    }
+  const confirmDelete = async () => {
+    if (!confirming) return
+    const { list } = confirming
+    // A failure throws here, so the dialog stays open and shows its error.
+    await deleteList(list.id, async () => {
+      // Deleted on the server: close the dialog and fade the card out before it leaves the grid.
+      setConfirming({ list, open: false })
+      setLeavingId(list.id)
+      await afterMotion(CARD_EXIT_MS)
+    })
+    setLeavingId(null)
+    setToast({ id: Date.now(), message: `“${list.title}” deleted` })
   }
 
   const browseAll = () => {
@@ -104,17 +126,11 @@ export default function Lists() {
           ))}
         </div>
 
-        {deleteError && (
-          <p className={styles.description} role="alert">
-            {deleteError}
-          </p>
-        )}
-
         {tab === 'mine' && (
           <ul className={styles.grid} data-enter data-enter-delay="0.25">
             {!loaded && <li className={styles.description}>Loading your lists…</li>}
             {myLists.map((list) => (
-              <li key={list.id} className={styles.card}>
+              <li key={list.id} className={list.id === leavingId ? `${styles.card} ${styles.cardLeaving}` : styles.card}>
                 <Link
                   to={`/lists/${list.slug}`}
                   className={styles.cover}
@@ -145,7 +161,7 @@ export default function Lists() {
                       type="button"
                       className={styles.delete}
                       aria-label={`Delete ${list.title}`}
-                      onClick={() => remove(list.id, list.title)}
+                      onClick={() => setConfirming({ list, open: true })}
                     >
                       <img src={trashIcon} width={16} height={16} alt="" />
                     </button>
@@ -203,6 +219,36 @@ export default function Lists() {
 
       {/* Create/Edit List dialog (routes lists/new and lists/:slug/edit). */}
       <Outlet />
+
+      {confirming && (
+        <ConfirmDialog
+          key={confirming.list.id}
+          open={confirming.open}
+          title={`Delete “${confirming.list.title}”?`}
+          media={
+            <span className={styles.dialogCover} style={{ background: confirming.list.cover }}>
+              <PosterCollage gradients={confirming.list.posters} size="sm" />
+            </span>
+          }
+          message={
+            <>
+              <p>
+                This removes the list and its {confirming.list.films} {confirming.list.films === 1 ? 'film' : 'films'}.
+                {confirming.list.isPublic && ' It’s public, so anyone who opens its link will no longer find it.'}
+              </p>
+              <p>This can’t be undone.</p>
+            </>
+          }
+          confirmLabel="Delete list"
+          busyLabel="Deleting…"
+          errorMessage={`Couldn’t delete “${confirming.list.title}”. Check your connection and try again.`}
+          onConfirm={confirmDelete}
+          onCancel={() => setConfirming({ ...confirming, open: false })}
+          onClosed={() => setConfirming(null)}
+        />
+      )}
+
+      {toast && <Toast key={toast.id} message={toast.message} onDone={() => setToast(null)} />}
     </div>
   )
 }

@@ -70,8 +70,13 @@ export async function updateList(id: number, input: Partial<ListInput>) {
   return response.data.list
 }
 
-export async function deleteList(id: number) {
+/**
+ * Deletes the list on the server, then drops it from the store. `beforeRemove` runs in between
+ * (only after a successful delete), e.g. to play the card's exit animation first.
+ */
+export async function deleteList(id: number, beforeRemove?: () => Promise<void>) {
   const started = generation
   await api.delete(`/lists/${id}`)
+  await beforeRemove?.()
   if (started === generation) emit(state.lists.filter((list) => list.id !== id))
 }
