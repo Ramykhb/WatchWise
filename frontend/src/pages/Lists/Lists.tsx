@@ -13,7 +13,7 @@ import trashIcon from '../../assets/lists/icon-trash.svg'
 import plusIcon from '../../assets/lists/icon-plus.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { useApi } from '../../lib/api.ts'
-import { useMovies } from '../../lib/movieDetails.ts'
+import { isLoading, useMovies } from '../../lib/movieDetails.ts'
 import type { ApiList } from '../../lib/types.ts'
 import { toPublicList, type MyList, type PublicList } from './listsData.ts'
 import { deleteList, useMyLists } from './myListsStore.ts'
@@ -30,11 +30,40 @@ const afterMotion = (ms: number) =>
     window.setTimeout(resolve, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : ms),
   )
 
-function PublicListCard({ list, images }: { list: PublicList; images: (string | undefined)[] }) {
+type Cover = { images: (string | undefined)[]; pending: boolean[] }
+
+const SKELETONS = [0, 1, 2]
+
+/** A shimmering placeholder shaped like a My lists card, shown while the lists load. */
+function ListCardSkeleton() {
+  return (
+    <li className={`${styles.card} ${styles.skeletonCard}`} aria-hidden="true">
+      <span className={`${styles.cover} ${styles.skeleton}`} />
+      <span className={`${styles.skeleton} ${styles.skeletonTitle}`} />
+      <span className={`${styles.skeleton} ${styles.skeletonText}`} />
+      <span className={`${styles.skeleton} ${styles.skeletonMeta}`} />
+    </li>
+  )
+}
+
+/** A shimmering placeholder shaped like a public list card. */
+function PublicCardSkeleton() {
+  return (
+    <li aria-hidden="true">
+      <span className={`${styles.publicCard} ${styles.skeletonCard}`}>
+        <span className={`${styles.publicCover} ${styles.skeleton}`} />
+        <span className={`${styles.skeleton} ${styles.skeletonTitle}`} />
+        <span className={`${styles.skeleton} ${styles.skeletonMeta}`} />
+      </span>
+    </li>
+  )
+}
+
+function PublicListCard({ list, cover }: { list: PublicList; cover: Cover }) {
   return (
     <Link to={`/lists/${list.slug}`} className={styles.publicCard}>
       <span className={styles.publicCover}>
-        <PosterCollage gradients={list.posters} images={images} size="sm" />
+        <PosterCollage gradients={list.posters} {...cover} size="sm" />
       </span>
       <span className={styles.publicTitle}>{list.title}</span>
       <span className={styles.publicMeta}>
@@ -60,8 +89,14 @@ export default function Lists() {
   const { lists: myLists, loaded } = useMyLists()
   const [tab, setTab] = useState<Tab>('mine')
   // Other members' public lists, and those by people you follow.
-  const publicLists = (useApi<{ lists: ApiList[] }>('/lists?scope=public').data?.lists ?? []).map(toPublicList)
-  const followingLists = (useApi<{ lists: ApiList[] }>('/lists?scope=following').data?.lists ?? []).map(toPublicList)
+  const publicQuery = useApi<{ lists: ApiList[] }>('/lists?scope=public')
+  const followingQuery = useApi<{ lists: ApiList[] }>('/lists?scope=following')
+  const publicLists = (publicQuery.data?.lists ?? []).map(toPublicList)
+  const followingLists = (followingQuery.data?.lists ?? []).map(toPublicList)
+  // Still waiting for the first answer (a failed load shows the empty message instead of shimmering forever).
+  const publicLoading = !publicQuery.data && !publicQuery.error
+  const followingLoading = !followingQuery.data && !followingQuery.error
+  const tabLoading = tab === 'public' ? publicLoading : followingLoading
   // The list waiting for "Delete list?"; `open` turns false first so the dialog can animate out.
   const [confirming, setConfirming] = useState<{ list: MyList; open: boolean } | null>(null)
   // The card fading out after a successful delete.
@@ -70,7 +105,10 @@ export default function Lists() {
 
   // The cards' cover posters arrive as TMDB ids; load their images (each film once).
   const movieOf = useMovies([...myLists, ...publicLists, ...followingLists].flatMap((list) => list.posterIds))
-  const coverImages = (list: { posterIds: number[] }) => list.posterIds.map((id) => movieOf(id).posterUrl)
+  const coverOf = (list: { posterIds: number[] }) => {
+    const movies = list.posterIds.map((id) => movieOf(id))
+    return { images: movies.map((movie) => movie.posterUrl), pending: movies.map(isLoading) }
+  }
 
   const confirmDelete = async () => {
     if (!confirming) return
@@ -132,8 +170,8 @@ export default function Lists() {
         </div>
 
         {tab === 'mine' && (
-          <ul className={styles.grid} data-enter data-enter-delay="0.25">
-            {!loaded && <li className={styles.description}>Loading your lists…</li>}
+          <ul className={styles.grid} data-enter data-enter-delay="0.25" aria-busy={!loaded}>
+            {!loaded && SKELETONS.map((n) => <ListCardSkeleton key={n} />)}
             {myLists.map((list) => (
               <li key={list.id} className={list.id === leavingId ? `${styles.card} ${styles.cardLeaving}` : styles.card}>
                 <Link
@@ -142,7 +180,7 @@ export default function Lists() {
                   style={{ background: list.cover }}
                   aria-label={`Open ${list.title}`}
                 >
-                  <PosterCollage gradients={list.posters} images={coverImages(list)} />
+                  <PosterCollage gradients={list.posters} {...coverOf(list)} />
                 </Link>
                 <div className={styles.titleRow}>
                   <Link to={`/lists/${list.slug}`} className={styles.cardTitle}>
@@ -174,7 +212,7 @@ export default function Lists() {
                 </div>
               </li>
             ))}
-            <li className={styles.newCell}>
+            <li className={styles.newCell} hidden={!loaded}>
               <Link to="/lists/new" className={styles.newList}>
                 <span className={styles.newIcon} aria-hidden="true">
                   <img src={plusIcon} width={29} height={29} alt="" />
@@ -187,13 +225,14 @@ export default function Lists() {
         )}
 
         {tab !== 'mine' && (
-          <ul className={styles.publicGrid}>
+          <ul className={styles.publicGrid} aria-busy={tabLoading}>
+            {tabLoading && SKELETONS.map((n) => <PublicCardSkeleton key={n} />)}
             {(tab === 'public' ? publicLists : followingLists).map((list) => (
               <li key={list.id}>
-                <PublicListCard list={list} images={coverImages(list)} />
+                <PublicListCard list={list} cover={coverOf(list)} />
               </li>
             ))}
-            {(tab === 'public' ? publicLists : followingLists).length === 0 && (
+            {!tabLoading && (tab === 'public' ? publicLists : followingLists).length === 0 && (
               <li className={styles.description}>
                 {tab === 'public' ? 'No public lists yet.' : 'People you follow have no public lists yet.'}
               </li>
@@ -211,10 +250,11 @@ export default function Lists() {
                 Browse all →
               </button>
             </div>
-            <ul className={styles.publicGrid}>
+            <ul className={styles.publicGrid} aria-busy={publicLoading}>
+              {publicLoading && SKELETONS.map((n) => <PublicCardSkeleton key={n} />)}
               {publicLists.slice(0, 3).map((list) => (
                 <li key={list.id}>
-                  <PublicListCard list={list} images={coverImages(list)} />
+                  <PublicListCard list={list} cover={coverOf(list)} />
                 </li>
               ))}
             </ul>
@@ -232,7 +272,7 @@ export default function Lists() {
           title={`Delete “${confirming.list.title}”?`}
           media={
             <span className={styles.dialogCover} style={{ background: confirming.list.cover }}>
-              <PosterCollage gradients={confirming.list.posters} images={coverImages(confirming.list)} size="sm" />
+              <PosterCollage gradients={confirming.list.posters} {...coverOf(confirming.list)} size="sm" />
             </span>
           }
           message={
