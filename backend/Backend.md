@@ -278,17 +278,18 @@ In `app/Auth/Exceptions/`. Services throw them and controllers turn them into re
 | --- | --- |
 | `app/Providers/AuthorizationServiceProvider.php` | Maps models to policies, binds the guest as the default current user, makes the Gate use `CurrentUser` |
 
-Most policies stay in `app/Policies/` because each belongs to the entity it protects. The Movie List, Movie Night and Watchlist policies live in their own module folders (`app/MovieList/Policies/`, `app/MovieNight/Policies/`, `app/Watchlist/Policies/`):
+Most policies stay in `app/Policies/` because each belongs to the entity it protects. The Movie List, Movie Night, Watchlist and User policies live in their own module folders (`app/MovieList/Policies/`, `app/MovieNight/Policies/`, `app/Watchlist/Policies/`, `app/User/Policies/`):
 
 | Policy | Rule |
 | --- | --- |
-| `ReviewPolicy`, `UserPreferencePolicy` | Owner-based access |
+| `ReviewPolicy` | Owner-based access |
+| `UserPreferencePolicy` (`app/User/Policies/`) | Owner-based access |
 | `WatchlistPolicy` (`app/Watchlist/Policies/`) | Owner-based access |
 | `MovieListPolicy`, `MovieListItemPolicy` (`app/MovieList/Policies/`) | Private lists are visible to their owner only |
 | `MovieNightPolicy` (`app/MovieNight/Policies/`) | Organizer and invitees can view a night; only the organizer can change it |
 | `MessagePolicy` | Authenticated users can read and post in discussion rooms; author edits, author or admin deletes |
 | `NotificationPolicy` | Access to notifications |
-| `UserPolicy` | Private profiles are visible to the owner and admins |
+| `UserPolicy` (`app/User/Policies/`) | Private profiles are visible to the owner and admins |
 
 ## Wiring
 
@@ -408,6 +409,30 @@ app/Watchlist/
 - The routes did not change (`/api/watchlist`, in `routes/social.php`).
 - `POST /api/watchlist` answers 201 for a new film and 200 when the film was already there.
 - Tests: `tests/Feature/Social/ContentTest.php` and `tests/Feature/Social/WatchlistRulesTest.php`.
+
+## User module
+
+`app/User/` holds everything about the person behind the account, in the same layers as Auth: their own account (`/api/me`), public profiles and following (`/api/users`) and the Home page (`/api/home`). The `User`, `UserPreference` and `Follow` models stay in `app/Models/`. Sign-in, registration and tokens stay in the Auth module.
+
+```
+app/User/
+  Controllers/          UserController (account under /me, profiles and following under /users, and /home)
+  FormRequests/         UpdateProfileRequest, UpdatePreferencesRequest, UpdatePasswordRequest, UploadAvatarRequest, DeleteAccountRequest, UserSearchRequest
+  InterfaceServices/    AccountServiceInterface, ProfileServiceInterface, HomeServiceInterface
+  Services/             AccountService (settings, password, avatar, delete), ProfileService (search, profile page, follow), HomeService, ProfilePrivacy (what a viewer may see of a profile)
+  InterfaceRepository/  AccountRepositoryInterface, ProfileRepositoryInterface, HomeRepositoryInterface
+  Repository/           AccountRepository, ProfileRepository, HomeRepository
+  DTOs/Requests/        UpdateProfileData, UpdatePreferencesData, ChangePasswordData, DeleteAccountData, UserSearchQuery
+  DTOs/Responses/       AccountResponse, ProfileResponse, UserSearchResponse, FollowResponse, HomeResponse
+  Resources/            MemberResource (the small public card of a user, used by many modules)
+  Exceptions/           IncorrectPassword (422 on the wrong field), ProfileSectionHidden (403)
+  Policies/             UserPolicy, UserPreferencePolicy
+  Providers/            UserModuleServiceProvider (interface bindings)
+```
+
+- The routes did not change (`routes/social.php`).
+- `ProfilePrivacy` is also used by the activity feed, so profile pages and feeds follow the same visibility rules.
+- Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php` and `AccountRulesTest.php`.
 
 ## Gemini module
 
