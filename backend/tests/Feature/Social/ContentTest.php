@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Social;
 
-use App\Models\DiscussionRoom;
 use App\Models\MovieList;
 use App\Models\User;
 
@@ -68,45 +67,6 @@ class ContentTest extends SocialTestCase
         $this->as($user)->getJson('/api/watchlist')->assertJsonCount(0, 'items');
     }
 
-    public function test_notifications_read_and_dismiss(): void
-    {
-        $user = User::factory()->create();
-        $other = User::factory()->create();
-        $other->following()->attach($user->id);
-        $first = $user->notifications()->create(['type' => 'follow', 'data' => ['text' => 'started following you', 'actor_id' => $other->id]]);
-        $user->notifications()->create(['type' => 'release', 'data' => ['text' => 'New in cinemas']]);
-
-        $this->as($other)->patchJson("/api/notifications/{$first->id}", ['read' => true])->assertForbidden();
-        $this->as($user)->patchJson("/api/notifications/{$first->id}", ['read' => true])->assertOk()->assertJsonPath('notification.read', true);
-        $this->as($user)->getJson('/api/notifications')->assertJsonPath('unread', 1);
-        $this->as($user)->postJson('/api/notifications/read-all')->assertOk();
-        $this->as($user)->getJson('/api/me')->assertJsonPath('counts.unread_notifications', 0);
-        $this->as($user)->deleteJson("/api/notifications/{$first->id}")->assertOk();
-        $this->as($user)->getJson('/api/notifications')->assertJsonCount(1, 'notifications');
-    }
-
-    public function test_rooms_messages_and_mentions(): void
-    {
-        $me = User::factory()->create();
-        $friend = User::factory()->create(['username' => 'jadn']);
-
-        $roomId = $this->as($me)->postJson('/api/rooms', ['name' => 'Neon Tide ending', 'tmdb_id' => 1001, 'spoilers' => true])->assertCreated()->json('room.id');
-        $first = $this->as($me)->postJson("/api/rooms/{$roomId}/messages", ['content' => 'What did you think @jadn?'])
-            ->assertCreated()
-            ->assertJsonPath('message.user.username', $me->username)
-            ->json('message.id');
-        $this->as($friend)->postJson("/api/rooms/{$roomId}/messages", ['content' => 'Loved it'])->assertCreated();
-
-        $this->assertSame(1, $friend->notifications()->where('type', 'mention')->count());
-        $this->as($me)->getJson("/api/rooms/{$roomId}/messages?after={$first}")->assertJsonCount(1, 'messages')->assertJsonPath('messages.0.content', 'Loved it');
-        $this->as($me)->getJson('/api/rooms')
-            ->assertJsonPath('rooms.0.id', $roomId)
-            ->assertJsonPath('rooms.0.joined', true)
-            ->assertJsonPath('rooms.0.host.username', $me->username)
-            ->assertJsonCount(2, 'rooms.0.members');
-        $this->assertTrue(DiscussionRoom::find($roomId)->spoilers);
-    }
-
     public function test_movie_night_invite_rsvp_and_vote(): void
     {
         $host = User::factory()->create();
@@ -121,7 +81,6 @@ class ContentTest extends SocialTestCase
             'tmdb_ids' => [1003, 1008],
         ])->assertCreated()->assertJsonPath('night.my_rsvp', 'host')->json('night.id');
 
-        $this->assertSame(1, $guest->notifications()->where('type', 'invite')->count());
         $this->as($guest)->getJson('/api/movie-nights')->assertJsonCount(1, 'invitations')->assertJsonCount(0, 'upcoming');
         $this->as($stranger)->getJson("/api/movie-nights/{$nightId}")->assertForbidden();
 
@@ -133,15 +92,13 @@ class ContentTest extends SocialTestCase
             ->assertJsonCount(1, 'night.candidates.0.voters');
 
         $this->as($guest)->getJson('/api/movie-nights')->assertJsonCount(1, 'upcoming');
-        $this->assertSame(3, $host->notifications()->count()); // accepted + two votes
         $this->as($guest)->getJson('/api/home')->assertOk()->assertJsonPath('next_night.id', $nightId);
 
-        // Only the host invites more people; each new guest is notified once.
+        // Only the host invites more people.
         $this->as($guest)->postJson("/api/movie-nights/{$nightId}/invites", ['invitees' => [$stranger->username]])->assertForbidden();
         $this->as($host)->postJson("/api/movie-nights/{$nightId}/invites", ['invitees' => [$stranger->username, $guest->username]])
             ->assertOk()
             ->assertJsonCount(2, 'night.guests');
-        $this->assertSame(1, $stranger->notifications()->where('type', 'invite')->count());
 
         $this->as($host)->patchJson("/api/movie-nights/{$nightId}", ['status' => 'confirmed', 'winning_tmdb_id' => 1003])
             ->assertOk()->assertJsonPath('night.winning_tmdb_id', 1003);

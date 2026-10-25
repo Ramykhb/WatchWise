@@ -16,15 +16,11 @@ use App\MovieNight\Exceptions\NotInvitedToMovieNight;
 use App\MovieNight\Exceptions\VotingClosed;
 use App\MovieNight\InterfaceRepository\MovieNightRepositoryInterface;
 use App\MovieNight\InterfaceServices\MovieNightServiceInterface;
-use App\Notification\Services\Notifier;
 use Illuminate\Support\Facades\DB;
 
 class MovieNightService implements MovieNightServiceInterface
 {
-    public function __construct(
-        private readonly MovieNightRepositoryInterface $nights,
-        private readonly Notifier $notifier,
-    ) {}
+    public function __construct(private readonly MovieNightRepositoryInterface $nights) {}
 
     public function overview(User $viewer): MovieNightOverviewResponse
     {
@@ -91,7 +87,6 @@ class MovieNightService implements MovieNightServiceInterface
 
         if ($invite->status !== $data->status) {
             $this->nights->updateInviteStatus($invite, $data->status);
-            $this->notifier->answered($guest, $this->nights->loadOrganizer($night), $data->status);
         }
 
         return $this->present($night, $guest->id);
@@ -111,7 +106,6 @@ class MovieNightService implements MovieNightServiceInterface
         }
 
         DB::transaction(fn () => $this->nights->replaceVote($night, $data->tmdbId, $voter->id));
-        $this->notifier->voted($voter, $night);
 
         return $this->present($night, $voter->id);
     }
@@ -124,7 +118,7 @@ class MovieNightService implements MovieNightServiceInterface
     }
 
     /**
-     * Invites each @username except the host and anyone in `$alreadyInvited`, and tells them.
+     * Invites each @username except the host and anyone in `$alreadyInvited`.
      *
      * @param  list<string>  $usernames
      * @param  list<int>  $alreadyInvited
@@ -132,10 +126,7 @@ class MovieNightService implements MovieNightServiceInterface
     private function inviteUsers(MovieNight $night, array $usernames, User $organizer, array $alreadyInvited = []): void
     {
         $this->nights->findUsersByUsername($usernames, $organizer->id, $alreadyInvited)
-            ->each(function (User $guest) use ($night, $organizer) {
-                $this->nights->addInvite($night, $guest->id);
-                $this->notifier->invited($organizer, $guest, $night);
-            });
+            ->each(fn (User $guest) => $this->nights->addInvite($night, $guest->id));
     }
 
     private function present(MovieNight $night, int $viewerId): MovieNightResponse

@@ -2,8 +2,6 @@
 
 use App\MovieList\Controllers\MovieListController;
 use App\MovieNight\Controllers\MovieNightController;
-use App\Notification\Controllers\NotificationController;
-use App\Room\Controllers\RoomController;
 use App\User\Controllers\UserController;
 use App\Watchlist\Controllers\WatchlistController;
 use Illuminate\Support\Facades\Route;
@@ -34,16 +32,6 @@ Route::middleware('auth.jwt')->group(function () {
 
     Route::apiResource('lists', MovieListController::class)->parameters(['lists' => 'list']);
     Route::apiResource('watchlist', WatchlistController::class)->except('show');
-
-    Route::get('notifications', [NotificationController::class, 'index']);
-    Route::post('notifications/read-all', [NotificationController::class, 'readAll']);
-    Route::patch('notifications/{notification}', [NotificationController::class, 'update']);
-    Route::delete('notifications/{notification}', [NotificationController::class, 'destroy']);
-
-    Route::get('rooms', [RoomController::class, 'index']);
-    Route::post('rooms', [RoomController::class, 'store']);
-    Route::get('rooms/{room}/messages', [RoomController::class, 'messages']);
-    Route::post('rooms/{room}/messages', [RoomController::class, 'send'])->middleware('throttle:30,1');
 
     Route::get('movie-nights', [MovieNightController::class, 'index']);
     Route::post('movie-nights', [MovieNightController::class, 'store']);
