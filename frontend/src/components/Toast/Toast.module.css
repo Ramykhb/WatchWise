@@ -1,0 +1,85 @@
+/* Dark pill at the bottom centre that slides up, then back down when it goes. */
+.toast,
+.toastLeaving {
+  position: fixed;
+  z-index: 70;
+  bottom: 28px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 12px 12px 12px 18px;
+  border-radius: var(--radius-pill);
+  background: var(--ink-900);
+  box-shadow: var(--elevation-float);
+  color: var(--ground-cream);
+  translate: -50% 0;
+  animation: slide-up 0.35s var(--ease-out-back) both;
+}
+
+.toastLeaving {
+  animation: slide-down 0.22s ease-in both;
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-mint);
+}
+
+.message {
+  overflow: hidden;
+  font-weight: 700;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dismiss {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: rgb(255 243 227 / 0.14);
+  transition: background-color 0.2s ease-out;
+}
+
+.dismiss:hover {
+  background: rgb(255 243 227 / 0.26);
+}
+
+/* The ✕ asset is dark; show it in cream on the dark pill. */
+.dismiss img {
+  filter: invert(1);
+}
+
+.dismiss:focus-visible {
+  outline: 3px solid var(--accent-yellow);
+  outline-offset: 2px;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    translate: -50% 24px;
+  }
+}
+
+@keyframes slide-down {
+  to {
+    opacity: 0;
+    translate: -50% 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toastLeaving {
+    animation: none;
+  }
+}
