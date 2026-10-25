@@ -1,23 +1,21 @@
 <?php
 
-use App\Http\Controllers\HomeController;
-use App\Http\Controllers\MeController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RoomController;
 use App\MovieList\Controllers\MovieListController;
 use App\MovieNight\Controllers\MovieNightController;
+use App\User\Controllers\UserController;
 use App\Watchlist\Controllers\WatchlistController;
 use Illuminate\Support\Facades\Route;
 
 // Loaded from routes/api.php (already under the /api prefix). Everything here needs a signed-in user.
 Route::middleware('auth.jwt')->group(function () {
-    Route::get('home', HomeController::class);
+    Route::get('home', [UserController::class, 'home']);
 
-    Route::prefix('me')->controller(MeController::class)->group(function () {
-        Route::get('/', 'show');
-        Route::patch('/', 'update');
-        Route::delete('/', 'destroy');
+    Route::prefix('me')->controller(UserController::class)->group(function () {
+        Route::get('/', 'showMe');
+        Route::patch('/', 'updateMe');
+        Route::delete('/', 'destroyMe');
         Route::patch('preferences', 'updatePreferences');
         Route::put('password', 'updatePassword')->middleware('throttle:6,1');
         Route::post('avatar', 'uploadAvatar');
@@ -25,8 +23,8 @@ Route::middleware('auth.jwt')->group(function () {
         Route::delete('social/{provider}', 'disconnectSocial')->where('provider', 'google|github|discord');
     });
 
-    Route::get('users', [ProfileController::class, 'index']);
-    Route::prefix('users/{user:username}')->controller(ProfileController::class)->group(function () {
+    Route::get('users', [UserController::class, 'index']);
+    Route::prefix('users/{user:username}')->controller(UserController::class)->group(function () {
         Route::get('/', 'show');
         Route::get('followers', 'followers');
         Route::get('following', 'following');
