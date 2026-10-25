@@ -1,9 +1,10 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Notification\Controllers;
 
+use App\Support\Controller;
 use App\Auth\CurrentUser\CurrentUser;
-use App\Http\Resources\NotificationResource;
+use App\Notification\Resources\NotificationResource;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
