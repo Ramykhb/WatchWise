@@ -2,11 +2,11 @@
 
 namespace Tests\Feature\Social;
 
+use App\ActivityFeed\Services\ActivityFeedService;
 use App\Models\MovieNight;
 use App\Models\Review;
 use App\Models\User;
 use App\Models\UserPreference;
-use App\Services\ActivityFeedService;
 
 class PrivacyTest extends SocialTestCase
 {

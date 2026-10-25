@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Services;
+namespace App\ActivityFeed\Services;
 
 use App\Auth\CurrentUser\CurrentUser;
-use App\Http\Resources\ReviewResource;
+use App\Review\Resources\ReviewResource;
 use App\Models\ActivityFeed;
 use App\Models\MovieList;
 use App\Models\Review;

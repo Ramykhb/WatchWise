@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Resources;
+namespace App\Review\Resources;
 
 use App\Models\Review;
 use App\User\Resources\MemberResource;

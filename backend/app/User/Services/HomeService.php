@@ -2,9 +2,9 @@
 
 namespace App\User\Services;
 
+use App\ActivityFeed\Services\ActivityFeedService;
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\DiscussionRoom;
-use App\Services\ActivityFeedService;
 use App\User\DTOs\Responses\HomeResponse;
 use App\User\InterfaceRepository\HomeRepositoryInterface;
 use App\User\InterfaceRepository\ProfileRepositoryInterface;
