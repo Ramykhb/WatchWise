@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
+import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, Sun, type LucideIcon } from 'lucide-react'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import MovieTile from '../../components/MovieTile/MovieTile.tsx'
@@ -7,7 +8,6 @@ import PillButton from '../../components/PillButton/PillButton.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import bgCoralBlob from '../../assets/home/bg-coral-blob.svg'
 import bgVioletBlob from '../../assets/home/bg-violet-blob.svg'
-import rainIcon from '../../assets/home/icon-rain.svg'
 import moonImg from '../../assets/home/pick-moon.svg'
 import pickWave from '../../assets/home/pick-wave.svg'
 import sparkleIcon from '../../assets/home/icon-sparkle.svg'
@@ -18,7 +18,7 @@ import calendarSmIcon from '../../assets/home/icon-calendar-sm.svg'
 import chatIcon from '../../assets/home/icon-chat.svg'
 import onlineDot from '../../assets/home/dot-online.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { BECAUSE_YOU_LOVED, POPULAR, RELEASES, TONIGHTS_PICK, WEATHER, gradientCss } from './homeData.ts'
+import { BECAUSE_YOU_LOVED, POPULAR, RELEASES, TONIGHTS_PICK, gradientCss } from './homeData.ts'
 import styles from './Home.module.css'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, useApi } from '../../lib/api.ts'
@@ -26,6 +26,70 @@ import { look, shortName, timeAgo } from '../../lib/format.ts'
 import { movieFor, tmdbIdOf } from '../../lib/movies.ts'
 import type { ApiActivity, ApiHome } from '../../lib/types.ts'
 import { formatWhen, localDateTime } from '../MovieNights/nightsData.ts'
+
+type WeatherResponse = {
+  location: { latitude: number; longitude: number; is_default: boolean }
+  current: {
+    temperature_2m: number
+    relative_humidity_2m: number
+    apparent_temperature: number
+    weather_code: number
+    precipitation: number
+    wind_speed_10m: number
+  }
+}
+
+type WeatherMood = { title: string; mood: string; description: string }
+type WeatherCache = { cachedAt: number; weather: WeatherResponse; mood: WeatherMood }
+const WEATHER_CACHE_KEY = 'watchwise:weather-mood:v1'
+const WEATHER_CACHE_TTL = 60 * 60 * 1000
+
+function readWeatherCache(): WeatherCache | null {
+  try {
+    const raw = localStorage.getItem(WEATHER_CACHE_KEY)
+    if (!raw) return null
+    const cache = JSON.parse(raw) as Partial<WeatherCache>
+    const age = Date.now() - (cache.cachedAt ?? 0)
+    if (
+      typeof cache.cachedAt !== 'number' || age < 0 || age >= WEATHER_CACHE_TTL ||
+      typeof cache.weather?.location?.latitude !== 'number' ||
+      typeof cache.weather.location.longitude !== 'number' ||
+      typeof cache.weather.location.is_default !== 'boolean' ||
+      typeof cache.weather.current?.temperature_2m !== 'number' ||
+      typeof cache.weather.current.weather_code !== 'number' ||
+      typeof cache.mood?.mood !== 'string' ||
+      typeof cache.mood.description !== 'string'
+    ) {
+      localStorage.removeItem(WEATHER_CACHE_KEY)
+      return null
+    }
+    return cache as WeatherCache
+  } catch {
+    try { localStorage.removeItem(WEATHER_CACHE_KEY) } catch { /* Storage may be unavailable. */ }
+    return null
+  }
+}
+
+function weatherLabel(code: number) {
+  if (code === 0) return 'Clear sky'
+  if ([1, 2, 3].includes(code)) return 'Partly cloudy'
+  if ([45, 48].includes(code)) return 'Foggy'
+  if ([51, 53, 55, 56, 57].includes(code)) return 'Drizzle'
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return 'Rain'
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return 'Snow'
+  if ([95, 96, 99].includes(code)) return 'Thunderstorm'
+  return 'Variable conditions'
+}
+
+const WEATHER_ICONS: Record<string, LucideIcon> = {
+  'Clear sky': Sun,
+  'Partly cloudy': CloudSun,
+  Foggy: CloudFog,
+  Drizzle: CloudDrizzle,
+  Rain: CloudRain,
+  Snow: CloudSnow,
+  Thunderstorm: CloudLightning,
+}
 
 /** One line of "From people you follow": who, what, which film and where it links. */
 function describe(item: ApiActivity) {
@@ -53,9 +117,134 @@ export default function Home() {
   const pageRef = useRef<HTMLDivElement>(null)
   const [onWatchlist, setOnWatchlist] = useState(false)
   useEntranceAnimation(pageRef)
-  const { user } = useAuth()
+  const { firstName } = useAuth()
   const home = useApi<ApiHome>('/home').data
-  const firstName = user?.name.split(' ')[0] ?? ''
+  const activity = home?.activity ?? []
+  const [initialWeatherCache] = useState(readWeatherCache)
+  const [weather, setWeather] = useState<WeatherResponse | null>(() => initialWeatherCache?.weather ?? null)
+  const [weatherTimestamp, setWeatherTimestamp] = useState<number | null>(() => initialWeatherCache?.cachedAt ?? null)
+  const [weatherLoading, setWeatherLoading] = useState(initialWeatherCache === null)
+  const [weatherError, setWeatherError] = useState(false)
+  const [locationStatus, setLocationStatus] = useState<'checking' | 'requesting' | 'granted' | 'unavailable'>('checking')
+
+  const fetchWeather = useCallback(async (latitude?: number, longitude?: number) => {
+    setWeatherLoading(true)
+    setWeatherError(false)
+    try {
+      const { data } = await api.get<WeatherResponse>('/weather', {
+        params: latitude !== undefined && longitude !== undefined ? { latitude, longitude } : {},
+      })
+      const cachedAt = Date.now()
+      setWeather(data)
+      setWeatherTimestamp(cachedAt)
+      try {
+        const { data: mood } = await api.post<WeatherMood>('/weather-mood', {
+          condition: weatherLabel(data.current.weather_code),
+          temperature: data.current.temperature_2m,
+          humidity: data.current.relative_humidity_2m,
+          wind: data.current.wind_speed_10m,
+          precipitation: data.current.precipitation,
+        })
+        localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify({ cachedAt, weather: data, mood } satisfies WeatherCache))
+      } catch (error) {
+        console.error('Unable to refresh the shared weather mood cache:', error)
+      }
+    } catch (error) {
+      console.error('Unable to load Home weather:', error)
+      setWeatherError(true)
+      setWeatherTimestamp(null)
+    } finally {
+      setWeatherLoading(false)
+    }
+  }, [])
+
+  const useDefaultLocation = useCallback(() => {
+    try { localStorage.removeItem(WEATHER_CACHE_KEY) } catch { /* Storage may be unavailable. */ }
+    setWeather(null)
+    setWeatherTimestamp(null)
+    void fetchWeather()
+  }, [fetchWeather])
+
+  const requestLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationStatus('unavailable')
+      useDefaultLocation()
+      return
+    }
+    setLocationStatus('requesting')
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setLocationStatus('granted')
+        void fetchWeather(coords.latitude, coords.longitude)
+      },
+      () => {
+        setLocationStatus('unavailable')
+        useDefaultLocation()
+      },
+    )
+  }, [fetchWeather, useDefaultLocation])
+
+  useEffect(() => {
+    let active = true
+    let permission: PermissionStatus | null = null
+    const syncPermission = () => {
+      if (!active || !permission) return
+      if (permission.state === 'denied') {
+        setLocationStatus('unavailable')
+        useDefaultLocation()
+      } else if (permission.state === 'granted' && initialWeatherCache && !initialWeatherCache.weather.location.is_default) {
+        setLocationStatus('granted')
+      } else {
+        requestLocation()
+      }
+    }
+    if (!navigator.permissions?.query) {
+      requestLocation()
+      return () => { active = false }
+    }
+    void navigator.permissions.query({ name: 'geolocation' }).then((status) => {
+      if (!active) return
+      permission = status
+      status.addEventListener('change', syncPermission)
+      syncPermission()
+    }).catch(() => {
+      if (active) requestLocation()
+    })
+    return () => {
+      active = false
+      permission?.removeEventListener('change', syncPermission)
+    }
+  }, [initialWeatherCache, requestLocation, useDefaultLocation])
+
+  const requestFreshWeather = useCallback(() => {
+    if (locationStatus === 'unavailable') useDefaultLocation()
+    else requestLocation()
+  }, [locationStatus, requestLocation, useDefaultLocation])
+
+  useEffect(() => {
+    if (weatherTimestamp === null) return
+    const timeout = window.setTimeout(
+      requestFreshWeather,
+      Math.max(0, weatherTimestamp + WEATHER_CACHE_TTL - Date.now()),
+    )
+    return () => window.clearTimeout(timeout)
+  }, [requestFreshWeather, weatherTimestamp])
+
+  const canShowWeather = locationStatus === 'granted' || (locationStatus === 'unavailable' && weather?.location.is_default === true)
+  const currentWeather = canShowWeather ? weather : null
+  const condition = currentWeather ? weatherLabel(currentWeather.current.weather_code) : null
+  const conditionText = condition === 'Clear sky' ? 'Sunny'
+    : condition === 'Rain' ? 'Rainy'
+    : condition === 'Drizzle' ? 'Drizzly'
+      : condition === 'Snow' ? 'Snowy'
+        : condition === 'Thunderstorm' ? 'Stormy'
+          : condition
+  const WeatherIcon = condition ? WEATHER_ICONS[condition] ?? Cloud : Cloud
+  const weatherSummary = (locationStatus === 'checking' || locationStatus === 'requesting' || weatherLoading) && !currentWeather
+    ? 'Checking current weather…'
+    : weatherError && !currentWeather
+      ? 'Weather is temporarily unavailable.'
+      : `${Math.round(currentWeather?.current.temperature_2m ?? 0)}° · ${conditionText ?? 'Current conditions'} in ${currentWeather?.location.is_default ? 'Beirut' : 'your area'}`
 
   const pick = TONIGHTS_PICK.movie
   const addPick = () => {
@@ -78,8 +267,8 @@ export default function Home() {
         <section className={styles.hero} aria-labelledby="home-title">
           <div className={styles.greeting} data-enter data-enter-delay="0.1">
             <span className={styles.chipWhite}>
-              <img src={rainIcon} width={14} height={14} alt="" />
-              {WEATHER}
+              <WeatherIcon size={14} aria-hidden="true" />
+              {weatherSummary}
             </span>
             <SplitHeadline
               id="home-title"
@@ -88,8 +277,9 @@ export default function Home() {
               lines={[{ text: greeting() }, { text: `${firstName}.`, accent: true }]}
             />
             <p className={styles.lead}>
-              Rainy nights call for cozy thrillers and big-hearted dramas. We picked a few based on your ratings and
-              the weather.
+              {condition
+                ? `${conditionText} weather near ${currentWeather?.location.is_default ? 'Beirut' : 'you'} is shaping today’s movie picks.`
+                : 'Today’s movie picks adapt to the current weather.'}
             </p>
             <div className={styles.ctas}>
               <ButtonPrimary label="Browse picks" to="/for-you" />
@@ -111,7 +301,7 @@ export default function Home() {
             <div className={styles.pickInfo}>
               <span className={styles.chipYellow}>
                 <img src={sparkleIcon} width={14} height={14} alt="" />
-                Tonight&apos;s pick · {TONIGHTS_PICK.reason}
+                Tonight&apos;s pick · {currentWeather ? `a ${conditionText?.toLowerCase()}-weather pick` : TONIGHTS_PICK.reason}
               </span>
               <h2 className={styles.pickTitle}>
                 <Link to={`/movies/${pick.slug}`} className={styles.pickLink}>
@@ -210,7 +400,7 @@ export default function Home() {
             <h2 id="home-activity" className={styles.cardTitle}>
               From people you follow
             </h2>
-            {(home?.activity ?? []).map((item) => {
+            {activity.map((item) => {
               const line = describe(item)
               const face = look(item.user)
               return (
@@ -229,7 +419,7 @@ export default function Home() {
                 </Link>
               )
             })}
-            {home && home.activity.length === 0 && (
+            {home && activity.length === 0 && (
               <p className={styles.activityTime}>
                 Nothing yet — <Link to="/discover">follow people</Link> to see what they watch, rate and list.
               </p>

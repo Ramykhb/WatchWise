@@ -4,7 +4,7 @@ namespace App\MovieRecommendation\DTOs\Responses;
 
 use JsonSerializable;
 
-/** The movies Gemini recommended, in its own shape: {"movies":[{"title","year","genre","reason"}]}. */
+/** The TMDB movies selected by AI, with the reason for each selection. */
 final readonly class RecommendationResponse implements JsonSerializable
 {
     /**

@@ -5,6 +5,7 @@ import type { AuthUser } from '../lib/auth.ts'
 
 export type AuthContextValue = {
   user: AuthUser | null
+  firstName: string
   loading: boolean
   setUser: (user: AuthUser | null) => void
   logout: () => Promise<void>

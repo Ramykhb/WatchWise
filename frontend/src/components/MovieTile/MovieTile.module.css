@@ -91,3 +91,9 @@
   font-size: 13px;
   color: var(--ink-600);
 }
+
+.recommendationReason {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-600);
+}
