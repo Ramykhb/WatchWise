@@ -22,7 +22,7 @@ interface MovieListServiceInterface
     public function detail(MovieList $list): MovieList;
 
     /** Replaces the films in the given order when `tmdbIds` is set (add, remove, reorder). */
-    public function update(MovieList $list, UpdateMovieListData $data, User $editor): MovieList;
+    public function update(MovieList $list, UpdateMovieListData $data): MovieList;
 
     public function delete(MovieList $list): void;
 }

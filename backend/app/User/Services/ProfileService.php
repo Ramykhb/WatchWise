@@ -2,12 +2,9 @@
 
 namespace App\User\Services;
 
-use App\ActivityFeed\Services\ActivityFeedService;
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\User;
 use App\MovieList\Resources\MovieListResource;
-use App\Notification\Services\Notifier;
-use App\Review\Resources\ReviewResource;
 use App\User\DTOs\Requests\UserSearchQuery;
 use App\User\DTOs\Responses\FollowResponse;
 use App\User\DTOs\Responses\ProfileResponse;
@@ -23,8 +20,6 @@ class ProfileService implements ProfileServiceInterface
     public function __construct(
         private readonly ProfileRepositoryInterface $profiles,
         private readonly ProfilePrivacy $privacy,
-        private readonly ActivityFeedService $activity,
-        private readonly Notifier $notifier,
     ) {}
 
     public function search(UserSearchQuery $query, CurrentUser $viewer): UserSearchResponse
@@ -107,8 +102,6 @@ class ProfileService implements ProfileServiceInterface
                 'films' => $count('history', fn () => $this->profiles->watchedCount($user)),
             ],
             'restricted' => false,
-            'activity' => $this->activity->forUsers([$user->id], $viewer, 20),
-            'reviews' => ReviewResource::collection($shows('reviews') ? $this->profiles->recentReviews($user, $approvedOnly, 20) : []),
             'lists' => MovieListResource::collection($shows('lists') ? $this->profiles->lists($user, $publicListsOnly) : []),
             'watched' => $shows('history') ? $this->profiles->watchedTmdbIds($user, 24) : [],
             // Highest-rated films first; ties go to the most recent review.
@@ -135,9 +128,7 @@ class ProfileService implements ProfileServiceInterface
 
     public function follow(User $follower, User $target): FollowResponse
     {
-        if ($this->profiles->follow($follower, $target)) {
-            $this->notifier->followed($follower, $target);
-        }
+        $this->profiles->follow($follower, $target);
 
         return new FollowResponse(true, $this->profiles->followersCount($target));
     }

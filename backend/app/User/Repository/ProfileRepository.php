@@ -63,11 +63,6 @@ class ProfileRepository implements ProfileRepositoryInterface
         return $this->reviews($user, $approvedOnly)->count();
     }
 
-    public function recentReviews(User $user, bool $approvedOnly, int $limit): Collection
-    {
-        return $this->reviews($user, $approvedOnly)->with('user')->latest()->limit($limit)->get();
-    }
-
     public function topRatedTmdbIds(User $user, bool $approvedOnly, int $limit): SupportCollection
     {
         return $this->reviews($user, $approvedOnly)->orderByDesc('rating')->latest()->limit($limit)->pluck('tmdb_id');

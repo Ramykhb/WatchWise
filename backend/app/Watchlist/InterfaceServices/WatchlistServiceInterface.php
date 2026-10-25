@@ -14,7 +14,7 @@ interface WatchlistServiceInterface
 {
     public function overview(User $user): WatchlistResponse;
 
-    /** Adds the film, or changes the status of the one already there. A new film is also recorded in the activity feed. */
+    /** Adds the film, or changes the status of the one already there. */
     public function add(User $user, AddToWatchlistData $data): AddToWatchlistResponse;
 
     /** Marking a film `watched` stamps `watched_at`; any other status clears it. */
