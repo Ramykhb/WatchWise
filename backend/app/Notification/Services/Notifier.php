@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Notification\Services;
 
 use App\Models\DiscussionRoom;
 use App\Models\Message;
