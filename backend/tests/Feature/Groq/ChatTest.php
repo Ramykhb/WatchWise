@@ -29,7 +29,7 @@ class ChatTest extends TestCase
             'broadcasting.connections.reverb.secret' => 'test-socket-secret',
             'broadcasting.connections.reverb.app_id' => 'test-app',
             'broadcasting.connections.reverb.public.host' => 'localhost',
-            'broadcasting.connections.reverb.public.port' => 8080,
+            'broadcasting.connections.reverb.public.port' => 18080,
             'broadcasting.connections.reverb.public.scheme' => 'http',
         ]);
         Http::preventStrayRequests();
@@ -207,7 +207,7 @@ class ChatTest extends TestCase
     {
         $this->signIn();
         $this->getJson('/api/chat/connection')->assertOk()->assertExactJson([
-            'key' => 'test-socket-key', 'host' => 'localhost', 'port' => 8080, 'scheme' => 'http',
+            'key' => 'test-socket-key', 'host' => 'localhost', 'port' => 18080, 'scheme' => 'http',
             'max_message_chars' => 2000, 'max_history_messages' => 20, 'max_history_chars' => 24000,
         ]);
     }
