@@ -203,6 +203,35 @@
   background: var(--surface-violet-tint);
 }
 
+/* A deleted list's card fades and shrinks before it leaves the grid (CARD_EXIT_MS in Lists.tsx). */
+.cardLeaving {
+  pointer-events: none;
+  animation: card-out 0.3s ease-in forwards;
+}
+
+@keyframes card-out {
+  to {
+    opacity: 0;
+    scale: 0.92;
+  }
+}
+
+/* The list's cover in the "Delete list?" dialog: a smaller version of the card cover. */
+.dialogCover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 132px;
+  height: 92px;
+  border-radius: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardLeaving {
+    animation: none;
+  }
+}
+
 .delete {
   background: var(--surface-coral-tint);
 }
