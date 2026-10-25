@@ -163,3 +163,118 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - Run `vendor/bin/phpunit` to call the test runner directly. It accepts the same file path and `--filter=testName` arguments.
 
 </laravel-boost-guidelines>
+
+# WatchWise Module Architecture (mandatory)
+
+This section is project-specific and sits outside the Boost block so Boost updates don't overwrite it. It describes the structure `app/Auth`, `app/Genre`, `app/Movie`, `app/MovieList`, `app/MovieNight`, `app/Watchlist` and `app/User` follow. **All new backend code must follow it. Do not write code in the old layered style (`app/Http/*`, `app/Services/*`) and do not leave code to be "refactored later".** When in doubt, open `app/Auth` or `app/Watchlist` and copy their shape.
+
+## 1. Organise by feature, never by technical type
+
+- Each feature (entity or business area) is one self-contained module folder under `app/`: `app/<Feature>/`. Everything the feature needs lives inside it: controllers, requests, DTOs, services, repositories, exceptions, policies, resources, provider.
+- Do not create or revive `app/Http/`, `app/Services/`, `app/Repositories/`, `app/Policies/` or any other folder that groups files by technical type across features. Those folders were deleted on purpose.
+- **Exceptions that stay global:** `app/Models/` (all Eloquent models, shared by every module; never move them into modules), `app/Providers/` (framework-level providers such as `AuthorizationServiceProvider`), `app/Console/`, and `app/Support/` (see section 6).
+- A new module is a new top-level folder under `app/`. This is the one case where a new base folder is acceptable, but tell the user first, per the rule above.
+- Name the module after the entity or business area, singular and PascalCase (`Watchlist`, `MovieNight`, `User`). Code that belongs to one entity must not be placed in another module's folder; if two modules need it, it goes in `app/Support/` or one module exposes it through its service interface.
+
+## 2. Standard module layout
+
+Create only the folders the feature needs, but use exactly these names:
+
+```
+app/<Feature>/
+  Controllers/          one controller per feature/layer, thin
+  FormRequests/         validation + authorization, one per input shape, each with toDto()
+  DTOs/
+    Requests/           final readonly input objects, built by fromValidated()/toDto()
+    Responses/          output objects implementing JsonSerializable
+  InterfaceServices/    <Name>ServiceInterface
+  Services/             <Name>Service implements the interface; business logic lives here
+  InterfaceRepository/  <Name>RepositoryInterface
+  Repository/           <Name>Repository implements the interface; all Eloquent/queries live here
+  Exceptions/           domain exceptions that render themselves
+  Policies/             <Model>Policy for models this module owns
+  Resources/            Eloquent API Resources (only when the shape is shared or model-backed)
+  Providers/            <Feature>ModuleServiceProvider (bindings)
+```
+
+Folder names are fixed: `InterfaceServices`, `InterfaceRepository` and `Repository` (singular) are the project convention. Do not rename them to `Contracts`, `Repositories`, etc.
+
+## 3. One controller per feature, thin
+
+- **One controller per feature/layer.** Related actions go in the same controller (`UserController` holds home, me, preferences, password, avatar, social disconnect, index, show, followers, following, follow, unfollow). Never split one entity across `MeController`/`ProfileController`/`HomeController`-style siblings, and never create a second controller for the same entity. Only add another controller when it is a genuinely separate concern with its own routes (as `AuthController` vs `SocialAuthController` vs `PasswordResetController` in Auth).
+- Controllers are **plain classes**. There is no base `Controller`; do not add one and do not `extends Controller`.
+- Controller methods do only this: take a FormRequest (or route-bound model), call one service method with a DTO or the validated primitives, and return a response (a Response DTO, a Resource, or `response()->json(...)` with the right status). Nothing else.
+- Controllers must not contain: validation, queries or Eloquent calls, business rules, transactions, `if` chains over domain state, or HTTP calls to third parties. All of that belongs in the service or repository.
+- Inject the **service interface**, never a concrete service, repository or model query. Inject the authenticated user through `App\Auth\CurrentUser\CurrentUser`, not `auth()` or `$request->user()`.
+- For route-bound actions (`show`, `update`, `destroy` on a model), authorize in the controller with `Gate::authorize('<ability>', $model)`. See section 5.
+
+## 4. Requests, DTOs and responses
+
+- **FormRequests** live in `FormRequests/`, named after the action (`StoreWatchlistRequest`, `UpdateMovieNightRequest`). They own validation rules and `authorize()`. Every FormRequest exposes a `toDto()` that returns the request DTO, so controllers never read raw `$request->input()`.
+- **Request DTOs** (`DTOs/Requests/`) are `final readonly` classes with a typed constructor and a static `fromValidated(array $data): self`. Name them after the intent (`AddToWatchlistData`, `UpdateWatchlistStatusData`, `CreateMovieListData`), suffix `Data`.
+- **Response DTOs** (`DTOs/Responses/`) are classes implementing `JsonSerializable`, suffix `Response` (`WatchlistResponse`, `MovieNightOverviewResponse`). They are the single place that defines the JSON shape of an endpoint, so the API contract does not drift between controller and service. Use Eloquent Resources only when you are serialising a model (or collection) that is reused across modules (`MemberResource`, `MovieListResource`).
+- Services return DTOs/models/collections, never `JsonResponse`. If the HTTP status depends on the outcome (e.g. created vs existing), the service returns a response DTO carrying the flag (`AddToWatchlistResponse::$created`) and the controller picks 201 or 200.
+- Do not pass the `Request` object, arrays of loose validated input, or `CurrentUser` internals deeper than the controller/service boundary when a DTO would be clearer.
+
+## 5. Services, repositories, policies
+
+- **Services** (`Services/`) hold all business logic and orchestration: rules, transactions, calling other modules' service interfaces, calling the HTTP client for third parties. They implement an interface from `InterfaceServices/` and depend only on **interfaces** (their own repository interfaces, other modules' service interfaces, `CurrentUser`).
+- **Repositories** (`Repository/`) are the only place that touches Eloquent, `DB::`, query builders or `Http::`-style persistence calls for that module's data. Services never call `Model::query()`, `->where()`, `->create()` directly. Repositories contain no business rules and never throw domain exceptions; they return models, collections, scalars or `null`.
+- Every service and repository has an interface in its `Interface*` folder, and the interface is what everything else type-hints. This keeps services testable and swappable.
+- A service may use another module's **service interface**. It must not use another module's repository, controller, FormRequest or DTO internals. If you need data owned by another module, add a method on that module's service interface.
+- **Policies** live in `<Feature>/Policies/`, named `<Model>Policy`, and are registered in `app/Providers/AuthorizationServiceProvider.php` (the Gate is bound to `CurrentUser` there). Authorization rules go in policies, never inline in controllers or services.
+  - Route-bound model actions: `Gate::authorize('ability', $model)` in the controller.
+  - Create/list actions with no bound model: `Gate::allows(...)` inside `FormRequest::authorize()` so authorization runs **before** validation.
+  - A FormRequest `authorize()` that returns `true` is only acceptable when the service enforces the rule itself (document that in a PHPDoc block).
+
+## 6. Exceptions, shared code and errors
+
+- **Domain exceptions** live in `<Feature>/Exceptions/`, named for the failure in plain words (`NotInvitedToMovieNight`, `VotingClosed`, `IncorrectPassword`), and implement `render()` so they produce the right status and JSON body themselves. Services throw them; controllers never catch them to build responses. Do not use `abort(...)` or `response()->json([...], 4xx)` for domain errors outside a service/exception.
+- Do not throw generic `\Exception`/`\RuntimeException` for expected business failures.
+- **`app/Support/`** is for code that is genuinely shared by several modules and has no single owner: the TMDB HTTP client (`TmdbHttpClient`), shared exceptions (`TmdbNotFound`, `TmdbUnavailable`), small helpers (`LikePattern`). Before putting something in `Support/`, confirm at least two modules use it. If only one module uses it, it lives in that module (for Auth, `app/Auth/Support/`).
+- Do not copy a helper between modules. Move it to `Support/` and import it.
+
+## 7. Service providers and registration
+
+- Each module has `Providers/<Feature>ModuleServiceProvider.php` with a `public array $bindings` map from each interface to its implementation (service and repository). Register it in `bootstrap/providers.php`.
+- Never `new` a service or repository inside a controller or another service, and never bind in `AppServiceProvider` for a module's classes.
+- Policy to model mapping stays in `AuthorizationServiceProvider`.
+
+## 8. Routes and API documentation
+
+- Routes call module controllers by their module namespace (`use App\User\Controllers\UserController;`). Group related routes with `Route::controller(...)`/`prefix(...)` as `routes/social.php` does; keep one routes file per area as today. Use `apiResource` when the controller follows REST conventions.
+- Route names, URLs and response shapes are a **public contract**. Do not rename or remove endpoints, or remove/rename response fields, as a side effect of a refactor. If a change is breaking, tell the user, check the frontend (`../frontend/src`) for callers, and update both together.
+- The API is documented by hand in `openapi/paths/*.json`. Any route added, removed or changed must be updated there in the same change, otherwise `OpenApiCoverageTest` fails.
+
+## 9. Naming and style
+
+- Suffixes are part of the convention: `*Controller`, `*Request`, `*Data` (request DTO), `*Response` (response DTO), `*Resource`, `*Service`, `*ServiceInterface`, `*Repository`, `*RepositoryInterface`, `*Policy`, `*ModuleServiceProvider`. Exceptions are named for the failure with no `Exception` suffix.
+- Name services by what they do for the feature, not by technology (`AccountService`, `ProfileService`, `HomeService`); a module may have several services when it has several distinct responsibilities, each with its own interface.
+- Use `final readonly` for DTOs; constructor property promotion; explicit return types; curly braces always (see the PHP rules above).
+- Do not leave dead code, unused imports, commented-out code, or leftover `use` lines. After moving or renaming a class, grep for every reference to the old namespace and fix it.
+- Keep the code in a file in its single correct place. Do not leave a copy "for now".
+
+## 10. Tests
+
+- Mirror the module in `tests/Feature/<Feature>/` and prefer feature tests that hit the HTTP endpoints, as the existing suites do. Add a test for every new endpoint and every new business rule (the happy path, the authorization failure and each domain exception).
+- Use factories and their states; never create models manually when a factory exists.
+- Tests that depend on third parties (TMDB, Gemini, Open-Meteo, Socialite) must fake them and set any config they need inside the test, never rely on `.env` values.
+- Run the narrowest tests while working, then the full suite (`php artisan test --compact`) before finishing a refactor. Run `vendor/bin/pint --dirty --format agent` after any PHP change.
+
+## 11. Adding or changing a feature: checklist
+
+1. Find the owning module (or, if none fits, propose a new one to the user). Never put the code in a shared type-based folder.
+2. Route -> FormRequest (validation + `authorize()` + `toDto()`) -> controller action (thin) -> service interface method -> service (logic) -> repository interface method -> repository (queries) -> Response DTO/Resource.
+3. Add interface methods first, then implement them; bind them in the module provider.
+4. Domain failures become exception classes with `render()` in the module.
+5. Update `AuthorizationServiceProvider` if you add a policy.
+6. Update `openapi/paths/*.json` if routes changed.
+7. Add/adjust feature tests, run Pint, run the tests.
+8. Verify nothing references a removed/moved namespace (`grep` for the old `App\...` path) and that no endpoint or response field changed unintentionally.
+
+## 12. Refactoring existing code
+
+- Refactor module by module on a dedicated branch, in small commits (move/split, then wire up, then tests, then docs), merging each into the integration branch.
+- **Move code; do not silently delete or rewrite behaviour.** If the user asks to delete code or a feature, delete it fully (controllers, services, routes, OpenAPI paths, tests, callers) and list the removed endpoints/fields and what depends on them (including the frontend) before finishing.
+- Models, migrations and database tables are left in place unless the user explicitly asks otherwise.
+- When two controllers/services/resources for the same entity exist, merge them into one in the entity's module instead of keeping both.
