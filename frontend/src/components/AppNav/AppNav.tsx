@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { Link, NavLink, useNavigate } from 'react-router'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router'
 import Logo from '../Logo/Logo.tsx'
 import AvatarImage from '../AvatarImage/AvatarImage.tsx'
 import FollowButton from '../FollowButton/FollowButton.tsx'
@@ -12,9 +12,10 @@ import { colorOf, initialsOf } from '../../lib/format.ts'
 import type { ApiUserSearch } from '../../lib/types.ts'
 import styles from './AppNav.module.css'
 
-const LINKS = [
+/** `alsoActiveOn`: other sections that belong to this link, e.g. actor pages opened from Discover. */
+const LINKS: { to: string; label: string; alsoActiveOn?: string[] }[] = [
   { to: '/home-page', label: 'Home' },
-  { to: '/discover', label: 'Discover' },
+  { to: '/discover', label: 'Discover', alsoActiveOn: ['/people/'] },
   { to: '/for-you', label: 'For You' },
   { to: '/lists', label: 'Lists' },
   { to: '/movie-nights', label: 'Movie Nights' },
@@ -28,6 +29,7 @@ const PEOPLE_SHOWN = 5
 /** Signed-in app header (Figma "Nav/App"): logo, section links, search, notifications, avatar. */
 export default function AppNav() {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const { user } = useAuth()
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -88,7 +90,13 @@ export default function AppNav() {
         <Logo />
         <nav className={styles.links} aria-label="Main">
           {LINKS.map((link) => (
-            <NavLink key={link.to} to={link.to} className={({ isActive }) => (isActive ? styles.linkActive : styles.link)}>
+            <NavLink
+              key={link.to}
+              to={link.to}
+              className={({ isActive }) =>
+                isActive || link.alsoActiveOn?.some((path) => pathname.startsWith(path)) ? styles.linkActive : styles.link
+              }
+            >
               {link.label}
             </NavLink>
           ))}
