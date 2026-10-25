@@ -3,6 +3,8 @@
 use App\Auth\Controllers\AuthController;
 use App\Docs\Controllers\DocumentationController;
 use App\Genre\Controllers\GenreController;
+use App\Groq\Controllers\ChatController;
+use App\Groq\Controllers\ChatSocketController;
 use App\Movie\Controllers\MovieController;
 use App\MovieRecommendation\Controllers\RecommendationController;
 use App\Weather\Controllers\WeatherController;
@@ -18,6 +20,12 @@ Route::prefix('auth')->group(function () {
 
 require __DIR__.'/auth_flows.php';
 require __DIR__.'/social.php';
+
+Route::prefix('chat')->middleware('auth.jwt')->group(function () {
+    Route::get('connection', [ChatSocketController::class, 'show'])->middleware('throttle:60,1');
+    Route::post('auth', [ChatSocketController::class, 'store'])->middleware('throttle:60,1');
+    Route::post('messages', [ChatController::class, 'store'])->middleware('throttle:chat');
+});
 
 Route::get('/weather', [WeatherController::class, 'show'])->middleware('throttle:weather');
 Route::post('/weather-mood', [WeatherController::class, 'mood'])->middleware('throttle:ai');

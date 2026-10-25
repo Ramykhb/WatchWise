@@ -40,7 +40,7 @@ type WeatherResponse = {
 }
 
 type WeatherMood = { title: string; mood: string; description: string }
-type WeatherCache = { cachedAt: number; weather: WeatherResponse; mood: WeatherMood }
+type WeatherCache = { cachedAt: number; weather: WeatherResponse; mood?: WeatherMood }
 const WEATHER_CACHE_KEY = 'watchwise:weather-mood:v1'
 const WEATHER_CACHE_TTL = 60 * 60 * 1000
 
@@ -57,8 +57,7 @@ function readWeatherCache(): WeatherCache | null {
       typeof cache.weather.location.is_default !== 'boolean' ||
       typeof cache.weather.current?.temperature_2m !== 'number' ||
       typeof cache.weather.current.weather_code !== 'number' ||
-      typeof cache.mood?.mood !== 'string' ||
-      typeof cache.mood.description !== 'string'
+      (cache.mood !== undefined && (typeof cache.mood.mood !== 'string' || typeof cache.mood.description !== 'string'))
     ) {
       localStorage.removeItem(WEATHER_CACHE_KEY)
       return null
@@ -138,6 +137,11 @@ export default function Home() {
       setWeather(data)
       setWeatherTimestamp(cachedAt)
       try {
+        localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify({ cachedAt, weather: data } satisfies WeatherCache))
+      } catch {
+        // Keep the live weather usable if browser storage is unavailable.
+      }
+      try {
         const { data: mood } = await api.post<WeatherMood>('/weather-mood', {
           condition: weatherLabel(data.current.weather_code),
           temperature: data.current.temperature_2m,
@@ -168,7 +172,7 @@ export default function Home() {
   const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setLocationStatus('unavailable')
-      useDefaultLocation()
+      if (!initialWeatherCache?.weather.location.is_default) useDefaultLocation()
       return
     }
     setLocationStatus('requesting')
@@ -179,10 +183,10 @@ export default function Home() {
       },
       () => {
         setLocationStatus('unavailable')
-        useDefaultLocation()
+        if (!initialWeatherCache?.weather.location.is_default) useDefaultLocation()
       },
     )
-  }, [fetchWeather, useDefaultLocation])
+  }, [fetchWeather, initialWeatherCache, useDefaultLocation])
 
   useEffect(() => {
     let active = true
@@ -191,7 +195,7 @@ export default function Home() {
       if (!active || !permission) return
       if (permission.state === 'denied') {
         setLocationStatus('unavailable')
-        useDefaultLocation()
+        if (!initialWeatherCache?.weather.location.is_default) useDefaultLocation()
       } else if (permission.state === 'granted' && initialWeatherCache && !initialWeatherCache.weather.location.is_default) {
         setLocationStatus('granted')
       } else {

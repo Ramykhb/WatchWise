@@ -66,7 +66,7 @@ type WeatherMood = {
 type WeatherMoodCache = {
   cachedAt: number;
   weather: WeatherResponse;
-  mood: WeatherMood;
+  mood?: WeatherMood;
 };
 
 const WEATHER_CACHE_KEY = "watchwise:weather-mood:v1";
@@ -126,9 +126,11 @@ function readWeatherCache(): WeatherMoodCache | null {
       typeof current.weather_code === "number" &&
       typeof current.precipitation === "number" &&
       typeof current.wind_speed_10m === "number" &&
-      typeof cache.mood?.title === "string" &&
-      typeof cache.mood?.mood === "string" &&
-      typeof cache.mood?.description === "string";
+      (cache.mood === undefined || (
+        typeof cache.mood.title === "string" &&
+        typeof cache.mood.mood === "string" &&
+        typeof cache.mood.description === "string"
+      ));
 
     if (!isValid || age < 0 || age >= WEATHER_CACHE_TTL) {
       removeWeatherCache();
@@ -217,7 +219,7 @@ export default function ForYou() {
   const [weatherMood, setWeatherMood] = useState<WeatherMood | null>(
     () => initialWeatherCache?.mood ?? null,
   );
-  const [moodLoading, setMoodLoading] = useState(initialWeatherCache === null);
+  const [moodLoading, setMoodLoading] = useState(initialWeatherCache === null || !initialWeatherCache.mood);
   const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(
     () => initialWeatherCache?.cachedAt ?? null,
   );
@@ -226,6 +228,7 @@ export default function ForYou() {
   );
   const [recommendationsLoading, setRecommendationsLoading] = useState(initialRecommendationCache === null);
   const [recommendationsError, setRecommendationsError] = useState(false);
+  const moodRequestTimestamp = useRef<number | null>(null);
   useEntranceAnimation(pageRef);
 
   // TODO: persist in the user's settings once the API exists.
@@ -257,6 +260,37 @@ export default function ForYou() {
     }
   }, []);
 
+  const fetchWeatherMood = useCallback(async (data: WeatherResponse, cachedAt: number) => {
+    if (moodRequestTimestamp.current === cachedAt) return;
+    moodRequestTimestamp.current = cachedAt;
+    setMoodLoading(true);
+    try {
+      const { data: moodData } = await api.post<WeatherMood>(
+        '/weather-mood',
+        {
+          condition: weatherCondition(data.current.weather_code),
+          temperature: data.current.temperature_2m,
+          humidity: data.current.relative_humidity_2m,
+          wind: data.current.wind_speed_10m,
+          precipitation: data.current.precipitation,
+        },
+      );
+      setWeatherMood(moodData);
+      try {
+        localStorage.setItem(
+          WEATHER_CACHE_KEY,
+          JSON.stringify({ cachedAt, weather: data, mood: moodData } satisfies WeatherMoodCache),
+        );
+      } catch {
+        // Keep the live mood usable if browser storage is unavailable.
+      }
+    } catch (moodError) {
+      console.error("Unable to load weather mood:", moodError);
+    } finally {
+      setMoodLoading(false);
+    }
+  }, []);
+
   const fetchWeather = useCallback(
     async (latitude?: number, longitude?: number) => {
       setWeatherLoading(true);
@@ -276,38 +310,19 @@ export default function ForYou() {
         });
         setWeather(data);
         setWeatherMood(null);
-        setCacheTimestamp(null);
-        removeWeatherCache();
+        const cachedAt = Date.now();
+        setCacheTimestamp(cachedAt);
+        try {
+          localStorage.setItem(
+            WEATHER_CACHE_KEY,
+            JSON.stringify({ cachedAt, weather: data } satisfies WeatherMoodCache),
+          );
+        } catch {
+          // Keep the live weather usable if browser storage is unavailable.
+        }
         setWeatherLoading(false);
         void fetchWeatherRecommendations(data.location.latitude, data.location.longitude);
-
-        try {
-          const { data: moodData } = await api.post<WeatherMood>(
-            '/weather-mood',
-            {
-              condition: weatherCondition(data.current.weather_code),
-              temperature: data.current.temperature_2m,
-              humidity: data.current.relative_humidity_2m,
-              wind: data.current.wind_speed_10m,
-              precipitation: data.current.precipitation,
-            },
-          );
-          setWeatherMood(moodData);
-          const cachedAt = Date.now();
-          try {
-            localStorage.setItem(
-              WEATHER_CACHE_KEY,
-              JSON.stringify({ cachedAt, weather: data, mood: moodData } satisfies WeatherMoodCache),
-            );
-            setCacheTimestamp(cachedAt);
-          } catch {
-            // Keep the live response usable if the browser blocks local storage.
-          }
-        } catch (moodError) {
-          console.error("Unable to load weather mood:", moodError);
-        } finally {
-          setMoodLoading(false);
-        }
+        void fetchWeatherMood(data, cachedAt);
       } catch (error) {
         console.error("Unable to load weather:", error);
         setWeatherError(true);
@@ -318,8 +333,14 @@ export default function ForYou() {
         setWeatherLoading(false);
       }
     },
-    [fetchWeatherRecommendations],
+    [fetchWeatherMood, fetchWeatherRecommendations],
   );
+
+  useEffect(() => {
+    if (initialWeatherCache && !initialWeatherCache.mood) {
+      void fetchWeatherMood(initialWeatherCache.weather, initialWeatherCache.cachedAt);
+    }
+  }, [fetchWeatherMood, initialWeatherCache]);
 
   const useDefaultLocation = useCallback(() => {
     removeWeatherCache();
@@ -336,10 +357,10 @@ export default function ForYou() {
     void fetchWeather();
   }, [fetchWeather]);
 
-  const requestLocation = useCallback(() => {
+  const requestLocation = useCallback((forceDefault = false) => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setLocationStatus("unavailable");
-      useDefaultLocation();
+      if (forceDefault || !initialWeatherCache?.weather.location.is_default) useDefaultLocation();
       return;
     }
 
@@ -355,10 +376,10 @@ export default function ForYou() {
       },
       () => {
         setLocationStatus("unavailable");
-        useDefaultLocation();
+        if (forceDefault || !initialWeatherCache?.weather.location.is_default) useDefaultLocation();
       },
     );
-  }, [useDefaultLocation]);
+  }, [initialWeatherCache, useDefaultLocation]);
 
   useEffect(() => {
     let active = true;
@@ -368,7 +389,7 @@ export default function ForYou() {
       if (!active || !permission) return;
       if (permission.state === "denied") {
         setLocationStatus("unavailable");
-        useDefaultLocation();
+        if (!initialWeatherCache?.weather.location.is_default) useDefaultLocation();
         return;
       }
 
@@ -423,7 +444,7 @@ export default function ForYou() {
       setWeatherError(false);
       setWeatherLoading(true);
       setMoodLoading(true);
-      requestLocation();
+      requestLocation(true);
     };
     const timeUntilExpiry = cacheTimestamp + WEATHER_CACHE_TTL - Date.now();
 
@@ -566,7 +587,7 @@ export default function ForYou() {
                 <p className={styles.locationNote}>
                   Location is off. Showing weather and movie picks for Beirut.
                 </p>
-                <button type="button" className={styles.retryLocation} onClick={requestLocation}>
+                <button type="button" className={styles.retryLocation} onClick={() => requestLocation()}>
                   Check location again
                 </button>
               </div>
