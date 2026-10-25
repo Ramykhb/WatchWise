@@ -2,9 +2,9 @@
 
 namespace App\MovieList\Resources;
 
-use App\Http\Resources\MemberResource;
 use App\Models\MovieList;
 use App\Models\MovieListItem;
+use App\User\Resources\MemberResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 

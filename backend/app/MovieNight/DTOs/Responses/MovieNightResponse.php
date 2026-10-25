@@ -2,9 +2,9 @@
 
 namespace App\MovieNight\DTOs\Responses;
 
-use App\Http\Resources\MemberResource;
 use App\Models\MovieNight;
 use App\Models\MovieNightInvite;
+use App\User\Resources\MemberResource;
 use JsonSerializable;
 
 /** A movie night as one viewer sees it: guests, shortlist with voters, and the viewer's own RSVP and vote. */

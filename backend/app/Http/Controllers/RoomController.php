@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
-use App\Http\Resources\MemberResource;
 use App\Models\DiscussionRoom;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\Notifier;
+use App\User\Resources\MemberResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
