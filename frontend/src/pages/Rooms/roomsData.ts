@@ -28,7 +28,8 @@ export type Room = {
 
 export const toRoomMember = (m: ApiMember): Member => ({ id: m.id, handle: m.username, name: shortName(m.name), ...look(m) })
 
-const rulesFor = (spoilers: boolean) => [
+/** A room's rules; `rulesFor(false)` is also shown before any room exists. */
+export const rulesFor = (spoilers: boolean) => [
   'Be kind — critique films, not people',
   spoilers ? 'Spoilers allowed in this room' : 'No spoilers — use spoiler tags',
   'No links to pirated content',
