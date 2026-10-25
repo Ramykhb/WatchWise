@@ -434,6 +434,20 @@ app/User/
 - `ProfilePrivacy` is also used by the activity feed, so profile pages and feeds follow the same visibility rules.
 - Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php` and `AccountRulesTest.php`.
 
+## Notification, Room, Review, ActivityFeed and Support
+
+`app/Http/` and `app/Services/` no longer exist. What was left in them moved next to the feature it belongs to (the code is unchanged, only the namespaces):
+
+| Class | Now in |
+| --- | --- |
+| `NotificationController`, `NotificationResource`, `Notifier` | `app/Notification/` (`Controllers/`, `Resources/`, `Services/`) |
+| `RoomController` | `app/Room/Controllers/` |
+| `ReviewResource` | `app/Review/Resources/` |
+| `ActivityFeedService` | `app/ActivityFeed/Services/` |
+| `Controller` (the base class every controller extends) | `app/Support/Controller.php` |
+
+These four folders have not been split into services and repositories yet. `NotificationPolicy`, `MessagePolicy` and `ReviewPolicy` stay in `app/Policies/`.
+
 ## Gemini module
 
 `app/Gemini/` contains the Google Gemini client used by MovieRecommendation through `GeminiServiceInterface`.

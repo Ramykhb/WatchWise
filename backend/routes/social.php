@@ -1,9 +1,9 @@
 <?php
 
-use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\RoomController;
 use App\MovieList\Controllers\MovieListController;
 use App\MovieNight\Controllers\MovieNightController;
+use App\Notification\Controllers\NotificationController;
+use App\Room\Controllers\RoomController;
 use App\User\Controllers\UserController;
 use App\Watchlist\Controllers\WatchlistController;
 use Illuminate\Support\Facades\Route;
