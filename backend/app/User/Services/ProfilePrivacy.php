@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Services;
+namespace App\User\Services;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\User;
-use App\Policies\UserPolicy;
+use App\User\Policies\UserPolicy;
 
 /**
  * What a viewer may see of someone's profile: the profile visibility (UserPolicy::view) first,

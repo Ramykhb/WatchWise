@@ -3,13 +3,14 @@
 namespace App\Services;
 
 use App\Auth\CurrentUser\CurrentUser;
-use App\Http\Resources\MemberResource;
 use App\Http\Resources\ReviewResource;
 use App\Models\ActivityFeed;
 use App\Models\MovieList;
 use App\Models\Review;
 use App\Models\User;
 use App\MovieList\Resources\MovieListResource;
+use App\User\Resources\MemberResource;
+use App\User\Services\ProfilePrivacy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 

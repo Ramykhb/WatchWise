@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Review;
+use App\User\Resources\MemberResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Policies;
+namespace App\User\Policies;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\UserPreference;
