@@ -10,12 +10,11 @@ use App\MovieNight\FormRequests\StoreMovieNightRequest;
 use App\MovieNight\FormRequests\UpdateMovieNightRequest;
 use App\MovieNight\FormRequests\VoteRequest;
 use App\MovieNight\InterfaceServices\MovieNightServiceInterface;
-use App\Support\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
 /** Movie nights the user hosts or is invited to: guests, RSVPs, the shortlist and votes. */
-class MovieNightController extends Controller
+class MovieNightController
 {
     public function __construct(private readonly MovieNightServiceInterface $nights) {}
 

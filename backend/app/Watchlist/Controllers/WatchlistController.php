@@ -4,7 +4,6 @@ namespace App\Watchlist\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\Watchlist;
-use App\Support\Controller;
 use App\Watchlist\FormRequests\StoreWatchlistRequest;
 use App\Watchlist\FormRequests\UpdateWatchlistRequest;
 use App\Watchlist\InterfaceServices\WatchlistServiceInterface;
@@ -12,7 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
 /** The signed-in user's watchlist and watch history (watchlist rows with status "watched"). */
-class WatchlistController extends Controller
+class WatchlistController
 {
     public function __construct(private readonly WatchlistServiceInterface $watchlist) {}
 

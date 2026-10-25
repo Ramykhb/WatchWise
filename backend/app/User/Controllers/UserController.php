@@ -5,7 +5,6 @@ namespace App\User\Controllers;
 use App\Auth\CurrentUser\CurrentUser;
 use App\Auth\Support\AuthCookies;
 use App\Models\User;
-use App\Support\Controller;
 use App\User\FormRequests\DeleteAccountRequest;
 use App\User\FormRequests\UpdatePasswordRequest;
 use App\User\FormRequests\UpdatePreferencesRequest;
@@ -23,7 +22,7 @@ use Illuminate\Support\Facades\Gate;
  * Everything about a user: the signed-in user's own account (/me), other members' profiles and
  * following (/users) and the Home page (/home).
  */
-class UserController extends Controller
+class UserController
 {
     public function __construct(
         private readonly AccountServiceInterface $account,
@@ -31,7 +30,7 @@ class UserController extends Controller
         private readonly HomeServiceInterface $home,
     ) {}
 
-    /** GET /api/home — the signed-in Home page: friends' activity, busy rooms and your next movie night. */
+    /** GET /api/home — the signed-in Home page: busy rooms and your next movie night. */
     public function home(CurrentUser $current): JsonResponse
     {
         return response()->json($this->home->home($current));

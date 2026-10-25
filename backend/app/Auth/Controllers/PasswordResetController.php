@@ -6,10 +6,9 @@ use App\Auth\Exceptions\InvalidResetToken;
 use App\Auth\FormRequests\ForgotPasswordRequest;
 use App\Auth\FormRequests\ResetPasswordRequest;
 use App\Auth\InterfaceServices\PasswordResetServiceInterface;
-use App\Support\Controller;
 use Illuminate\Http\JsonResponse;
 
-class PasswordResetController extends Controller
+class PasswordResetController
 {
     public function __construct(private PasswordResetServiceInterface $passwordResets) {}
 

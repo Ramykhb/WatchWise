@@ -3,11 +3,10 @@
 namespace App\Genre\Controllers;
 
 use App\Genre\InterfaceServices\GenreServiceInterface;
-use App\Support\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class GenreController extends Controller
+class GenreController
 {
     public function __construct(private readonly GenreServiceInterface $genres) {}
 

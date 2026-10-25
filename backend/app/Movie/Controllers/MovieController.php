@@ -6,11 +6,10 @@ use App\Movie\FormRequests\MovieDiscoverRequest;
 use App\Movie\FormRequests\MovieListRequest;
 use App\Movie\FormRequests\MovieSearchRequest;
 use App\Movie\InterfaceServices\MovieServiceInterface;
-use App\Support\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class MovieController extends Controller
+class MovieController
 {
     public function __construct(private readonly MovieServiceInterface $movies) {}
 
