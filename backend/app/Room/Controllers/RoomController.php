@@ -1,12 +1,13 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Room\Controllers;
 
+use App\Support\Controller;
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\DiscussionRoom;
 use App\Models\Message;
 use App\Models\User;
-use App\Services\Notifier;
+use App\Notification\Services\Notifier;
 use App\User\Resources\MemberResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
