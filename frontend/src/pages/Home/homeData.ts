@@ -28,11 +28,9 @@ export const MOVIES = {
 
 export const TONIGHTS_PICK = {
   movie: MOVIES.deepBlue,
-  reason: 'matches your rainy mood',
+  reason: 'picked for tonight',
   details: '2025 · Thriller · 1h 58m · ★ 4.4',
 }
-
-export const WEATHER = '18° · Rainy in Beirut'
 
 export const BECAUSE_YOU_LOVED = {
   title: 'Because you loved Neon Tide',

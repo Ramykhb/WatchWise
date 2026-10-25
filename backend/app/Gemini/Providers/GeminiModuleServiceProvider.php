@@ -4,13 +4,10 @@ namespace App\Gemini\Providers;
 
 use App\Gemini\InterfaceServices\GeminiServiceInterface;
 use App\Gemini\Services\GeminiService;
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 /**
- * Binds Gemini services and defines the shared rate limit for external AI endpoints.
+ * Binds the optional Gemini client.
  */
 class GeminiModuleServiceProvider extends ServiceProvider
 {
@@ -20,10 +17,4 @@ class GeminiModuleServiceProvider extends ServiceProvider
     public array $bindings = [
         GeminiServiceInterface::class => GeminiService::class,
     ];
-
-    public function boot(): void
-    {
-        // External AI calls cost money, so they share a strict per-IP limit.
-        RateLimiter::for('ai', fn (Request $request) => Limit::perMinute(10)->by('ip:'.$request->ip()));
-    }
 }

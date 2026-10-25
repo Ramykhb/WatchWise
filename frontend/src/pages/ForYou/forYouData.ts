@@ -1,8 +1,7 @@
 import type { Movie } from "../../components/MovieTile/MovieTile.tsx";
 import { MOVIES } from "../Home/homeData.ts";
 
-// Mock content from the Figma "For You — Recommendations" frame. Replace with the recommendation
-// API (watch history, ratings, follows) and a weather API once the backend is connected.
+// Static demo shelves from the Figma "For You — Recommendations" frame.
 
 export type TasteChip = { label: string; color: string; to: string };
 
@@ -73,22 +72,6 @@ export const SHELVES: Shelf[] = [
       withMeta(MOVIES.wildFern, "90% match · Adventure"),
       withMeta(MOVIES.velvetHour, "88% match · Romance"),
       withMeta(MOVIES.paperMoon, "86% match · Comedy"),
-    ],
-  },
-  {
-    id: "rainy",
-    title: "Rainy-day picks",
-    reason: "Matched to 18° and light rain in Beirut",
-    icon: "rain",
-    more: "/discover",
-    weather: true,
-    movies: [
-      withMeta(MOVIES.deepBlue, "94% match · Thriller"),
-      withMeta(MOVIES.velvetHour, "91% match · Romance"),
-      withMeta(MOVIES.lastLap, "89% match · Drama"),
-      withMeta(MOVIES.paperMoon, "87% match · Comedy"),
-      withMeta(MOVIES.stardust, "85% match · Fantasy"),
-      withMeta(MOVIES.neonTide, "83% match · Sci-fi"),
     ],
   },
   {

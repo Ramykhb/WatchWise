@@ -149,7 +149,8 @@ export type ApiNight = {
 }
 
 export type ApiHome = {
-  activity: ApiActivity[]
+  /** Not included by the current /api/home response. */
+  activity?: ApiActivity[]
   rooms: { id: number; name: string; members: number }[]
   next_night: {
     id: number

@@ -126,8 +126,8 @@ Copy `.env.example` to `.env` (it is gitignored) and set:
 | `MAIL_*` | SMTP settings for the verification and reset emails. For local work, `MAIL_MAILER=log` writes emails to `storage/logs/laravel.log` instead of sending them |
 | `GOOGLE_*`, `GITHUB_*` | OAuth client id, secret and redirect URI. The redirect URI must match the callback route, for example `http://localhost:8000/api/auth/social/google/callback` |
 | `TMDB_API_KEY` | Needed by the Genre and Movie modules. `TMDB_URL` and `TMDB_IMAGE_URL` have defaults |
-| `GROQ_API_KEY` | Needed by weather mood. `GROQ_MODEL` defaults to `openai/gpt-oss-20b`; `GROQ_API_URL` has a default |
-| `GEMINI_API_KEY`, `GEMINI_MODEL` | Needed by movie recommendations. `GEMINI_URL` has a default |
+| `GROQ_API_KEY` | Needed by weather mood and movie recommendations. `GROQ_MODEL` defaults to `openai/gpt-oss-20b`; `GROQ_API_URL` has a default |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | Optional for the standalone Gemini client. `GEMINI_URL` has a default |
 | `OPEN_METEO_*` | Optional. The URL, default location and timezone have defaults in `config/services.php` |
 
 Then run `composer install`, `php artisan key:generate` and `php artisan migrate`.
@@ -142,7 +142,7 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `auth-refresh` | `AuthModuleServiceProvider` | 30 | `POST /api/auth/refresh` |
 | `auth-verify-email` | `AuthModuleServiceProvider` | 20 | the verification link |
 | `auth-resend-verification`, `auth-forgot-password` | `AuthModuleServiceProvider` | 3 | the matching auth route |
-| `ai` | `GeminiModuleServiceProvider` | 10 | `POST /api/weather-mood`, `GET /api/movie-recommendations` (both call paid AI APIs) |
+| `ai` | `GroqModuleServiceProvider` | 10 | `POST /api/weather-mood`, `GET /api/movie-recommendations` (both call paid AI APIs) |
 | `weather` | `WeatherModuleServiceProvider` | 30 | `GET /api/weather` |
 | `tmdb` | `AppServiceProvider` | 60 | the five TMDB routes |
 
@@ -446,7 +446,7 @@ The database tables, models and policies for notifications, rooms, messages, rev
 
 ## Gemini module
 
-`app/Gemini/` contains the Google Gemini client used by MovieRecommendation through `GeminiServiceInterface`.
+`app/Gemini/` contains a standalone Google Gemini client. Movie recommendations use Groq.
 
 ```
 app/Gemini/
@@ -462,7 +462,7 @@ app/Gemini/
 
 ## Groq module
 
-`app/Groq/` contains the Groq chat-completions client used by Weather mood. It sends the API key as a Bearer token and requests a strict JSON Schema response.
+`app/Groq/` contains the Groq chat-completions client used by Weather mood and movie recommendations. It sends the API key as a Bearer token and supports strict JSON Schema responses through `GroqStructuredOutputInterface`; the simpler `GroqServiceInterface` uses the weather mood schema.
 
 - Setup: set `GROQ_API_KEY` in `.env`. `GROQ_MODEL` defaults to `openai/gpt-oss-20b` and `GROQ_API_URL` defaults to `https://api.groq.com/openai/v1`.
 - `GroqUnavailable` contains only a short failure reason; the provider response body is never returned to clients.
@@ -494,22 +494,22 @@ Setup: the Open-Meteo URL, default location and timezone have defaults in `confi
 
 ## MovieRecommendation module
 
-`app/MovieRecommendation/` asks Gemini for 10 movies that fit the current weather.
+`app/MovieRecommendation/` retrieves real TMDB candidates in weather-appropriate genres, then asks Groq to select up to 10 that fit the current weather.
 
 ```
 app/MovieRecommendation/
   Controllers/          RecommendationController (index)
   FormRequests/         RecommendationRequest
   InterfaceServices/    RecommendationServiceInterface
-  Services/             RecommendationService (weather description, prompt, calls Weather and Gemini)
+  Services/             RecommendationService (weather description, TMDB candidates, Groq selection)
   DTOs/Requests/        RecommendationQuery
   DTOs/Responses/       RecommendationResponse
   Exceptions/           RecommendationUnavailable (fixed 502 responses)
   Providers/            MovieRecommendationModuleServiceProvider
 ```
 
-- `GET /api/movie-recommendations?latitude=&longitude=` returns `{"movies": [{"title", "year", "genre", "reason"}]}`. The coordinates are validated like `/api/weather` and optional.
-- It reuses `WeatherServiceInterface` for the weather and `GeminiServiceInterface` for the answer. It has no HTTP code of its own.
+- `GET /api/movie-recommendations?latitude=&longitude=` returns up to 10 TMDB movie records with `id`, title, poster, rating, release date and a recommendation reason. The coordinates are validated like `/api/weather` and optional.
+- It reuses `WeatherServiceInterface` for the weather, `MovieServiceInterface` for TMDB candidates and `GroqStructuredOutputInterface` for candidate selection. Groq can only select candidate IDs; unknown IDs are discarded. It has no HTTP code of its own.
 - Errors are fixed messages: `{"error": "Could not get the weather"}` or `{"error": "Could not generate recommendations"}`, both with status 502. The real failure is logged.
 - The `ai` rate limiter applies (10 a minute per IP).
 
@@ -534,7 +534,7 @@ How it is built (no extra package is needed):
 
 - The page and the spec only work when `APP_ENV` is `local` (or `testing`). In any other environment they return 404.
 - When you add an endpoint, add it to the matching `openapi/paths/*.json` file. The coverage test fails until you do.
-- Some endpoints need keys in `.env` to work for real: `TMDB_API_KEY` for the movie endpoints, `GROQ_API_KEY` for weather mood, `GEMINI_API_KEY` and `GEMINI_MODEL` for movie recommendations, and SMTP or `MAIL_MAILER=log` for the account emails (with `log`, the verification link is in `storage/logs/laravel.log`).
+- Some endpoints need keys in `.env` to work for real: `TMDB_API_KEY` for the movie endpoints, `GROQ_API_KEY` for weather mood and movie recommendations, and SMTP or `MAIL_MAILER=log` for the account emails (with `log`, the verification link is in `storage/logs/laravel.log`).
 
 ## Security notes
 

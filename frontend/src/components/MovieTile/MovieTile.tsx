@@ -16,6 +16,8 @@ export type Movie = {
   gradient: [string, string, string]
   /** Real poster (e.g. from TMDB). When set it replaces the gradient art. */
   posterUrl?: string
+  /** Optional recommendation explanation shown under the movie metadata. */
+  recommendationReason?: string
 }
 
 /** Poster tile for grids and carousels (Figma "Movie Tile"). */
@@ -53,6 +55,7 @@ export default function MovieTile({ movie }: { movie: Movie }) {
       </div>
       <span className={styles.title}>{movie.title}</span>
       <span className={styles.meta}>{movie.meta}</span>
+      {movie.recommendationReason && <span className={styles.recommendationReason}>{movie.recommendationReason}</span>}
     </Link>
   )
 }

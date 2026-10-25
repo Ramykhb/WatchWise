@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { authApi, type AuthUser } from '../lib/auth.ts'
-import { clearApiCache } from '../lib/api.ts'
+import { clearApiCache, SESSION_EXPIRED_EVENT } from '../lib/api.ts'
 import { clearMyLists } from '../pages/Lists/myListsStore.ts'
 import { clearNights } from '../pages/MovieNights/nightsStore.ts'
 import { clearNotifications } from '../pages/Notifications/notificationsStore.ts'
@@ -30,6 +30,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true
+    const clearExpiredSession = () => setUser(null)
+    window.addEventListener(SESSION_EXPIRED_EVENT, clearExpiredSession)
     const loadSession = async () => {
       try {
         const response = await authApi.get<{ user: AuthUser }>('/auth/me')
@@ -41,7 +43,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
     void loadSession()
-    return () => { active = false }
+    return () => {
+      active = false
+      window.removeEventListener(SESSION_EXPIRED_EVENT, clearExpiredSession)
+    }
   }, [setUser])
 
   const logout = useCallback(async () => {
@@ -51,7 +56,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null)
     }
   }, [setUser])
-  const value = useMemo(() => ({ user, loading, setUser, logout }), [user, loading, setUser, logout])
+  const firstName = useMemo(() => user?.name.trim().split(/\s+/)[0] ?? '', [user?.name])
+  const value = useMemo(() => ({ user, firstName, loading, setUser, logout }), [user, firstName, loading, setUser, logout])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

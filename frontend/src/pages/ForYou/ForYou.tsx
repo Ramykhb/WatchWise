@@ -22,7 +22,9 @@ import rainSmIcon from "../../assets/foryou/icon-rain-sm.svg";
 import sparkleSmIcon from "../../assets/foryou/icon-sparkle-sm.svg";
 import usersIcon from "../../assets/foryou/icon-users.svg";
 import { useEntranceAnimation } from "../../hooks/useEntranceAnimation.ts";
+import { useAuth } from "../../contexts/useAuth.ts";
 import { api } from "../../lib/api.ts";
+import { toTileMovie, type TmdbMovie } from "../Discover/discoverApi.ts";
 import {
   PROFILE,
   SHELVES,
@@ -69,10 +71,36 @@ type WeatherMoodCache = {
 
 const WEATHER_CACHE_KEY = "watchwise:weather-mood:v1";
 const WEATHER_CACHE_TTL = 60 * 60 * 1000;
+const RECOMMENDATION_CACHE_KEY = "watchwise:weather-recommendations:v1";
+
+type WeatherRecommendation = TmdbMovie & { reason: string };
+
+type WeatherRecommendationCache = {
+  cachedAt: number;
+  latitude: number;
+  longitude: number;
+  movies: WeatherRecommendation[];
+};
+
+const MOVIE_GENRES = new Map<number, string>([
+  [28, "Action"], [12, "Adventure"], [16, "Animation"], [35, "Comedy"],
+  [80, "Crime"], [99, "Documentary"], [18, "Drama"], [10751, "Family"],
+  [14, "Fantasy"], [36, "History"], [27, "Horror"], [10402, "Music"],
+  [9648, "Mystery"], [10749, "Romance"], [878, "Sci-fi"], [53, "Thriller"],
+  [10752, "War"], [37, "Western"],
+]);
 
 function removeWeatherCache() {
   try {
     localStorage.removeItem(WEATHER_CACHE_KEY);
+  } catch {
+    // Storage can be unavailable in private browsing or when blocked by the browser.
+  }
+}
+
+function removeRecommendationCache() {
+  try {
+    localStorage.removeItem(RECOMMENDATION_CACHE_KEY);
   } catch {
     // Storage can be unavailable in private browsing or when blocked by the browser.
   }
@@ -114,6 +142,28 @@ function readWeatherCache(): WeatherMoodCache | null {
   }
 }
 
+function readRecommendationCache(location: WeatherResponse["location"] | undefined): WeatherRecommendationCache | null {
+  if (!location) return null;
+  try {
+    const raw = localStorage.getItem(RECOMMENDATION_CACHE_KEY);
+    if (!raw) return null;
+    const cache = JSON.parse(raw) as Partial<WeatherRecommendationCache>;
+    const age = Date.now() - (cache.cachedAt ?? 0);
+    const matchesLocation = cache.latitude === location.latitude && cache.longitude === location.longitude;
+    const validMovies = Array.isArray(cache.movies) && cache.movies.every((movie) =>
+      typeof movie?.id === "number" && typeof movie.title === "string" && typeof movie.reason === "string",
+    );
+    if (!matchesLocation || !validMovies || age < 0 || age >= WEATHER_CACHE_TTL) {
+      localStorage.removeItem(RECOMMENDATION_CACHE_KEY);
+      return null;
+    }
+    return cache as WeatherRecommendationCache;
+  } catch {
+    try { localStorage.removeItem(RECOMMENDATION_CACHE_KEY); } catch { /* Storage may be unavailable. */ }
+    return null;
+  }
+}
+
 const weatherCondition = (code: number): string => {
   if (code === 0) return "Clear sky";
   if ([1, 2, 3].includes(code)) return "Partly cloudy";
@@ -136,12 +186,29 @@ const WEATHER_ICONS: Record<string, LucideIcon> = {
   Thunderstorm: CloudLightning,
 };
 
+const weatherPickTitle = (condition: string) => {
+  switch (condition) {
+    case "Clear sky": return "Sunny-day picks";
+    case "Partly cloudy": return "Partly cloudy picks";
+    case "Foggy": return "Foggy-day picks";
+    case "Drizzle": return "Drizzly-day picks";
+    case "Rain": return "Rainy-day picks";
+    case "Snow": return "Snow-day picks";
+    case "Thunderstorm": return "Stormy-day picks";
+    default: return `${condition} picks`;
+  }
+};
+
 export default function ForYou() {
   const pageRef = useRef<HTMLDivElement>(null);
+  const { firstName } = useAuth();
   const [initialWeatherCache] = useState(readWeatherCache);
+  const [initialRecommendationCache] = useState(() =>
+    readRecommendationCache(initialWeatherCache?.weather.location),
+  );
   const [locationStatus, setLocationStatus] = useState<
-    "requesting" | "granted" | "unavailable"
-  >(() => initialWeatherCache?.weather.location.is_default ? "unavailable" : initialWeatherCache ? "granted" : "requesting");
+    "checking" | "requesting" | "granted" | "unavailable"
+  >("checking");
   const [weather, setWeather] = useState<WeatherResponse | null>(
     () => initialWeatherCache?.weather ?? null,
   );
@@ -154,17 +221,50 @@ export default function ForYou() {
   const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(
     () => initialWeatherCache?.cachedAt ?? null,
   );
+  const [weatherRecommendations, setWeatherRecommendations] = useState<WeatherRecommendation[]>(
+    () => initialRecommendationCache?.movies ?? [],
+  );
+  const [recommendationsLoading, setRecommendationsLoading] = useState(initialRecommendationCache === null);
+  const [recommendationsError, setRecommendationsError] = useState(false);
   useEntranceAnimation(pageRef);
 
   // TODO: persist in the user's settings once the API exists.
   const [adaptToWeather, setAdaptToWeather] = useState(true);
-  const shelves = SHELVES.filter((shelf) => adaptToWeather || !shelf.weather);
+  const shelves = SHELVES;
+
+  const fetchWeatherRecommendations = useCallback(async (latitude: number, longitude: number) => {
+    setRecommendationsLoading(true);
+    setRecommendationsError(false);
+    try {
+      const { data } = await api.get<{ movies: WeatherRecommendation[] }>("/movie-recommendations", {
+        params: { latitude, longitude },
+      });
+      const movies = Array.isArray(data.movies) ? data.movies : [];
+      setWeatherRecommendations(movies);
+      try {
+        localStorage.setItem(RECOMMENDATION_CACHE_KEY, JSON.stringify({
+          cachedAt: Date.now(), latitude, longitude, movies,
+        } satisfies WeatherRecommendationCache));
+      } catch {
+        // Keep recommendations usable if browser storage is unavailable.
+      }
+    } catch (error) {
+      console.error("Unable to load weather recommendations:", error);
+      setWeatherRecommendations([]);
+      setRecommendationsError(true);
+    } finally {
+      setRecommendationsLoading(false);
+    }
+  }, []);
 
   const fetchWeather = useCallback(
     async (latitude?: number, longitude?: number) => {
       setWeatherLoading(true);
       setWeatherError(false);
       setMoodLoading(true);
+      setWeatherRecommendations([]);
+      setRecommendationsLoading(true);
+      setRecommendationsError(false);
 
       try {
         const { data } = await api.get<WeatherResponse>('/weather', {
@@ -179,6 +279,7 @@ export default function ForYou() {
         setCacheTimestamp(null);
         removeWeatherCache();
         setWeatherLoading(false);
+        void fetchWeatherRecommendations(data.location.latitude, data.location.longitude);
 
         try {
           const { data: moodData } = await api.post<WeatherMood>(
@@ -211,17 +312,34 @@ export default function ForYou() {
         console.error("Unable to load weather:", error);
         setWeatherError(true);
         setMoodLoading(false);
+        setRecommendationsLoading(false);
+        setRecommendationsError(true);
       } finally {
         setWeatherLoading(false);
       }
     },
-    [],
+    [fetchWeatherRecommendations],
   );
+
+  const useDefaultLocation = useCallback(() => {
+    removeWeatherCache();
+    removeRecommendationCache();
+    setWeather(null);
+    setWeatherMood(null);
+    setWeatherRecommendations([]);
+    setCacheTimestamp(null);
+    setWeatherError(false);
+    setWeatherLoading(true);
+    setMoodLoading(true);
+    setRecommendationsLoading(true);
+    setRecommendationsError(false);
+    void fetchWeather();
+  }, [fetchWeather]);
 
   const requestLocation = useCallback(() => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setLocationStatus("unavailable");
-      void fetchWeather();
+      useDefaultLocation();
       return;
     }
 
@@ -237,26 +355,70 @@ export default function ForYou() {
       },
       () => {
         setLocationStatus("unavailable");
-        void fetchWeather();
+        useDefaultLocation();
       },
     );
-  }, [fetchWeather]);
+  }, [useDefaultLocation]);
 
   useEffect(() => {
-    if (initialWeatherCache) return;
+    let active = true;
+    let permission: PermissionStatus | null = null;
 
-    const requestId = window.setTimeout(requestLocation, 0);
+    const syncLocationPermission = () => {
+      if (!active || !permission) return;
+      if (permission.state === "denied") {
+        setLocationStatus("unavailable");
+        useDefaultLocation();
+        return;
+      }
 
-    return () => window.clearTimeout(requestId);
-  }, [initialWeatherCache, requestLocation]);
+      if (permission.state === "granted" && initialWeatherCache && !initialWeatherCache.weather.location.is_default) {
+        setLocationStatus("granted");
+        return;
+      }
+      requestLocation();
+    };
+
+    if (!navigator.permissions?.query) {
+      requestLocation();
+      return () => { active = false; };
+    }
+
+    void navigator.permissions.query({ name: "geolocation" }).then((status) => {
+      if (!active) return;
+      permission = status;
+      status.addEventListener("change", syncLocationPermission);
+      syncLocationPermission();
+    }).catch(() => {
+      if (active) requestLocation();
+    });
+
+    return () => {
+      active = false;
+      permission?.removeEventListener("change", syncLocationPermission);
+    };
+  }, [initialWeatherCache, requestLocation, useDefaultLocation]);
+
+  useEffect(() => {
+    if (!initialWeatherCache || initialRecommendationCache || locationStatus !== "granted") return;
+    if (initialWeatherCache.weather.location.is_default) return;
+    void fetchWeatherRecommendations(
+      initialWeatherCache.weather.location.latitude,
+      initialWeatherCache.weather.location.longitude,
+    );
+  }, [fetchWeatherRecommendations, initialRecommendationCache, initialWeatherCache, locationStatus]);
 
   useEffect(() => {
     if (cacheTimestamp === null) return;
 
     const expireCacheAndRefresh = () => {
       removeWeatherCache();
+      removeRecommendationCache();
       setWeather(null);
       setWeatherMood(null);
+      setWeatherRecommendations([]);
+      setRecommendationsLoading(true);
+      setRecommendationsError(false);
       setCacheTimestamp(null);
       setWeatherError(false);
       setWeatherLoading(true);
@@ -274,10 +436,14 @@ export default function ForYou() {
     return () => window.clearTimeout(timeout);
   }, [cacheTimestamp, requestLocation]);
 
-  const place = weather?.location.is_default
+  const canShowWeather = locationStatus === "granted" || (locationStatus === "unavailable" && weather?.location.is_default === true);
+  const visibleWeather = canShowWeather ? weather : null;
+  const visibleMood = visibleWeather ? weatherMood : null;
+  const place = visibleWeather?.location.is_default
     ? "Beirut · now"
-    : "Your location · now";
-  const current = weather?.current;
+    : locationStatus === "checking" ? "Checking location…"
+      : locationStatus === "unavailable" ? "Beirut · now" : "Your location · now";
+  const current = visibleWeather?.current;
   const condition = current
     ? weatherCondition(current.weather_code)
     : "Loading weather…";
@@ -306,7 +472,7 @@ export default function ForYou() {
               accentClassName={styles.accent}
               lines={[
                 { text: "Picked for" },
-                { text: "you,", accentEnd: `${PROFILE.name}.` },
+                { text: "you,", accentEnd: `${firstName}.` },
               ]}
             />
             <p className={styles.lead}>{PROFILE.summary}</p>
@@ -328,7 +494,7 @@ export default function ForYou() {
           <aside
             className={styles.weather}
             aria-label="Weather"
-            aria-busy={weatherLoading}
+            aria-busy={locationStatus === "checking" || weatherLoading || moodLoading}
             data-enter
             data-enter-delay="0.3"
             data-enter-rise="80"
@@ -340,16 +506,18 @@ export default function ForYou() {
                   {place}
                 </span>
                 <span className={styles.degrees}>
-                  {weatherLoading && !current ? (
-                    <span className={styles.loadingValue}>Loading…</span>
+                  {(locationStatus === "checking" || weatherLoading) && !current ? (
+                    <span className={`${styles.weatherSkeleton} ${styles.temperatureSkeleton}`} aria-hidden="true" />
                   ) : (
                     `${Math.round(current?.temperature_2m ?? 0)}°`
                   )}
                 </span>
                 <span className={styles.condition}>
-                  {condition}
-                  {current &&
-                    ` · feels like ${Math.round(current.apparent_temperature)}°`}
+                  {(locationStatus === "checking" || weatherLoading) && !current ? (
+                    <span className={`${styles.weatherSkeleton} ${styles.conditionSkeleton}`} aria-hidden="true" />
+                  ) : (
+                    <>{condition}{current && ` · feels like ${Math.round(current.apparent_temperature)}°`}</>
+                  )}
                 </span>
               </div>
               <span className={styles.weatherIcon} aria-hidden="true">
@@ -362,18 +530,18 @@ export default function ForYou() {
                 WEATHER MOOD
               </span>
               <p className={styles.moodTitle}>
-                {moodLoading && !weatherMood ? (
-                  <span className={styles.loadingValue}>Loading…</span>
+                {(locationStatus === "checking" || moodLoading) && !visibleMood ? (
+                  <span className={`${styles.weatherSkeleton} ${styles.moodTitleSkeleton}`} aria-hidden="true" />
                 ) : (
-                  (weatherMood?.mood ?? WEATHER_MOOD.mood)
+                  (visibleMood?.mood ?? WEATHER_MOOD.mood)
                 )}
               </p>
               <p className={styles.moodText}>
-                {weatherError && !weather
+                {weatherError && !visibleWeather
                   ? "Weather data is temporarily unavailable. Please try again shortly."
-                  : moodLoading && !weatherMood
-                    ? "Reading the sky…"
-                    : (weatherMood?.description ?? WEATHER_MOOD.moodText)}
+                  : (locationStatus === "checking" || moodLoading) && !visibleMood
+                    ? <span className={styles.moodDescriptionSkeleton} aria-hidden="true"><i /><i /></span>
+                    : (visibleMood?.description ?? WEATHER_MOOD.moodText)}
               </p>
             </div>
             {current && (
@@ -396,12 +564,54 @@ export default function ForYou() {
             {locationStatus === "unavailable" && (
               <div className={styles.locationPrompt} role="status">
                 <p className={styles.locationNote}>
-                  Allow location services to personalize weather suggestions.
+                  Location is off. Showing weather and movie picks for Beirut.
                 </p>
+                <button type="button" className={styles.retryLocation} onClick={requestLocation}>
+                  Check location again
+                </button>
               </div>
             )}
           </aside>
         </section>
+
+        {adaptToWeather && (
+          <section className={styles.shelf} aria-labelledby="shelf-weather">
+            <div className={styles.sectionHeader}>
+              <h2 id="shelf-weather" className={styles.sectionTitle}>
+                {current ? weatherPickTitle(condition) : "Weather picks"}
+              </h2>
+              <Link to="/discover" className={styles.sectionAction}>More →</Link>
+            </div>
+            <span className={styles.reason}>
+              <img src={SHELF_ICONS.rain} width={14} height={14} alt="" />
+              {current
+                ? `TMDB movies selected for ${condition.toLowerCase()} weather · ${Math.round(current.temperature_2m)}° near ${visibleWeather?.location.is_default ? "Beirut" : "you"}`
+                : "Matching real TMDB movies to your current weather"}
+            </span>
+            {locationStatus === "checking" || recommendationsLoading ? (
+              <div className={styles.row} role="status" aria-label="Loading weather-matched movie recommendations" aria-busy="true">
+                {Array.from({ length: 6 }, (_, index) => (
+                  <div className={styles.skeletonMovie} key={index} aria-hidden="true">
+                    <span className={`${styles.movieSkeletonShimmer} ${styles.skeletonPoster}`} />
+                    <span className={`${styles.movieSkeletonShimmer} ${styles.skeletonMovieTitle}`} />
+                    <span className={`${styles.movieSkeletonShimmer} ${styles.skeletonMovieMeta}`} />
+                  </div>
+                ))}
+              </div>
+            ) : recommendationsError ? (
+              <p className={styles.recommendationState} role="status">Weather picks are temporarily unavailable.</p>
+            ) : weatherRecommendations.length === 0 ? (
+              <p className={styles.recommendationState} role="status">No matching movies were found for these conditions.</p>
+            ) : (
+              <div className={styles.row}>
+                {weatherRecommendations.slice(0, 6).map((recommendation) => ({
+                  ...toTileMovie(recommendation, MOVIE_GENRES),
+                  recommendationReason: recommendation.reason,
+                })).map((movie) => <MovieTile key={movie.slug} movie={movie} />)}
+              </div>
+            )}
+          </section>
+        )}
 
         {shelves.map((shelf) => (
           <section

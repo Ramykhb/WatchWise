@@ -22,6 +22,7 @@ const publicAuthEndpoints = [
   '/auth/resend-verification',
 ]
 const guestRoutes = ['/', '/signin', '/signup', '/forgot-password', '/auth/callback']
+export const SESSION_EXPIRED_EVENT = 'watchwise:session-expired'
 
 function shouldSkipRefresh(url?: string): boolean {
   if (!url) return false
@@ -52,6 +53,7 @@ function clearSessionAndRedirect(): Promise<void> {
   clearingSession = api.post('/auth/logout')
     .catch(() => undefined)
     .then(() => {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
       if (!guestRoutes.includes(window.location.pathname)) window.location.replace('/')
     })
     .finally(() => {

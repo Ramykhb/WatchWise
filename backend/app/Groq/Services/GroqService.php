@@ -4,10 +4,11 @@ namespace App\Groq\Services;
 
 use App\Groq\Exceptions\GroqUnavailable;
 use App\Groq\InterfaceServices\GroqServiceInterface;
+use App\Groq\InterfaceServices\GroqStructuredOutputInterface;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
-class GroqService implements GroqServiceInterface
+class GroqService implements GroqServiceInterface, GroqStructuredOutputInterface
 {
     /**
      * @return array<string, mixed>
@@ -15,6 +16,25 @@ class GroqService implements GroqServiceInterface
      * @throws GroqUnavailable
      */
     public function ask(string $prompt): array
+    {
+        return $this->askWithSchema($prompt, 'weather_mood', [
+            'type' => 'object',
+            'properties' => [
+                'mood' => ['type' => 'string'],
+                'description' => ['type' => 'string'],
+            ],
+            'required' => ['mood', 'description'],
+            'additionalProperties' => false,
+        ], 512);
+    }
+
+    /**
+     * @param  array<string, mixed>  $schema
+     * @return array<string, mixed>
+     *
+     * @throws GroqUnavailable
+     */
+    public function askWithSchema(string $prompt, string $name, array $schema, int $maxCompletionTokens = 1024): array
     {
         $key = config('services.groq.key');
         $url = rtrim((string) config('services.groq.url'), '/');
@@ -38,22 +58,14 @@ class GroqService implements GroqServiceInterface
                     'response_format' => [
                         'type' => 'json_schema',
                         'json_schema' => [
-                            'name' => 'weather_mood',
+                            'name' => $name,
                             'strict' => true,
-                            'schema' => [
-                                'type' => 'object',
-                                'properties' => [
-                                    'mood' => ['type' => 'string'],
-                                    'description' => ['type' => 'string'],
-                                ],
-                                'required' => ['mood', 'description'],
-                                'additionalProperties' => false,
-                            ],
+                            'schema' => $schema,
                         ],
                     ],
                     'reasoning_effort' => 'low',
                     'include_reasoning' => false,
-                    'max_completion_tokens' => 512,
+                    'max_completion_tokens' => $maxCompletionTokens,
                 ]);
         } catch (ConnectionException) {
             throw new GroqUnavailable('Groq request failed: connection error.');
