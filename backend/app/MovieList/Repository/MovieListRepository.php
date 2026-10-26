@@ -8,6 +8,7 @@ use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\InterfaceRepository\MovieListRepositoryInterface;
 use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 class MovieListRepository implements MovieListRepositoryInterface
 {
@@ -53,7 +54,12 @@ class MovieListRepository implements MovieListRepositoryInterface
             return false;
         }
 
-        $list->items()->create(['tmdb_id' => $tmdbId, 'position' => (int) $list->items()->max('position') + 1]);
+        try {
+            $list->items()->create(['tmdb_id' => $tmdbId, 'position' => (int) $list->items()->max('position') + 1]);
+        } catch (UniqueConstraintViolationException) {
+            // Another request added the same film between the check and the insert: it's there either way.
+            return false;
+        }
         $list->touch();
 
         return true;

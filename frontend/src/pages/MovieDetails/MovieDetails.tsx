@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { Link, useParams } from 'react-router'
 import axios from 'axios'
 import AppNav from '../../components/AppNav/AppNav.tsx'
@@ -269,6 +269,7 @@ function MovieDetailsPage({ details }: { details: Details }) {
   // Lists hold TMDB movie ids; TV shows ("tv-1399") use a separate id range, so they can't be added yet.
   const listTmdbId = tmdbIdOf(movie)
   const canAddToList = Number.isInteger(listTmdbId) && listTmdbId > 0
+  const listHintId = useId()
 
   const [yourReview, setYourReview] = useState<Review | null>(community?.yourReview ?? null)
   const [draft, setDraft] = useState('')
@@ -441,17 +442,23 @@ function MovieDetailsPage({ details }: { details: Details }) {
                   <img src={eyeIcon} width={16} height={16} alt="" />
                   {watched ? 'Watched' : 'Mark as watched'}
                 </button>
+                {/* aria-disabled (not disabled) keeps it focusable, so keyboard and screen-reader users reach the reason. */}
                 <button
                   type="button"
                   className={styles.actionOutline}
-                  aria-haspopup="dialog"
-                  disabled={!canAddToList}
-                  title={canAddToList ? undefined : 'TV shows can’t be added to lists yet'}
-                  onClick={() => setListDialog('open')}
+                  aria-haspopup={canAddToList ? 'dialog' : undefined}
+                  aria-disabled={!canAddToList || undefined}
+                  aria-describedby={canAddToList ? undefined : listHintId}
+                  onClick={() => canAddToList && setListDialog('open')}
                 >
                   <img src={listIcon} width={16} height={16} alt="" />
                   Add to list
                 </button>
+                {!canAddToList && (
+                  <span id={listHintId} className={styles.actionHint}>
+                    TV shows can’t be added to lists yet
+                  </span>
+                )}
                 {community && (
                   <button
                     type="button"
