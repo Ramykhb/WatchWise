@@ -1,18 +1,21 @@
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import { MOVIES, type Gradient } from '../Home/homeData.ts'
 
-// Mock content from the Figma "Person — Actor & Director" frame (Lena Okafor). Other people reuse her
-// filmography until the backend serves TMDB person credits.
+// Mock content from the Figma "Person — Actor & Director" frame (Lena Okafor), for the design's demo people
+// (/people/lena-okafor, linked from the demo movies). Real TMDB people (/people/{id}) load through personApi.ts.
 
 export type Credit = { year: string; movie: Movie; roles: string }
 
-export type Collaborator = { slug: string; initials: string; name: string; meta: string; color: string }
+/** `photoUrl` (TMDB people) replaces the initials on the colour. */
+export type Collaborator = { slug: string; initials: string; name: string; meta: string; color: string; photoUrl?: string }
 
 export type Person = {
   slug: string
   name: string
   initials: string
   gradient: Gradient
+  /** A real photo (TMDB people); the initials on the gradient show without one. */
+  photoUrl?: string
   roles: string[]
   bio: string
   stats: { value: string; label: string }[]
@@ -20,6 +23,8 @@ export type Person = {
   filmography: Credit[]
   collaborators: Collaborator[]
   awards: string[]
+  /** "Personal details" card rows (TMDB people): known for, born, birthplace, died. */
+  details?: { label: string; value: string }[]
 }
 
 const LENA: Person = {

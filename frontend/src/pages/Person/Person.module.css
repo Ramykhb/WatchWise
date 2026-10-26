@@ -35,6 +35,18 @@
   color: var(--ground-cream);
 }
 
+/* A TMDB photo fills the round portrait; the gradient and initials show without one. */
+.portrait {
+  overflow: hidden;
+}
+
+.photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+}
+
 .info {
   display: flex;
   flex: 1;
@@ -42,6 +54,32 @@
   gap: 18px;
   min-width: 0;
   max-width: 820px;
+}
+
+.bioBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+/* Long biographies start at four lines. */
+.bioClamped {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
+
+.bioToggle {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--accent-yellow);
+}
+
+.bioToggle:hover {
+  text-decoration: underline;
 }
 
 .roles {
@@ -248,10 +286,18 @@
 
 .thumb {
   flex-shrink: 0;
+  overflow: hidden;
   width: 44px;
   height: 62px;
   border-radius: 8px;
   transition: translate 0.25s var(--ease-out-back);
+}
+
+.thumbImage:not([hidden]) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .creditLink:hover .thumb {
@@ -313,12 +359,142 @@
   background: var(--accent-mint);
 }
 
+.showAll {
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-cream-deep);
+  font-weight: 700;
+  font-size: 15px;
+  transition: background-color 0.2s ease-out;
+}
+
+.showAll:hover {
+  background: var(--surface-violet-tint);
+}
+
+.empty {
+  padding: 14px 0;
+  font-size: 15px;
+  color: var(--ink-600);
+}
+
 .side {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   gap: 24px;
   width: 420px;
+}
+
+/* TMDB people: born, birthplace, … (they have no collaborators or awards cards). */
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 28px;
+  border-radius: 28px;
+  background: var(--surface-white);
+}
+
+.detailList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+}
+
+.detailList dt {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
+.detailList dd {
+  margin: 2px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* ---------- Loading skeleton ---------- */
+.skeleton,
+.skeletonDark {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: var(--surface-cream-deep);
+}
+
+/* On the violet header the blocks are a soft violet instead of cream. */
+.skeletonDark {
+  background: var(--ground-violet-deep);
+  box-shadow: none;
+}
+
+.skeleton::after,
+.skeletonDark::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.35) 50%, transparent 80%);
+  translate: -100% 0;
+  animation: skeleton-sweep 1.3s ease-in-out infinite;
+}
+
+.skeletonDark::after {
+  background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.1) 50%, transparent 80%);
+}
+
+.skeletonChip,
+.skeletonName,
+.skeletonLine,
+.skeletonLineShort,
+.skeletonHeading {
+  border-radius: var(--radius-pill);
+}
+
+.skeletonChip {
+  width: 96px;
+  height: 30px;
+}
+
+.skeletonName {
+  width: min(520px, 90%);
+  height: 64px;
+}
+
+.skeletonLine {
+  width: min(700px, 100%);
+  height: 16px;
+}
+
+.skeletonLineShort {
+  width: min(420px, 70%);
+  height: 16px;
+}
+
+.skeletonHeading {
+  width: 180px;
+  height: 30px;
+}
+
+.skeletonPoster {
+  aspect-ratio: 2 / 3;
+  border-radius: 20px;
+}
+
+@keyframes skeleton-sweep {
+  to {
+    translate: 100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after,
+  .skeletonDark::after {
+    animation: none;
+  }
 }
 
 .collaborators,
@@ -360,6 +536,33 @@
 
 .collaborator:hover .avatar {
   scale: 1.1;
+}
+
+/* TMDB collaborators have a photo in the round avatar. */
+.avatar {
+  overflow: hidden;
+}
+
+.avatarImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.skeletonCollabName,
+.skeletonCollabMeta {
+  border-radius: var(--radius-pill);
+}
+
+.skeletonCollabName {
+  width: 140px;
+  height: 14px;
+}
+
+.skeletonCollabMeta {
+  width: 100px;
+  height: 11px;
+  margin-top: 6px;
 }
 
 .collabText {

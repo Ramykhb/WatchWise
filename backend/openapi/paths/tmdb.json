@@ -88,6 +88,37 @@
         }
       }
     },
+    "/api/people/{id}": {
+      "get": {
+        "summary": "Get person details",
+        "description": "Returns an actor, director or other crew member with their biography, best-known films and full movie filmography (one entry per film, newest first, with every role they had on it). Successful responses are cached for six hours. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
+        "tags": ["People"],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "description": "TMDB person id.", "schema": {"type": "integer", "minimum": 1}, "example": 525}
+        ],
+        "responses": {
+          "200": {"description": "Person details.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PersonDetails"}}}},
+          "404": {"description": "No person has this id.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}, "example": {"message": "Person not found."}}}},
+          "429": {"description": "Too many requests.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}}}},
+          "502": {"description": "TMDB is unreachable or returned an error.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}, "example": {"message": "Movie service is temporarily unavailable."}}}}
+        }
+      }
+    },
+    "/api/people/{id}/collaborators": {
+      "get": {
+        "summary": "Get a person's frequent collaborators",
+        "description": "Returns up to three people who appear most often (in at least two films) in the cast or key crew of this person's ten best-known films. Successful responses are cached for six hours. When TMDB can't be reached the list is empty rather than an error. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
+        "tags": ["People"],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "description": "TMDB person id.", "schema": {"type": "integer", "minimum": 1}, "example": 525}
+        ],
+        "responses": {
+          "200": {"description": "Frequent collaborators, most shared films first.", "content": {"application/json": {"schema": {"type": "object", "required": ["collaborators"], "properties": {"collaborators": {"type": "array", "maxItems": 3, "items": {"$ref": "#/components/schemas/Collaborator"}}}}}}},
+          "404": {"description": "No person has this id.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}, "example": {"message": "Person not found."}}}},
+          "429": {"description": "Too many requests.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}}}}
+        }
+      }
+    },
     "/api/genres": {
       "get": {
         "summary": "List movie genres",
@@ -181,6 +212,32 @@
         "type": "object",
         "required": ["id", "name"],
         "properties": {"id": {"type": "integer"}, "name": {"type": "string"}}
+      },
+      "PersonCredit": {
+        "type": "object",
+        "required": ["id", "title", "year", "poster_url", "rating", "vote_count", "character", "roles"],
+        "properties": {"id": {"type": "integer"}, "title": {"type": "string"}, "year": {"type": "integer", "nullable": true}, "poster_url": {"type": "string", "nullable": true}, "rating": {"type": "number", "description": "0 to 5."}, "vote_count": {"type": "integer"}, "character": {"type": "string", "nullable": true, "description": "The character played, when they acted in the film."}, "roles": {"type": "array", "items": {"type": "string"}, "example": ["Director", "Screenplay"]}}
+      },
+      "Collaborator": {
+        "type": "object",
+        "required": ["id", "name", "profile_url", "role", "films"],
+        "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "profile_url": {"type": "string", "nullable": true}, "role": {"type": "string", "description": "Their usual role on the shared films.", "example": "Original Music Composer"}, "films": {"type": "integer", "description": "How many of the person's best-known films they share.", "example": 7}}
+      },
+      "PersonDetails": {
+        "type": "object",
+        "required": ["id", "name", "biography", "birthday", "deathday", "place_of_birth", "known_for_department", "profile_url", "known_for", "credits"],
+        "properties": {
+          "id": {"type": "integer"},
+          "name": {"type": "string"},
+          "biography": {"type": "string"},
+          "birthday": {"type": "string", "format": "date", "nullable": true},
+          "deathday": {"type": "string", "format": "date", "nullable": true},
+          "place_of_birth": {"type": "string", "nullable": true},
+          "known_for_department": {"type": "string", "nullable": true, "example": "Directing"},
+          "profile_url": {"type": "string", "nullable": true},
+          "known_for": {"type": "array", "description": "Up to six of their most-voted films.", "items": {"$ref": "#/components/schemas/PersonCredit"}},
+          "credits": {"type": "array", "description": "Every film, newest first.", "items": {"$ref": "#/components/schemas/PersonCredit"}}
+        }
       },
       "CastMember": {
         "type": "object",
