@@ -276,6 +276,18 @@
   border-color: var(--ground-cream);
 }
 
+/* "Add to list" on TV shows, which lists can't hold yet (still focusable, so its hint is announced). */
+.actionOutline[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.5;
+  translate: none;
+}
+
+.actionHint {
+  font-size: 13px;
+  color: var(--text-on-violet-muted);
+}
+
 .actionWatched {
   background: var(--ground-violet-deep);
   color: var(--ground-cream);
