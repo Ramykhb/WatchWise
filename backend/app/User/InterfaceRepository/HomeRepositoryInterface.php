@@ -16,7 +16,7 @@ interface HomeRepositoryInterface
      */
     public function busiestRooms(int $limit): Collection;
 
-    /** How many different people have posted in the room. */
+    /** How many members the room has (its creator and everyone who has posted in it). */
     public function roomMemberCount(DiscussionRoom $room): int;
 
     /** The soonest upcoming night the user hosts or has not declined, with its guests and votes. */

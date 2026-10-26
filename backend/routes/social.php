@@ -2,6 +2,8 @@
 
 use App\MovieList\Controllers\MovieListController;
 use App\MovieNight\Controllers\MovieNightController;
+use App\Room\Controllers\RoomController;
+use App\Room\Controllers\RoomSocketController;
 use App\User\Controllers\UserController;
 use App\Watchlist\Controllers\WatchlistController;
 use Illuminate\Support\Facades\Route;
@@ -42,4 +44,13 @@ Route::middleware('auth.jwt')->group(function () {
     Route::post('movie-nights/{night}/invites', [MovieNightController::class, 'invite']);
     Route::put('movie-nights/{night}/rsvp', [MovieNightController::class, 'rsvp']);
     Route::put('movie-nights/{night}/vote', [MovieNightController::class, 'vote']);
+
+    Route::get('rooms', [RoomController::class, 'index']);
+    Route::post('rooms', [RoomController::class, 'store']);
+    Route::post('rooms/socket-auth', [RoomSocketController::class, 'store'])->middleware('throttle:room-socket');
+    Route::prefix('rooms/{room}')->whereNumber('room')->controller(RoomController::class)->group(function () {
+        Route::get('messages', 'messages');
+        Route::post('messages', 'send')->middleware('throttle:room-messages');
+        Route::post('read', 'read')->middleware('throttle:room-reads');
+    });
 });

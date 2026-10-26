@@ -21,7 +21,7 @@ class HomeRepository implements HomeRepositoryInterface
 
     public function roomMemberCount(DiscussionRoom $room): int
     {
-        return $room->messages()->distinct()->count('user_id');
+        return $room->members()->count();
     }
 
     public function nextNightFor(User $user): ?MovieNight

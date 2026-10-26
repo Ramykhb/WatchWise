@@ -486,6 +486,13 @@
   color: var(--ink-400);
 }
 
+/* "Read by Lina S. and you" / "Seen by everyone" under a message. */
+.receipt {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-400);
+}
+
 .bubble,
 .ownBubble {
   padding: 12px 16px;

@@ -4,6 +4,7 @@ import { clearApiCache, SESSION_EXPIRED_EVENT } from '../lib/api.ts'
 import { clearMyLists } from '../pages/Lists/myListsStore.ts'
 import { clearNights } from '../pages/MovieNights/nightsStore.ts'
 import { clearNotifications } from '../pages/Notifications/notificationsStore.ts'
+import { clearRoomHistory } from '../pages/Rooms/roomHistory.ts'
 import { AuthContext } from './useAuth.ts'
 
 /** Everything kept in memory for one account; dropped whenever the signed-in account changes. */
@@ -21,9 +22,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Signing in as someone else, or out, never shows the previous account's lists, nights or cache.
   const setUser = useCallback((next: AuthUser | null) => {
-    if ((next?.id ?? null) !== userId.current) {
+    const previous = userId.current
+    if ((next?.id ?? null) !== previous) {
       userId.current = next?.id ?? null
       resetUserData()
+      // The saved room conversations belong to the account that just signed out (not to the session load at start).
+      if (previous !== null) clearRoomHistory()
     }
     setUserState(next)
   }, [])
