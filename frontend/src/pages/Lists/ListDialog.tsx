@@ -3,8 +3,6 @@ import { useNavigate, useParams } from 'react-router'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
-import bgBlob from '../../assets/listmodal/bg-blob.svg'
-import bgBlob2 from '../../assets/listmodal/bg-blob-2.svg'
 import xIcon from '../../assets/listmodal/icon-x.svg'
 import xSmIcon from '../../assets/listmodal/icon-x-sm.svg'
 import globeIcon from '../../assets/listmodal/icon-globe.svg'
@@ -188,11 +186,6 @@ function Dialog({ existing }: { existing?: ApiList }) {
       onKeyDown={handleKeyDown}
       data-lenis-prevent
     >
-      <div className={styles.blobs} aria-hidden="true">
-        <img className={styles.blob} src={bgBlob} width={700} height={602.524} alt="" />
-        <img className={styles.blob2} src={bgBlob2} width={500} height={420.842} alt="" />
-      </div>
-
       <div ref={dialogRef} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <form className={styles.form} onSubmit={handleSubmit} noValidate>
           <div className={styles.head}>
