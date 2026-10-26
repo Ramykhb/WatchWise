@@ -7,7 +7,7 @@ import Checkbox from '../../components/Checkbox/Checkbox.tsx'
 import MovieTile from '../../components/MovieTile/MovieTile.tsx'
 import AvatarImage from '../../components/AvatarImage/AvatarImage.tsx'
 import FollowButton from '../../components/FollowButton/FollowButton.tsx'
-import PosterCollage from '../../components/PosterCollage/PosterCollage.tsx'
+import ListCover from '../../components/PosterCollage/ListCover.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import searchIcon from '../../assets/discover/icon-search.svg'
 import chevDownSmIcon from '../../assets/discover/icon-chev-down-sm.svg'
@@ -579,7 +579,7 @@ export default function Discover() {
                     <li key={list.id}>
                       <Link to={`/lists/${list.slug}`} className={styles.listCard}>
                         <span className={styles.listCover}>
-                          <PosterCollage gradients={list.posters} size="sm" />
+                          <ListCover tmdbIds={list.posterIds} gradients={list.posters} size="sm" />
                         </span>
                         <span className={styles.listCardTitle}>{list.title}</span>
                         <span className={styles.listCardMeta}>
