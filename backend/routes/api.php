@@ -1,6 +1,7 @@
 <?php
 
 use App\Auth\Controllers\AuthController;
+use App\Cinemas\Controllers\NearbyCinemaController;
 use App\Docs\Controllers\DocumentationController;
 use App\Genre\Controllers\GenreController;
 use App\Groq\Controllers\ChatController;
@@ -30,6 +31,7 @@ Route::prefix('chat')->middleware('auth.jwt')->group(function () {
 Route::get('/weather', [WeatherController::class, 'show'])->middleware('throttle:weather');
 Route::post('/weather-mood', [WeatherController::class, 'mood'])->middleware('throttle:ai');
 Route::get('/movie-recommendations', [RecommendationController::class, 'index'])->middleware('throttle:ai');
+Route::get('/nearby-cinemas', [NearbyCinemaController::class, 'index'])->middleware('throttle:30,1');
 
 Route::middleware('throttle:tmdb')->group(function () {
     Route::get('/movies', [MovieController::class, 'index']);
