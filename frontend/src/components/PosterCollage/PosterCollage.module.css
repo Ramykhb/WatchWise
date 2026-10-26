@@ -4,10 +4,60 @@
   flex-shrink: 0;
 }
 
+/* ListCover's wrapper: a real box (so it can be watched for visibility) that adds no layout of its own. */
+.observed {
+  display: flex;
+  flex-shrink: 0;
+}
+
 .poster {
   position: absolute;
+  overflow: hidden;
   border: 4px solid var(--surface-white);
   border-radius: 14px;
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.35s ease-out;
+}
+
+.imageShown {
+  opacity: 1;
+}
+
+/* While a poster loads: a soft cream card with a light sweep moving across it. */
+.shimmer {
+  background: var(--surface-cream-deep) !important;
+}
+
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.65) 50%, transparent 80%);
+  translate: -100% 0;
+  animation: sweep 1.3s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  to {
+    translate: 100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .image {
+    transition: none;
+  }
+
+  .shimmer::after {
+    animation: none;
+  }
 }
 
 .poster:nth-child(1) {

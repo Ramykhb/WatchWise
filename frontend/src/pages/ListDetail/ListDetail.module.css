@@ -317,7 +317,7 @@
 }
 
 .entry,
-.entryDragging {
+.entryLifted {
   display: flex;
   align-items: center;
   gap: 18px;
@@ -325,26 +325,62 @@
   border-radius: 24px;
   background: var(--surface-white);
   transition:
-    opacity 0.2s ease-out,
+    transform 0.25s cubic-bezier(0.2, 0, 0, 1),
+    scale 0.2s ease-out,
     box-shadow 0.2s ease-out;
 }
 
-.entryDragging {
-  opacity: 0.5;
-  box-shadow: var(--elevation-soft);
+/* The row being dragged floats above the others and follows the pointer with no delay. */
+.entryLifted {
+  position: relative;
+  z-index: 2;
+  scale: 1.02;
+  box-shadow: var(--elevation-float);
+  transition:
+    scale 0.2s ease-out,
+    box-shadow 0.2s ease-out;
+}
+
+.entries[data-dragging] {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.entries[data-settling] > li {
+  transition: none;
 }
 
 .drag {
   display: grid;
   flex-shrink: 0;
   place-items: center;
-  border-radius: 6px;
+  width: 32px;
+  height: 40px;
+  border-radius: 10px;
   cursor: grab;
+  touch-action: none;
+  transition: background-color 0.2s ease-out;
+}
+
+.drag:hover:not(:disabled),
+.entryLifted .drag {
+  background: var(--surface-cream-deep);
+}
+
+.entryLifted .drag {
+  cursor: grabbing;
 }
 
 .drag:disabled {
   cursor: default;
   opacity: 0.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry,
+  .entryLifted {
+    transition: none;
+  }
 }
 
 .rank {
@@ -359,9 +395,44 @@
 
 .thumb {
   flex-shrink: 0;
+  overflow: hidden;
   width: 60px;
   height: 86px;
   border-radius: 10px;
+}
+
+.thumbImg:not([hidden]) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* While the film loads: a cream card with a light sweep moving across it. */
+.thumbLoading {
+  position: relative;
+  background: var(--surface-cream-deep) !important;
+}
+
+.thumbLoading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.65) 50%, transparent 80%);
+  translate: -100% 0;
+  animation: thumb-sweep 1.3s ease-in-out infinite;
+}
+
+@keyframes thumb-sweep {
+  to {
+    translate: 100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumbLoading::after {
+    animation: none;
+  }
 }
 
 .entryInfo {
@@ -531,6 +602,7 @@
 
 .similarThumb {
   flex-shrink: 0;
+  overflow: hidden;
   width: 40px;
   height: 56px;
   border-radius: 8px;
@@ -616,7 +688,7 @@
   }
 
   .entry,
-  .entryDragging {
+  .entryLifted {
     flex-wrap: wrap;
     gap: 12px;
   }

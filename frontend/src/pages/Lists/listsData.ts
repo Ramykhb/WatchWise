@@ -16,6 +16,8 @@ export type MyList = {
   /** Cover background behind the collage. */
   cover: string
   posters: Gradient[]
+  /** TMDB ids of the cover posters, to load their images. */
+  posterIds: number[]
 }
 
 export type PublicList = {
@@ -28,10 +30,13 @@ export type PublicList = {
   color: string
   films: number
   posters: Gradient[]
+  /** TMDB ids of the cover posters, to load their images. */
+  posterIds: number[]
 }
 
 /** Three cover posters; empty lists show the neutral placeholder poster. */
 const coverOf = (list: ApiList) => posterGradients(list.posters.length ? list.posters.slice(0, 3) : [0])
+const coverIdsOf = (list: ApiList) => list.posters.slice(0, 3)
 
 export const toMyList = (list: ApiList): MyList => ({
   id: list.id,
@@ -43,6 +48,7 @@ export const toMyList = (list: ApiList): MyList => ({
   updated: updatedLabel(list.updated_at),
   cover: list.is_public ? 'var(--surface-violet-tint)' : 'var(--surface-cream-deep)',
   posters: coverOf(list),
+  posterIds: coverIdsOf(list),
 })
 
 export const toPublicList = (list: ApiList): PublicList => ({
@@ -54,6 +60,7 @@ export const toPublicList = (list: ApiList): PublicList => ({
   ...(list.owner ? look(list.owner) : { initials: '?', color: 'var(--surface-cream-deep)' }),
   films: list.films,
   posters: coverOf(list),
+  posterIds: coverIdsOf(list),
 })
 
 /** The list id from a "/lists/12-rainy-day-comfort" segment. */

@@ -13,15 +13,28 @@ import searchIcon from '../../assets/home/icon-search.svg'
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import { gradientCss } from '../Home/homeData.ts'
 import { apiErrorMessage } from '../../lib/auth.ts'
-import { useApi } from '../../lib/api.ts'
-import { PICKABLE_MOVIES, movieFor, tmdbIdOf } from '../../lib/movies.ts'
+import { api, useApi } from '../../lib/api.ts'
+import { isLoading, posterAt, rememberMovie, useMovies } from '../../lib/movieDetails.ts'
+import { movieFor, tmdbIdOf } from '../../lib/movies.ts'
 import type { ApiList } from '../../lib/types.ts'
+import { loadGenres, toTileMovie, type MoviePage } from '../Discover/discoverApi.ts'
 import { listSlug } from '../Profile/profileData.ts'
 import { listIdFrom } from './listsData.ts'
 import { createList, updateList } from './myListsStore.ts'
 import styles from './ListDialog.module.css'
 
 const CLOSE_MS = 220
+/** Wait this long after the last keystroke before searching, so typing doesn't use up the TMDB rate limit. */
+const SEARCH_DELAY_MS = 250
+/** One page of TMDB results; the dropdown shows three at a time and scrolls for the rest. */
+const MAX_RESULTS = 20
+/** Used when the genre names can't be loaded: the results then only show the year. */
+const NO_GENRES = new Map<number, string>()
+
+/** Answered searches (lower-cased query → films), so going back to an earlier query is instant. */
+const searchCache = new Map<string, Movie[]>()
+
+type SearchResult = { query: string; movies: Movie[]; failed: boolean }
 
 type ListDialogProps = { mode: 'create' | 'edit' }
 
@@ -55,17 +68,50 @@ function Dialog({ existing }: { existing?: ApiList }) {
   const [description, setDescription] = useState(existing?.description ?? '')
   const [isPublic, setIsPublic] = useState(existing?.is_public ?? true)
   const [picked, setPicked] = useState<Movie[]>(() => existing?.items?.map((item) => movieFor(item.tmdb_id)) ?? [])
+  // The list's saved films arrive as ids only; load their real titles and posters.
+  const [savedIds] = useState(() => existing?.items?.map((item) => item.tmdb_id) ?? [])
+  const movieOf = useMovies(savedIds)
   const [query, setQuery] = useState('')
   const [titleError, setTitleError] = useState('')
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [closing, setClosing] = useState(false)
 
-  const q = query.trim().toLowerCase()
-  // TODO: search TMDB through the backend instead of the demo movies.
-  const results = q
-    ? PICKABLE_MOVIES.filter((movie) => movie.title.toLowerCase().includes(q) && !picked.some((p) => p.slug === movie.slug)).slice(0, 5)
-    : []
+  const [found, setFound] = useState<SearchResult>({ query: '', movies: [], failed: false })
+
+  const q = query.trim()
+  const key = q.toLowerCase()
+  const answered = key ? searchCache.get(key) : undefined
+  const failed = found.query === key && found.failed
+  const searching = key !== '' && !answered && !failed
+  // While a new search runs, the last answer stays on screen (dimmed) instead of the list going blank.
+  const results = (answered ?? (key ? found.movies : []))
+    .filter((movie) => !picked.some((p) => p.slug === movie.slug))
+    .slice(0, MAX_RESULTS)
+
+  // Searches TMDB movies (not TV: lists store movie ids) once typing pauses; a newer query cancels the older one.
+  useEffect(() => {
+    if (!key || searchCache.has(key)) return
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      Promise.all([
+        api.get<MoviePage>('/movies/search', { params: { q: key, type: 'movie' }, signal: controller.signal }),
+        loadGenres().catch(() => NO_GENRES),
+      ])
+        .then(([{ data }, genres]) => {
+          const movies = data.movies.map((movie) => toTileMovie(movie, genres))
+          searchCache.set(key, movies)
+          setFound({ query: key, movies, failed: false })
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setFound({ query: key, movies: [], failed: true })
+        })
+    }, SEARCH_DELAY_MS)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [key])
 
   const close = (to = '/lists') => {
     if (closing) return
@@ -109,6 +155,8 @@ function Dialog({ existing }: { existing?: ApiList }) {
   }
 
   const pick = (movie: Movie) => {
+    // The search already has the film's title and poster, so the saved list can show it without loading.
+    rememberMovie(movie)
     setPicked((list) => [...list, movie])
     setQuery('')
   }
@@ -222,7 +270,8 @@ function Dialog({ existing }: { existing?: ApiList }) {
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
                       event.preventDefault()
-                      if (results[0]) pick(results[0])
+                      // Results from an older query may still be on screen; only pick from the current one.
+                      if (!searching && results[0]) pick(results[0])
                     }
                   }}
                   placeholder="Search TMDB to add films…"
@@ -231,12 +280,27 @@ function Dialog({ existing }: { existing?: ApiList }) {
                 />
               </div>
               {q && (
-                <ul id={`${titleId}-results`} className={styles.results} aria-label="Search results">
-                  {results.length === 0 && <li className={styles.noResults}>No films match “{query}”.</li>}
+                <ul id={`${titleId}-results`} className={styles.results} aria-label="Search results" aria-busy={searching}>
+                  {searching && (
+                    <li className={styles.searching} role="status">
+                      <span className="sr-only">Searching…</span>
+                    </li>
+                  )}
+                  {/* Placeholder rows while the first answer loads; later searches keep the last answer, dimmed. */}
+                  {searching &&
+                    results.length === 0 &&
+                    [0, 1, 2].map((row) => (
+                      <li key={`skeleton-${row}`} className={styles.skeleton} aria-hidden="true">
+                        <span className={styles.skeletonThumb} />
+                        <span className={styles.skeletonLine} />
+                      </li>
+                    ))}
+                  {failed && <li className={styles.noResults}>Couldn't search right now. Try again in a moment.</li>}
+                  {!searching && !failed && results.length === 0 && <li className={styles.noResults}>No films match “{q}”.</li>}
                   {results.map((movie) => (
                     <li key={movie.slug}>
                       <button type="button" className={styles.result} onClick={() => pick(movie)}>
-                        <span className={styles.resultThumb} style={{ background: gradientCss(movie.gradient) }} />
+                        <Thumb movie={movie} className={styles.resultThumb} />
                         <span className={styles.resultTitle}>{movie.title}</span>
                         <span className={styles.resultMeta}>{movie.meta}</span>
                       </button>
@@ -247,9 +311,9 @@ function Dialog({ existing }: { existing?: ApiList }) {
             </div>
             {picked.length > 0 && (
               <ul className={styles.picked} aria-label="Picked films">
-                {picked.map((movie) => (
+                {picked.map((pickedMovie) => movieOf(tmdbIdOf(pickedMovie), pickedMovie)).map((movie) => (
                   <li key={movie.slug} className={styles.pickedFilm}>
-                    <span className={styles.pickedThumb} style={{ background: gradientCss(movie.gradient) }} />
+                    <Thumb movie={movie} className={styles.pickedThumb} />
                     {movie.title}
                     <button
                       type="button"
@@ -280,5 +344,27 @@ function Dialog({ existing }: { existing?: ApiList }) {
         </form>
       </div>
     </div>
+  )
+}
+
+/** A small poster; it shimmers while the film loads, and shows the gradient when TMDB has none. */
+function Thumb({ movie, className }: { movie: Movie; className: string }) {
+  return (
+    <span
+      className={isLoading(movie) ? `${className} ${styles.thumbLoading}` : className}
+      style={{ background: gradientCss(movie.gradient) }}
+    >
+      {movie.posterUrl && (
+        <img
+          className={styles.thumbImg}
+          src={posterAt(movie.posterUrl, 'w92')}
+          alt=""
+          loading="lazy"
+          onError={(event) => {
+            event.currentTarget.hidden = true
+          }}
+        />
+      )}
+    </span>
   )
 }
