@@ -79,9 +79,16 @@ export default function Cinemas() {
     userDot.className = styles.userLocationDot
     userDot.setAttribute('aria-label', 'Your location')
     new mapboxgl.Marker({ element: userDot, anchor: 'center' }).setLngLat([longitude, latitude]).addTo(map)
+    const updateLocationHalo = () => {
+      const diameter = Math.max(44, Math.min(180, 120 * 2 ** ((map.getZoom() - 14) / 4)))
+      userDot.style.setProperty('--location-halo-size', `${diameter}px`)
+    }
+    updateLocationHalo()
+    map.on('zoom', updateLocationHalo)
     map.addControl(new mapboxgl.NavigationControl(), 'bottom-right')
 
     return () => {
+      map.off('zoom', updateLocationHalo)
       cinemaMarkersRef.current.forEach((marker) => marker.remove())
       cinemaMarkersRef.current = []
       cinemaMarkerElementsRef.current.clear()
