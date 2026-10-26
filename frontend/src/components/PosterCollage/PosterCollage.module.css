@@ -4,6 +4,12 @@
   flex-shrink: 0;
 }
 
+/* ListCover's wrapper: a real box (so it can be watched for visibility) that adds no layout of its own. */
+.observed {
+  display: flex;
+  flex-shrink: 0;
+}
+
 .poster {
   position: absolute;
   overflow: hidden;

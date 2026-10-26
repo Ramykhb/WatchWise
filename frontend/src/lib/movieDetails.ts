@@ -49,11 +49,31 @@ export function rememberMovie(movie: Movie) {
   remember(tmdbIdOf(movie), movie)
 }
 
+/** At most this many film requests run at once; the rest wait their turn, so a page can't flood the API. */
+const MAX_PARALLEL = 4
+let running = 0
+const waiting: (() => void)[] = []
+
+function queued<T>(task: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const run = () => {
+      running++
+      task()
+        .then(resolve, reject)
+        .finally(() => {
+          running--
+          waiting.shift()?.()
+        })
+    }
+    if (running < MAX_PARALLEL) run()
+    else waiting.push(run)
+  })
+}
+
 function loadMovie(tmdbId: number): Promise<Movie> {
   let request = requests.get(tmdbId)
   if (!request) {
-    request = api
-      .get<TmdbMovieDetails>(`/movies/${tmdbId}`)
+    request = queued(() => api.get<TmdbMovieDetails>(`/movies/${tmdbId}`))
       .then(({ data }) => {
         const movie = toTileMovie(data, new Map(data.genres.map((genre) => [genre.id, genreLabel(genre.name)])))
         remember(tmdbId, movie)
@@ -90,13 +110,15 @@ export const posterAt = (url: string | undefined, size: 'w92' | 'w185' | 'w342')
 /**
  * Loads the real details of `tmdbIds` and returns a lookup: a known film, "Loading…" while it loads,
  * otherwise `fallback` (or the id's placeholder when TMDB can't be reached). Demo ids need no request.
+ * With `load` false nothing is requested yet (e.g. a card still off screen); its films show as loading.
  */
-export function useMovies(tmdbIds: number[]) {
+export function useMovies(tmdbIds: number[], load = true) {
   const [loaded, setLoaded] = useState<Map<number, Movie>>(new Map())
   const [failed, setFailed] = useState<Set<number>>(new Set())
   const key = tmdbIds.join(',')
 
   useEffect(() => {
+    if (!load) return
     let active = true
     for (const id of new Set(key.split(',').filter(Boolean).map(Number))) {
       if (isDemoId(id) || known.has(id)) continue
@@ -107,7 +129,7 @@ export function useMovies(tmdbIds: number[]) {
     return () => {
       active = false
     }
-  }, [key])
+  }, [key, load])
 
   return (tmdbId: number, fallback?: Movie): Movie => {
     const movie = loaded.get(tmdbId) ?? known.get(tmdbId)

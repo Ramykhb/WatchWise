@@ -7,7 +7,7 @@ import Checkbox from '../../components/Checkbox/Checkbox.tsx'
 import MovieTile from '../../components/MovieTile/MovieTile.tsx'
 import AvatarImage from '../../components/AvatarImage/AvatarImage.tsx'
 import FollowButton from '../../components/FollowButton/FollowButton.tsx'
-import PosterCollage from '../../components/PosterCollage/PosterCollage.tsx'
+import ListCover from '../../components/PosterCollage/ListCover.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import searchIcon from '../../assets/discover/icon-search.svg'
 import chevDownSmIcon from '../../assets/discover/icon-chev-down-sm.svg'
@@ -39,7 +39,6 @@ import {
 import { TV_GENRE_IDS, fetchMovies, loadGenres, toTileMovie, type MoviePage } from './discoverApi.ts'
 import { useApi } from '../../lib/api.ts'
 import { colorOf, initialsOf } from '../../lib/format.ts'
-import { isLoading, useMovies } from '../../lib/movieDetails.ts'
 import type { ApiList, ApiUserSearch } from '../../lib/types.ts'
 import { toPublicList } from '../Lists/listsData.ts'
 import styles from './Discover.module.css'
@@ -81,8 +80,6 @@ export default function Discover() {
   const people = peopleQuery.data?.users ?? []
   const peopleTotal = peopleQuery.data?.total ?? 0
   const lists = (listsQuery.data?.lists ?? []).map(toPublicList)
-  // The list cards' cover posters arrive as TMDB ids; load their images (each film once).
-  const movieOf = useMovies(lists.flatMap((list) => list.posterIds))
 
   // Draft = what the panel shows; applied = what the results use (committed by "Apply filters").
   const [draft, setDraft] = useState<Filters>(DEFAULT_FILTERS)
@@ -582,12 +579,7 @@ export default function Discover() {
                     <li key={list.id}>
                       <Link to={`/lists/${list.slug}`} className={styles.listCard}>
                         <span className={styles.listCover}>
-                          <PosterCollage
-                            gradients={list.posters}
-                            images={list.posterIds.map((id) => movieOf(id).posterUrl)}
-                            pending={list.posterIds.map((id) => isLoading(movieOf(id)))}
-                            size="sm"
-                          />
+                          <ListCover tmdbIds={list.posterIds} gradients={list.posters} size="sm" />
                         </span>
                         <span className={styles.listCardTitle}>{list.title}</span>
                         <span className={styles.listCardMeta}>

@@ -3,7 +3,7 @@ import { Link, Outlet } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog.tsx'
-import PosterCollage from '../../components/PosterCollage/PosterCollage.tsx'
+import ListCover from '../../components/PosterCollage/ListCover.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import Toast from '../../components/Toast/Toast.tsx'
 import globeIcon from '../../assets/lists/icon-globe.svg'
@@ -13,7 +13,6 @@ import trashIcon from '../../assets/lists/icon-trash.svg'
 import plusIcon from '../../assets/lists/icon-plus.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { useApi } from '../../lib/api.ts'
-import { isLoading, useMovies } from '../../lib/movieDetails.ts'
 import type { ApiList } from '../../lib/types.ts'
 import { toPublicList, type MyList, type PublicList } from './listsData.ts'
 import { deleteList, useMyLists } from './myListsStore.ts'
@@ -29,8 +28,6 @@ const afterMotion = (ms: number) =>
   new Promise<void>((resolve) =>
     window.setTimeout(resolve, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : ms),
   )
-
-type Cover = { images: (string | undefined)[]; pending: boolean[] }
 
 const SKELETONS = [0, 1, 2]
 
@@ -59,11 +56,11 @@ function PublicCardSkeleton() {
   )
 }
 
-function PublicListCard({ list, cover }: { list: PublicList; cover: Cover }) {
+function PublicListCard({ list }: { list: PublicList }) {
   return (
     <Link to={`/lists/${list.slug}`} className={styles.publicCard}>
       <span className={styles.publicCover}>
-        <PosterCollage gradients={list.posters} {...cover} size="sm" />
+        <ListCover tmdbIds={list.posterIds} gradients={list.posters} size="sm" />
       </span>
       <span className={styles.publicTitle}>{list.title}</span>
       <span className={styles.publicMeta}>
@@ -102,13 +99,6 @@ export default function Lists() {
   // The card fading out after a successful delete.
   const [leavingId, setLeavingId] = useState<number | null>(null)
   const [toast, setToast] = useState<{ id: number; message: string } | null>(null)
-
-  // The cards' cover posters arrive as TMDB ids; load their images (each film once).
-  const movieOf = useMovies([...myLists, ...publicLists, ...followingLists].flatMap((list) => list.posterIds))
-  const coverOf = (list: { posterIds: number[] }) => {
-    const movies = list.posterIds.map((id) => movieOf(id))
-    return { images: movies.map((movie) => movie.posterUrl), pending: movies.map(isLoading) }
-  }
 
   const confirmDelete = async () => {
     if (!confirming) return
@@ -180,7 +170,7 @@ export default function Lists() {
                   style={{ background: list.cover }}
                   aria-label={`Open ${list.title}`}
                 >
-                  <PosterCollage gradients={list.posters} {...coverOf(list)} />
+                  <ListCover tmdbIds={list.posterIds} gradients={list.posters} />
                 </Link>
                 <div className={styles.titleRow}>
                   <Link to={`/lists/${list.slug}`} className={styles.cardTitle}>
@@ -229,7 +219,7 @@ export default function Lists() {
             {tabLoading && SKELETONS.map((n) => <PublicCardSkeleton key={n} />)}
             {(tab === 'public' ? publicLists : followingLists).map((list) => (
               <li key={list.id}>
-                <PublicListCard list={list} cover={coverOf(list)} />
+                <PublicListCard list={list} />
               </li>
             ))}
             {!tabLoading && (tab === 'public' ? publicLists : followingLists).length === 0 && (
@@ -254,7 +244,7 @@ export default function Lists() {
               {publicLoading && SKELETONS.map((n) => <PublicCardSkeleton key={n} />)}
               {publicLists.slice(0, 3).map((list) => (
                 <li key={list.id}>
-                  <PublicListCard list={list} cover={coverOf(list)} />
+                  <PublicListCard list={list} />
                 </li>
               ))}
             </ul>
@@ -272,7 +262,7 @@ export default function Lists() {
           title={`Delete “${confirming.list.title}”?`}
           media={
             <span className={styles.dialogCover} style={{ background: confirming.list.cover }}>
-              <PosterCollage gradients={confirming.list.posters} {...coverOf(confirming.list)} size="sm" />
+              <ListCover tmdbIds={confirming.list.posterIds} gradients={confirming.list.posters} size="sm" />
             </span>
           }
           message={
