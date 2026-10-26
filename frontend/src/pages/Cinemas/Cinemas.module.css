@@ -226,14 +226,26 @@
 /* ---------- Map ---------- */
 .userLocationDot {
   display: grid;
-  width: 120px;
-  height: 120px;
+  width: 30px;
+  height: 30px;
   place-items: center;
+  pointer-events: none;
+}
+
+.userLocationDot::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(var(--location-halo-size, 120px), var(--location-halo-max, 180px));
+  height: min(var(--location-halo-size, 120px), var(--location-halo-max, 180px));
   border-radius: 50%;
   background: rgb(239 231 255 / 0.92);
+  transform: translate(-50%, -50%);
+  content: '';
 }
 
 .userLocationDot::after {
+  position: relative;
   width: 30px;
   height: 30px;
   border: 6px solid #fff;
@@ -463,8 +475,7 @@
   }
 
   .userLocationDot {
-    width: 88px;
-    height: 88px;
+    --location-halo-max: 120px;
   }
 
 }
