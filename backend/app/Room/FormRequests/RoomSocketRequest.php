@@ -6,8 +6,9 @@ use App\Auth\CurrentUser\CurrentUser;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Pusher-protocol channel authorization for a room's private channel. Whether the user may listen to
- * that room is decided by the channel callback in routes/channels.php (the room policy's `view`).
+ * Pusher-protocol channel authorization for the Rooms page's private channels: a room's own channel
+ * (`room.{id}`) and the room-list channels (`rooms.public`, `rooms.user.{id}`). Who may listen is decided by
+ * the channel callbacks in routes/channels.php.
  */
 class RoomSocketRequest extends FormRequest
 {
@@ -23,7 +24,7 @@ class RoomSocketRequest extends FormRequest
     {
         return [
             'socket_id' => ['required', 'string', 'max:100', 'regex:/^\d+\.\d+$/'],
-            'channel_name' => ['required', 'string', 'max:100', 'regex:/^private-room\.\d+$/'],
+            'channel_name' => ['required', 'string', 'max:100', 'regex:/^private-(room\.\d+|rooms\.public|rooms\.user\.\d+)$/'],
             'callback' => ['prohibited'],
         ];
     }

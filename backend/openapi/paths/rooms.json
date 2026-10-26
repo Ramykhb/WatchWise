@@ -3,7 +3,7 @@
         "/api/rooms": {
             "get": {
                 "summary": "List discussion rooms",
-                "description": "Every room, the ones you are a member of first. `members` are the creator and everyone who has posted; `message_count`, `last_message` and `unread` only count messages that are still stored (someone has yet to read them).",
+                "description": "The rooms you can see: every public room, and the private rooms you are a member of or invited to. Yours come first, then invitations, then the other public rooms, newest activity first. `members` are the creator and everyone who joined; `message_count`, `last_message` and `unread` only count messages that are still stored (someone has yet to read them). The list is kept current over the private channels `rooms.public` and `rooms.user.{your id}`: `message.sent` carries a new message, `rooms.changed` (`room_id`) means reload.",
                 "tags": ["Rooms"],
                 "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
                 "responses": {
@@ -25,7 +25,7 @@
             },
             "post": {
                 "summary": "Create a discussion room",
-                "description": "The creator becomes the room's first member.",
+                "description": "The creator becomes the room's first member. A public room (the default) can be read and joined by anyone and is announced as `rooms.changed` on `rooms.public`; a private one is seen only by its members and the people they invite.",
                 "tags": ["Rooms"],
                 "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
                 "requestBody": {
@@ -38,7 +38,8 @@
                                 "properties": {
                                     "name": { "type": "string", "minLength": 3, "maxLength": 80 },
                                     "tmdb_id": { "type": "integer", "minimum": 1 },
-                                    "spoilers": { "type": "boolean" }
+                                    "spoilers": { "type": "boolean" },
+                                    "is_private": { "type": "boolean", "default": false }
                                 }
                             }
                         }
@@ -58,11 +59,89 @@
                 }
             }
         },
+        "/api/rooms/{room}/join": {
+            "parameters": [{ "name": "room", "in": "path", "required": true, "schema": { "type": "integer" } }],
+            "post": {
+                "summary": "Join a room",
+                "description": "Joins a public room, or accepts your invitation to a private one (the invitation is removed). Messages sent from now on wait for you too; older ones do not. Pushes `rooms.changed` to the lists that show the room.",
+                "tags": ["Rooms"],
+                "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+                "responses": {
+                    "200": {
+                        "description": "You are a member.",
+                        "content": {
+                            "application/json": {
+                                "schema": { "type": "object", "properties": { "room": { "$ref": "#/components/schemas/Room" } } }
+                            }
+                        }
+                    },
+                    "401": { "description": "Not signed in." },
+                    "403": { "description": "A private room you are not invited to." },
+                    "404": { "description": "Unknown room." }
+                }
+            }
+        },
+        "/api/rooms/{room}/invites": {
+            "parameters": [{ "name": "room", "in": "path", "required": true, "schema": { "type": "integer" } }],
+            "post": {
+                "summary": "Invite people to a private room",
+                "description": "Any member of a private room can invite people by username; members and people already invited are skipped. Invitees see the room and can read it, then join or decline. Pushes `rooms.changed` to the members and invitees.",
+                "tags": ["Rooms"],
+                "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["invitees"],
+                                "properties": {
+                                    "invitees": { "type": "array", "minItems": 1, "maxItems": 30, "items": { "type": "string", "description": "A username." } }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The room with its invitees.",
+                        "content": {
+                            "application/json": {
+                                "schema": { "type": "object", "properties": { "room": { "$ref": "#/components/schemas/Room" } } }
+                            }
+                        }
+                    },
+                    "401": { "description": "Not signed in." },
+                    "403": { "description": "A public room, or you are not a member." },
+                    "404": { "description": "Unknown room." },
+                    "422": { "description": "Unknown usernames.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } } },
+                    "429": { "description": "More than 30 invitations a minute." }
+                }
+            }
+        },
+        "/api/rooms/{room}/invite": {
+            "parameters": [{ "name": "room", "in": "path", "required": true, "schema": { "type": "integer" } }],
+            "delete": {
+                "summary": "Decline an invitation",
+                "description": "Turns down your invitation to a private room, which then disappears from your list. Pushes `rooms.changed` to the members, the other invitees and you.",
+                "tags": ["Rooms"],
+                "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+                "responses": {
+                    "200": {
+                        "description": "Invitation declined.",
+                        "content": { "application/json": { "schema": { "type": "object", "properties": { "message": { "type": "string" } } } } }
+                    },
+                    "401": { "description": "Not signed in." },
+                    "403": { "description": "You are not invited to this room." },
+                    "404": { "description": "Unknown room." }
+                }
+            }
+        },
         "/api/rooms/{room}/messages": {
             "parameters": [{ "name": "room", "in": "path", "required": true, "schema": { "type": "integer" } }],
             "get": {
                 "summary": "Messages someone still has to read",
-                "description": "A message is stored only until every member at the time it was sent has read it, so this lists the pending ones, oldest first, each with `read_by` (the author first) and `unread_by`. Opening a room does not mark anything read; the browser confirms with `POST /api/rooms/{room}/read`.",
+                "description": "Anyone who can see the room can read it: everyone for a public room, the members and invitees of a private one. A message is stored only until every member at the time it was sent has read it, so this lists the pending ones, oldest first, each with `read_by` (the author first) and `unread_by`. Opening a room does not mark anything read; the browser confirms with `POST /api/rooms/{room}/read`.",
                 "tags": ["Rooms"],
                 "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
                 "responses": {
@@ -80,12 +159,13 @@
                         }
                     },
                     "401": { "description": "Not signed in." },
+                    "403": { "description": "A private room you are not a member of or invited to." },
                     "404": { "description": "Unknown room." }
                 }
             },
             "post": {
                 "summary": "Send a message to a room",
-                "description": "Posting makes the sender a member. The message counts as read by the sender and waits for every other member; it is pushed as `message.sent` on the private channel `room.{room}` to everyone who has the room open. With no other members it is not kept.",
+                "description": "Only members post (join first). The message counts as read by the sender and waits for every other member; it is pushed as `message.sent` on the private channel `room.{room}` to everyone who has the room open, and on the room-list channels (`rooms.public`, or `rooms.user.{id}` of each member and invitee of a private room). With no other members it is not kept.",
                 "tags": ["Rooms"],
                 "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
                 "requestBody": {
@@ -110,6 +190,7 @@
                         }
                     },
                     "401": { "description": "Not signed in." },
+                    "403": { "description": "You are not a member of the room." },
                     "404": { "description": "Unknown room." },
                     "422": { "description": "Empty or too long.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } } },
                     "429": { "description": "More than 30 messages a minute." }
@@ -120,7 +201,7 @@
             "parameters": [{ "name": "room", "in": "path", "required": true, "schema": { "type": "integer" } }],
             "post": {
                 "summary": "Mark room messages as read",
-                "description": "The signed-in member has seen these messages (the room was open). Ids that are not waiting for this member are ignored. Messages every member has now read are deleted and listed in `deleted_ids`; a `messages.read` event tells everyone who has the room open.",
+                "description": "The signed-in member has seen these messages (the room was open). Ids that are not waiting for this member are ignored, so reading a room you have not joined counts for nothing. Messages every member has now read are deleted and listed in `deleted_ids`; a `messages.read` event tells everyone who has the room open.",
                 "tags": ["Rooms"],
                 "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
                 "requestBody": {
@@ -153,6 +234,7 @@
                         }
                     },
                     "401": { "description": "Not signed in." },
+                    "403": { "description": "A private room you are not a member of or invited to." },
                     "404": { "description": "Unknown room." },
                     "422": { "description": "Invalid ids.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } } }
                 }
@@ -161,7 +243,7 @@
         "/api/rooms/socket-auth": {
             "post": {
                 "summary": "Authorize a room's socket channel",
-                "description": "Pusher-protocol authorization for the private channel `private-room.{id}` on Reverb (connection settings come from `GET /api/chat/connection`).",
+                "description": "Pusher-protocol authorization on Reverb (connection settings come from `GET /api/chat/connection`) for the Rooms page's private channels: `private-room.{id}` (anyone who can see the room), `private-rooms.public` (everyone) and `private-rooms.user.{id}` (only that user).",
                 "tags": ["Rooms"],
                 "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
                 "requestBody": {
@@ -185,7 +267,7 @@
                         "content": { "application/json": { "schema": { "type": "object", "properties": { "auth": { "type": "string" } } } } }
                     },
                     "401": { "description": "Not signed in." },
-                    "403": { "description": "Unknown room." },
+                    "403": { "description": "Unknown room, a private room you cannot see, or another user's list channel." },
                     "422": { "description": "Not a room channel.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } } }
                 }
             }
@@ -209,9 +291,13 @@
                     "name": { "type": "string" },
                     "tmdb_id": { "type": "integer" },
                     "spoilers": { "type": "boolean" },
+                    "is_private": { "type": "boolean" },
                     "host": { "allOf": [{ "$ref": "#/components/schemas/RoomMember" }], "nullable": true },
                     "members": { "type": "array", "items": { "$ref": "#/components/schemas/RoomMember" } },
                     "joined": { "type": "boolean" },
+                    "invited": { "type": "boolean", "description": "You are invited to this private room and have not answered yet." },
+                    "invited_by": { "allOf": [{ "$ref": "#/components/schemas/RoomMember" }], "nullable": true },
+                    "invitees": { "type": "array", "items": { "$ref": "#/components/schemas/RoomMember" }, "description": "People invited who have not joined or declined yet." },
                     "message_count": { "type": "integer" },
                     "unread": { "type": "integer" },
                     "last_message": {

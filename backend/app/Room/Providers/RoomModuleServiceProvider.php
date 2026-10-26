@@ -27,7 +27,7 @@ class RoomModuleServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Per signed-in user (auth.jwt runs before throttling).
-        $limits = ['room-messages' => 30, 'room-reads' => 120, 'room-socket' => 60];
+        $limits = ['room-messages' => 30, 'room-reads' => 120, 'room-socket' => 60, 'room-invites' => 30];
 
         foreach ($limits as $name => $perMinute) {
             RateLimiter::for($name, fn () => Limit::perMinute($perMinute)->by($name.':'.app(CurrentUser::class)->id()));

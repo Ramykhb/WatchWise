@@ -7,6 +7,7 @@ use App\Models\Message;
 use App\Models\Notification;
 use App\Models\User;
 use App\Room\DTOs\Requests\CreateRoomData;
+use App\Room\DTOs\Requests\InviteToRoomData;
 use App\Room\DTOs\Requests\ReadRoomMessagesData;
 use App\Room\DTOs\Requests\SendRoomMessageData;
 use App\Room\DTOs\Responses\ReadReceiptsResponse;
@@ -16,8 +17,10 @@ use App\Room\DTOs\Responses\RoomMessagesResponse;
 use App\Room\DTOs\Responses\RoomResponse;
 use App\Room\Events\RoomMessageSent;
 use App\Room\Events\RoomMessagesRead;
+use App\Room\Events\RoomsChanged;
 use App\Room\InterfaceRepository\RoomRepositoryInterface;
 use App\Room\InterfaceServices\RoomServiceInterface;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -29,9 +32,9 @@ class RoomService implements RoomServiceInterface
     {
         $unread = $this->rooms->unreadCounts($viewer->id);
 
-        $rooms = $this->rooms->all()
+        $rooms = $this->rooms->visibleTo($viewer->id)
             ->map(fn (DiscussionRoom $room): RoomResponse => RoomResponse::fromModel($room, $viewer->id, $unread[$room->id] ?? 0))
-            ->sort(fn (RoomResponse $a, RoomResponse $b): int => [$b->joined(), $b->lastActivity()] <=> [$a->joined(), $a->lastActivity()])
+            ->sort(fn (RoomResponse $a, RoomResponse $b): int => [$b->joined(), $b->invited(), $b->lastActivity()] <=> [$a->joined(), $a->invited(), $a->lastActivity()])
             ->values()
             ->all();
 
@@ -46,13 +49,52 @@ class RoomService implements RoomServiceInterface
                 'tmdb_id' => $data->tmdbId,
                 'created_by' => $creator->id,
                 'spoilers' => $data->spoilers,
+                'is_private' => $data->isPrivate,
             ]);
             $this->rooms->addMember($room, $creator->id);
 
             return $room;
         });
 
+        // A new public room shows up in everyone's list; a private one only concerns its creator so far.
+        if (! $room->is_private) {
+            $this->broadcast(new RoomsChanged($room->id, $this->listChannels($room)));
+        }
+
         return RoomResponse::fromModel($this->rooms->loadDetail($room), $creator->id, 0);
+    }
+
+    public function join(DiscussionRoom $room, User $user): RoomResponse
+    {
+        DB::transaction(function () use ($room, $user): void {
+            $this->rooms->addMember($room, $user->id);
+            $this->rooms->removeInvite($room, $user->id);
+        });
+
+        $this->broadcast(new RoomsChanged($room->id, $this->listChannels($room)));
+
+        return $this->present($room, $user);
+    }
+
+    public function invite(DiscussionRoom $room, InviteToRoomData $data, User $inviter): RoomResponse
+    {
+        $alreadyIn = [...$this->rooms->memberIds($room), ...$this->rooms->inviteeIds($room)];
+        $invitees = $this->rooms->usersByUsername($data->usernames, $alreadyIn);
+
+        if ($invitees->isNotEmpty()) {
+            $this->rooms->addInvites($room, $invitees->modelKeys(), $inviter->id);
+            $this->broadcast(new RoomsChanged($room->id, $this->listChannels($room)));
+        }
+
+        return $this->present($room, $inviter);
+    }
+
+    public function decline(DiscussionRoom $room, User $user): void
+    {
+        $this->rooms->removeInvite($room, $user->id);
+
+        // The decliner is no longer an invitee, but their own list (other tabs) has to drop the room too.
+        $this->broadcast(new RoomsChanged($room->id, $this->listChannels($room, [$user->id])));
     }
 
     public function messages(DiscussionRoom $room): RoomMessagesResponse
@@ -97,8 +139,6 @@ class RoomService implements RoomServiceInterface
     public function send(DiscussionRoom $room, SendRoomMessageData $data, User $sender): RoomMessageResponse
     {
         [$message, $recipientIds] = DB::transaction(function () use ($room, $data, $sender): array {
-            // Posting makes you a member, as it always has.
-            $this->rooms->addMember($room, $sender->id);
             $recipientIds = array_values(array_diff($this->rooms->memberIds($room), [$sender->id]));
             $message = $this->rooms->createMessage($room, $sender->id, $data->content);
             $this->rooms->createReceipts($message, $recipientIds);
@@ -107,7 +147,7 @@ class RoomService implements RoomServiceInterface
         });
 
         $response = new RoomMessageResponse($message, [$sender], $this->users($this->rooms->usersByIds($recipientIds), $recipientIds));
-        $this->broadcast(new RoomMessageSent($response));
+        $this->broadcast(new RoomMessageSent($response, $this->listChannels($room)));
 
         // Nobody else has to read it, so it has already been seen by everyone.
         if ($recipientIds === []) {
@@ -180,7 +220,34 @@ class RoomService implements RoomServiceInterface
         return array_values(array_filter(array_map(fn (int $id): ?User => $users->get($id), $ids)));
     }
 
-    /** A failed push only delays delivery: the message stays stored until every member has read it. */
+    private function present(DiscussionRoom $room, User $viewer): RoomResponse
+    {
+        return RoomResponse::fromModel($this->rooms->loadDetail($room), $viewer->id, $this->rooms->unreadCount($room, $viewer->id));
+    }
+
+    /**
+     * Who hears about a room in their Rooms list: everyone for a public room (`rooms.public`), only the members
+     * and invitees of a private one (each on `rooms.user.{id}`), plus anyone else named.
+     *
+     * @param  list<int>  $alsoUserIds
+     * @return list<PrivateChannel>
+     */
+    private function listChannels(DiscussionRoom $room, array $alsoUserIds = []): array
+    {
+        if (! $room->is_private) {
+            return [new PrivateChannel('rooms.public')];
+        }
+
+        $userIds = array_unique([...$this->rooms->memberIds($room), ...$this->rooms->inviteeIds($room), ...$alsoUserIds]);
+        sort($userIds);
+
+        return array_map(fn (int $userId): PrivateChannel => new PrivateChannel("rooms.user.{$userId}"), $userIds);
+    }
+
+    /**
+     * A failed push only delays delivery: a message stays stored until every member has read it, and a list
+     * catches up the next time it loads.
+     */
     private function broadcast(object $event): void
     {
         rescue(fn () => event($event));
