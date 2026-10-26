@@ -53,6 +53,9 @@ Route::middleware('auth.jwt')->group(function () {
     Route::post('rooms', [RoomController::class, 'store']);
     Route::post('rooms/socket-auth', [RoomSocketController::class, 'store'])->middleware('throttle:room-socket');
     Route::prefix('rooms/{room}')->whereNumber('room')->controller(RoomController::class)->group(function () {
+        Route::post('join', 'join');
+        Route::post('invites', 'invite')->middleware('throttle:room-invites');
+        Route::delete('invite', 'decline');
         Route::get('messages', 'messages');
         Route::post('messages', 'send')->middleware('throttle:room-messages');
         Route::post('read', 'read')->middleware('throttle:room-reads');

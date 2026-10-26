@@ -16,7 +16,7 @@ class HomeService implements HomeServiceInterface
     public function home(CurrentUser $viewer): HomeResponse
     {
         $user = $viewer->user();
-        $rooms = $this->home->busiestRooms(3)
+        $rooms = $this->home->busiestRooms(3, $user->id)
             ->map(fn (DiscussionRoom $room) => [
                 'id' => $room->id,
                 'name' => $room->name,

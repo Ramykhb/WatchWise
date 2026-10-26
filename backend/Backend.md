@@ -440,35 +440,40 @@ app/User/
 
 ```
 app/Room/
-  Controllers/          RoomController (rooms, messages, read receipts), RoomSocketController (socket channel auth)
-  FormRequests/         StoreRoomRequest, SendRoomMessageRequest, ReadRoomMessagesRequest, RoomSocketRequest
+  Controllers/          RoomController (rooms, joining, invitations, messages, read receipts), RoomSocketController (socket channel auth)
+  FormRequests/         StoreRoomRequest, InviteToRoomRequest, SendRoomMessageRequest, ReadRoomMessagesRequest, RoomSocketRequest
   InterfaceServices/    RoomServiceInterface
-  Services/             RoomService (membership, delivery, read receipts, deletion)
+  Services/             RoomService (visibility, membership, invitations, delivery, read receipts, deletion)
   InterfaceRepository/  RoomRepositoryInterface
   Repository/           RoomRepository
-  DTOs/Requests/        CreateRoomData, SendRoomMessageData, ReadRoomMessagesData
+  DTOs/Requests/        CreateRoomData, InviteToRoomData, SendRoomMessageData, ReadRoomMessagesData
   DTOs/Responses/       RoomResponse, RoomListResponse, RoomMessageResponse, RoomMessagesResponse, ReadReceiptsResponse
-  Events/               RoomMessageSent (`message.sent`), RoomMessagesRead (`messages.read`)
+  Events/               RoomMessageSent (`message.sent`), RoomMessagesRead (`messages.read`), RoomsChanged (`rooms.changed`)
   Policies/             DiscussionRoomPolicy
-  Providers/            RoomModuleServiceProvider (bindings and the room-messages / room-reads / room-socket limiters)
+  Providers/            RoomModuleServiceProvider (bindings and the room-messages / room-reads / room-socket / room-invites limiters)
 ```
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/rooms` | Every room, yours first, with its members and your unread count |
-| `POST /api/rooms` | Create a room; the creator becomes its first member |
+| `GET /api/rooms` | The rooms you can see, yours first, then invitations, then other public rooms, with members and your unread count |
+| `POST /api/rooms` | Create a public or private (`is_private`) room; the creator becomes its first member |
+| `POST /api/rooms/{room}/join` | Join a public room, or accept the invitation to a private one |
+| `POST /api/rooms/{room}/invites` | A member of a private room invites people by username |
+| `DELETE /api/rooms/{room}/invite` | Decline your invitation to a private room |
 | `GET /api/rooms/{room}/messages` | The messages still stored, each with `read_by` (author first) and `unread_by` |
-| `POST /api/rooms/{room}/messages` | Send a message; posting makes the sender a member |
+| `POST /api/rooms/{room}/messages` | Send a message (members only) |
 | `POST /api/rooms/{room}/read` | The member has seen these messages; returns the ones now deleted |
-| `POST /api/rooms/socket-auth` | Authorize the private channel `private-room.{id}` on Reverb |
+| `POST /api/rooms/socket-auth` | Authorize `private-room.{id}`, `private-rooms.public` or `private-rooms.user.{id}` on Reverb |
 
-- Rooms are open to every signed-in user. A room's members (`room_members`) are its creator and everyone who has posted in it.
+- A room is public (anyone signed in can read it and join) or private (`discussion_rooms.is_private`): only its members and the people they invited can see and read it. A room's members (`room_members`) are its creator and everyone who joined; only members post, and joining is explicit (`POST /join`), posting never joins you.
+- Any member of a private room can invite people (`room_invites`: room, user, invited_by). An invitee sees the room in their list and can read it, then joins (the invitation becomes membership) or declines. Invitees are not members, so messages never wait for them; neither do people reading a public room they have not joined (their `POST /read` counts for nothing).
+- Rooms lists stay current over two more private channels: a public room's new messages (`message.sent`) and changes (`rooms.changed`: created, joined) go to `rooms.public`; a private room's go to `rooms.user.{id}` of each member and invitee (invited, joined, declined; the decliner too).
 - A message is stored only until every member at the time it was sent has read it. Each of them gets an unread `notifications` row of type `room_message` (`data`: room_id, message_id); `read_at` is set when they read it, and once none is left unread the message and its rows are deleted. The sender counts as having read it, and a message with no other members is not kept.
 - Every message is pushed as `message.sent` on `room.{id}` to whoever has the room open; their browser confirms with `POST /read`, which pushes `messages.read` (the reader, the ids, and `deleted_ids` once everyone has read them). A failed push is only logged: the message stays stored, so members get it when they open the room.
 - Messages from before read tracking (no receipts) get receipts for the other members the first time the room is opened.
 - The frontend keeps its own copy of each conversation in localStorage (cleared on sign-out), because the server deletes what everyone has read.
 - `room_message` rows are read receipts, not notifications for the bell: `/api/me` leaves them out of `counts.unread_notifications`, and a future notifications feed must too.
-- Tests: `tests/Feature/Room/RoomMessagingTest.php`.
+- Tests: `tests/Feature/Room/RoomMessagingTest.php`, `tests/Feature/Room/RoomMembershipTest.php` (the permission matrix is in `tests/Feature/Auth/PolicyTest.php`).
 
 ## Removed code
 
@@ -589,7 +594,7 @@ How it is built (no extra package is needed):
 - GitHub emails are treated as verified without checking. Check the verified flag from GitHub's email list before launch.
 - The real SMTP delivery and the Google and GitHub logins have only been tested with fakes and mocks.
 - `MovieNightPolicy` runs a database query (`invites()->exists()`) inside the policy. Leave it until the movie night feature exists, then move that check into a repository.
-- `MessagePolicy::view` lets any logged-in user read any message. This is fine while discussion rooms are public per movie, and needs a membership check if private rooms are added.
+- `MessagePolicy::view` follows the room: any logged-in user can read a public room's messages, only members and invitees a private room's.
 
 ## Adding a new entity
 
