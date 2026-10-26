@@ -10,13 +10,13 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class DiscussionRoom extends Model
 {
-    protected $fillable = ['tmdb_id', 'name', 'created_by', 'spoilers'];
+    protected $fillable = ['tmdb_id', 'name', 'created_by', 'spoilers', 'is_private'];
 
     public const UPDATED_AT = null;
 
     protected function casts(): array
     {
-        return ['tmdb_id' => 'integer', 'spoilers' => 'boolean', 'created_at' => 'datetime'];
+        return ['tmdb_id' => 'integer', 'spoilers' => 'boolean', 'is_private' => 'boolean', 'created_at' => 'datetime'];
     }
 
     public function creator(): BelongsTo
@@ -29,10 +29,16 @@ class DiscussionRoom extends Model
         return $this->hasMany(Message::class, 'room_id');
     }
 
-    /** The creator and everyone who has posted; a message is kept until all of them have read it. */
+    /** The creator and everyone who has joined; a message is kept until all of them have read it. */
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'room_members', 'room_id', 'user_id');
+    }
+
+    /** People invited to this private room who have not joined or declined yet (`pivot->invited_by`). */
+    public function invitees(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'room_invites', 'room_id', 'user_id')->withPivot('invited_by');
     }
 
     /** The newest message still stored (someone has yet to read it). */

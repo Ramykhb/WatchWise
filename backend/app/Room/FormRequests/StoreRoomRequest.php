@@ -23,6 +23,7 @@ class StoreRoomRequest extends FormRequest
             'name' => ['required', 'string', 'min:3', 'max:80'],
             'tmdb_id' => ['required', 'integer', 'min:1'],
             'spoilers' => ['sometimes', 'boolean'],
+            'is_private' => ['sometimes', 'boolean'],
         ];
     }
 

@@ -123,10 +123,17 @@ export type ApiRoom = {
   name: string
   tmdb_id: number
   spoilers: boolean
+  /** Private rooms are seen only by their members and the people they invite; public ones by everyone. */
+  is_private: boolean
   host: ApiMember | null
-  /** The creator and everyone who has posted; a message waits for all of them. */
+  /** The creator and everyone who joined; a message waits for all of them. */
   members: ApiMember[]
   joined: boolean
+  /** You are invited to this private room and have not joined or declined yet. */
+  invited: boolean
+  invited_by: ApiMember | null
+  /** People invited who have not answered yet. */
+  invitees: ApiMember[]
   message_count: number
   /** Messages still waiting for you to read them. */
   unread: number

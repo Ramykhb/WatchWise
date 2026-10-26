@@ -16,19 +16,51 @@ export type Room = {
   id: string
   name: string
   movie: Movie
-  /** The host and everyone who has posted; a message waits until all of them have read it. */
+  /** The host and everyone who joined; a message waits until all of them have read it. */
   members: Member[]
   host: Member | null
   spoilers: boolean
+  /** Private rooms are seen only by their members and the people they invite. */
+  isPrivate: boolean
   joined: boolean
+  /** You are invited to this private room: you can read it, then join or decline. */
+  invited: boolean
+  invitedBy: Member | null
+  /** People invited who have not answered yet. */
+  invitees: Member[]
   /** Messages still waiting for you to read them. */
   unread: number
   /** Last-message preview in the room list. */
   preview: string
+  /** The newest stored message's time, else the room's creation (ISO). */
+  lastActivity: string
   rules: string[]
 }
 
 export const toRoomMember = (m: ApiMember): Member => ({ id: m.id, handle: m.username, name: shortName(m.name), ...look(m) })
+
+/** Room-list filters: every room you can see, or only yours; yours can be narrowed to public or private ones. */
+export type RoomScope = 'all' | 'mine'
+export type RoomKind = 'any' | 'public' | 'private'
+
+export const ROOM_SCOPES: { id: RoomScope; label: string }[] = [
+  { id: 'all', label: 'All rooms' },
+  { id: 'mine', label: 'My rooms' },
+]
+
+export const ROOM_KINDS: { id: RoomKind; label: string }[] = [
+  { id: 'any', label: 'All' },
+  { id: 'public', label: 'Public' },
+  { id: 'private', label: 'Private' },
+]
+
+/** The list's sections: invitations to answer, rooms you are in, and public rooms you can join. */
+export type RoomSection = 'invites' | 'mine' | 'public'
+
+export const sectionOf = (room: Room): RoomSection => (room.joined ? 'mine' : room.invited ? 'invites' : 'public')
+
+export const matchesFilters = (room: Room, scope: RoomScope, kind: RoomKind) =>
+  scope === 'all' || (room.joined && (kind === 'any' || room.isPrivate === (kind === 'private')))
 
 /** A room's rules; `rulesFor(false)` is also shown before any room exists. */
 export const rulesFor = (spoilers: boolean) => [
@@ -44,13 +76,36 @@ export const toRoom = (room: ApiRoom): Room => ({
   members: room.members.map(toRoomMember),
   host: room.host ? toRoomMember(room.host) : null,
   spoilers: room.spoilers,
+  isPrivate: room.is_private,
   joined: room.joined,
+  invited: room.invited,
+  invitedBy: room.invited_by ? toRoomMember(room.invited_by) : null,
+  invitees: room.invitees.map(toRoomMember),
   unread: room.unread,
   preview: room.last_message
     ? `${room.last_message.author?.split(' ')[0] ?? 'Someone'}: ${room.last_message.content}`
-    : 'No new messages',
+    : room.invited
+      ? `${room.invited_by?.name.split(' ')[0] ?? 'A member'} invited you`
+      : 'No new messages',
+  lastActivity: room.last_message?.created_at ?? room.created_at,
   rules: rulesFor(room.spoilers),
 })
+
+/**
+ * A message pushed to the room list (`message.sent` on `rooms.public` / `rooms.user.{id}`): it becomes the
+ * room's latest message, and counts as unread when it waits for you.
+ */
+export const withNewMessage = (rooms: ApiRoom[], message: ApiMessage, viewerId: number): ApiRoom[] =>
+  rooms.map((room) =>
+    room.id !== message.room_id
+      ? room
+      : {
+          ...room,
+          message_count: room.message_count + 1,
+          unread: room.unread + (message.unread_by.some((member) => member.id === viewerId) ? 1 : 0),
+          last_message: { author: message.user.name, content: message.content, created_at: message.created_at },
+        },
+  )
 
 /** "Lina: see you at 9" for the room list. */
 export const previewOf = (message: ApiMessage) => `${message.user.name.split(' ')[0]}: ${message.content}`
