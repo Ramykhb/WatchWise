@@ -23,6 +23,11 @@ class PersonRepository implements PersonRepositoryInterface
 
     public function movieCredits(int $movieId): array
     {
-        return $this->client->get("/movie/{$movieId}/credits")->json();
+        try {
+            return $this->client->get("/movie/{$movieId}/credits")->json();
+        } catch (TmdbNotFound) {
+            // A film TMDB has since removed just adds no one, instead of failing the whole list.
+            return ['cast' => [], 'crew' => []];
+        }
     }
 }

@@ -21,7 +21,7 @@ interface PersonRepositoryInterface
     public function find(int $id): array;
 
     /**
-     * One movie's cast and crew.
+     * One movie's cast and crew (both empty when TMDB no longer has the movie).
      *
      * @return array<string, mixed>
      *
