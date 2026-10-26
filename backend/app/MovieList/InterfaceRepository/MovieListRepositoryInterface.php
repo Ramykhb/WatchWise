@@ -38,6 +38,12 @@ interface MovieListRepositoryInterface
      */
     public function syncItems(MovieList $list, array $tmdbIds): array;
 
+    /** Adds the film at the end of the list; false when it is already there. */
+    public function addItem(MovieList $list, int $tmdbId): bool;
+
+    /** Removes the film; false when it was not in the list. */
+    public function removeItem(MovieList $list, int $tmdbId): bool;
+
     /** Loads the owner, the films and the film count. */
     public function loadDetail(MovieList $list): MovieList;
 }

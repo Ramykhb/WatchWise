@@ -276,6 +276,13 @@
   border-color: var(--ground-cream);
 }
 
+/* "Add to list" on TV shows, which lists can't hold yet. */
+.actionOutline:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  translate: none;
+}
+
 .actionWatched {
   background: var(--ground-violet-deep);
   color: var(--ground-cream);
