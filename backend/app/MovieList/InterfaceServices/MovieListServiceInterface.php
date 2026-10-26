@@ -25,4 +25,9 @@ interface MovieListServiceInterface
     public function update(MovieList $list, UpdateMovieListData $data): MovieList;
 
     public function delete(MovieList $list): void;
+
+    /** Adds one film at the end (the Movie page's "Add to list"); does nothing if it is already there. */
+    public function addMovie(MovieList $list, int $tmdbId): MovieList;
+
+    public function removeMovie(MovieList $list, int $tmdbId): MovieList;
 }

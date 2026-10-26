@@ -16,6 +16,9 @@ class MovieListRepository implements MovieListRepositoryInterface
         $scope = $query->scope;
 
         return MovieList::with(['user', 'items'])->withCount('items')
+            ->when($query->contains !== null, fn ($builder) => $builder->withExists([
+                'items as has_movie' => fn ($items) => $items->where('tmdb_id', $query->contains),
+            ]))
             ->when($query->q !== '', fn ($builder) => $builder->whereRaw("title LIKE ? ESCAPE '!'", [LikePattern::contains($query->q)]))
             ->when($scope === 'mine', fn ($builder) => $builder->where('user_id', $viewer->id))
             ->when($scope === 'public', fn ($builder) => $builder->where('is_public', true)->where('user_id', '!=', $viewer->id))
@@ -42,6 +45,28 @@ class MovieListRepository implements MovieListRepositoryInterface
     public function delete(MovieList $list): void
     {
         $list->delete();
+    }
+
+    public function addItem(MovieList $list, int $tmdbId): bool
+    {
+        if ($list->items()->where('tmdb_id', $tmdbId)->exists()) {
+            return false;
+        }
+
+        $list->items()->create(['tmdb_id' => $tmdbId, 'position' => (int) $list->items()->max('position') + 1]);
+        $list->touch();
+
+        return true;
+    }
+
+    public function removeItem(MovieList $list, int $tmdbId): bool
+    {
+        $removed = $list->items()->where('tmdb_id', $tmdbId)->delete() > 0;
+        if ($removed) {
+            $list->touch();
+        }
+
+        return $removed;
     }
 
     public function syncItems(MovieList $list, array $tmdbIds): array

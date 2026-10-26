@@ -38,6 +38,8 @@ import { gradientCss } from '../Home/homeData.ts'
 import { loadGenres } from '../Discover/discoverApi.ts'
 import { getMovieDetails, type Community, type MovieDetails as Details } from './movieData.ts'
 import { fetchMovieDetails, toDetails, type TmdbMovieDetails as ApiMovie } from './movieApi.ts'
+import AddToListDialog from './AddToListDialog.tsx'
+import { tmdbIdOf } from '../../lib/movies.ts'
 import styles from './MovieDetails.module.css'
 
 /** What the last request for a TMDB movie returned, tagged with the request it answers. */
@@ -262,6 +264,11 @@ function MovieDetailsPage({ details }: { details: Details }) {
   const [watched, setWatched] = useState(false)
   const [shareNote, setShareNote] = useState('')
   const [playing, setPlaying] = useState(false)
+  // "Add to list" pop-up: 'open', 'closing' (exit animation) or closed.
+  const [listDialog, setListDialog] = useState<'open' | 'closing' | null>(null)
+  // Lists hold TMDB movie ids; TV shows ("tv-1399") use a separate id range, so they can't be added yet.
+  const listTmdbId = tmdbIdOf(movie)
+  const canAddToList = Number.isInteger(listTmdbId) && listTmdbId > 0
 
   const [yourReview, setYourReview] = useState<Review | null>(community?.yourReview ?? null)
   const [draft, setDraft] = useState('')
@@ -434,10 +441,17 @@ function MovieDetailsPage({ details }: { details: Details }) {
                   <img src={eyeIcon} width={16} height={16} alt="" />
                   {watched ? 'Watched' : 'Mark as watched'}
                 </button>
-                <Link to="/lists" className={styles.actionOutline}>
+                <button
+                  type="button"
+                  className={styles.actionOutline}
+                  aria-haspopup="dialog"
+                  disabled={!canAddToList}
+                  title={canAddToList ? undefined : 'TV shows can’t be added to lists yet'}
+                  onClick={() => setListDialog('open')}
+                >
                   <img src={listIcon} width={16} height={16} alt="" />
                   Add to list
-                </Link>
+                </button>
                 {community && (
                   <button
                     type="button"
@@ -822,6 +836,16 @@ function MovieDetailsPage({ details }: { details: Details }) {
           </div>
         </section>
       </main>
+
+      {listDialog && (
+        <AddToListDialog
+          open={listDialog === 'open'}
+          tmdbId={listTmdbId}
+          title={movie.title}
+          onClose={() => setListDialog('closing')}
+          onClosed={() => setListDialog(null)}
+        />
+      )}
     </div>
   )
 }

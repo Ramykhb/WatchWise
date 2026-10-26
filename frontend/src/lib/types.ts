@@ -30,6 +30,8 @@ export type ApiList = {
   owner: ApiMember | null
   created_at: string
   updated_at: string
+  /** Only with `?contains={tmdbId}`: whether the list already holds that film. */
+  has_movie?: boolean
   /** Only on a single list (GET /lists/:id, create, update). */
   items?: { tmdb_id: number; note: string | null; added_at: string | null }[]
 }

@@ -41,6 +41,8 @@ class MovieListResource extends JsonResource
             'owner' => $this->relationLoaded('user') ? new MemberResource($this->user) : null,
             'created_at' => $this->created_at?->toJSON(),
             'updated_at' => $this->updated_at?->toJSON(),
+            // Only when the request asked about a film (GET /lists?contains=).
+            'has_movie' => $this->when(isset($this->has_movie), fn () => (bool) $this->has_movie),
             'items' => $this->when($this->withItems, fn () => $items->map(fn (MovieListItem $item) => [
                 'tmdb_id' => $item->tmdb_id,
                 'note' => $item->note,
