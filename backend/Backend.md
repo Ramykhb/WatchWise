@@ -434,12 +434,48 @@ app/User/
 - `ProfilePrivacy` decides what a viewer may see of a profile.
 - Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php` and `AccountRulesTest.php`.
 
+## Room module
+
+`app/Room/` holds the discussion rooms (group chats about a film), in the same layers as Auth. The `DiscussionRoom` and `Message` models stay in `app/Models/`.
+
+```
+app/Room/
+  Controllers/          RoomController (rooms, messages, read receipts), RoomSocketController (socket channel auth)
+  FormRequests/         StoreRoomRequest, SendRoomMessageRequest, ReadRoomMessagesRequest, RoomSocketRequest
+  InterfaceServices/    RoomServiceInterface
+  Services/             RoomService (membership, delivery, read receipts, deletion)
+  InterfaceRepository/  RoomRepositoryInterface
+  Repository/           RoomRepository
+  DTOs/Requests/        CreateRoomData, SendRoomMessageData, ReadRoomMessagesData
+  DTOs/Responses/       RoomResponse, RoomListResponse, RoomMessageResponse, RoomMessagesResponse, ReadReceiptsResponse
+  Events/               RoomMessageSent (`message.sent`), RoomMessagesRead (`messages.read`)
+  Policies/             DiscussionRoomPolicy
+  Providers/            RoomModuleServiceProvider (bindings and the room-messages / room-reads / room-socket limiters)
+```
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/rooms` | Every room, yours first, with its members and your unread count |
+| `POST /api/rooms` | Create a room; the creator becomes its first member |
+| `GET /api/rooms/{room}/messages` | The messages still stored, each with `read_by` (author first) and `unread_by` |
+| `POST /api/rooms/{room}/messages` | Send a message; posting makes the sender a member |
+| `POST /api/rooms/{room}/read` | The member has seen these messages; returns the ones now deleted |
+| `POST /api/rooms/socket-auth` | Authorize the private channel `private-room.{id}` on Reverb |
+
+- Rooms are open to every signed-in user. A room's members (`room_members`) are its creator and everyone who has posted in it.
+- A message is stored only until every member at the time it was sent has read it. Each of them gets an unread `notifications` row of type `room_message` (`data`: room_id, message_id); `read_at` is set when they read it, and once none is left unread the message and its rows are deleted. The sender counts as having read it, and a message with no other members is not kept.
+- Every message is pushed as `message.sent` on `room.{id}` to whoever has the room open; their browser confirms with `POST /read`, which pushes `messages.read` (the reader, the ids, and `deleted_ids` once everyone has read them). A failed push is only logged: the message stays stored, so members get it when they open the room.
+- Messages from before read tracking (no receipts) get receipts for the other members the first time the room is opened.
+- The frontend keeps its own copy of each conversation in localStorage (cleared on sign-out), because the server deletes what everyone has read.
+- `room_message` rows are read receipts, not notifications for the bell: `/api/me` leaves them out of `counts.unread_notifications`, and a future notifications feed must too.
+- Tests: `tests/Feature/Room/RoomMessagingTest.php`.
+
 ## Removed code
 
 `app/Http/` and `app/Services/` no longer exist. The base `Controller` class is gone too (controllers are plain classes), and so is everything that only lived in those two folders:
 
 - the notifications API (`/api/notifications`) and the `Notifier` that created notifications when someone followed, invited, voted or mentioned another user;
-- the discussion rooms API (`/api/rooms`);
+- the old discussion rooms API (`/api/rooms`), since rebuilt as the [Room module](#room-module);
 - the activity feed (`ActivityFeedService`), so `/api/home` no longer returns `activity` and `/api/users/{username}` no longer returns `activity` or the `reviews` list (the `counts.reviews` number is still there).
 
 The database tables, models and policies for notifications, rooms, messages, reviews and the activity feed are still in place (`app/Models/`, `app/Policies/`, the migrations), so no data was dropped. `/api/home` still returns the busiest rooms and the next movie night.
