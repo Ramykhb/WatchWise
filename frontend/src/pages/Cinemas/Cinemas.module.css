@@ -5,6 +5,48 @@
   background: var(--ground-cream);
 }
 
+.locationRequired {
+  flex: 1;
+  display: grid;
+  min-height: var(--map-h);
+  place-items: center;
+  border-radius: 32px;
+  background: var(--surface-white);
+  text-align: center;
+}
+
+.locationPrompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 440px;
+  padding: 32px;
+}
+
+.locationPrompt h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 28px;
+  letter-spacing: -0.03em;
+}
+
+.locationPrompt p {
+  margin: 0;
+  color: var(--ink-600);
+  line-height: 1.5;
+}
+
+.retryLocation {
+  margin-top: 8px;
+  padding: 11px 18px;
+  border-radius: var(--radius-pill);
+  background: var(--ground-violet);
+  color: var(--ground-cream);
+  font-weight: 700;
+  cursor: pointer;
+}
+
 /* Panel (440) + map; 884px tall in Figma, shorter on small windows. */
 .body {
   --map-h: clamp(620px, calc(100vh - 120px), 884px);
@@ -92,116 +134,6 @@
   color: var(--ink-600);
 }
 
-.segmented {
-  display: flex;
-  flex-shrink: 0;
-  gap: 4px;
-  padding: 4px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-cream-deep);
-}
-
-.segment {
-  flex: 1;
-  padding: 10px 16px;
-  border-radius: var(--radius-pill);
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--ink-600);
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background-color 0.2s ease-out,
-    color 0.2s ease-out;
-}
-
-.segment[aria-selected='true'] {
-  background: var(--ground-violet);
-  color: var(--ground-cream);
-}
-
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.chip,
-.time {
-  padding: 7px 14px;
-  border-radius: var(--radius-pill);
-  font-weight: 700;
-  font-size: 13px;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background-color 0.2s ease-out,
-    color 0.2s ease-out;
-}
-
-.chip {
-  background: var(--surface-white);
-  color: var(--ink-900);
-}
-
-.chip[aria-pressed='true'],
-.time[aria-pressed='true'] {
-  background: var(--ground-violet);
-  color: var(--ground-cream);
-}
-
-.film {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 20px;
-  background: var(--accent-yellow);
-}
-
-.filmThumb {
-  flex-shrink: 0;
-  width: 36px;
-  height: 52px;
-  border-radius: 8px;
-}
-
-.filmText {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  font-weight: 700;
-}
-
-.filmLabel {
-  font-size: 11px;
-  letter-spacing: 0.1em;
-}
-
-.filmTitle {
-  font-family: var(--font-display);
-  font-size: 18px;
-  letter-spacing: -0.02em;
-}
-
-.filmText:hover .filmTitle {
-  text-decoration: underline;
-}
-
-.change {
-  padding: 6px 8px;
-  border-radius: 10px;
-  font-weight: 700;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.change:hover {
-  background: rgb(255 255 255 / 0.4);
-}
-
 /* The cinema list scrolls inside the panel so the map stays in view. */
 .list {
   display: flex;
@@ -218,8 +150,6 @@
 
 .card {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
   width: 100%;
   padding: 16px;
   border: 2px solid transparent;
@@ -228,14 +158,14 @@
   transition: border-color 0.2s ease-out;
 }
 
-.card[aria-current='true'] {
+.card[aria-pressed='true'] {
   border-color: var(--ground-violet);
 }
 
 .cardHead {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   width: 100%;
   text-align: left;
@@ -264,30 +194,24 @@
   color: var(--ink-400);
 }
 
-.cardScene {
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--ink-600);
-}
-
-.rating {
-  display: inline-flex;
+.cardIcon {
   flex-shrink: 0;
-  align-items: center;
-  gap: 4px;
-  font-weight: 700;
+  padding: 9px;
+  border-radius: 50%;
+  background: var(--surface-violet-tint);
+  box-sizing: border-box;
+}
+
+.cardDistance {
+  margin-top: 4px;
   font-size: 13px;
+  font-weight: 700;
+  color: var(--ground-violet);
 }
 
-.times {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.time {
-  background: var(--surface-cream-deep);
-  color: var(--ink-900);
+.card:focus-visible {
+  outline: 3px solid var(--ground-violet);
+  outline-offset: 2px;
 }
 
 .empty {
@@ -300,6 +224,98 @@
 }
 
 /* ---------- Map ---------- */
+.userLocationDot {
+  display: grid;
+  width: 120px;
+  height: 120px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(239 231 255 / 0.92);
+}
+
+.userLocationDot::after {
+  width: 30px;
+  height: 30px;
+  border: 6px solid #fff;
+  border-radius: 50%;
+  background: #2d1b67;
+  content: '';
+  box-sizing: border-box;
+}
+
+.cinemaMarkerAnchor {
+  line-height: 0;
+  pointer-events: none;
+}
+
+.cinemaPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 200px;
+  min-height: 40px;
+  padding: 5px 12px 5px 6px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgb(32 28 43 / 0.18);
+  font: inherit;
+  font-weight: 750;
+  font-size: 14px;
+  line-height: 1.1;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  transform: scale(var(--map-zoom-scale, 1));
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cinemaPill img {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  padding: 7px;
+  border-radius: 50%;
+  background: #fff;
+  object-fit: contain;
+  box-sizing: border-box;
+}
+
+.cinemaPill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cinemaPill:hover,
+.cinemaPill:focus-visible,
+.cinemaPillSelected {
+  z-index: 1;
+  transform: translateY(-2px) scale(calc(var(--map-zoom-scale, 1) * 1.04));
+  box-shadow: 0 7px 20px rgb(32 28 43 / 0.28), 0 0 0 3px #fff;
+}
+
+.cinemaPill:focus-visible {
+  outline: 3px solid #2d1b67;
+  outline-offset: 3px;
+}
+
+.cinemaPillNavy {
+  background: #2d1b67;
+  color: #fff;
+}
+
+.cinemaPillCoral {
+  background: #ff5b52;
+  color: #fff;
+}
+
+.cinemaPillYellow {
+  background: #ffc938;
+  color: #18152c;
+}
+
 .map {
   position: relative;
   flex: 1;
@@ -310,11 +326,92 @@
   background: var(--surface-mint-tint);
 }
 
-.leafletMap {
+.mapboxMap {
   width: 100%;
   height: 100%;
+  min-height: 100%;
   background: var(--surface-mint-tint);
   font-family: var(--font-body);
+}
+
+.cinemaDetails {
+  position: absolute;
+  z-index: 2;
+  top: 16px;
+  right: 16px;
+  width: min(430px, calc(100% - 32px));
+  padding: 26px 28px 28px;
+  border-radius: 30px;
+  background: #fff;
+  box-shadow: 0 20px 48px rgb(32 28 43 / 0.24);
+  box-sizing: border-box;
+}
+
+.cinemaDetails h2 {
+  margin: 0 32px 14px 0;
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1.12;
+  letter-spacing: -0.04em;
+}
+
+.cinemaDetailsMeta {
+  margin: 0 0 20px;
+  color: var(--ink-600);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.closeCinemaDetails {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ink-600);
+  cursor: pointer;
+}
+
+.closeCinemaDetails:hover {
+  background: var(--surface-cream-deep);
+}
+
+.cinemaDetailsActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.directionsButton,
+.websiteButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 50px;
+  padding: 0 20px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.directionsButton {
+  background: #ffc938;
+  color: #18152c;
+}
+
+.websiteButton {
+  border-color: #ded9d5;
+  color: #18152c;
+}
+
+.directionsButton:hover,
+.websiteButton:hover {
+  transform: translateY(-1px);
 }
 
 /* ---------- Responsive ---------- */
@@ -332,7 +429,8 @@
 
   .list {
     flex: none;
-    overflow: visible;
+    max-height: 360px;
+    overflow-y: auto;
   }
 
   /* In the stacked layout flex: 1 would collapse the map's height. */
@@ -351,6 +449,22 @@
   .title {
     font-size: 40px;
     white-space: normal;
+  }
+
+  .cinemaDetails {
+    top: 10px;
+    right: 10px;
+    width: calc(100% - 20px);
+    padding: 22px 20px;
+  }
+
+  .cinemaDetails h2 {
+    font-size: 22px;
+  }
+
+  .userLocationDot {
+    width: 88px;
+    height: 88px;
   }
 
 }

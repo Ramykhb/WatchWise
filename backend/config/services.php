@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'geoapify' => [
+        'key' => env('GEOAPIFY_API_KEY'),
+    ],
+
     'open_meteo' => [
         'url' => env('OPEN_METEO_URL', 'https://api.open-meteo.com/v1/forecast'),
         'default_latitude' => (float) env('OPEN_METEO_DEFAULT_LATITUDE', 33.8938),

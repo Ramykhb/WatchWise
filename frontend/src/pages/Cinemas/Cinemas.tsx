@@ -1,69 +1,182 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router'
-import { CircleMarker, MapContainer, TileLayer, useMap } from 'react-leaflet'
-import type { LatLngExpression } from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import { ExternalLink, Navigation, X } from 'lucide-react'
+import mapboxgl from 'mapbox-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import pinIcon from '../../assets/cinemas/icon-pin.svg'
+import filmIcon from '../../assets/cinemas/icon-film.svg'
 import locateIcon from '../../assets/cinemas/icon-locate.svg'
-import starIcon from '../../assets/cinemas/icon-star.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { gradientCss } from '../Home/homeData.ts'
-import {
-  CINEMAS,
-  DEFAULT_LOCATION,
-  FEATURES,
-  LOCATIONS,
-  SHOWING,
-  type Feature,
-} from './cinemasData.ts'
+import { fetchNearbyCinemas, formatDistance, type NearbyCinema } from './cinemasApi.ts'
 import styles from './Cinemas.module.css'
 
-type Mode = 'cinemas' | 'locations'
+const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
+const MAPBOX_STYLE_URL = import.meta.env.VITE_MAPBOX_STYLE_URL || 'mapbox://styles/mapbox/streets-v12'
 
-const DEFAULT_MAP_CENTER: LatLngExpression = [33.8938, 35.5018]
-const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY
+function createCinemaMarker(cinema: NearbyCinema, colorClass: string, onSelect: () => void) {
+  const marker = document.createElement('button')
+  marker.type = 'button'
+  marker.className = `${styles.cinemaPill} ${colorClass}`
+  marker.setAttribute('aria-label', `Show details for ${cinema.name}`)
+  marker.setAttribute('aria-pressed', 'false')
+  marker.addEventListener('click', onSelect)
 
-function RecenterMap({ center }: { center: LatLngExpression }) {
-  const map = useMap()
-  useEffect(() => {
-    map.flyTo(center, map.getZoom(), { duration: 0.8 })
-  }, [center, map])
-  return null
+  const icon = document.createElement('img')
+  icon.src = filmIcon
+  icon.alt = ''
+  icon.setAttribute('aria-hidden', 'true')
+  marker.append(icon)
+
+  const label = document.createElement('span')
+  label.textContent = cinema.name
+  marker.append(label)
+  return marker
+}
+
+function safeWebsiteUrl(website: string): string | null {
+  try {
+    const url = new URL(website.startsWith('http://') || website.startsWith('https://') ? website : `https://${website}`)
+    return ['http:', 'https:'].includes(url.protocol) ? url.toString() : null
+  } catch {
+    return null
+  }
 }
 
 export default function Cinemas() {
   const pageRef = useRef<HTMLDivElement>(null)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<mapboxgl.Map | null>(null)
+  const cinemaMarkersRef = useRef<mapboxgl.Marker[]>([])
+  const cinemaMarkerElementsRef = useRef<Map<string, HTMLButtonElement>>(new Map())
   const requestedLocation = useRef(false)
   useEntranceAnimation(pageRef)
 
-  const [mode, setMode] = useState<Mode>('cinemas')
-  const [filters, setFilters] = useState<Feature[]>(['tonight'])
-  const [filmIndex, setFilmIndex] = useState(0)
-  const [selectedId, setSelectedId] = useState(CINEMAS[0].id)
-  // Chosen showtime per cinema (Figma: 8:40 at Grand ABC).
-  const [times, setTimes] = useState<Record<string, string>>({ [CINEMAS[0].id]: CINEMAS[0].times[1] })
-  const [place, setPlace] = useState(DEFAULT_LOCATION)
-  const [mapCenter, setMapCenter] = useState<LatLngExpression>(DEFAULT_MAP_CENTER)
-  const [currentLocation, setCurrentLocation] = useState<LatLngExpression | null>(null)
+  const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null)
   const [locating, setLocating] = useState(true)
   const [locationNote, setLocationNote] = useState('')
+  const [nearbyCinemas, setNearbyCinemas] = useState<NearbyCinema[]>([])
+  const [loadingCinemas, setLoadingCinemas] = useState(false)
+  const [cinemaSearchNote, setCinemaSearchNote] = useState('')
+  const [selectedCinemaId, setSelectedCinemaId] = useState<string | null>(null)
 
-  const film = SHOWING[filmIndex]
-  const cinemas = CINEMAS.filter((cinema) => filters.every((f) => cinema.features.includes(f)))
+  const selectedCinema = nearbyCinemas.find((cinema) => cinema.id === selectedCinemaId) ?? null
 
-  const toggleFilter = (feature: Feature) =>
-    setFilters((current) => (current.includes(feature) ? current.filter((f) => f !== feature) : [...current, feature]))
+  useEffect(() => {
+    if (!currentLocation || !mapContainerRef.current || !MAPBOX_ACCESS_TOKEN) return
 
-  const pickTime = (cinemaId: string, time: string) => {
-    setSelectedId(cinemaId)
-    setTimes((current) => ({ ...current, [cinemaId]: time }))
-  }
+    const [latitude, longitude] = currentLocation
+    mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN
+    const map = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: MAPBOX_STYLE_URL,
+      center: [longitude, latitude],
+      zoom: 14,
+      customAttribution: '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>',
+    })
+    mapRef.current = map
+    const userDot = document.createElement('div')
+    userDot.className = styles.userLocationDot
+    userDot.setAttribute('aria-label', 'Your location')
+    new mapboxgl.Marker({ element: userDot, anchor: 'center' }).setLngLat([longitude, latitude]).addTo(map)
+    map.addControl(new mapboxgl.NavigationControl(), 'bottom-right')
 
-  const switchMode = (next: Mode) => {
-    setMode(next)
-    setSelectedId(next === 'cinemas' ? CINEMAS[0].id : LOCATIONS[0].id)
+    return () => {
+      cinemaMarkersRef.current.forEach((marker) => marker.remove())
+      cinemaMarkersRef.current = []
+      cinemaMarkerElementsRef.current.clear()
+      mapRef.current = null
+      map.remove()
+    }
+  }, [currentLocation])
+
+  useEffect(() => {
+    if (!currentLocation) return
+
+    const controller = new AbortController()
+    const [latitude, longitude] = currentLocation
+    setNearbyCinemas([])
+    setSelectedCinemaId(null)
+    setLoadingCinemas(true)
+    setCinemaSearchNote('')
+    fetchNearbyCinemas(latitude, longitude, controller.signal)
+      .then(setNearbyCinemas)
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        setNearbyCinemas([])
+        setCinemaSearchNote(error instanceof Error ? error.message : 'Nearby cinema data is unavailable right now.')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingCinemas(false)
+      })
+
+    return () => controller.abort()
+  }, [currentLocation])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !currentLocation) return
+
+    console.log(`Adding ${nearbyCinemas.length} nearby cinema markers to Mapbox`)
+    cinemaMarkersRef.current.forEach((marker) => marker.remove())
+    cinemaMarkerElementsRef.current.clear()
+    const pillColors = [styles.cinemaPillNavy, styles.cinemaPillCoral, styles.cinemaPillYellow]
+    cinemaMarkersRef.current = nearbyCinemas.map((cinema, index) => {
+      const element = createCinemaMarker(cinema, pillColors[index % pillColors.length], () => setSelectedCinemaId(cinema.id))
+      cinemaMarkerElementsRef.current.set(cinema.id, element)
+      // Mapbox owns the wrapper's transform; the inner button can scale freely.
+      const wrapper = document.createElement('div')
+      wrapper.className = styles.cinemaMarkerAnchor
+      wrapper.append(element)
+      return new mapboxgl.Marker({ element: wrapper, anchor: 'center' })
+        .setLngLat([cinema.longitude, cinema.latitude])
+        .addTo(map)
+    })
+
+    const updatePillScale = () => {
+      // Keep pills small even at street level, and smaller still when zooming out.
+      const scale = Math.max(0.36, Math.min(0.84, 0.36 * 1.18 ** (map.getZoom() - 10)))
+      cinemaMarkerElementsRef.current.forEach((element) => {
+        element.style.setProperty('--map-zoom-scale', String(scale))
+      })
+    }
+    updatePillScale()
+    map.on('zoom', updatePillScale)
+
+    if (nearbyCinemas.length > 0) {
+      const [latitude, longitude] = currentLocation
+      const bounds = new mapboxgl.LngLatBounds([longitude, latitude], [longitude, latitude])
+      nearbyCinemas.forEach((cinema) => bounds.extend([cinema.longitude, cinema.latitude]))
+      map.fitBounds(bounds, { padding: 72, maxZoom: 14, duration: 500 })
+    }
+
+    return () => {
+      map.off('zoom', updatePillScale)
+      cinemaMarkersRef.current.forEach((marker) => marker.remove())
+      cinemaMarkersRef.current = []
+      cinemaMarkerElementsRef.current.clear()
+    }
+  }, [currentLocation, nearbyCinemas])
+
+  useEffect(() => {
+    cinemaMarkerElementsRef.current.forEach((element, id) => {
+      const selected = id === selectedCinemaId
+      element.classList.toggle(styles.cinemaPillSelected, selected)
+      element.setAttribute('aria-pressed', String(selected))
+    })
+  }, [selectedCinemaId, nearbyCinemas])
+
+  const selectCinemaFromList = (cinema: NearbyCinema) => {
+    setSelectedCinemaId(cinema.id)
+    const map = mapRef.current
+    if (!map) return
+
+    map.flyTo({
+      center: [cinema.longitude, cinema.latitude],
+      zoom: Math.max(map.getZoom(), 15),
+      offset: [0, 80],
+      duration: 1000,
+    })
   }
 
   const useMyLocation = useCallback(() => {
@@ -77,16 +190,12 @@ export default function Cinemas() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocating(false)
-        setPlace('Your current location')
-        const coordinates: LatLngExpression = [position.coords.latitude, position.coords.longitude]
-        setCurrentLocation(coordinates)
-        setMapCenter(coordinates)
+        setCurrentLocation([position.coords.latitude, position.coords.longitude])
       },
       () => {
         setLocating(false)
         setCurrentLocation(null)
-        setLocationNote('Location permission was blocked, so we are showing cinemas near Hamra.')
-        setMapCenter(DEFAULT_MAP_CENTER)
+        setLocationNote('Enable location access in your browser settings to use the nearby cinemas map, then try again.')
       },
       { timeout: 10000 },
     )
@@ -103,145 +212,129 @@ export default function Cinemas() {
       <AppNav />
 
       <main className={styles.body}>
+        {currentLocation ? (
+          <>
         <section className={styles.panel} aria-labelledby="cinemas-title" data-enter data-enter-delay="0.05">
           <SplitHeadline id="cinemas-title" className={styles.title} lines={[{ text: 'Cinemas near you' }]} />
-          <p className={styles.lead}>Showtimes and movie locations around you, powered by maps &amp; geolocation.</p>
+          <p className={styles.lead}>Discover cinemas around you. Select a cinema to see its details and get directions.</p>
 
           <div className={styles.location}>
             <img src={pinIcon} width={18} height={18} alt="" />
-            <span className={styles.place}>{place}</span>
+            <span className={styles.place}>Your current location</span>
             <button type="button" className={styles.locate} onClick={useMyLocation} disabled={locating}>
               <img src={locateIcon} width={16} height={16} alt="" />
               {locating ? 'Locating…' : 'Use my location'}
             </button>
           </div>
+          <p className={styles.note} role="status">
+            {loadingCinemas
+              ? 'Searching for nearby cinemas…'
+              : cinemaSearchNote || `${nearbyCinemas.length} nearby cinemas shown on the map.`}
+          </p>
+          {!loadingCinemas && !cinemaSearchNote && (
+            <p className={styles.note}>
+              Powered by <a href="https://www.geoapify.com/">Geoapify</a> · © OpenStreetMap contributors
+            </p>
+          )}
           {locationNote && (
             <p className={styles.note} role="status">
               {locationNote}
             </p>
           )}
 
-          <div className={styles.segmented} role="tablist" aria-label="Show on the map">
-            {(['cinemas', 'locations'] as const).map((id) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={mode === id}
-                className={styles.segment}
-                onClick={() => switchMode(id)}
-              >
-                {id === 'cinemas' ? 'Cinemas' : 'Movie locations'}
-              </button>
-            ))}
-          </div>
-
-          {mode === 'cinemas' ? (
-            <>
-              <div className={styles.filters} role="group" aria-label="Filter cinemas">
-                {FEATURES.map((feature) => (
-                  <button
-                    key={feature.id}
-                    type="button"
-                    aria-pressed={filters.includes(feature.id)}
-                    className={styles.chip}
-                    onClick={() => toggleFilter(feature.id)}
-                  >
-                    {feature.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className={styles.film}>
-                <span className={styles.filmThumb} style={{ background: gradientCss(film.gradient) }} aria-hidden="true" />
-                <Link to={`/movies/${film.slug}`} className={styles.filmText}>
-                  <span className={styles.filmLabel}>SHOWING</span>
-                  <span className={styles.filmTitle}>{film.title}</span>
-                </Link>
+          <ul className={styles.list} aria-label="Nearby cinemas" aria-busy={loadingCinemas} data-lenis-prevent>
+            {nearbyCinemas.map((cinema) => (
+              <li key={cinema.id}>
                 <button
                   type="button"
-                  className={styles.change}
-                  onClick={() => setFilmIndex((index) => (index + 1) % SHOWING.length)}
+                  className={`${styles.card} ${styles.cardHead}`}
+                  aria-pressed={selectedCinemaId === cinema.id}
+                  onClick={() => selectCinemaFromList(cinema)}
                 >
-                  Change<span className="sr-only"> film</span>
+                  <img className={styles.cardIcon} src={filmIcon} width={36} height={36} alt="" />
+                  <span className={styles.cardName}>
+                    <span className={styles.cardTitle}>{cinema.name}</span>
+                    <span className={styles.cardMeta}>{cinema.address}</span>
+                    <span className={styles.cardDistance}>{formatDistance(cinema.distanceMeters)}</span>
+                  </span>
                 </button>
-              </div>
-
-              <ul className={styles.list} data-lenis-prevent>
-                {cinemas.map((cinema) => (
-                  <li key={cinema.id}>
-                    <article className={styles.card} aria-current={selectedId === cinema.id ? 'true' : undefined}>
-                      <button type="button" className={styles.cardHead} onClick={() => setSelectedId(cinema.id)}>
-                        <span className={styles.cardName}>
-                          <span className={styles.cardTitle}>{cinema.name}</span>
-                          <span className={styles.cardMeta}>
-                            {cinema.address} · {cinema.distance}
-                          </span>
-                        </span>
-                        <span className={styles.rating}>
-                          <img src={starIcon} width={14} height={14} alt="" />
-                          {cinema.rating}
-                        </span>
-                      </button>
-                      <div className={styles.times} role="group" aria-label={`${cinema.name} showtimes`}>
-                        {cinema.times.map((time) => (
-                          <button
-                            key={time}
-                            type="button"
-                            aria-pressed={times[cinema.id] === time}
-                            className={styles.time}
-                            onClick={() => pickTime(cinema.id, time)}
-                          >
-                            {time}
-                          </button>
-                        ))}
-                      </div>
-                    </article>
-                  </li>
-                ))}
-                {cinemas.length === 0 && <li className={styles.empty}>No cinemas nearby match these filters.</li>}
-              </ul>
-            </>
-          ) : (
-            <ul className={styles.list} data-lenis-prevent>
-              {LOCATIONS.map((location) => (
-                <li key={location.id}>
-                  <button
-                    type="button"
-                    className={`${styles.card} ${styles.cardHead}`}
-                    aria-current={selectedId === location.id ? 'true' : undefined}
-                    onClick={() => setSelectedId(location.id)}
-                  >
-                    <span className={styles.cardName}>
-                      <span className={styles.cardTitle}>{location.name}</span>
-                      <span className={styles.cardMeta}>{location.place}</span>
-                      <span className={styles.cardScene}>
-                        {location.movie.title} · {location.scene}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+              </li>
+            ))}
+            {nearbyCinemas.length === 0 && (
+              <li className={styles.empty}>
+                {loadingCinemas
+                  ? 'Finding cinemas near you…'
+                  : cinemaSearchNote
+                    ? 'Cinema results could not be loaded. Use my location to try again.'
+                    : 'No cinemas found near your location.'}
+              </li>
+            )}
+          </ul>
         </section>
 
         <section className={styles.map} aria-label="Map" data-enter data-enter-delay="0.2" data-enter-rise="60">
-          <MapContainer className={styles.leafletMap} center={mapCenter} zoom={17} scrollWheelZoom>
-            <RecenterMap center={mapCenter} />
-            {currentLocation && (
-              <CircleMarker
-                center={currentLocation}
-                radius={8}
-                pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#1684ff', fillOpacity: 1 }}
-              />
-            )}
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-              url={`https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`}
-            />
-          </MapContainer>
+          <div ref={mapContainerRef} className={styles.mapboxMap} />
+          {selectedCinema && (
+            <aside className={styles.cinemaDetails} aria-label="Selected cinema details">
+              <button
+                type="button"
+                className={styles.closeCinemaDetails}
+                aria-label="Close cinema details"
+                onClick={() => setSelectedCinemaId(null)}
+              >
+                <X size={20} aria-hidden="true" />
+              </button>
+              <h2>{selectedCinema.name}</h2>
+              <p className={styles.cinemaDetailsMeta}>
+                {selectedCinema.address} · {formatDistance(selectedCinema.distanceMeters)}
+              </p>
+              <div className={styles.cinemaDetailsActions}>
+                <a
+                  className={styles.directionsButton}
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${selectedCinema.latitude},${selectedCinema.longitude}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Navigation size={18} aria-hidden="true" />
+                  Directions
+                </a>
+                {selectedCinema.website && safeWebsiteUrl(selectedCinema.website) && (
+                  <a
+                    className={styles.websiteButton}
+                    href={safeWebsiteUrl(selectedCinema.website)!}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Website
+                    <ExternalLink size={16} aria-hidden="true" />
+                  </a>
+                )}
+              </div>
+            </aside>
+          )}
         </section>
+          </>
+        ) : (
+          <div className={styles.locationRequired} role="status">
+            <div className={styles.locationPrompt}>
+              <img src={pinIcon} width={24} height={24} alt="" />
+              {locating ? (
+                <>
+                  <h2>Finding your location</h2>
+                  <p>Allow your browser to share your location to access nearby cinemas.</p>
+                </>
+              ) : (
+                <>
+                  <h2>Enable location to access this feature</h2>
+                  <p>{locationNote || 'Allow location access in your browser to see cinemas around you.'}</p>
+                  <button type="button" className={styles.retryLocation} onClick={useMyLocation}>
+                    Recheck location permission
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )
