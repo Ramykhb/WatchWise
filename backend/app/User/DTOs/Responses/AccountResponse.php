@@ -3,6 +3,7 @@
 namespace App\User\DTOs\Responses;
 
 use App\Auth\DTOs\Responses\UserResponse;
+use App\Models\Notification;
 use App\Models\User;
 use App\User\DTOs\Requests\UpdatePreferencesData;
 use JsonSerializable;
@@ -35,7 +36,8 @@ final readonly class AccountResponse implements JsonSerializable
             ],
             'connected' => $user->socialAccounts->mapWithKeys(fn ($account) => [$account->provider => $account->created_at?->toJSON()]),
             'counts' => [
-                'unread_notifications' => $user->notifications()->whereNull('read_at')->count(),
+                // Room messages waiting to be read are read receipts, not notifications.
+                'unread_notifications' => $user->notifications()->where('type', '!=', Notification::ROOM_MESSAGE)->whereNull('read_at')->count(),
                 'followers' => $user->followers()->count(),
                 'following' => $user->following()->count(),
             ],

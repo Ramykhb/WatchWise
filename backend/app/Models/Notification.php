@@ -11,6 +11,12 @@ class Notification extends Model
 
     public const UPDATED_AT = null;
 
+    /**
+     * A room message the user still has to read (`data`: room_id, message_id). `read_at` is set once they have
+     * seen it, and the message is deleted, with these rows, when every recipient has.
+     */
+    public const ROOM_MESSAGE = 'room_message';
+
     protected function casts(): array
     {
         return ['data' => 'array', 'read_at' => 'datetime', 'created_at' => 'datetime'];

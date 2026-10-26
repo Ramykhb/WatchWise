@@ -5,10 +5,12 @@ namespace Database\Seeders;
 use App\Models\DiscussionRoom;
 use App\Models\MovieList;
 use App\Models\MovieNight;
+use App\Models\Notification;
 use App\Models\Review;
 use App\Models\User;
 use App\Models\UserPreference;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 /**
@@ -130,13 +132,22 @@ class DemoSocialSeeder extends Seeder
         $review($jad, self::DEEP_BLUE, 4, 'Tense, gorgeous, unforgettable.');
         $review($rana, self::RED_SIGNAL, 2, 'Loud and hollow. Great poster though.', 'negative');
 
-        // Rooms and messages.
+        // Rooms and messages. Members are the host and everyone who posts; each message waits (a room_message
+        // notification per member) until every other member has opened the room, then it is deleted.
         $room = function (string $name, int $tmdbId, User $host, bool $spoilers, array $messages) {
             $room = DiscussionRoom::firstOrCreate(['name' => $name], ['tmdb_id' => $tmdbId, 'created_by' => $host->id, 'spoilers' => $spoilers]);
+            $memberIds = collect([$host, ...array_column($messages, 0)])->pluck('id')->unique()->values();
+            foreach ($memberIds as $userId) {
+                DB::table('room_members')->insertOrIgnore(['room_id' => $room->id, 'user_id' => $userId]);
+            }
+
             if ($room->messages()->doesntExist()) {
                 foreach ($messages as $i => [$author, $content]) {
-                    $room->messages()->make(['user_id' => $author->id, 'content' => $content])
-                        ->forceFill(['created_at' => now()->subMinutes((count($messages) - $i) * 4)])->save();
+                    $message = $room->messages()->make(['user_id' => $author->id, 'content' => $content]);
+                    $message->forceFill(['created_at' => now()->subMinutes((count($messages) - $i) * 4)])->save();
+                    foreach ($memberIds->reject(fn (int $userId) => $userId === $author->id) as $userId) {
+                        Notification::create(['user_id' => $userId, 'type' => Notification::ROOM_MESSAGE, 'data' => ['room_id' => $room->id, 'message_id' => $message->id]]);
+                    }
                 }
             }
 

@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Auth\CurrentUser\GuestUser;
+use App\Models\DiscussionRoom;
 use App\Models\Message;
 use App\Models\MovieList;
 use App\Models\MovieListItem;
@@ -19,6 +20,7 @@ use App\MovieNight\Policies\MovieNightPolicy;
 use App\Policies\MessagePolicy;
 use App\Policies\NotificationPolicy;
 use App\Policies\ReviewPolicy;
+use App\Room\Policies\DiscussionRoomPolicy;
 use App\User\Policies\UserPolicy;
 use App\User\Policies\UserPreferencePolicy;
 use App\Watchlist\Policies\WatchlistPolicy;
@@ -38,6 +40,7 @@ class AuthorizationServiceProvider extends ServiceProvider
         MovieList::class => MovieListPolicy::class,
         MovieListItem::class => MovieListItemPolicy::class,
         MovieNight::class => MovieNightPolicy::class,
+        DiscussionRoom::class => DiscussionRoomPolicy::class,
         Message::class => MessagePolicy::class,
         Notification::class => NotificationPolicy::class,
         UserPreference::class => UserPreferencePolicy::class,
