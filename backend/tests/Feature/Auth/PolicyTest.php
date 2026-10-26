@@ -13,6 +13,7 @@ use App\Models\MovieNightInvite;
 use App\Models\Review;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Tests\TestCase;
 
@@ -107,6 +108,40 @@ class PolicyTest extends TestCase
         $this->assertTrue($this->can($this->current($author), 'delete', $message));
         $this->assertTrue($this->can($this->current($admin), 'delete', $message));
         $this->assertFalse($this->can($this->current($other), 'delete', $message));
+    }
+
+    public function test_discussion_room_access_follows_privacy_membership_and_invitations(): void
+    {
+        [$member, $invitee, $outsider] = User::factory()->count(3)->create()->all();
+        $public = DiscussionRoom::create(['tmdb_id' => 603, 'name' => 'Open', 'created_by' => $member->id]);
+        $private = DiscussionRoom::create(['tmdb_id' => 603, 'name' => 'Closed', 'created_by' => $member->id, 'is_private' => true]);
+        foreach ([$public, $private] as $room) {
+            DB::table('room_members')->insert(['room_id' => $room->id, 'user_id' => $member->id]);
+        }
+        DB::table('room_invites')->insert(['room_id' => $private->id, 'user_id' => $invitee->id, 'invited_by' => $member->id]);
+        $message = Message::create(['room_id' => $private->id, 'user_id' => $member->id, 'content' => 'Hello']);
+
+        // Anyone signed in reads and joins a public room; only members post, and nobody is invited to it.
+        $this->assertFalse($this->can(new GuestUser, 'view', $public));
+        $this->assertTrue($this->can($this->current($outsider), 'view', $public));
+        $this->assertTrue($this->can($this->current($outsider), 'join', $public));
+        $this->assertFalse($this->can($this->current($outsider), 'post', $public));
+        $this->assertTrue($this->can($this->current($member), 'post', $public));
+        $this->assertFalse($this->can($this->current($member), 'invite', $public));
+
+        // A private room is for its members and invitees: invitees read, join or decline; members post and invite.
+        $this->assertFalse($this->can($this->current($outsider), 'view', $private));
+        $this->assertFalse($this->can($this->current($outsider), 'join', $private));
+        $this->assertFalse($this->can($this->current($outsider), 'view', $message));
+        $this->assertTrue($this->can($this->current($invitee), 'view', $private));
+        $this->assertTrue($this->can($this->current($invitee), 'view', $message));
+        $this->assertTrue($this->can($this->current($invitee), 'join', $private));
+        $this->assertTrue($this->can($this->current($invitee), 'decline', $private));
+        $this->assertFalse($this->can($this->current($invitee), 'post', $private));
+        $this->assertFalse($this->can($this->current($invitee), 'invite', $private));
+        $this->assertTrue($this->can($this->current($member), 'post', $private));
+        $this->assertTrue($this->can($this->current($member), 'invite', $private));
+        $this->assertFalse($this->can($this->current($member), 'decline', $private));
     }
 
     public function test_gate_defaults_to_the_current_user_binding(): void

@@ -97,6 +97,104 @@
   color: var(--ink-600);
 }
 
+.createHint {
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+/* Public / Private when creating, All rooms / My rooms in the list (same look as the list dialog's). */
+.segmented {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--ground-cream);
+}
+
+.createForm .segmented {
+  background: var(--surface-white);
+}
+
+.segment,
+.segmentOn {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease-out,
+    color 0.2s ease-out;
+}
+
+.segment {
+  color: var(--ink-600);
+}
+
+.segment:hover {
+  color: var(--ground-violet);
+}
+
+.segmentOn {
+  background: var(--ground-violet);
+  color: var(--ground-cream);
+}
+
+/* The globe and lock are drawn in ink; they turn cream on the selected segment. */
+.segmentOn img {
+  filter: brightness(0) invert(1);
+}
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--ink-600);
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease-out,
+    border-color 0.2s ease-out,
+    color 0.2s ease-out;
+}
+
+.kind:hover {
+  border-color: var(--ground-violet);
+  color: var(--ground-violet);
+}
+
+.kind[aria-checked='true'] {
+  border-color: var(--surface-violet-tint);
+  background: var(--surface-violet-tint);
+  color: var(--ground-violet);
+}
+
 .search {
   display: flex;
   align-items: center;
@@ -139,6 +237,24 @@
   overflow-y: auto;
   list-style: none;
   scrollbar-width: thin;
+}
+
+/* Invitations, your rooms and public rooms, each under its own label. */
+.section,
+.sectionRooms {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.section + .section {
+  margin-top: 12px;
+}
+
+.sectionRooms {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .roomItem {
@@ -188,6 +304,12 @@
   font-size: 14px;
 }
 
+.roomLock {
+  display: inline-block;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+
 .roomPreview {
   font-size: 12px;
   line-height: 1.5;
@@ -211,13 +333,22 @@
   color: var(--ink-600);
 }
 
-.unread {
+.unread,
+.invitedTag {
   padding: 2px 7px;
   border-radius: var(--radius-pill);
-  background: var(--accent-coral);
   font-weight: 700;
   font-size: 11px;
+}
+
+.unread {
+  background: var(--accent-coral);
   color: var(--surface-white);
+}
+
+.invitedTag {
+  background: var(--surface-violet-tint);
+  color: var(--ground-violet);
 }
 
 .noRooms {
@@ -340,10 +471,17 @@
   color: var(--ink-600);
 }
 
+.liveKind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .spoilerChip,
 .safeChip,
 .mutedChip,
-.hostChip {
+.hostChip,
+.invitedChip {
   flex-shrink: 0;
   padding: 7px 14px;
   border-radius: var(--radius-pill);
@@ -367,6 +505,11 @@
 
 .hostChip {
   background: var(--surface-yellow-tint);
+}
+
+.invitedChip {
+  background: var(--surface-violet-tint);
+  color: var(--ground-violet);
 }
 
 .menuWrap,
@@ -657,6 +800,33 @@
   opacity: 0.5;
 }
 
+/* In place of the composer for someone who has not joined: read now, join (or decline) to write. */
+.joinBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1.5px solid var(--border-subtle);
+}
+
+.joinText {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+.joinText strong {
+  color: var(--ink-900);
+}
+
+.joinActions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
 /* ---------- Room info ---------- */
 .info {
   display: flex;
@@ -790,6 +960,107 @@
   font-size: 14px;
 }
 
+/* Invited, not joined yet. */
+.invitee .avatar {
+  opacity: 0.6;
+}
+
+.onlineHead {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.addMember {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  background: var(--ground-violet);
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease-out,
+    rotate 0.25s var(--ease-out-back);
+}
+
+.addMember:hover {
+  background: var(--ink-900);
+}
+
+.addMember[aria-expanded='true'] {
+  rotate: 45deg;
+}
+
+/* "Invite people you follow", under the members card's + or the chat's ⋯ menu. */
+.invitePicker {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 260px;
+  max-height: 320px;
+  padding: 8px;
+  border-radius: 16px;
+  background: var(--surface-white);
+  box-shadow: var(--elevation-soft);
+}
+
+.inviteTitle {
+  padding: 6px 8px 2px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.invitePicker ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.invitePicker button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.invitePicker button:hover {
+  background: var(--ground-cream);
+}
+
+.avatarSm {
+  width: 30px;
+  height: 30px;
+  font-size: 12px;
+}
+
+.inviteEmpty {
+  padding: 4px 8px 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-400);
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1360px) {
   .info {
@@ -842,6 +1113,11 @@
   }
 
   .composer {
+    padding: 12px;
+  }
+
+  .joinBar {
+    flex-wrap: wrap;
     padding: 12px;
   }
 }

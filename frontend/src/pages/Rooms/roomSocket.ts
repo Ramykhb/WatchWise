@@ -3,8 +3,10 @@ import Pusher from 'pusher-js'
 import { api } from '../../lib/api.ts'
 import type { ApiMessage, ApiRoomRead } from '../../lib/types.ts'
 
-// Live updates for the open room over Reverb: new messages (`message.sent`) and read receipts
-// (`messages.read`) on the private channel `room.{id}`. Loaded on demand, like the chat assistant's socket.
+// Live updates over Reverb. The open room: new messages (`message.sent`) and read receipts (`messages.read`)
+// on the private channel `room.{id}`. The room list: new messages (`message.sent`) and room changes
+// (`rooms.changed`) on `rooms.public` (public rooms) and `rooms.user.{id}` (your private rooms and
+// invitations). Loaded on demand, like the chat assistant's socket.
 
 export type RoomSocketStatus = 'connecting' | 'connected' | 'disconnected'
 
@@ -18,9 +20,20 @@ type RoomHandlers = {
   onReady: () => void
 }
 
+type ListHandlers = {
+  /** A new message in any room the list shows. */
+  onMessage: (message: ApiMessage) => void
+  /** A room was created, joined, or someone was invited or declined: the list should load again. */
+  onChange: () => void
+  /** Subscribed, first time and after every reconnect: the list should load again. */
+  onReady: () => void
+}
+
 export type RoomSocket = {
   /** Listens to one room; returns the function that stops listening. */
   join: (roomId: number, handlers: RoomHandlers) => () => void
+  /** Listens for changes to the signed-in user's room list; returns the function that stops listening. */
+  watchList: (userId: number, handlers: ListHandlers) => () => void
   disconnect: () => void
 }
 
@@ -58,6 +71,16 @@ export async function openRoomSocket(onStatus: (status: RoomSocketStatus) => voi
         .listen('.message.sent', onMessage)
         .listen('.messages.read', onRead)
       return () => echo.leave(name)
+    },
+    watchList(userId, { onMessage, onChange, onReady }) {
+      const names = ['rooms.public', `rooms.user.${userId}`]
+      for (const name of names) {
+        echo.private(name)
+          .subscribed(onReady)
+          .listen('.message.sent', onMessage)
+          .listen('.rooms.changed', onChange)
+      }
+      return () => names.forEach((name) => echo.leave(name))
     },
     disconnect() {
       stopWatching()

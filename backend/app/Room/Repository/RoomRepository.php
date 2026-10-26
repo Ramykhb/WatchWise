@@ -13,11 +13,17 @@ use Illuminate\Support\Facades\DB;
 
 class RoomRepository implements RoomRepositoryInterface
 {
-    private const DETAIL = ['creator', 'members', 'latestMessage.user'];
+    private const DETAIL = ['creator', 'members', 'invitees', 'latestMessage.user'];
 
-    public function all(): Collection
+    public function visibleTo(int $userId): Collection
     {
-        return DiscussionRoom::with(self::DETAIL)->withCount('messages')->get();
+        return DiscussionRoom::with(self::DETAIL)
+            ->withCount('messages')
+            ->where(fn (Builder $rooms) => $rooms
+                ->where('is_private', false)
+                ->orWhereHas('members', fn (Builder $members) => $members->whereKey($userId))
+                ->orWhereHas('invitees', fn (Builder $invitees) => $invitees->whereKey($userId)))
+            ->get();
     }
 
     public function create(array $attributes): DiscussionRoom
@@ -41,9 +47,33 @@ class RoomRepository implements RoomRepositoryInterface
         return $room->members()->pluck('users.id')->map(fn ($id): int => (int) $id)->all();
     }
 
+    public function addInvites(DiscussionRoom $room, array $userIds, int $invitedBy): void
+    {
+        DB::table('room_invites')->insertOrIgnore(array_map(fn (int $userId): array => [
+            'room_id' => $room->id,
+            'user_id' => $userId,
+            'invited_by' => $invitedBy,
+        ], $userIds));
+    }
+
+    public function removeInvite(DiscussionRoom $room, int $userId): void
+    {
+        DB::table('room_invites')->where('room_id', $room->id)->where('user_id', $userId)->delete();
+    }
+
+    public function inviteeIds(DiscussionRoom $room): array
+    {
+        return $room->invitees()->pluck('users.id')->map(fn ($id): int => (int) $id)->all();
+    }
+
     public function usersByIds(array $ids): Collection
     {
         return User::whereKey($ids)->get()->keyBy('id');
+    }
+
+    public function usersByUsername(array $usernames, array $exceptIds): Collection
+    {
+        return User::whereIn('username', $usernames)->whereKeyNot($exceptIds)->get();
     }
 
     public function createMessage(DiscussionRoom $room, int $userId, string $content): Message
@@ -128,6 +158,11 @@ class RoomRepository implements RoomRepositoryInterface
             ->get(['data'])
             ->countBy(fn (Notification $receipt): int => (int) $receipt->data['room_id'])
             ->all();
+    }
+
+    public function unreadCount(DiscussionRoom $room, int $userId): int
+    {
+        return $this->roomReceipts($room)->where('user_id', $userId)->whereNull('read_at')->count();
     }
 
     /**

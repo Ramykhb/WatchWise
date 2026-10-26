@@ -10,9 +10,10 @@ use Illuminate\Database\Eloquent\Collection;
 
 class HomeRepository implements HomeRepositoryInterface
 {
-    public function busiestRooms(int $limit): Collection
+    public function busiestRooms(int $limit, int $userId): Collection
     {
         return DiscussionRoom::withCount('messages')
+            ->where(fn ($rooms) => $rooms->where('is_private', false)->orWhereHas('members', fn ($members) => $members->whereKey($userId)))
             ->withMax('messages', 'created_at')
             ->orderByDesc('messages_max_created_at')
             ->limit($limit)

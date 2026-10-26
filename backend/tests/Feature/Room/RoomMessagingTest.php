@@ -8,6 +8,7 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Room\Events\RoomMessageSent;
 use App\Room\Events\RoomMessagesRead;
+use App\Room\Events\RoomsChanged;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -18,7 +19,7 @@ class RoomMessagingTest extends SocialTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Event::fake([RoomMessageSent::class, RoomMessagesRead::class]);
+        Event::fake([RoomMessageSent::class, RoomMessagesRead::class, RoomsChanged::class]);
     }
 
     /**
@@ -125,20 +126,16 @@ class RoomMessagingTest extends SocialTestCase
         Event::assertDispatched(RoomMessageSent::class);
     }
 
-    public function test_posting_makes_the_sender_a_member(): void
+    public function test_posting_without_joining_returns_403_and_does_not_make_you_a_member(): void
     {
-        [$host, $newcomer] = User::factory()->count(2)->create()->all();
+        [$host, $visitor] = User::factory()->count(2)->create()->all();
         $room = $this->room($host);
 
-        $this->as($newcomer)->getJson('/api/rooms')->assertJsonPath('rooms.0.joined', false);
-        $this->send($newcomer, $room, 'Hi all!');
-        $this->as($newcomer)->getJson('/api/rooms')
-            ->assertJsonPath('rooms.0.joined', true)
-            ->assertJsonCount(2, 'rooms.0.members');
+        $this->as($visitor)->postJson("/api/rooms/{$room->id}/messages", ['content' => 'Hi all!'])->assertForbidden();
 
-        // The host's next message now waits for the newcomer too.
-        $id = $this->send($host, $room);
-        $this->assertSame([$newcomer->id], $this->receipts($id)->pluck('user_id')->all());
+        $this->assertDatabaseCount('messages', 0);
+        $this->assertDatabaseMissing('room_members', ['room_id' => $room->id, 'user_id' => $visitor->id]);
+        Event::assertNotDispatched(RoomMessageSent::class);
     }
 
     public function test_a_member_who_joins_later_does_not_hold_up_older_messages(): void
@@ -146,6 +143,7 @@ class RoomMessagingTest extends SocialTestCase
         [$lina, $omar, $late] = User::factory()->count(3)->create()->all();
         $room = $this->room($lina, [$omar]);
         $id = $this->send($lina, $room);
+        $this->as($late)->postJson("/api/rooms/{$room->id}/join")->assertOk();
         $this->send($late, $room, 'Just joined!');
 
         $this->as($omar)->postJson("/api/rooms/{$room->id}/read", ['message_ids' => [$id]])
