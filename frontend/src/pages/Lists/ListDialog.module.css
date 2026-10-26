@@ -1,4 +1,4 @@
-/* Full-screen violet backdrop with the two Figma blobs; the dialog moves in from below. */
+/* The page stays visible behind a light, blurred veil (same as the Movie page's "Add to list"); the dialog moves in from below. */
 .backdrop,
 .backdropClosing {
   position: fixed;
@@ -9,38 +9,13 @@
   place-content: center;
   overflow-y: auto;
   padding: 40px 20px;
-  background: var(--ground-violet-deep);
+  background: rgb(22 18 43 / 0.35);
+  backdrop-filter: blur(5px);
   animation: fade-in 0.22s ease-out both;
 }
 
 .backdropClosing {
   animation: fade-out 0.22s ease-in both;
-}
-
-.blobs {
-  position: fixed;
-  top: 0;
-  left: 50%;
-  width: 1440px;
-  height: 100%;
-  translate: -50% 0;
-  pointer-events: none;
-}
-
-.blob,
-.blob2 {
-  position: absolute;
-  max-width: none;
-}
-
-.blob {
-  top: 497.5px;
-  left: -120px;
-}
-
-.blob2 {
-  top: -120.84px;
-  left: 1120px;
 }
 
 .dialog {
