@@ -13,6 +13,7 @@
         { "name": "Account" },
         { "name": "Social login" },
         { "name": "Movies" },
+        { "name": "People" },
         { "name": "Genres" },
         { "name": "Weather" },
         { "name": "Recommendations" },
