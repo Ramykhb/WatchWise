@@ -40,6 +40,7 @@ import { getMovieDetails, type Community, type MovieDetails as Details } from '.
 import { fetchMovieDetails, toDetails, type TmdbMovieDetails as ApiMovie } from './movieApi.ts'
 import AddToListDialog from './AddToListDialog.tsx'
 import { tmdbIdOf } from '../../lib/movies.ts'
+import { api } from '../../lib/api.ts'
 import styles from './MovieDetails.module.css'
 
 /** What the last request for a TMDB movie returned, tagged with the request it answers. */
@@ -256,19 +257,54 @@ function MovieDetailsPage({ details }: { details: Details }) {
   // WatchWise's own data (reviews, premiere, showtimes, room). Only the design's mock movies have it;
   // TMDB movies don't, so those sections are hidden rather than filled with sample data.
   const { movie, community } = details
-  // TODO: load and save these through the API once auth is connected.
-  // The mock movies start from the design's state (rated 4, in the watchlist); TMDB movies start empty.
-  const [userRating, setUserRating] = useState(community ? 4 : 0)
+  // Lists and ratings hold TMDB movie ids; TV shows ("tv-1399") use a separate id range, so they can't be added yet.
+  const listTmdbId = tmdbIdOf(movie)
+  const canAddToList = Number.isInteger(listTmdbId) && listTmdbId > 0
+  const canRate = canAddToList
+
+  // Your star rating is saved per film (GET/PUT /api/ratings/{tmdbId}) and loaded when the page opens.
+  const [userRating, setUserRating] = useState(0)
+  const [ratingLoaded, setRatingLoaded] = useState(!canRate)
+  const [ratingNote, setRatingNote] = useState('')
   const [hoverRating, setHoverRating] = useState(0)
+  const ratingHintId = useId()
+
+  useEffect(() => {
+    if (!canRate) return
+    let active = true
+    api
+      .get<{ rating: number | null }>(`/ratings/${listTmdbId}`)
+      .then((response) => active && setUserRating(response.data.rating ?? 0))
+      .catch(() => undefined)
+      .finally(() => active && setRatingLoaded(true))
+    return () => {
+      active = false
+    }
+  }, [canRate, listTmdbId])
+
+  // Shows at once and saves in the background; a failed save puts the previous stars back.
+  const rate = (stars: number) => {
+    if (!canRate || !ratingLoaded || stars === userRating) return
+    const previous = userRating
+    setUserRating(stars)
+    setRatingNote('')
+    api
+      .put(`/ratings/${listTmdbId}`, { rating: stars })
+      .then(() => setRatingNote(`Saved · ${stars} star${stars > 1 ? 's' : ''}`))
+      .catch(() => {
+        setUserRating(previous)
+        setRatingNote("Couldn't save your rating. Please try again.")
+      })
+  }
+
+  // The mock movies start from the design's state (in the watchlist).
+  // TODO: load and save the watchlist and "watched" through the API.
   const [onWatchlist, setOnWatchlist] = useState(Boolean(community))
   const [watched, setWatched] = useState(false)
   const [shareNote, setShareNote] = useState('')
   const [playing, setPlaying] = useState(false)
   // "Add to list" pop-up: 'open', 'closing' (exit animation) or closed.
   const [listDialog, setListDialog] = useState<'open' | 'closing' | null>(null)
-  // Lists hold TMDB movie ids; TV shows ("tv-1399") use a separate id range, so they can't be added yet.
-  const listTmdbId = tmdbIdOf(movie)
-  const canAddToList = Number.isInteger(listTmdbId) && listTmdbId > 0
   const listHintId = useId()
 
   const [yourReview, setYourReview] = useState<Review | null>(community?.yourReview ?? null)
@@ -386,10 +422,14 @@ function MovieDetailsPage({ details }: { details: Details }) {
                   <span className={styles.ratingLabel} id="your-rating-label">
                     YOUR RATING
                   </span>
+                  {/* aria-disabled (not disabled) keeps the stars focusable on TV shows, so the reason is announced. */}
                   <div
                     className={styles.bigStars}
                     role="radiogroup"
                     aria-labelledby="your-rating-label"
+                    aria-describedby={canRate ? undefined : ratingHintId}
+                    aria-disabled={!canRate || undefined}
+                    aria-busy={!ratingLoaded || undefined}
                     onMouseLeave={() => setHoverRating(0)}
                   >
                     {[1, 2, 3, 4, 5].map((n) => (
@@ -399,14 +439,24 @@ function MovieDetailsPage({ details }: { details: Details }) {
                         role="radio"
                         aria-checked={userRating === n}
                         aria-label={`${n} star${n > 1 ? 's' : ''}`}
+                        aria-disabled={!canRate || undefined}
                         className={styles.bigStar}
-                        onMouseEnter={() => setHoverRating(n)}
-                        onClick={() => setUserRating(n)}
+                        onMouseEnter={() => canRate && setHoverRating(n)}
+                        onClick={() => rate(n)}
                       >
                         <img src={n <= shownRating ? starLg : starOutlineLg} width={22} height={22} alt="" />
                       </button>
                     ))}
                   </div>
+                  {!canRate ? (
+                    <span id={ratingHintId} className={styles.ratingNote}>
+                      TV shows can’t be rated yet
+                    </span>
+                  ) : (
+                    <span className={styles.ratingNote} role="status">
+                      {ratingNote}
+                    </span>
+                  )}
                 </div>
               </div>
 

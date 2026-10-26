@@ -60,7 +60,8 @@ class ProfileRepository implements ProfileRepositoryInterface
 
     public function reviewsCount(User $user, bool $approvedOnly): int
     {
-        return $this->reviews($user, $approvedOnly)->count();
+        // Star ratings from the Movie page are reviews without text; they aren't counted as reviews.
+        return $this->reviews($user, $approvedOnly)->whereNotNull('content')->count();
     }
 
     public function topRatedTmdbIds(User $user, bool $approvedOnly, int $limit): SupportCollection
