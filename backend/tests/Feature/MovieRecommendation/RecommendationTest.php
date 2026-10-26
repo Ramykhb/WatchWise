@@ -2,91 +2,48 @@
 
 namespace Tests\Feature\MovieRecommendation;
 
-use Illuminate\Http\Client\Request;
-use Illuminate\Support\Facades\Http;
+use App\Groq\Exceptions\GroqUnavailable;
+use App\Groq\InterfaceServices\GroqStructuredOutputInterface;
+use App\Movie\DTOs\Responses\MoviePageResponse;
+use App\Movie\DTOs\Responses\MovieResponse;
+use App\Movie\InterfaceServices\MovieServiceInterface;
+use App\Weather\DTOs\Responses\WeatherResponse;
+use App\Weather\Exceptions\WeatherUnavailable;
+use App\Weather\InterfaceServices\WeatherServiceInterface;
 use Tests\TestCase;
 
 class RecommendationTest extends TestCase
 {
-    private const GEMINI_URL = 'https://generativelanguage.googleapis.com/*';
-
-    private const METEO_URL = 'https://api.open-meteo.com/*';
-
-    protected function setUp(): void
+    private function mockDependencies(): array
     {
-        parent::setUp();
+        $weather = $this->mock(WeatherServiceInterface::class);
+        $weather->shouldReceive('current')->andReturn(new WeatherResponse(1, 2, false, [
+            'temperature_2m' => 12, 'relative_humidity_2m' => 80, 'wind_speed_10m' => 15, 'weather_code' => 61,
+        ]));
 
-        config(['services.gemini.key' => 'test-key', 'services.gemini.model' => 'm']);
+        $movie = new MovieResponse(42, 'Movie 42', 'Overview', '2020-01-01', 2020, 4.0, 10, [18], null, null);
+        $movies = $this->mock(MovieServiceInterface::class);
+        $movies->shouldReceive('discover')->andReturn(new MoviePageResponse(1, 1, 1, [$movie]));
+        $groq = $this->mock(GroqStructuredOutputInterface::class);
+
+        return [$groq, $movies];
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function weatherBody(): array
+    public function test_it_returns_groq_selected_tmdb_movies(): void
     {
-        return [
-            'current' => [
-                'temperature_2m' => 12,
-                'relative_humidity_2m' => 80,
-                'wind_speed_10m' => 15,
-                'weather_code' => 61,
-            ],
-        ];
-    }
+        [$groq] = $this->mockDependencies();
+        $groq->shouldReceive('askWithSchema')->once()->andReturn(['movies' => [['id' => 42, 'reason' => 'Fits the weather']]]);
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function geminiBody(): array
-    {
-        $fakeMovies = array_map(fn ($i) => [
-            'title' => "Movie $i",
-            'year' => 2000 + $i,
-            'genre' => 'Drama',
-            'reason' => 'Fits the weather',
-        ], range(1, 10));
-
-        return [
-            'candidates' => [[
-                'content' => [
-                    'parts' => [[
-                        'text' => json_encode(['movies' => $fakeMovies]),
-                    ]],
-                ],
-            ]],
-        ];
-    }
-
-    public function test_it_asks_gemini_for_10_movies_based_on_the_weather(): void
-    {
-        Http::fake([
-            self::METEO_URL => Http::response($this->weatherBody()),
-            self::GEMINI_URL => Http::response($this->geminiBody()),
-        ]);
-
-        $response = $this->getJson('/api/movie-recommendations');
-
-        $response
+        $this->getJson('/api/movie-recommendations')
             ->assertOk()
-            ->assertJsonCount(10, 'movies')
-            ->assertJsonPath('movies.0.title', 'Movie 1');
-
-        Http::assertSent(function (Request $request) {
-            if (! str_contains($request->url(), 'generativelanguage.googleapis.com')) {
-                return false;
-            }
-
-            $prompt = $request['contents'][0]['parts'][0]['text'];
-
-            return str_contains($prompt, '12')
-                && str_contains($prompt, '10')
-                && $request['generationConfig']['responseMimeType'] === 'application/json';
-        });
+            ->assertJsonCount(1, 'movies')
+            ->assertJsonPath('movies.0.id', 42)
+            ->assertJsonPath('movies.0.reason', 'Fits the weather');
     }
 
     public function test_it_rejects_a_single_coordinate(): void
     {
-        Http::fake();
+        [$groq] = $this->mockDependencies();
 
         $this->getJson('/api/movie-recommendations?latitude=33.8')
             ->assertUnprocessable()
@@ -96,43 +53,37 @@ class RecommendationTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors('latitude');
 
-        Http::assertNothingSent();
+        $groq->shouldNotReceive('askWithSchema');
     }
 
     public function test_it_returns_a_502_when_the_weather_fails(): void
     {
-        Http::fake([
-            self::METEO_URL => Http::response('boom', 500),
-            self::GEMINI_URL => Http::response($this->geminiBody()),
-        ]);
-
+        $groq = $this->mock(GroqStructuredOutputInterface::class);
+        $this->mock(MovieServiceInterface::class);
+        $weather = $this->mock(WeatherServiceInterface::class);
+        $weather->shouldReceive('current')->andThrow(new WeatherUnavailable('upstream error'));
         $this->getJson('/api/movie-recommendations')
             ->assertStatus(502)
             ->assertExactJson(['error' => 'Could not get the weather']);
+
+        $groq->shouldNotReceive('askWithSchema');
     }
 
-    public function test_it_returns_a_502_without_leaking_the_gemini_error(): void
+    public function test_it_returns_a_502_without_leaking_the_groq_error(): void
     {
-        Http::fake([
-            self::METEO_URL => Http::response($this->weatherBody()),
-            self::GEMINI_URL => Http::response(['error' => ['message' => 'SECRET-GEMINI-MARKER']], 500),
-        ]);
+        [$groq] = $this->mockDependencies();
+        $groq->shouldReceive('askWithSchema')->once()->andThrow(new GroqUnavailable('SECRET-GROQ-MARKER'));
 
         $response = $this->getJson('/api/movie-recommendations');
 
-        $response
-            ->assertStatus(502)
-            ->assertExactJson(['error' => 'Could not generate recommendations']);
-
-        $this->assertStringNotContainsString('SECRET-GEMINI-MARKER', $response->getContent());
+        $response->assertStatus(502)->assertExactJson(['error' => 'Could not generate recommendations']);
+        $this->assertStringNotContainsString('SECRET-GROQ-MARKER', $response->getContent());
     }
 
     public function test_it_throttles_the_eleventh_request_in_a_minute(): void
     {
-        Http::fake([
-            self::METEO_URL => Http::response($this->weatherBody()),
-            self::GEMINI_URL => Http::response($this->geminiBody()),
-        ]);
+        [$groq] = $this->mockDependencies();
+        $groq->shouldReceive('askWithSchema')->times(10)->andReturn(['movies' => []]);
 
         for ($i = 0; $i < 10; $i++) {
             $this->getJson('/api/movie-recommendations')->assertOk();
