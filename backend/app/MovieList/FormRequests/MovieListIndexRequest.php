@@ -21,6 +21,7 @@ class MovieListIndexRequest extends FormRequest
         return [
             'scope' => ['sometimes', 'string', Rule::in(MovieListSearchQuery::SCOPES)],
             'q' => ['sometimes', 'nullable', 'string'],
+            'contains' => ['sometimes', 'nullable', 'integer', 'min:1'],
         ];
     }
 

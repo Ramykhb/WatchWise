@@ -31,6 +31,8 @@ Route::middleware('auth.jwt')->group(function () {
     });
 
     Route::apiResource('lists', MovieListController::class)->parameters(['lists' => 'list']);
+    Route::post('lists/{list}/items', [MovieListController::class, 'addItem']);
+    Route::delete('lists/{list}/items/{tmdbId}', [MovieListController::class, 'removeItem'])->whereNumber('tmdbId');
     Route::apiResource('watchlist', WatchlistController::class)->except('show');
 
     Route::get('movie-nights', [MovieNightController::class, 'index']);

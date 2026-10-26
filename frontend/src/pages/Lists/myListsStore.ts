@@ -70,6 +70,23 @@ export async function updateList(id: number, input: Partial<ListInput>) {
   return response.data.list
 }
 
+/** Adds one film to the end of a list (the Movie page's "Add to list"); returns the updated list. */
+export async function addMovieToList(id: number, tmdbId: number) {
+  const started = generation
+  const response = await api.post<{ list: ApiList }>(`/lists/${id}/items`, { tmdb_id: tmdbId })
+  const updated = toMyList(response.data.list)
+  if (started === generation) emit(state.lists.map((list) => (list.id === id ? updated : list)))
+  return response.data.list
+}
+
+export async function removeMovieFromList(id: number, tmdbId: number) {
+  const started = generation
+  const response = await api.delete<{ list: ApiList }>(`/lists/${id}/items/${tmdbId}`)
+  const updated = toMyList(response.data.list)
+  if (started === generation) emit(state.lists.map((list) => (list.id === id ? updated : list)))
+  return response.data.list
+}
+
 /**
  * Deletes the list on the server, then drops it from the store. `beforeRemove` runs in between
  * (only after a successful delete), e.g. to play the card's exit animation first.

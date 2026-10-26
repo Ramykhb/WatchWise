@@ -58,4 +58,18 @@ class MovieListService implements MovieListServiceInterface
     {
         $this->lists->delete($list);
     }
+
+    public function addMovie(MovieList $list, int $tmdbId): MovieList
+    {
+        $this->lists->addItem($list, $tmdbId);
+
+        return $this->detail($list);
+    }
+
+    public function removeMovie(MovieList $list, int $tmdbId): MovieList
+    {
+        $this->lists->removeItem($list, $tmdbId);
+
+        return $this->detail($list);
+    }
 }

@@ -4,6 +4,7 @@ namespace App\MovieList\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\MovieList;
+use App\MovieList\FormRequests\AddMovieListItemRequest;
 use App\MovieList\FormRequests\MovieListIndexRequest;
 use App\MovieList\FormRequests\StoreMovieListRequest;
 use App\MovieList\FormRequests\UpdateMovieListRequest;
@@ -17,7 +18,10 @@ class MovieListController
 {
     public function __construct(private readonly MovieListServiceInterface $lists) {}
 
-    /** GET /api/lists?scope=mine|public|following&q= — `q` matches the title (Discover › Lists). */
+    /**
+     * GET /api/lists?scope=mine|public|following&q=&contains= — `q` matches the title (Discover ›
+     * Lists); `contains` (a TMDB id) adds `has_movie` to each list (the Movie page's "Add to list").
+     */
     public function index(MovieListIndexRequest $request, CurrentUser $current): JsonResponse
     {
         $lists = $this->lists->search($request->toDto(), $current->user());
@@ -56,6 +60,20 @@ class MovieListController
         $this->lists->delete($list);
 
         return response()->json(['message' => 'List deleted.']);
+    }
+
+    /** POST /api/lists/{list}/items — adds one film at the end; adding it twice is harmless. */
+    public function addItem(AddMovieListItemRequest $request, MovieList $list): JsonResponse
+    {
+        return response()->json(['list' => $this->present($this->lists->addMovie($list, $request->tmdbId()))]);
+    }
+
+    /** DELETE /api/lists/{list}/items/{tmdbId} */
+    public function removeItem(MovieList $list, int $tmdbId): JsonResponse
+    {
+        Gate::authorize('update', $list);
+
+        return response()->json(['list' => $this->present($this->lists->removeMovie($list, $tmdbId))]);
     }
 
     private function present(MovieList $list): MovieListResource
