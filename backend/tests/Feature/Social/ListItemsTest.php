@@ -3,6 +3,7 @@
 namespace Tests\Feature\Social;
 
 use App\Models\MovieList;
+use App\Models\MovieListItem;
 use App\Models\User;
 
 class ListItemsTest extends SocialTestCase
@@ -22,6 +23,21 @@ class ListItemsTest extends SocialTestCase
         $this->as($user)->postJson("/api/lists/{$list->id}/items", ['tmdb_id' => 550])
             ->assertOk()
             ->assertJsonPath('list.films', 2);
+    }
+
+    public function test_a_concurrent_duplicate_add_is_harmless(): void
+    {
+        $user = User::factory()->create();
+        $list = MovieList::create(['user_id' => $user->id, 'title' => 'Comedies', 'is_public' => true]);
+
+        // Another request inserts the same film after this one checked but before it inserts.
+        MovieListItem::creating(function (MovieListItem $item) use ($list) {
+            MovieListItem::withoutEvents(fn () => MovieListItem::create(['movie_list_id' => $list->id, 'tmdb_id' => $item->tmdb_id, 'position' => 0]));
+        });
+
+        $this->as($user)->postJson("/api/lists/{$list->id}/items", ['tmdb_id' => 550])
+            ->assertOk()
+            ->assertJsonPath('list.films', 1);
     }
 
     public function test_removing_a_film(): void
