@@ -2,6 +2,7 @@
 
 use App\MovieList\Controllers\MovieListController;
 use App\MovieNight\Controllers\MovieNightController;
+use App\Rating\Controllers\RatingController;
 use App\User\Controllers\UserController;
 use App\Watchlist\Controllers\WatchlistController;
 use Illuminate\Support\Facades\Route;
@@ -34,6 +35,9 @@ Route::middleware('auth.jwt')->group(function () {
     Route::post('lists/{list}/items', [MovieListController::class, 'addItem']);
     Route::delete('lists/{list}/items/{tmdbId}', [MovieListController::class, 'removeItem'])->whereNumber('tmdbId');
     Route::apiResource('watchlist', WatchlistController::class)->except('show');
+
+    Route::get('ratings/{tmdbId}', [RatingController::class, 'show'])->whereNumber('tmdbId');
+    Route::put('ratings/{tmdbId}', [RatingController::class, 'update'])->whereNumber('tmdbId')->middleware('throttle:60,1');
 
     Route::get('movie-nights', [MovieNightController::class, 'index']);
     Route::post('movie-nights', [MovieNightController::class, 'store']);

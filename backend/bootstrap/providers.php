@@ -10,6 +10,7 @@ use App\MovieNight\Providers\MovieNightModuleServiceProvider;
 use App\MovieRecommendation\Providers\MovieRecommendationModuleServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\AuthorizationServiceProvider;
+use App\Rating\Providers\RatingModuleServiceProvider;
 use App\User\Providers\UserModuleServiceProvider;
 use App\Watchlist\Providers\WatchlistModuleServiceProvider;
 use App\Weather\Providers\WeatherModuleServiceProvider;
@@ -22,6 +23,7 @@ return [
     MovieModuleServiceProvider::class,
     MovieListModuleServiceProvider::class,
     MovieNightModuleServiceProvider::class,
+    RatingModuleServiceProvider::class,
     UserModuleServiceProvider::class,
     WatchlistModuleServiceProvider::class,
     GeminiModuleServiceProvider::class,
