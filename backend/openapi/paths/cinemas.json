@@ -1,0 +1,22 @@
+{
+  "paths": {
+    "/api/nearby-cinemas": {
+      "get": {
+        "summary": "Find nearby cinemas",
+        "description": "Searches Geoapify for cinemas within 30 km of the supplied coordinates. Requires GEOAPIFY_API_KEY in backend/.env. Limited to 30 requests per minute.",
+        "tags": ["Cinemas"],
+        "parameters": [
+          {"name": "latitude", "in": "query", "required": true, "description": "Latitude of the search location.", "schema": {"type": "number", "minimum": -90, "maximum": 90}, "example": 33.8938},
+          {"name": "longitude", "in": "query", "required": true, "description": "Longitude of the search location.", "schema": {"type": "number", "minimum": -180, "maximum": 180}, "example": 35.5018}
+        ],
+        "responses": {
+          "200": {"description": "Nearby cinema features returned by Geoapify.", "content": {"application/json": {"schema": {"type": "object", "required": ["features"], "properties": {"features": {"type": "array", "items": {"type": "object", "description": "Geoapify place feature."}}}}}}},
+          "422": {"description": "Coordinates are missing or invalid.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ValidationError"}}}},
+          "429": {"description": "Too many requests.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}}}},
+          "502": {"description": "Geoapify returned an unsuccessful or invalid response.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}}}},
+          "503": {"description": "Geoapify is not configured or could not be reached.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}}}}
+        }
+      }
+    }
+  }
+}
