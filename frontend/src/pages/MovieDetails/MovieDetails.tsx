@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type RefObject } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import axios from 'axios'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import MovieTile from '../../components/MovieTile/MovieTile.tsx'
@@ -41,6 +41,7 @@ import { fetchMovieDetails, toDetails, type TmdbMovieDetails as ApiMovie } from 
 import AddToListDialog from './AddToListDialog.tsx'
 import { tmdbIdOf } from '../../lib/movies.ts'
 import { api } from '../../lib/api.ts'
+import { useAuth } from '../../contexts/useAuth.ts'
 import styles from './MovieDetails.module.css'
 
 /** What the last request for a TMDB movie returned, tagged with the request it answers. */
@@ -263,14 +264,21 @@ function MovieDetailsPage({ details }: { details: Details }) {
   const canRate = canAddToList
 
   // Your star rating is saved per film (GET/PUT /api/ratings/{tmdbId}) and loaded when the page opens.
+  // The ratings API needs a signed-in member: a guest's 401 would be taken for an expired session and
+  // sign them out of the page, so nothing is requested until there is a user.
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const signedIn = user !== null
   const [userRating, setUserRating] = useState(0)
-  const [ratingLoaded, setRatingLoaded] = useState(!canRate)
+  const [ratingLoaded, setRatingLoaded] = useState(false)
+  const ratingReady = !canRate || !signedIn || ratingLoaded
   const [ratingNote, setRatingNote] = useState('')
   const [hoverRating, setHoverRating] = useState(0)
   const ratingHintId = useId()
 
   useEffect(() => {
-    if (!canRate) return
+    if (!canRate || !signedIn) return
     let active = true
     api
       .get<{ rating: number | null }>(`/ratings/${listTmdbId}`)
@@ -280,11 +288,17 @@ function MovieDetailsPage({ details }: { details: Details }) {
     return () => {
       active = false
     }
-  }, [canRate, listTmdbId])
+  }, [canRate, signedIn, listTmdbId])
 
   // Shows at once and saves in the background; a failed save puts the previous stars back.
+  // A guest is sent to Sign in first and comes back to this movie afterwards.
   const rate = (stars: number) => {
-    if (!canRate || !ratingLoaded || stars === userRating) return
+    if (!canRate) return
+    if (!signedIn) {
+      navigate('/signin', { state: { from: location } })
+      return
+    }
+    if (!ratingReady || stars === userRating) return
     const previous = userRating
     setUserRating(stars)
     setRatingNote('')
@@ -429,7 +443,7 @@ function MovieDetailsPage({ details }: { details: Details }) {
                     aria-labelledby="your-rating-label"
                     aria-describedby={canRate ? undefined : ratingHintId}
                     aria-disabled={!canRate || undefined}
-                    aria-busy={!ratingLoaded || undefined}
+                    aria-busy={!ratingReady || undefined}
                     onMouseLeave={() => setHoverRating(0)}
                   >
                     {[1, 2, 3, 4, 5].map((n) => (
