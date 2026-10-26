@@ -25,8 +25,10 @@ import type { RoomSocket, RoomSocketStatus } from './roomSocket.ts'
 import { EMOJIS, channelName, previewOf, rulesFor, toMessages, toRoom, type Member } from './roomsData.ts'
 import styles from './Rooms.module.css'
 
-/** A burst of new messages is confirmed as read in one request once it settles. */
+/** A burst of new messages is confirmed as read once it settles. */
 const READ_DELAY_MS = 250
+/** The most message ids `POST /rooms/{id}/read` accepts in one request. */
+const READ_BATCH_SIZE = 500
 
 /** The open room's conversation, for one signed-in account (`key` = "userId:roomId"). */
 type Thread = { key: string; userId: number; roomId: number; messages: ApiMessage[] }
@@ -158,16 +160,19 @@ export default function Rooms() {
     let sent = false
     const timer = window.setTimeout(() => {
       sent = true
-      api
-        .post<{ message_ids: number[]; deleted_ids: number[] }>(`/rooms/${openRoomId}/read`, { message_ids: ids })
-        .then(({ data }) => {
-          setThread((thread) => (thread.key === key ? { ...thread, messages: applyRead(thread.messages, { reader, ...data }) } : thread))
-          setRoomsData((current) => ({
-            rooms: current.rooms.map((r) => (String(r.id) === openRoomId ? { ...r, unread: Math.max(0, r.unread - data.message_ids.length) } : r)),
-          }))
-        })
-        .catch(() => undefined)
-        .finally(() => ids.forEach((id) => pending.delete(id)))
+      for (let start = 0; start < ids.length; start += READ_BATCH_SIZE) {
+        const batch = ids.slice(start, start + READ_BATCH_SIZE)
+        api
+          .post<{ message_ids: number[]; deleted_ids: number[] }>(`/rooms/${openRoomId}/read`, { message_ids: batch })
+          .then(({ data }) => {
+            setThread((thread) => (thread.key === key ? { ...thread, messages: applyRead(thread.messages, { reader, ...data }) } : thread))
+            setRoomsData((current) => ({
+              rooms: current.rooms.map((r) => (String(r.id) === openRoomId ? { ...r, unread: Math.max(0, r.unread - data.message_ids.length) } : r)),
+            }))
+          })
+          .catch(() => undefined)
+          .finally(() => batch.forEach((id) => pending.delete(id)))
+      }
     }, READ_DELAY_MS)
     return () => {
       if (sent) return
