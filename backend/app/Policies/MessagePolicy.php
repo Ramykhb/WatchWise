@@ -6,8 +6,8 @@ use App\Auth\CurrentUser\CurrentUser;
 use App\Models\Message;
 
 /**
- * Messages live in per-movie discussion rooms, which are open to every
- * authenticated user; there is no participant list to scope against.
+ * Messages live in per-movie discussion rooms, which are open to every authenticated user. Room
+ * membership (room_members) only decides who has to read a message before it is deleted.
  */
 class MessagePolicy
 {

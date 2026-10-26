@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
@@ -18,13 +18,20 @@ import { useAuth } from '../../contexts/useAuth.ts'
 import { api, useApi } from '../../lib/api.ts'
 import { apiErrorMessage } from '../../lib/auth.ts'
 import { PICKABLE_MOVIES, tmdbIdOf } from '../../lib/movies.ts'
-import type { ApiMessage, ApiRoom } from '../../lib/types.ts'
+import type { ApiMember, ApiMessage, ApiRoom } from '../../lib/types.ts'
 import { gradientCss } from '../Home/homeData.ts'
-import { EMOJIS, channelName, rulesFor, toMessages, toRoom, type Member } from './roomsData.ts'
+import { applyRead, loadRoomHistory, mergeMessages, saveRoomHistory, syncWithServer, waitingFor } from './roomHistory.ts'
+import type { RoomSocket, RoomSocketStatus } from './roomSocket.ts'
+import { EMOJIS, channelName, previewOf, rulesFor, toMessages, toRoom, type Member } from './roomsData.ts'
 import styles from './Rooms.module.css'
 
-/** How often an open room checks for new messages (no real-time channel yet). */
-const POLL_MS = 5000
+/** A burst of new messages is confirmed as read once it settles. */
+const READ_DELAY_MS = 250
+/** The most message ids `POST /rooms/{id}/read` accepts in one request. */
+const READ_BATCH_SIZE = 500
+
+/** The open room's conversation, for one signed-in account (`key` = "userId:roomId"). */
+type Thread = { key: string; userId: number; roomId: number; messages: ApiMessage[] }
 
 export default function Rooms() {
   const { roomId } = useParams()
@@ -50,37 +57,143 @@ export default function Rooms() {
   const room = rooms.find((r) => r.id === roomId) ?? rooms[0]
   const visibleRooms = rooms.filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase()))
 
-  // Messages of the open room: loaded once, then only newer ones every few seconds.
-  const [thread, setThread] = useState<{ roomId: string; messages: ApiMessage[] }>({ roomId: '', messages: [] })
-  const messages = thread.roomId === room?.id ? thread.messages : []
+  const viewerId = user?.id
+  const openRoomId = room?.id
+
+  // The open room's conversation. This browser's copy shows at once (the server deletes a message once every
+  // member has read it), then the server's stored messages and the socket keep it current.
+  const threadKey = room && viewerId !== undefined ? `${viewerId}:${room.id}` : ''
+  const [thread, setThread] = useState<Thread>({ key: '', userId: 0, roomId: 0, messages: [] })
+  if (room && viewerId !== undefined && thread.key !== threadKey) {
+    setThread({ key: threadKey, userId: viewerId, roomId: Number(room.id), messages: loadRoomHistory(viewerId, Number(room.id)) })
+  }
+  const messages = thread.key === threadKey ? thread.messages : []
+  const threadRef = useRef(thread)
   useEffect(() => {
-    if (!room) return
+    threadRef.current = thread
+    if (thread.key) saveRoomHistory(thread.userId, thread.roomId, thread.messages)
+  }, [thread])
+
+  // One socket connection while the page is open; the open room listens on its own channel.
+  const [socket, setSocket] = useState<RoomSocket | null>(null)
+  const [live, setLive] = useState<RoomSocketStatus>('connecting')
+  useEffect(() => {
     let active = true
-    let lastId = 0
-    const fetchNew = async () => {
-      try {
-        const response = await api.get<{ messages: ApiMessage[] }>(`/rooms/${room.id}/messages`, { params: lastId ? { after: lastId } : {} })
-        if (!active) return
-        const incoming = response.data.messages
-        if (incoming.length) lastId = incoming.at(-1)!.id
-        setThread((current) => {
-          const base = current.roomId === room.id && lastId ? current.messages : []
-          const known = new Set(base.map((m) => m.id))
-          return { roomId: room.id, messages: [...base, ...incoming.filter((m) => !known.has(m.id))] }
-        })
-      } catch {
-        // Try again on the next tick.
-      }
-    }
-    void fetchNew()
-    const timer = window.setInterval(() => void fetchNew(), POLL_MS)
+    let opened: RoomSocket | null = null
+    import('./roomSocket.ts')
+      .then(({ openRoomSocket }) => openRoomSocket((status) => active && setLive(status)))
+      .then((connected) => {
+        if (!active) return connected.disconnect()
+        opened = connected
+        setSocket(connected)
+      })
+      .catch(() => active && setLive('disconnected'))
     return () => {
       active = false
-      window.clearInterval(timer)
+      opened?.disconnect()
     }
-  }, [room?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
-  const roomMessages = toMessages(messages)
+  // Fetch what the server still stores when the room opens and whenever the socket (re)subscribes, so
+  // nothing sent while disconnected is missed; new messages and read receipts then arrive over the socket.
+  const [syncError, setSyncError] = useState('')
+  useEffect(() => {
+    if (!openRoomId || viewerId === undefined) return
+    const key = `${viewerId}:${openRoomId}`
+    let active = true
+    let syncing = false
+    let again = false
+
+    const sync = () => {
+      if (syncing) {
+        again = true
+        return
+      }
+      syncing = true
+      again = false
+      const current = threadRef.current
+      const knownBefore = new Set(current.key === key ? current.messages.map((message) => message.id) : [])
+      api
+        .get<{ messages: ApiMessage[] }>(`/rooms/${openRoomId}/messages`)
+        .then(({ data }) => {
+          if (!active) return
+          setThread((thread) => (thread.key === key ? { ...thread, messages: syncWithServer(thread.messages, data.messages, knownBefore) } : thread))
+          setSyncError('')
+        })
+        .catch(() => active && setSyncError("Couldn't load new messages. Showing the ones saved on this device."))
+        .finally(() => {
+          syncing = false
+          if (again && active) sync()
+        })
+    }
+
+    sync()
+    const leave = socket?.join(Number(openRoomId), {
+      onMessage: (message) => active && setThread((thread) => (thread.key === key ? { ...thread, messages: mergeMessages(thread.messages, [message]) } : thread)),
+      onRead: (read) => active && setThread((thread) => (thread.key === key ? { ...thread, messages: applyRead(thread.messages, read) } : thread)),
+      onReady: sync,
+    })
+    return () => {
+      active = false
+      leave?.()
+    }
+  }, [openRoomId, viewerId, socket])
+
+  // While the room is open and the tab is visible, messages waiting for this member count as read.
+  const [visible, setVisible] = useState(() => document.visibilityState === 'visible')
+  useEffect(() => {
+    const update = () => setVisible(document.visibilityState === 'visible')
+    document.addEventListener('visibilitychange', update)
+    return () => document.removeEventListener('visibilitychange', update)
+  }, [])
+
+  const setRoomsData = roomsQuery.setData
+  const confirming = useRef(new Set<number>())
+  useEffect(() => {
+    if (!visible || !user || !openRoomId || thread.key !== `${user.id}:${openRoomId}`) return
+    const ids = waitingFor(thread.messages, user.id).filter((id) => !confirming.current.has(id))
+    if (ids.length === 0) return
+    const key = thread.key
+    const reader: ApiMember = { id: user.id, username: user.username, name: user.name, avatar: user.avatar }
+    const pending = confirming.current
+    ids.forEach((id) => pending.add(id))
+    let sent = false
+    const timer = window.setTimeout(() => {
+      sent = true
+      for (let start = 0; start < ids.length; start += READ_BATCH_SIZE) {
+        const batch = ids.slice(start, start + READ_BATCH_SIZE)
+        api
+          .post<{ message_ids: number[]; deleted_ids: number[] }>(`/rooms/${openRoomId}/read`, { message_ids: batch })
+          .then(({ data }) => {
+            setThread((thread) => (thread.key === key ? { ...thread, messages: applyRead(thread.messages, { reader, ...data }) } : thread))
+            setRoomsData((current) => ({
+              rooms: current.rooms.map((r) => (String(r.id) === openRoomId ? { ...r, unread: Math.max(0, r.unread - data.message_ids.length) } : r)),
+            }))
+          })
+          .catch(() => undefined)
+          .finally(() => batch.forEach((id) => pending.delete(id)))
+      }
+    }, READ_DELAY_MS)
+    return () => {
+      if (sent) return
+      window.clearTimeout(timer)
+      ids.forEach((id) => pending.delete(id))
+    }
+  }, [thread, visible, user, openRoomId, setRoomsData])
+
+  // Each room's preview is the newest message this browser has seen, unless the server has a newer one waiting.
+  const previews = useMemo(() => {
+    const out = new Map<string, string>()
+    if (viewerId === undefined) return out
+    for (const r of roomsQuery.data?.rooms ?? []) {
+      const saved = thread.key === `${viewerId}:${r.id}` ? thread.messages : loadRoomHistory(viewerId, r.id)
+      const local = saved.at(-1)
+      if (local && (!r.last_message || local.created_at >= r.last_message.created_at)) out.set(String(r.id), previewOf(local))
+    }
+    return out
+  }, [roomsQuery.data, viewerId, thread])
+
+  const roomMessages = toMessages(messages, viewerId)
 
   // Keep the newest message in view.
   useEffect(() => {
@@ -92,6 +205,8 @@ export default function Rooms() {
     setShowMenu(false)
     setShowEmoji(false)
     setMenuNote('')
+    // Fresh unread counts and previews for the other rooms.
+    roomsQuery.reload()
     navigate(`/rooms/${id}`, { replace: true })
   }
 
@@ -103,11 +218,8 @@ export default function Rooms() {
     setSendError('')
     try {
       const response = await api.post<{ message: ApiMessage }>(`/rooms/${room.id}/messages`, { content: body })
-      setThread((current) =>
-        current.roomId === room.id && !current.messages.some((m) => m.id === response.data.message.id)
-          ? { ...current, messages: [...current.messages, response.data.message] }
-          : current,
-      )
+      // The socket delivers it too; merging by id keeps one copy.
+      setThread((current) => (current.key === threadKey ? { ...current, messages: mergeMessages(current.messages, [response.data.message]) } : current))
       if (!room.joined) roomsQuery.reload()
     } catch (error) {
       setDraft(body)
@@ -160,7 +272,7 @@ export default function Rooms() {
 
   const isMuted = room ? muted.includes(room.id) : false
   const isMine = (member: Member) => member.id === user?.id
-  // Everyone who has posted, host first; there is no presence channel yet.
+  // The room's members (the host and everyone who has posted), host first.
   const people = room
     ? [room.host, ...room.members].filter((m, i, list): m is Member => m !== null && list.findIndex((x) => x?.id === m.id) === i)
     : []
@@ -214,7 +326,7 @@ export default function Rooms() {
                   <span className={styles.roomThumb} style={{ background: gradientCss(r.movie.gradient) }} aria-hidden="true" />
                   <span className={styles.roomText}>
                     <span className={styles.roomName}>{r.name}</span>
-                    <span className={styles.roomPreview}>{r.preview}</span>
+                    <span className={styles.roomPreview}>{previews.get(r.id) ?? r.preview}</span>
                   </span>
                   <span className={styles.roomMeta}>
                     <span className={styles.roomOnline}>
@@ -222,6 +334,12 @@ export default function Rooms() {
                       {r.members.length}
                       <span className="sr-only"> members</span>
                     </span>
+                    {r.unread > 0 && r.id !== room?.id && (
+                      <span className={styles.unread}>
+                        {r.unread}
+                        <span className="sr-only"> unread</span>
+                      </span>
+                    )}
                   </span>
                 </button>
               </li>
@@ -338,7 +456,8 @@ export default function Rooms() {
               <h2 id="room-title">{room.name}</h2>
               <p className={styles.live}>
                 <img src={dotIcon} width={8} height={8} alt="" />
-                {people.length} {people.length === 1 ? 'member' : 'members'} · updates every few seconds
+                {people.length} {people.length === 1 ? 'member' : 'members'} ·{' '}
+                {live === 'connected' ? 'live' : live === 'connecting' ? 'connecting…' : 'offline'}
               </p>
             </div>
             {isMuted && <span className={styles.mutedChip}>Muted</span>}
@@ -389,7 +508,10 @@ export default function Rooms() {
               ) : isMine(message.from) ? (
                 <div key={message.id} className={styles.own}>
                   <p className={styles.ownBubble}>{message.text}</p>
-                  <p className={styles.time}>{message.time}</p>
+                  <p className={styles.time}>
+                    {message.time}
+                    {message.receipt && ` · ${message.receipt}`}
+                  </p>
                 </div>
               ) : (
                 <div key={message.id} className={styles.message}>
@@ -402,6 +524,7 @@ export default function Rooms() {
                       <span className={styles.time}>{message.time}</span>
                     </p>
                     <p className={styles.bubble}>{message.text}</p>
+                    {message.receipt && <p className={styles.receipt}>{message.receipt}</p>}
                     {/* TODO: store reactions in the API; "agree" is only kept on this device for now. */}
                     <div className={styles.reactions}>
                       <button
@@ -423,6 +546,11 @@ export default function Rooms() {
           {sendError && (
             <p className={styles.menuNote} role="alert">
               {sendError}
+            </p>
+          )}
+          {syncError && (
+            <p className={styles.menuNote} role="status">
+              {syncError}
             </p>
           )}
 

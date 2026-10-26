@@ -116,20 +116,37 @@ export type ApiNotification = {
   created_at: string
 }
 
+/** A discussion room. Messages are only stored until every member has read them, so `message_count`,
+ * `last_message` and `unread` describe the ones still waiting. */
 export type ApiRoom = {
   id: number
   name: string
   tmdb_id: number
   spoilers: boolean
   host: ApiMember | null
+  /** The creator and everyone who has posted; a message waits for all of them. */
   members: ApiMember[]
   joined: boolean
   message_count: number
+  /** Messages still waiting for you to read them. */
+  unread: number
   last_message: { author: string | null; content: string; created_at: string } | null
   created_at: string
 }
 
-export type ApiMessage = { id: number; user: ApiMember; content: string; created_at: string }
+/** A room message with its read receipts: `read_by` starts with the author; it is deleted once `unread_by` is empty. */
+export type ApiMessage = {
+  id: number
+  room_id: number
+  user: ApiMember
+  content: string
+  created_at: string
+  read_by: ApiMember[]
+  unread_by: ApiMember[]
+}
+
+/** `messages.read` on a room's socket channel: `reader` has read these; `deleted_ids` have now been read by everyone. */
+export type ApiRoomRead = { reader: ApiMember; message_ids: number[]; deleted_ids: number[] }
 
 export type ApiRsvp = 'pending' | 'accepted' | 'maybe' | 'declined'
 
