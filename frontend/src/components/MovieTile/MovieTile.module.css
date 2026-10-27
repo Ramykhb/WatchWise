@@ -64,14 +64,13 @@
   white-space: nowrap;
 }
 
-.score {
+.mediaType {
   position: absolute;
   top: 10px;
-  left: 10px;
+  right: 10px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 9px 4px 7px;
+  padding: 4px 9px;
   border-radius: var(--radius-pill);
   background: var(--surface-white);
   font-weight: 700;

@@ -164,6 +164,7 @@ export function toTileMovie(movie: TmdbMovie, genres: Map<number, string>): Movi
     // TV ids overlap movie ids, so a show's slug says what it is ("tv-1399"); the details page reads it back.
     slug: movie.media_type === 'tv' ? `tv-${movie.id}` : String(movie.id),
     title: movie.title,
+    mediaType: movie.media_type,
     posterTitle: posterTitle(movie.title),
     meta: [movie.year, genreNames.join(', ')].filter(Boolean).join(' · '),
     // Unreleased films have no votes yet; a dash reads better than "0.0".
