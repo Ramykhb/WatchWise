@@ -29,7 +29,10 @@ interface MovieReviewRepositoryInterface
      */
     public function summary(int $tmdbId, string $mediaType): array;
 
-    /** Writes the review (and so the member's stars); it waits for moderation again. */
+    /** Whether the review's author lets the viewer read their reviews (same rules as the review list). */
+    public function authorVisibleTo(Review $review, User $viewer): bool;
+
+    /** Writes the review (and so the member's stars); it waits for moderation again and its old helpful votes are cleared. */
     public function save(User $user, SaveReviewData $data, string $sentiment): Review;
 
     /** Removes the text and its helpful votes; the member's stars stay. */

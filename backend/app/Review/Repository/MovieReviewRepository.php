@@ -10,6 +10,7 @@ use App\Review\DTOs\Requests\SaveReviewData;
 use App\Review\InterfaceRepository\MovieReviewRepositoryInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 
 class MovieReviewRepository implements MovieReviewRepositoryInterface
 {
@@ -77,8 +78,24 @@ class MovieReviewRepository implements MovieReviewRepositoryInterface
         ];
     }
 
+    public function authorVisibleTo(Review $review, User $viewer): bool
+    {
+        $author = User::query()->whereKey($review->user_id);
+        $this->visibleAuthors($author, $viewer);
+
+        return $author->exists();
+    }
+
     public function save(User $user, SaveReviewData $data, string $sentiment): Review
     {
+        return DB::transaction(fn (): Review => $this->write($user, $data, $sentiment));
+    }
+
+    private function write(User $user, SaveReviewData $data, string $sentiment): Review
+    {
+        // Votes belong to the text they were given for: new or resubmitted text starts from zero.
+        $this->forTitle($data->tmdbId, $data->mediaType)->where('user_id', $user->id)->first()?->votes()->delete();
+
         $review = Review::updateOrCreate(
             ['user_id' => $user->id, 'tmdb_id' => $data->tmdbId, 'media_type' => $data->mediaType],
             [
