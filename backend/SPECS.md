@@ -96,9 +96,9 @@ All routes go under `/api/admin` with `auth.jwt` and `role:admin`, plus a policy
    - `reviews_total`, `reviews_pending` (unapproved) and `new_reviews` (7 and 30 days), in the same stats response.
    - Only rows with text count. Rating-only rows are star ratings, not reviews.
    - Frontend: mock data.
-3. **Most watched movies [Done in backend]**: `most_watched`, the top 5 `tmdb_id`s by count of `watched` watchlist entries, with titles from the local catalogue. Hidden films are left out. Titles are `null` for films not yet in the catalogue (see Movie 7). Frontend: mock data.
+3. **Most watched movies [Done in backend]**: `most_watched`, the top 5 `tmdb_id`s by count of `watched` watchlist entries, with titles from the local catalogue. Hidden films are left out. Titles are `null` for films that were activity before the catalogue existed and were never back-filled (see Movie 7). Frontend: mock data.
 4. **Most highly rated movies [Done in backend]**: `top_rated`, the top 5 by average approved rating (star ratings included), needing at least 3 ratings. Frontend: mock data.
-5. **Most popular genres [Done in backend]**: `popular_genres`, the top 8 genres weighted by watched plus rated counts, with `share` in percent. Genre ids come from the local catalogue, names from `GenreServiceInterface` (falls back to "Genre {id}" if TMDB is down). Empty until the catalogue is filled (Movie 7). Frontend: mock data.
+5. **Most popular genres [Done in backend]**: `popular_genres`, the top 8 genres weighted by watched plus rated counts, with `share` in percent. Genre ids come from the local catalogue, names from `GenreServiceInterface` (falls back to "Genre {id}" if TMDB is down). Only films in the catalogue count (Movie 7). Frontend: mock data.
 6. **User activity [Done in backend]**
    - `activity` is a daily series (`?days=`, default 30, max 90, zeros on quiet days) of `signups`, `ratings`, `reviews`, `lists`, `watches` and `messages`.
    - It is sourced from `users.created_at`, `reviews.created_at`, `movie_lists.created_at`, `watchlists.watched_at` and `messages.created_at`, not from `activity_feed`, because the Activity module isn't rebuilt yet.
@@ -116,7 +116,7 @@ All routes go under `/api/admin` with `auth.jwt` and `role:admin`, plus a policy
    - The logic lives in the new `app/Review/` module (`ReviewServiceInterface::moderationQueue()`, `approve()`, `reject()`, `delete()`); Admin calls it through the interface. The rest of the Review module is still **[Missing]** (see Review).
    - Frontend: mock data (`AdminReviews.tsx`).
 9. **Local movie data management [Done in backend]**
-   - `GET /api/admin/movies?q=&page=&per_page=` and `PATCH /api/admin/movies/{tmdbId}` (hide, feature, edit the local title or overview). An id that isn't in the catalogue returns 404.
+   - `GET /api/admin/movies?q=&page=&per_page=` and `PATCH /api/admin/movies/{tmdbId}` (hide, feature, edit the local title or overview; `"overview": null` clears it, leaving it out keeps it). An id that isn't in the catalogue returns 404.
    - The data and logic live in the Movie module's local catalogue (`MovieCatalogServiceInterface`, Movie 7).
    - Frontend: mock data (`AdminMovies.tsx`).
 10. **[Optional] Room moderation**: let admins delete a room or a message, through `RoomServiceInterface` (see Room 9). Not built.
@@ -289,11 +289,12 @@ Brief objectives 2 (Movie Database), 3 (External Movie API) and 11 (local movie 
 6. **[Refactor] Raw query input in the controller**
    - `MovieController::show()` reads `$request->query('type')` itself.
    - Add `FormRequests/MovieShowRequest` (`type` in `movie,tv`) with `toDto()`, and inject that instead of `Request`.
-7. **Local movie catalogue [Modify]: built, but nothing fills it yet**
+7. **Local movie catalogue [Done], except review and hiding**
    - **Done:** the `movies` table (`tmdb_id` unique, `title`, `overview`, `poster_path`, `release_date`, `runtime`, `genre_ids`, `is_hidden`, `is_featured`, `synced_at`), the `LocalMovie` model and factory, and `MovieCatalogServiceInterface` (`remember()`, `paginate()`, `update()`, `summaries()`, `hiddenTmdbIds()`) with its repository. Admin edits and stats use it (Admin 3, 5, 9). Hidden movies are left out of the admin stats.
-   - **Missing:** nothing calls `remember(int $tmdbId)` yet. Call it from the Watchlist, Rating/Review and MovieList services when a user first watchlists, rates, reviews or lists a film. Until then the catalogue is empty, so the admin Movies page and genre stats have no data and ranked films show `title: null`.
+   - **Done:** `remember(int $tmdbId)` is called by `WatchlistService::add()`, `RatingService::rate()` and `MovieListService` (`create()`, `update()` when films are sent, `addMovie()`). It stores a film once, from TMDB, and never overwrites admin edits. If TMDB can't be reached the film is skipped and the user's action still succeeds. Films added before this change are not back-filled.
+   - **Missing:** the Review module's write flow must call `remember()` too once it exists.
    - **Missing:** hidden movies are not yet left out of the app's own lists (search, discover, recommendations).
-   - **Missing:** tests for `remember()` (the admin tests cover `paginate()`, `update()`, `summaries()` and `hiddenTmdbIds()`). Also the Movie 6 `MovieShowRequest` refactor is untouched.
+   - **Note:** the base `Tests\TestCase` stubs `MovieCatalogServiceInterface` so no test reaches TMDB by accident; the Admin tests bind the real one.
 8. **Average user rating on the movie page [Missing]**
    - The brief asks to "calculate and display average user ratings".
    - Star ratings are now stored (Rating), but nothing computes or returns an average.
@@ -642,4 +643,4 @@ Brief objective 7: "Weather API – adapt movie suggestions to the current weath
    - `calendar_events` is unused (Calendar 3).
    - `notifications` is used only by Room read receipts (Notification 2, Room 6).
    - `activity_feed` is kept for Activity, and `reviews` is now shared by Rating and the future Review module (Rating 4).
-9. **Test status** (`php artisan test`, after `composer install`): all 347 tests pass on `Admin-Features`, including the new `tests/Feature/Admin/` suite. The social redirect test that used to fail because of the Google credentials in `.env` is fixed (Auth 12).
+9. **Test status** (`php artisan test`, after `composer install`): all 355 tests pass on `Admin-Features`, including the new `tests/Feature/Admin/` suite. The social redirect test that used to fail because of the Google credentials in `.env` is fixed (Auth 12).
