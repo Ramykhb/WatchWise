@@ -15,6 +15,9 @@ use Illuminate\Support\Facades\DB;
 
 class MovieListService implements MovieListServiceInterface
 {
+    /** The most newly added films one list save looks up on TMDB. */
+    private const REMEMBER_LIMIT = 10;
+
     public function __construct(
         private readonly MovieListRepositoryInterface $lists,
         private readonly MovieCatalogServiceInterface $catalog,
@@ -27,18 +30,17 @@ class MovieListService implements MovieListServiceInterface
 
     public function create(CreateMovieListData $data, User $owner): MovieList
     {
-        $list = DB::transaction(function () use ($data, $owner) {
+        [$list, $added] = DB::transaction(function () use ($data, $owner) {
             $list = $this->lists->create([
                 'user_id' => $owner->id,
                 'title' => $data->title,
                 'description' => $data->description,
                 'is_public' => $data->isPublic,
             ]);
-            $this->lists->syncItems($list, $data->tmdbIds);
 
-            return $list;
+            return [$list, $this->lists->syncItems($list, $data->tmdbIds)];
         });
-        $this->rememberAll($data->tmdbIds);
+        $this->rememberAll($added);
 
         return $this->detail($list);
     }
@@ -50,14 +52,12 @@ class MovieListService implements MovieListServiceInterface
 
     public function update(MovieList $list, UpdateMovieListData $data): MovieList
     {
-        DB::transaction(function () use ($list, $data) {
+        $added = DB::transaction(function () use ($list, $data) {
             $this->lists->update($list, $data->attributes);
 
-            if ($data->tmdbIds !== null) {
-                $this->lists->syncItems($list, $data->tmdbIds);
-            }
+            return $data->tmdbIds === null ? [] : $this->lists->syncItems($list, $data->tmdbIds);
         });
-        $this->rememberAll($data->tmdbIds ?? []);
+        $this->rememberAll($added);
 
         return $this->detail($list);
     }
@@ -83,11 +83,14 @@ class MovieListService implements MovieListServiceInterface
     }
 
     /**
+     * Each unknown film costs a TMDB call inside the request, so a bulk save only remembers the
+     * first few new films. The rest are remembered when someone rates, watchlists or adds them singly.
+     *
      * @param  list<int>  $tmdbIds
      */
     private function rememberAll(array $tmdbIds): void
     {
-        foreach ($tmdbIds as $tmdbId) {
+        foreach (array_slice($tmdbIds, 0, self::REMEMBER_LIMIT) as $tmdbId) {
             $this->catalog->remember($tmdbId);
         }
     }

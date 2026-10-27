@@ -113,6 +113,25 @@ class MovieCatalogTest extends SocialTestCase
         $this->as($user)->postJson("/api/lists/{$list->id}/items", ['tmdb_id' => 550])->assertOk();
     }
 
+    public function test_updating_a_list_only_remembers_films_it_just_gained(): void
+    {
+        $user = User::factory()->create();
+        $list = MovieList::create(['user_id' => $user->id, 'title' => 'Faves', 'is_public' => false]);
+        $list->items()->create(['tmdb_id' => 550, 'position' => 0]);
+        $this->mock(MovieCatalogServiceInterface::class)->shouldReceive('remember')->once()->with(603);
+
+        $this->as($user)->patchJson("/api/lists/{$list->id}", ['tmdb_ids' => [550, 603]])->assertOk();
+    }
+
+    public function test_a_bulk_list_save_remembers_only_the_first_few_new_films(): void
+    {
+        $this->mock(MovieCatalogServiceInterface::class)->shouldReceive('remember')->times(10);
+
+        $this->as(User::factory()->create())
+            ->postJson('/api/lists', ['title' => 'Big', 'tmdb_ids' => range(1, 50)])
+            ->assertCreated();
+    }
+
     public function test_creating_a_list_remembers_every_film_in_it(): void
     {
         $catalog = $this->mock(MovieCatalogServiceInterface::class);
