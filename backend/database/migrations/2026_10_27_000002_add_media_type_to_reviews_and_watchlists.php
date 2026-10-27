@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -25,9 +26,15 @@ return new class extends Migration
         }
     }
 
+    /**
+     * The old schema can't hold TV shows: their ratings and watchlist rows are deleted first. Movie
+     * rows stay, and with at most one movie row per member and film the old unique index can be
+     * restored even when a member had saved the same id as both a movie and a show.
+     */
     public function down(): void
     {
         foreach (['reviews', 'watchlists'] as $table) {
+            DB::table($table)->where('media_type', '!=', 'movie')->delete();
             Schema::table($table, function (Blueprint $blueprint) use ($table) {
                 $blueprint->unique(['user_id', 'tmdb_id']);
                 $blueprint->dropUnique("{$table}_user_film_unique");

@@ -3,6 +3,8 @@
 namespace Tests\Feature\Social;
 
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /** TV shows and movies share TMDB ids (1399 is both), so every saved title keeps its type. */
 class TvShowsTest extends SocialTestCase
@@ -53,6 +55,27 @@ class TvShowsTest extends SocialTestCase
         $this->as($user)->getJson('/api/watchlist')
             ->assertJsonPath('ratings.tv-1399', 5)
             ->assertJsonPath('ratings.550', 3);
+    }
+
+    public function test_rolling_back_the_type_keeps_movies_and_drops_shows(): void
+    {
+        $user = User::factory()->create();
+        // The same id saved as both a movie and a show: the old (user_id, tmdb_id) index allows only one.
+        foreach (['movie', 'tv'] as $type) {
+            DB::table('reviews')->insert(['user_id' => $user->id, 'tmdb_id' => 1399, 'media_type' => $type, 'rating' => 3, 'is_approved' => true]);
+            DB::table('watchlists')->insert(['user_id' => $user->id, 'tmdb_id' => 1399, 'media_type' => $type, 'status' => 'to_watch']);
+        }
+        $migration = require database_path('migrations/2026_10_27_000002_add_media_type_to_reviews_and_watchlists.php');
+
+        $migration->down();
+
+        $this->assertFalse(Schema::hasColumn('reviews', 'media_type'));
+        $this->assertSame(1, DB::table('reviews')->where('user_id', $user->id)->count());
+        $this->assertSame(1, DB::table('watchlists')->where('user_id', $user->id)->count());
+
+        // Back to the current schema; the kept rows are movies.
+        $migration->up();
+        $this->assertSame('movie', DB::table('reviews')->where('user_id', $user->id)->value('media_type'));
     }
 
     public function test_profile_top_four_and_watched_only_list_movies(): void
