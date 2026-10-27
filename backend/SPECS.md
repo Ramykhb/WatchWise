@@ -26,7 +26,7 @@ Every feature also has a **Frontend** line: *real API*, *mock data* (page exists
 | Auth | 1 (authentication) | Done, with 3 refactors and 1 decision |
 | Calendar | 7 (calendar integration) | Done in the frontend. A backend module is **[Optional]**. |
 | Chat (now `Groq`) | not in brief | Done. Rename is a **[Refactor]**. |
-| Cinemas | 7 (maps / geolocation) | Works end to end, but **[Refactor]**: the whole feature is in one controller |
+| Cinema | 7 (maps / geolocation) | **[Done]**: Google Places-backed module; the page still uses Mapbox |
 | Docs | 5 (documentation) | **[Done]** |
 | Gemini | 7 (AI) | Unused. **[Refactor]**: use it or delete it. |
 | Genre | 2, 3 | **[Done]** |
@@ -51,7 +51,7 @@ Suggested order of work: Review (absorbing Rating), Activity, Admin (with the lo
 - **Room module (`app/Room/`)**: built with Reverb. Rooms can be public or private, with invites, a live rooms list, real-time messages and read receipts. This moves Room from **[Rebuild]** to **[Done]**.
 - **Person module (`app/Person/`)**: TMDB person details and frequent collaborators. Moves from **[Missing]** to **[Done]**.
 - **Rating module (`app/Rating/`)**: members save a 1–5 star rating per film. The "Rate movies" part of objective 4 is now **[Done]**.
-- **Cinemas (`app/Cinemas/`)**: `GET /api/nearby-cinemas` through Geoapify, with a Mapbox map in the frontend. It works, but needs a **[Refactor]**.
+- **Cinema (`app/Cinema/`)**: `GET /api/nearby-cinemas` through Google Places, with a Mapbox map in the frontend.
 - **MovieList**: added single-film add and remove (`POST /api/lists/{list}/items`, `DELETE /api/lists/{list}/items/{tmdbId}`) and `?contains=` for the movie page's "Add to list".
 - **Migrations**: `reviews.content` and `reviews.sentiment` are now nullable, with a unique index on (`user_id`, `tmdb_id`). New tables `room_members` and `room_invites`, and a new column `discussion_rooms.is_private`.
 
@@ -208,39 +208,21 @@ Not required by the brief. It's an extra: a streaming movie assistant over Rever
 
 ---
 
-## Cinemas (`app/Cinemas/`)
+## Cinema (`app/Cinema/`)
 
 Brief objective 7: "Maps/Geolocation API – display nearby cinemas or movie-related locations".
 
-1. **Nearby cinemas [Done, but see items 3 and 4]**
-   - `GET /api/nearby-cinemas?latitude=&longitude=` (public, `throttle:30,1`) returns up to 50 cinemas within 30 km from the Geoapify Places API (`entertainment.cinema`).
-   - It returns 503 when `GEOAPIFY_API_KEY` is missing.
-   - Frontend: real API. `Cinemas.tsx` uses a Mapbox map and browser geolocation, and `cinemasApi.ts` turns Geoapify features into cinema cards.
+1. **Nearby cinemas [Done]**
+   - `GET /api/nearby-cinemas?latitude=&longitude=` (public, `throttle:30,1`) returns up to 20 cinemas within 30 km from Google Places Nearby Search (`movie_theater`).
+   - It returns 503 when `GOOGLE_PLACES_API_KEY` is missing and 502/503 when Google Places fails.
+   - Frontend: real API. `Cinemas.tsx` uses a Mapbox map and browser geolocation; `cinemasApi.ts` consumes the app-owned cinema response shape.
 2. **Showtimes [Done]**: the Cinemas page no longer shows showtimes or IMAX/4DX filters. The movie page's showtimes appear only for the design's demo movies.
-3. **[Refactor] The whole feature lives in `NearbyCinemaController::index()`**
-   - The controller currently does all of this itself:
-     - inline `$request->validate()`
-     - reads the API key from config
-     - makes the `Http::` call to Geoapify
-     - logs
-     - builds three different error responses
-     - returns Geoapify's raw `features`
-   - Split it the way `Weather` is split:
-     - `FormRequests/NearbyCinemasRequest` with `toDto()`, and `DTOs/Requests/NearbyCinemasQuery`.
-     - `InterfaceServices/CinemaServiceInterface` and `Services/CinemaService`.
-     - `InterfaceRepository/CinemaRepositoryInterface` and `Repository/CinemaRepository`, which holds the Geoapify call and caches results briefly.
-     - `Exceptions/CinemaSearchNotConfigured` (503) and `Exceptions/CinemaSearchUnavailable` (502/503), each with `render()`.
-     - `Providers/CinemaModuleServiceProvider`, registered in `bootstrap/providers.php`.
-   - The controller then only calls the service.
-4. **[Refactor] Return WatchWise's own shape, not Geoapify's**
-   - Add `DTOs/Responses/CinemaResponse` (`id`, `name`, `address`, `latitude`, `longitude`, `distance_meters`, `website`) and map Geoapify's features in the service.
-   - Then `cinemasApi.ts` stops parsing a vendor format, and changing provider won't touch the frontend.
-   - Update `openapi/paths/cinemas.json` to match.
-5. **[Refactor] Module name**: `CLAUDE.md` › section 1 names modules in the singular (`Watchlist`, `MovieNight`). Rename `app/Cinemas/` to `app/Cinema/`.
-6. **[Missing] Tests**
-   - There are none for this endpoint.
-   - Add feature tests with `Http::fake()`: a successful search, validation errors, a missing key (503), and Geoapify failing or unreachable.
-7. **Frontend leftover**: `pages/Cinemas/cinemasData.ts` (the old mock data) isn't imported anywhere any more. Delete it.
+3. **Response and module [Done]**
+   - The `Cinema` module validates coordinates, calls Google Places from its service and returns a `cinemas` array with `id`, `name`, `address`, `latitude`, `longitude`, `distance_meters` and `website`.
+   - `NearbyCinemaController` only delegates to the service. Provider errors render as 502/503 responses.
+   - `cinemasApi.ts` maps the app-owned response shape to the existing page model; `openapi/paths/cinemas.json` documents the contract.
+4. **Google Maps attribution [Follow up]**: Google Places content shown on a map must be displayed on a Google Map. The current page uses Mapbox, so replace that map before displaying Google Places results on it.
+5. **Frontend leftover**: `pages/Cinemas/cinemasData.ts` (the old mock data) isn't imported anywhere any more. Delete it.
 
 ---
 
@@ -631,7 +613,7 @@ Brief objective 7: "Weather API – adapt movie suggestions to the current weath
    - **Gaps:**
      - The admin frontend route has no role guard (Admin 11).
      - Email verification isn't enforced anywhere (Auth 6).
-     - `/api/weather-mood` and `/api/movie-recommendations` call the AI without sign-in, and `/api/nearby-cinemas` spends the Geoapify key without sign-in. Each is protected only by a rate limit; consider requiring `auth.jwt`.
+     - `/api/weather-mood` and `/api/movie-recommendations` call the AI without sign-in, and `/api/nearby-cinemas` spends the Google Places key without sign-in. Each is protected only by a rate limit; consider requiring `auth.jwt`.
      - Room messages can't be moderated (Room 9).
 7. **Frontend still on mock data, or calling removed endpoints:**
    - Admin (all four pages). Their backend endpoints now exist (Admin 1 to 9), so the pages can be wired to the real API.

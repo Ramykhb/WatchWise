@@ -1,7 +1,7 @@
 <?php
 
 use App\Auth\Controllers\AuthController;
-use App\Cinemas\Controllers\NearbyCinemaController;
+use App\Cinema\Controllers\NearbyCinemaController;
 use App\Docs\Controllers\DocumentationController;
 use App\Genre\Controllers\GenreController;
 use App\Groq\Controllers\ChatController;
