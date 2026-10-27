@@ -1410,3 +1410,14 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* "Try again" when the reviews didn't load. */
+.reviewsRetry {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ground-violet);
+  cursor: pointer;
+}
