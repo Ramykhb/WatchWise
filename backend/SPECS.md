@@ -172,9 +172,7 @@ Brief objective 1: User Authentication. Unchanged since the last check.
     - Give both exceptions a `render()` that returns their 401 or 422 JSON, and remove the try/catch.
     - `AuthController::refresh()` may keep its catch, because it must also clear the auth cookies. Add a PHPDoc saying so.
     - The `EmailRequired`, `UnverifiedProviderEmail` and `AccountDisabled` catches in the social callback map to redirect reasons, which is acceptable for a redirect flow.
-12. **[Modify] Known failing test**
-    - `AccountFlowsTest::test_social_redirect_sets_state_cookie` fails whenever `.env` has `GOOGLE_CLIENT_ID=CHANGE_ME`.
-    - Set `config(['services.google.client_id' => ..., 'services.google.client_secret' => ...])` inside the test, as `CLAUDE.md` › Tests requires.
+12. **[Done] Social redirect test no longer depends on `.env`**: `AccountFlowsTest::test_social_redirect_sets_state_cookie` sets the Google client ID and secret in config itself, so it passes even when `.env` has `GOOGLE_CLIENT_ID=CHANGE_ME`.
 13. **[Optional]** Captcha after repeated failed logins (existing TODO in `AuthController::login()`).
 
 ---
@@ -645,5 +643,4 @@ Brief objective 7: "Weather API – adapt movie suggestions to the current weath
    - `calendar_events` is unused (Calendar 3).
    - `notifications` is used only by Room read receipts (Notification 2, Room 6).
    - `activity_feed` is kept for Activity, and `reviews` is now shared by Rating and the future Review module (Rating 4).
-9. **Test status** (`php artisan test` on `56454c6`, after `composer install`): 297 passed, 1 failed.
-   - The only failure is `AccountFlowsTest::test_social_redirect_sets_state_cookie`, because of the Google credentials in `.env` (Auth 12).
+9. **Test status** (`php artisan test`, after `composer install`): all 298 tests pass. The social redirect test that used to fail because of the Google credentials in `.env` is fixed (Auth 12).
