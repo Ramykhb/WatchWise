@@ -5,7 +5,7 @@ import type { ApiMember, ApiMessage, ApiRoomRead } from "../../lib/types.ts";
 
 /** How long a message is shown once sent; the server's `RoomService::MESSAGE_LIFETIME_HOURS`. */
 //change to 24 * 60 * 60 * 1000 for real, currently testing
-const MESSAGE_LIFETIME_MS = 2 * 60 * 1000;
+const MESSAGE_LIFETIME_MS = 24 * 60 * 60 * 1000;
 /** Where an earlier version saved each room's conversation in this browser. */
 const SAVED_ROOMS_PREFIX = "watchwise.rooms.v1.";
 
