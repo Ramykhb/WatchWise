@@ -203,7 +203,10 @@ export default function Discover() {
     ...(applied.runtime ? [{ label: applied.runtime, remove: () => applyFilters({ ...applied, runtime: null }) }] : []),
   ]
 
-  const movieCount = shown?.total_results ?? 0
+  // `shown` intentionally keeps the previous grid visible during a request, but its
+  // count belongs to the previous query. Only use a count from the current request.
+  const currentPage = result?.key === requestKey ? result.data : null
+  const movieCount = currentPage?.total_results ?? 0
   const sliderStyle = { '--from': fraction(draft.years[0]), '--to': fraction(draft.years[1]) } as CSSProperties
 
   return (
@@ -251,9 +254,11 @@ export default function Discover() {
               >
                 <span>
                   {t.label}
-                  <span className={styles.tabCount}>
-                    {(t.id === 'movies' ? movieCount : t.id === 'people' ? peopleTotal : lists.length).toLocaleString('en-US')}
-                  </span>
+                  {submittedQuery && (t.id !== 'movies' || currentPage) && (
+                    <span className={styles.tabCount}>
+                      {(t.id === 'movies' ? movieCount : t.id === 'people' ? peopleTotal : lists.length).toLocaleString('en-US')}
+                    </span>
+                  )}
                 </span>
               </button>
             ))}
@@ -448,11 +453,11 @@ export default function Discover() {
           >
             <div className={styles.toolbar}>
               <h2 id="results-title" className={styles.resultsTitle} aria-live="polite">
-                {type === 'people' ? (
+                {!submittedQuery ? null : type === 'people' ? (
                   `${peopleTotal} ${peopleTotal === 1 ? 'person' : 'people'}`
                 ) : type === 'lists' ? (
                   `${lists.length} public ${lists.length === 1 ? 'list' : 'lists'}`
-                ) : shown ? (
+                ) : currentPage ? (
                   `${movieCount.toLocaleString('en-US')} ${movieCount === 1 ? 'result' : 'results'}`
                 ) : (
                   <>

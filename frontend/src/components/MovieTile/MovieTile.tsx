@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import sunImg from '../../assets/home/tile-sun.svg'
 import waveImg from '../../assets/home/tile-wave.svg'
-import starIcon from '../../assets/home/icon-star.svg'
 import styles from './MovieTile.module.css'
 
 export type Movie = {
@@ -12,6 +11,7 @@ export type Movie = {
   /** e.g. "2026 · Sci-fi" */
   meta: string
   score: string
+  mediaType?: 'movie' | 'tv'
   /** Top → middle → bottom poster gradient stops. */
   gradient: [string, string, string]
   /** Real poster (e.g. from TMDB). When set it replaces the gradient art. */
@@ -47,10 +47,8 @@ export default function MovieTile({ movie }: { movie: Movie }) {
             </p>
           </>
         )}
-        <span className={styles.score}>
-          <img src={starIcon} width={12} height={12} alt="" />
-          <span className="sr-only">Rated </span>
-          {movie.score}
+        <span className={styles.mediaType}>
+          {movie.mediaType === 'tv' ? 'TV' : 'Movie'}
         </span>
       </div>
       <span className={styles.title}>{movie.title}</span>
