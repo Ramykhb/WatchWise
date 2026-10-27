@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
@@ -22,7 +22,7 @@ import { apiErrorMessage } from '../../lib/auth.ts'
 import { PICKABLE_MOVIES, tmdbIdOf } from '../../lib/movies.ts'
 import type { ApiMember, ApiMessage, ApiRoom } from '../../lib/types.ts'
 import { gradientCss } from '../Home/homeData.ts'
-import { applyRead, loadRoomHistory, mergeMessages, saveRoomHistory, syncWithServer, waitingFor } from './roomHistory.ts'
+import { applyRead, hasExpired, mergeMessages, syncWithServer, waitingFor, withoutExpired } from './roomHistory.ts'
 import type { RoomSocket, RoomSocketStatus } from './roomSocket.ts'
 import {
   EMOJIS,
@@ -30,7 +30,6 @@ import {
   ROOM_SCOPES,
   channelName,
   matchesFilters,
-  previewOf,
   rulesFor,
   sectionOf,
   toMessages,
@@ -38,7 +37,6 @@ import {
   toRoomMember,
   withNewMessage,
   type Member,
-  type Room,
   type RoomKind,
   type RoomScope,
   type RoomSection,
@@ -49,6 +47,8 @@ import styles from './Rooms.module.css'
 const READ_DELAY_MS = 250
 /** The most message ids `POST /rooms/{id}/read` accepts in one request. */
 const READ_BATCH_SIZE = 500
+/** How often messages whose 24 hours are up are taken off the screen. */
+const EXPIRY_CHECK_MS = 60_000
 
 /** The room list's sections, in order; "All rooms" shows all three, "My rooms" only yours. */
 const SECTIONS: { id: RoomSection; title: string }[] = [
@@ -57,8 +57,12 @@ const SECTIONS: { id: RoomSection; title: string }[] = [
   { id: 'public', title: 'PUBLIC ROOMS' },
 ]
 
-/** The open room's conversation, for one signed-in account (`key` = "userId:roomId"). */
-type Thread = { key: string; userId: number; roomId: number; messages: ApiMessage[] }
+/**
+ * The open room's conversation, for one signed-in account (`key` = "userId:roomId"), held only while the room is
+ * open. `readLate`: the messages this account read after their 24 hours were up; they stay on screen until it
+ * leaves the room. `loaded`: the server's messages have arrived.
+ */
+type Thread = { key: string; messages: ApiMessage[]; readLate: number[]; loaded: boolean }
 
 export default function Rooms() {
   const { roomId } = useParams()
@@ -68,8 +72,15 @@ export default function Rooms() {
   const messagesRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
 
+  // Messages leave the screen once their 24 hours are up; this clock checks every minute.
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), EXPIRY_CHECK_MS)
+    return () => window.clearInterval(timer)
+  }, [])
+
   const roomsQuery = useApi<{ rooms: ApiRoom[] }>('/rooms')
-  const rooms = (roomsQuery.data?.rooms ?? []).map(toRoom)
+  const rooms = (roomsQuery.data?.rooms ?? []).map((r) => toRoom(r, now))
   const setRoomsData = roomsQuery.setData
   const reloadRooms = roomsQuery.reload
   const [query, setQuery] = useState('')
@@ -81,7 +92,6 @@ export default function Rooms() {
   const [draft, setDraft] = useState('')
   // Sending, joining, declining or inviting failed.
   const [chatError, setChatError] = useState('')
-  const [agreed, setAgreed] = useState<string[]>([])
   const [showEmoji, setShowEmoji] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   // The "invite people you follow" picker, opened from the members card or (when that is hidden) the ⋯ menu.
@@ -94,18 +104,19 @@ export default function Rooms() {
   const viewerId = user?.id
   const openRoomId = room?.id
 
-  // The open room's conversation. This browser's copy shows at once (the server deletes a message once every
-  // member has read it), then the server's stored messages and the socket keep it current.
+  // The open room's conversation: the server's messages, kept current by the socket, and nothing saved in the
+  // browser. A message leaves 24 hours after it was sent unless it still waits for you; one you read after that
+  // stays until you leave the room.
   const threadKey = room && viewerId !== undefined ? `${viewerId}:${room.id}` : ''
-  const [thread, setThread] = useState<Thread>({ key: '', userId: 0, roomId: 0, messages: [] })
+  const [thread, setThread] = useState<Thread>({ key: '', messages: [], readLate: [], loaded: false })
   if (room && viewerId !== undefined && thread.key !== threadKey) {
-    setThread({ key: threadKey, userId: viewerId, roomId: Number(room.id), messages: loadRoomHistory(viewerId, Number(room.id)) })
+    setThread({ key: threadKey, messages: [], readLate: [], loaded: false })
   }
-  const messages = thread.key === threadKey ? thread.messages : []
+  const loaded = thread.key === threadKey && thread.loaded
+  const messages = thread.key === threadKey && viewerId !== undefined ? withoutExpired(thread.messages, viewerId, now, thread.readLate) : []
   const threadRef = useRef(thread)
   useEffect(() => {
     threadRef.current = thread
-    if (thread.key) saveRoomHistory(thread.userId, thread.roomId, thread.messages)
   }, [thread])
 
   // One socket connection while the page is open; the open room listens on its own channel.
@@ -151,10 +162,14 @@ export default function Rooms() {
         .get<{ messages: ApiMessage[] }>(`/rooms/${openRoomId}/messages`)
         .then(({ data }) => {
           if (!active) return
-          setThread((thread) => (thread.key === key ? { ...thread, messages: syncWithServer(thread.messages, data.messages, knownBefore) } : thread))
+          setThread((thread) =>
+            thread.key === key
+              ? { ...thread, messages: syncWithServer(thread.messages, data.messages, knownBefore, thread.readLate), loaded: true }
+              : thread,
+          )
           setSyncError('')
         })
-        .catch(() => active && setSyncError("Couldn't load new messages. Showing the ones saved on this device."))
+        .catch(() => active && setSyncError("Couldn't load this room's messages. Open it again to retry."))
         .finally(() => {
           syncing = false
           if (again && active) sync()
@@ -205,6 +220,10 @@ export default function Rooms() {
     let sent = false
     const timer = window.setTimeout(() => {
       sent = true
+      // Read after their 24 hours were up: they stay on screen until you leave the room.
+      const readAt = Date.now()
+      const late = thread.messages.filter((message) => ids.includes(message.id) && hasExpired(message, readAt)).map((message) => message.id)
+      if (late.length > 0) setThread((current) => (current.key === key ? { ...current, readLate: [...current.readLate, ...late] } : current))
       for (let start = 0; start < ids.length; start += READ_BATCH_SIZE) {
         const batch = ids.slice(start, start + READ_BATCH_SIZE)
         api
@@ -226,27 +245,12 @@ export default function Rooms() {
     }
   }, [thread, visible, user, openRoomId, setRoomsData])
 
-  // Each room's preview is the newest message this browser has seen, unless the server has a newer one waiting.
-  const latest = useMemo(() => {
-    const out = new Map<string, { preview: string; at: string }>()
-    if (viewerId === undefined) return out
-    for (const r of roomsQuery.data?.rooms ?? []) {
-      const saved = thread.key === `${viewerId}:${r.id}` ? thread.messages : loadRoomHistory(viewerId, r.id)
-      const local = saved.at(-1)
-      if (local && (!r.last_message || local.created_at >= r.last_message.created_at)) {
-        out.set(String(r.id), { preview: previewOf(local), at: local.created_at })
-      }
-    }
-    return out
-  }, [roomsQuery.data, viewerId, thread])
-
   // The list: the filters and the search pick the rooms; each section shows the most recently active first.
   const search = query.trim().toLowerCase()
-  const activityOf = (r: Room) => latest.get(r.id)?.at ?? r.lastActivity
   const visibleRooms = rooms.filter((r) => matchesFilters(r, scope, kind) && r.name.toLowerCase().includes(search))
   const sections = SECTIONS.map((section) => ({
     ...section,
-    rooms: visibleRooms.filter((r) => sectionOf(r) === section.id).sort((a, b) => activityOf(b).localeCompare(activityOf(a))),
+    rooms: visibleRooms.filter((r) => sectionOf(r) === section.id).sort((a, b) => b.lastActivity.localeCompare(a.lastActivity)),
   })).filter((section) => section.rooms.length > 0)
 
   const roomMessages = toMessages(messages, viewerId)
@@ -502,7 +506,7 @@ export default function Rooms() {
                             {r.name}
                             {r.isPrivate && <span className="sr-only"> (private)</span>}
                           </span>
-                          <span className={styles.roomPreview}>{latest.get(r.id)?.preview ?? r.preview}</span>
+                          <span className={styles.roomPreview}>{r.preview}</span>
                         </span>
                         <span className={styles.roomMeta}>
                           <span className={styles.roomOnline}>
@@ -706,14 +710,16 @@ export default function Rooms() {
           )}
 
           <div ref={messagesRef} className={styles.messages} data-lenis-prevent role="log" aria-live="polite" aria-label={`${room.name} messages`}>
-            {roomMessages.length === 0 && (
+            {roomMessages.length === 0 && (loaded || !syncError) && (
               <p className={styles.system}>
                 <span>
-                  {!room.joined
-                    ? 'No new messages right now.'
-                    : canInvite && people.length === 1
-                      ? 'It’s just you here — invite people you follow from the ⋯ menu.'
-                      : 'No messages yet — start the conversation.'}
+                  {!loaded
+                    ? 'Loading messages…'
+                    : !room.joined
+                      ? 'No new messages right now.'
+                      : canInvite && people.length === 1
+                        ? 'It’s just you here — invite people you follow from the ⋯ menu.'
+                        : 'No messages yet — start the conversation.'}
                 </span>
               </p>
             )}
@@ -742,22 +748,6 @@ export default function Rooms() {
                     </p>
                     <p className={styles.bubble}>{message.text}</p>
                     {message.receipt && <p className={styles.receipt}>{message.receipt}</p>}
-                    {/* Only members react; anyone else just reads.
-                        TODO: store reactions in the API; "agree" is only kept on this device for now. */}
-                    {room.joined && (
-                      <div className={styles.reactions}>
-                        <button
-                          type="button"
-                          className={styles.reaction}
-                          aria-pressed={agreed.includes(message.id)}
-                          onClick={() =>
-                            setAgreed((list) => (list.includes(message.id) ? list.filter((id) => id !== message.id) : [...list, message.id]))
-                          }
-                        >
-                          {agreed.includes(message.id) ? '1 agree' : 'Agree'}
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
               ),

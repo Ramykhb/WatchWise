@@ -17,13 +17,17 @@ use App\Room\DTOs\Responses\RoomResponse;
 /**
  * Discussion rooms: group chats about a film. A public room can be read and joined by anyone; a private one
  * only by its members and the people they invite. A room's members are its creator and everyone who joined.
- * A message is stored until every member at the time it was sent has read it, then deleted; while stored it
- * is pushed to whoever has the room open and served when they open it. Room lists are kept current over the
- * `rooms.public` and `rooms.user.{id}` socket channels.
+ * A message is pushed to whoever has the room open and shown to everyone who can see the room for 24 hours
+ * after it is sent; after that only to the members at the time it was sent who have yet to read it. It is
+ * deleted once its 24 hours are up and none of them still has to read it. Browsers keep no copy: the server
+ * is the only one. Room lists are kept current over the `rooms.public` and `rooms.user.{id}` socket channels.
  */
 interface RoomServiceInterface
 {
-    /** The rooms the viewer can see; theirs first, then invitations, each with the viewer's unread count. */
+    /**
+     * The rooms the viewer can see; theirs first, then invitations, each with the viewer's unread count and the
+     * newest message the viewer can see.
+     */
     public function list(User $viewer): RoomListResponse;
 
     /** Creates the room; its creator becomes its first member. */
@@ -38,15 +42,25 @@ interface RoomServiceInterface
     /** Turns down the user's invitation to a private room. */
     public function decline(DiscussionRoom $room, User $user): void;
 
-    /** The messages someone still has to read, with who has read each one. */
-    public function messages(DiscussionRoom $room): RoomMessagesResponse;
+    /** The stored messages the viewer can still see, with who has read each one. */
+    public function messages(DiscussionRoom $room, User $viewer): RoomMessagesResponse;
 
     /**
      * The message is read by its sender (a member), waits for every other member and is pushed to the room's
-     * socket channel and the room-list channels.
+     * socket channel and the room-list channels. It is kept for at least its 24 hours, even with nobody else to
+     * read it.
      */
     public function send(DiscussionRoom $room, SendRoomMessageData $data, User $sender): RoomMessageResponse;
 
-    /** Marks the messages read by the reader and deletes the ones every member has now read. */
+    /**
+     * Marks the messages read by the reader and deletes the ones whose 24 hours are up that every member has now
+     * read.
+     */
     public function read(DiscussionRoom $room, ReadRoomMessagesData $data, User $reader): ReadReceiptsResponse;
+
+    /**
+     * Deletes, in every room, the messages whose 24 hours are up that no member still has to read (everyone read
+     * them in time, or nobody else had to); returns how many.
+     */
+    public function pruneMessages(): int;
 }

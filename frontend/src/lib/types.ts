@@ -116,8 +116,8 @@ export type ApiNotification = {
   created_at: string
 }
 
-/** A discussion room. Messages are only stored until every member has read them, so `message_count`,
- * `last_message` and `unread` describe the ones still waiting. */
+/** A discussion room. Messages are shown for 24 hours, after that only to the members who have yet to read them,
+ * so `message_count` and `last_message` describe the messages you can still see. */
 export type ApiRoom = {
   id: number
   name: string
@@ -141,7 +141,7 @@ export type ApiRoom = {
   created_at: string
 }
 
-/** A room message with its read receipts: `read_by` starts with the author; it is deleted once `unread_by` is empty. */
+/** A room message with its read receipts: `read_by` starts with the author; it is deleted once its 24 hours are up and `unread_by` is empty. */
 export type ApiMessage = {
   id: number
   room_id: number
@@ -152,7 +152,7 @@ export type ApiMessage = {
   unread_by: ApiMember[]
 }
 
-/** `messages.read` on a room's socket channel: `reader` has read these; `deleted_ids` have now been read by everyone. */
+/** `messages.read` on a room's socket channel: `reader` has read these; `deleted_ids` were past their 24 hours and are now deleted. */
 export type ApiRoomRead = { reader: ApiMember; message_ids: number[]; deleted_ids: number[] }
 
 export type ApiRsvp = 'pending' | 'accepted' | 'maybe' | 'declined'

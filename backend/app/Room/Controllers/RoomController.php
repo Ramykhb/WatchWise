@@ -12,7 +12,10 @@ use App\Room\InterfaceServices\RoomServiceInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
-/** Discussion rooms: public or private group chats, with messages kept until every member has read them. */
+/**
+ * Discussion rooms: public or private group chats. Messages are kept and shown for 24 hours; after that only the
+ * members who have yet to read them still get them, until they do.
+ */
 class RoomController
 {
     public function __construct(private readonly RoomServiceInterface $rooms) {}
@@ -53,15 +56,15 @@ class RoomController
         return response()->json(['message' => 'Invitation declined.']);
     }
 
-    /** GET /api/rooms/{room}/messages — the messages someone still has to read, with who has read each one. */
-    public function messages(DiscussionRoom $room): JsonResponse
+    /** GET /api/rooms/{room}/messages — the stored messages you can still see, with who has read each one. */
+    public function messages(DiscussionRoom $room, CurrentUser $current): JsonResponse
     {
         Gate::authorize('view', $room);
 
-        return response()->json($this->rooms->messages($room));
+        return response()->json($this->rooms->messages($room, $current->user()));
     }
 
-    /** POST /api/rooms/{room}/messages — stored until every member has read it and pushed to whoever has the room open. */
+    /** POST /api/rooms/{room}/messages — stored for 24 hours (and until every member has read it) and pushed to whoever has the room open. */
     public function send(SendRoomMessageRequest $request, DiscussionRoom $room, CurrentUser $current): JsonResponse
     {
         return response()->json(['message' => $this->rooms->send($room, $request->toDto(), $current->user())], 201);

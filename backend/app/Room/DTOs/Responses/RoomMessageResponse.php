@@ -10,7 +10,7 @@ use JsonSerializable;
 /**
  * One message with its read receipts. `read_by` starts with the author, who has read their own message;
  * `unread_by` lists the members it is still waiting for. When that list is empty the message has been
- * seen by everyone and is no longer stored.
+ * seen by everyone, and it is deleted once its 24 hours are up.
  */
 final readonly class RoomMessageResponse implements JsonSerializable
 {
