@@ -2,7 +2,10 @@
 
 namespace App\Movie\DTOs\Requests;
 
-/** Fields an admin changes on a local movie; a null field is left as it is. */
+/**
+ * Fields an admin changes on a local movie. A null title or flag is left as it is; the overview can be
+ * cleared, so whether it was supplied is tracked apart from its value.
+ */
 final readonly class UpdateLocalMovieData
 {
     public function __construct(
@@ -10,6 +13,7 @@ final readonly class UpdateLocalMovieData
         public ?string $overview = null,
         public ?bool $isHidden = null,
         public ?bool $isFeatured = null,
+        public bool $overviewSupplied = false,
     ) {}
 
     /**
@@ -22,6 +26,7 @@ final readonly class UpdateLocalMovieData
             $validated['overview'] ?? null,
             isset($validated['is_hidden']) ? (bool) $validated['is_hidden'] : null,
             isset($validated['is_featured']) ? (bool) $validated['is_featured'] : null,
+            array_key_exists('overview', $validated),
         );
     }
 
@@ -30,11 +35,16 @@ final readonly class UpdateLocalMovieData
      */
     public function changes(): array
     {
-        return array_filter([
+        $changes = array_filter([
             'title' => $this->title,
-            'overview' => $this->overview,
             'is_hidden' => $this->isHidden,
             'is_featured' => $this->isFeatured,
         ], fn (mixed $value): bool => $value !== null);
+
+        if ($this->overviewSupplied) {
+            $changes['overview'] = $this->overview;
+        }
+
+        return $changes;
     }
 }
