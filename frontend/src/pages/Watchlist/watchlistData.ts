@@ -4,7 +4,10 @@ import { movieFor } from '../../lib/movies.ts'
 import type { ApiWatchItem } from '../../lib/types.ts'
 
 // Turns GET /api/watchlist into the queue, history and taste bars the Watchlist page draws.
-// Availability (in cinemas / streaming) and runtimes need TMDB, so they are not shown yet.
+// `movieOf` gives each film's details (the page passes `useMovies`, which loads them from TMDB).
+// Availability (in cinemas / streaming) and exact runtimes are not shown yet.
+
+type MovieOf = (tmdbId: number) => Movie
 
 /** Until TMDB runtimes exist, a film counts as about two hours. */
 const DEFAULT_RUNTIME = 118
@@ -22,8 +25,8 @@ export type QueueItem = {
 
 export type HistoryEntry = { id: number; month: string; date: string; movie: Movie; rating: number }
 
-export const toQueueItem = (item: ApiWatchItem): QueueItem => {
-  const movie = movieFor(item.tmdb_id)
+export const toQueueItem = (item: ApiWatchItem, movieOf: MovieOf = movieFor): QueueItem => {
+  const movie = movieOf(item.tmdb_id)
   return {
     id: item.id,
     movie,
@@ -36,7 +39,7 @@ export const toQueueItem = (item: ApiWatchItem): QueueItem => {
 }
 
 /** Watched films, newest first, with the user's rating from their reviews (0 = not rated). */
-export function toHistory(items: ApiWatchItem[], ratings: Record<string, number>): HistoryEntry[] {
+export function toHistory(items: ApiWatchItem[], ratings: Record<string, number>, movieOf: MovieOf = movieFor): HistoryEntry[] {
   return items
     .filter((item) => item.status === 'watched' && item.watched_at)
     .sort((a, b) => b.watched_at!.localeCompare(a.watched_at!))
@@ -46,7 +49,7 @@ export function toHistory(items: ApiWatchItem[], ratings: Record<string, number>
         id: item.id,
         month: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase(),
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        movie: movieFor(item.tmdb_id),
+        movie: movieOf(item.tmdb_id),
         rating: ratings[item.tmdb_id] ?? 0,
       }
     })

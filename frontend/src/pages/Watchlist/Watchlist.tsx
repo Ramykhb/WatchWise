@@ -15,6 +15,8 @@ import checkIcon from '../../assets/person/icon-check.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { api, useApi } from '../../lib/api.ts'
+import { posterAt, useMovies } from '../../lib/movieDetails.ts'
+import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import type { ApiWatchItem } from '../../lib/types.ts'
 import { tasteOf, toHistory, toQueueItem, type HistoryEntry, type QueueItem } from './watchlistData.ts'
 import styles from './Watchlist.module.css'
@@ -30,6 +32,12 @@ const SORTS = {
   runtime: { label: 'Shortest first', compare: (a: QueueItem, b: QueueItem) => a.runtimeMinutes - b.runtimeMinutes },
 }
 type SortKey = keyof typeof SORTS
+
+/** A small poster over the film's gradient, which shows when there is no image (or it fails). */
+const thumbBackground = (movie: Movie) => {
+  const image = posterAt(movie.posterUrl, 'w185')
+  return image ? `center / cover no-repeat url("${image}"), ${gradientCss(movie.gradient)}` : gradientCss(movie.gradient)
+}
 
 /** History entries grouped under their month heading, in order. */
 function byMonth(entries: HistoryEntry[]) {
@@ -51,7 +59,7 @@ function HistoryList({ entries }: { entries: HistoryEntry[] }) {
           <li key={entry.id}>
             <Link to={`/movies/${entry.movie.slug}`} className={styles.entry}>
               <span className={styles.date}>{entry.date}</span>
-              <span className={styles.entryThumb} style={{ background: gradientCss(entry.movie.gradient) }} />
+              <span className={styles.entryThumb} style={{ background: thumbBackground(entry.movie) }} />
               <span className={styles.entryText}>
                 <span className={styles.entryTitle}>{entry.movie.title}</span>
                 <RatingStars value={entry.rating} label={`Your rating for ${entry.movie.title}`} />
@@ -76,8 +84,10 @@ export default function Watchlist() {
   const [sort, setSort] = useState<SortKey>('recent')
   const [shareNote, setShareNote] = useState('')
 
-  const history = toHistory(items, data?.ratings ?? {})
-  const queue = items.filter((item) => item.status !== 'watched').map(toQueueItem)
+  // Real titles, years, genres and posters from TMDB (the rows only store the film's id).
+  const movieOf = useMovies(items.map((item) => item.tmdb_id))
+  const history = toHistory(items, data?.ratings ?? {}, movieOf)
+  const queue = items.filter((item) => item.status !== 'watched').map((item) => toQueueItem(item, movieOf))
   const toWatch = queue.length
   const watchedTotal = history.length
   const queuedHours = Math.round(queue.reduce((sum, item) => sum + item.runtimeMinutes, 0) / 60)
@@ -208,7 +218,7 @@ export default function Watchlist() {
                       <Link
                         to={`/movies/${item.movie.slug}`}
                         className={styles.thumb}
-                        style={{ background: gradientCss(item.movie.gradient) }}
+                        style={{ background: thumbBackground(item.movie) }}
                         aria-label={item.movie.title}
                       />
                       <div className={styles.info}>
@@ -251,7 +261,7 @@ export default function Watchlist() {
                     <Link
                       to={`/movies/${entry.movie.slug}`}
                       className={styles.thumb}
-                      style={{ background: gradientCss(entry.movie.gradient) }}
+                      style={{ background: thumbBackground(entry.movie) }}
                       aria-label={entry.movie.title}
                     />
                     <div className={styles.info}>
