@@ -14,6 +14,8 @@ import plusIcon from '../../assets/lists/icon-plus.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { useApi } from '../../lib/api.ts'
 import type { ApiList } from '../../lib/types.ts'
+import { useWatchlist } from '../../lib/watchlist.ts'
+import { posterGradients } from '../Profile/profileData.ts'
 import { toPublicList, type MyList, type PublicList } from './listsData.ts'
 import { deleteList, useMyLists } from './myListsStore.ts'
 import styles from './Lists.module.css'
@@ -30,6 +32,33 @@ const afterMotion = (ms: number) =>
   )
 
 const SKELETONS = [0, 1, 2]
+
+/**
+ * Every member's default Watchlist, always first in My lists. It can't be edited or deleted, only
+ * filled from movie pages ("Add to watchlist") and Home's Tonight's pick.
+ */
+function WatchlistCard() {
+  const { loaded, queued } = useWatchlist()
+  const coverIds = queued.slice(0, 3).map((item) => item.tmdb_id)
+  const films = queued.length
+
+  return (
+    <li className={styles.card}>
+      <Link to="/lists/watchlist" className={styles.cover} style={{ background: 'var(--surface-yellow-tint)' }} aria-label="Open your Watchlist">
+        <ListCover tmdbIds={coverIds} gradients={posterGradients(coverIds.length ? coverIds : [0])} />
+      </Link>
+      <div className={styles.titleRow}>
+        <Link to="/lists/watchlist" className={styles.cardTitle}>
+          Watchlist
+        </Link>
+      </div>
+      <p className={styles.description}>Films you want to watch, added from movie pages and Tonight’s pick on Home.</p>
+      <div className={styles.footer}>
+        <span className={styles.count}>{loaded ? `${films} ${films === 1 ? 'film' : 'films'} to watch` : 'Loading…'}</span>
+      </div>
+    </li>
+  )
+}
 
 /** A shimmering placeholder shaped like a My lists card, shown while the lists load. */
 function ListCardSkeleton() {
@@ -120,7 +149,8 @@ export default function Lists() {
   }
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
-    { id: 'mine', label: 'My lists', count: myLists.length },
+    // +1 for the default Watchlist.
+    { id: 'mine', label: 'My lists', count: myLists.length + 1 },
     { id: 'public', label: 'Public lists' },
     { id: 'following', label: 'Following', count: followingLists.length },
   ]
@@ -161,6 +191,7 @@ export default function Lists() {
 
         {tab === 'mine' && (
           <ul className={styles.grid} data-enter data-enter-delay="0.25" aria-busy={!loaded}>
+            <WatchlistCard />
             {!loaded && SKELETONS.map((n) => <ListCardSkeleton key={n} />)}
             {myLists.map((list) => (
               <li key={list.id} className={list.id === leavingId ? `${styles.card} ${styles.cardLeaving}` : styles.card}>
