@@ -186,3 +186,36 @@ export type ApiHome = {
     leader: { tmdb_id: number; votes: number } | null
   } | null
 }
+
+/** One review on the Movie page (GET /api/reviews, PUT /api/reviews/mine). */
+export type ApiMovieReview = {
+  id: number
+  author: ApiMember
+  rating: number
+  sentiment: 'positive' | 'neutral' | 'negative' | null
+  content: string
+  has_spoilers: boolean
+  helpful: number
+  marked_helpful: boolean
+  /** Your own review shows "Waiting for approval" until an administrator approves it. */
+  approved: boolean
+  created_at: string
+  updated_at: string
+}
+
+/** GET /api/reviews?tmdb_id=&type=&sort=&page= */
+export type ApiReviewsPage = {
+  summary: {
+    average: number | null
+    /** Approved star ratings (with or without text). */
+    ratings: number
+    /** Approved reviews with text. */
+    reviews: number
+    /** Percent of ratings per star, 5 → 1. */
+    distribution: number[]
+    sentiment: { positive: number; neutral: number; negative: number }
+  }
+  mine: ApiMovieReview | null
+  reviews: ApiMovieReview[]
+  has_more: boolean
+}

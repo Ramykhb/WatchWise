@@ -83,3 +83,38 @@
 .action[aria-pressed='true'] img {
   scale: 1.2;
 }
+
+/* A review marked as containing spoilers: covered until the reader asks. */
+.spoiler {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--surface-cream-deep);
+  font-size: 14px;
+  color: var(--ink-600);
+}
+
+.reveal {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ground-violet);
+  cursor: pointer;
+}
+
+.reveal:hover {
+  text-decoration: underline;
+}
+
+.spoilerTag {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-coral-tint);
+  font-weight: 700;
+  font-size: 12px;
+  vertical-align: 1px;
+  color: var(--ink-900);
+}

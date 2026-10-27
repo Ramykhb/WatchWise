@@ -1,12 +1,10 @@
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type RefObject } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import axios from 'axios'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import MovieTile from '../../components/MovieTile/MovieTile.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
 import RatingStars from '../../components/RatingStars/RatingStars.tsx'
-import ReviewCard, { type Review } from '../../components/ReviewCard/ReviewCard.tsx'
-import Sentiment from '../../components/Sentiment/Sentiment.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import Placeholder from '../Placeholder/Placeholder.tsx'
 import heroSun from '../../assets/movie/hero-sun.svg'
@@ -24,8 +22,6 @@ import calendarIcon from '../../assets/movie/icon-calendar.svg'
 import shareIcon from '../../assets/movie/icon-share.svg'
 import trailerSun from '../../assets/movie/trailer-sun.svg'
 import trailerWave from '../../assets/movie/trailer-wave.svg'
-import editIcon from '../../assets/movie/icon-edit.svg'
-import trashIcon from '../../assets/movie/icon-trash.svg'
 import calendarInkIcon from '../../assets/movie/icon-calendar-ink.svg'
 import pinIcon from '../../assets/movie/icon-pin.svg'
 import mapWater from '../../assets/movie/map-water.svg'
@@ -39,6 +35,7 @@ import { loadGenres } from '../Discover/discoverApi.ts'
 import { getMovieDetails, type Community, type MovieDetails as Details } from './movieData.ts'
 import { fetchMovieDetails, toDetails, type TmdbMovieDetails as ApiMovie } from './movieApi.ts'
 import AddToListDialog from './AddToListDialog.tsx'
+import MovieReviews from './MovieReviews.tsx'
 import { titleOf, tmdbIdOf } from '../../lib/movies.ts'
 import { api } from '../../lib/api.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
@@ -47,16 +44,6 @@ import styles from './MovieDetails.module.css'
 
 /** What the last request for a TMDB movie returned, tagged with the request it answers. */
 type Loaded = { key: string; movie: ApiMovie | null; failed: boolean }
-
-const MAX_REVIEW = 2000
-
-const SORTS = {
-  helpful: { label: 'Most helpful', compare: (a: Review, b: Review) => b.helpful - a.helpful },
-  newest: { label: 'Newest', compare: (a: Review, b: Review) => Date.parse(b.date) - Date.parse(a.date) },
-  highest: { label: 'Highest rated', compare: (a: Review, b: Review) => b.rating - a.rating },
-  lowest: { label: 'Lowest rated', compare: (a: Review, b: Review) => a.rating - b.rating },
-}
-type SortKey = keyof typeof SORTS
 
 // Cinema pins on the 388×170 Figma map (the violet one is "you").
 const PINS = [
@@ -338,14 +325,8 @@ function MovieDetailsPage({ details }: { details: Details }) {
   const [listDialog, setListDialog] = useState<'open' | 'closing' | null>(null)
   const listHintId = useId()
 
-  const [yourReview, setYourReview] = useState<Review | null>(community?.yourReview ?? null)
-  const [draft, setDraft] = useState('')
-  const [draftRating, setDraftRating] = useState(4)
-  const [spoilers, setSpoilers] = useState(false)
-  const [sort, setSort] = useState<SortKey>('helpful')
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
 
-  const reviews = [...(community?.reviews ?? [])].sort(SORTS[sort].compare)
   const shownRating = hoverRating || userRating
 
   const scrollTo = (ref: RefObject<HTMLElement | null>) =>
@@ -363,30 +344,6 @@ function MovieDetailsPage({ details }: { details: Details }) {
     } catch {
       setShareNote('')
     }
-  }
-
-  const handlePostReview = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const body = draft.trim()
-    if (!body || !community) return
-    // TODO: POST the review; sentiment comes back from the backend's sentiment analysis.
-    setYourReview({
-      ...community.yourReview,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      rating: draftRating,
-      body: spoilers ? `[Spoiler] ${body}` : body,
-      helpful: 0,
-    })
-    setDraft('')
-    setSpoilers(false)
-  }
-
-  const handleEdit = () => {
-    if (!yourReview) return
-    setDraft(yourReview.body)
-    setDraftRating(yourReview.rating)
-    setYourReview(null)
-    document.getElementById('review-text')?.focus()
   }
 
   return (
@@ -653,137 +610,17 @@ function MovieDetailsPage({ details }: { details: Details }) {
               </div>
             </section>
 
-            {community && (
-              <section className={styles.reviews} aria-labelledby="reviews-title">
-                <div className={styles.sectionHeader}>
-                  <h2 id="reviews-title" className={styles.sectionTitle}>
-                    Reviews
-                  </h2>
-                  <label className={styles.sort}>
-                    <span className="sr-only">Sort reviews</span>
-                    <select value={sort} onChange={(event) => setSort(event.target.value as SortKey)}>
-                      {Object.entries(SORTS).map(([key, option]) => (
-                        <option key={key} value={key}>
-                          Sort: {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <span aria-hidden="true">▾</span>
-                  </label>
-                </div>
-  
-                <div className={styles.summary}>
-                  <div className={styles.summaryAverage}>
-                    <span className={styles.summaryValue}>{community.reviewSummary.average}</span>
-                    <RatingStars value={5} label="Average review" />
-                    <span className={styles.muted}>{community.reviewSummary.count}</span>
-                  </div>
-                  <ul className={styles.distribution} aria-label="Rating distribution">
-                    {community.reviewSummary.distribution.map((percent, index) => (
-                      <li key={index} className={styles.distRow}>
-                        <span className={styles.distStar}>{5 - index}</span>
-                        <span className={styles.track}>
-                          <span className={styles.fill} style={{ width: `${percent}%` }} />
-                        </span>
-                        <span className={styles.muted}>{percent}%</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className={styles.sentiment}>
-                    <p className={styles.sentimentTitle}>Review sentiment</p>
-                    <p className={styles.muted}>Auto-classified with sentiment analysis</p>
-                    <div className={styles.stacked} aria-hidden="true">
-                      <span className={styles.stackPositive} style={{ flexGrow: community.reviewSummary.sentiment.positive }} />
-                      <span className={styles.stackNeutral} style={{ flexGrow: community.reviewSummary.sentiment.neutral }} />
-                      <span className={styles.stackNegative} style={{ flexGrow: community.reviewSummary.sentiment.negative }} />
-                    </div>
-                    <ul className={styles.legend}>
-                      {(['positive', 'neutral', 'negative'] as const).map((type) => (
-                        <li key={type}>
-                          <Sentiment type={type} />
-                          <strong>{community.reviewSummary.sentiment[type]}%</strong>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-  
-                <form className={styles.write} onSubmit={handlePostReview} aria-labelledby="write-title">
-                  <div className={styles.writeHead}>
-                    <div className={styles.writeWho}>
-                      <span className={styles.avatar} style={{ background: 'var(--accent-mint)' }} aria-hidden="true">
-                        MR
-                      </span>
-                      <h3 id="write-title" className={styles.writeTitle}>
-                        Write a review
-                      </h3>
-                    </div>
-                    <div className={styles.pick}>
-                      <span className={styles.muted}>Your rating</span>
-                      <RatingStars value={draftRating} onChange={setDraftRating} label="Your rating for this review" />
-                    </div>
-                  </div>
-                  <label className="sr-only" htmlFor="review-text">
-                    Your review
-                  </label>
-                  <textarea
-                    id="review-text"
-                    className={styles.textarea}
-                    value={draft}
-                    maxLength={MAX_REVIEW}
-                    onChange={(event) => setDraft(event.target.value)}
-                    placeholder="What did you think? Keep it spoiler-free, or tag it below…"
-                  />
-                  <div className={styles.writeFoot}>
-                    <label className={styles.switch}>
-                      <input
-                        type="checkbox"
-                        role="switch"
-                        checked={spoilers}
-                        onChange={(event) => setSpoilers(event.target.checked)}
-                      />
-                      <span className={styles.switchTrack} aria-hidden="true" />
-                      Contains spoilers
-                    </label>
-                    <div className={styles.writeRight}>
-                      <span className={styles.muted}>
-                        {draft.length} / {MAX_REVIEW}
-                      </span>
-                      <PillButton type="submit" disabled={!draft.trim()}>
-                        Post review
-                      </PillButton>
-                    </div>
-                  </div>
-                </form>
-  
-                {yourReview && (
-                  <div className={styles.yourReview}>
-                    <div className={styles.yourHead}>
-                      <span className={styles.yourChip}>Your review</span>
-                      <div className={styles.manage}>
-                        <button type="button" className={styles.edit} onClick={handleEdit}>
-                          <img src={editIcon} width={14} height={14} alt="" />
-                          Edit
-                        </button>
-                        <button type="button" className={styles.delete} onClick={() => setYourReview(null)}>
-                          <img src={trashIcon} width={14} height={14} alt="" />
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                    <ReviewCard review={yourReview} />
-                  </div>
-                )}
-  
-                {reviews.map((review) => (
-                  <ReviewCard key={review.id} review={review} />
-                ))}
-  
-                {/* TODO: page through reviews from the API. */}
-                <PillButton variant="outline" className={styles.loadMore}>
-                  Load more reviews
-                </PillButton>
-              </section>
+            {title && user && (
+              <MovieReviews
+                tmdbId={title.tmdbId}
+                mediaType={title.mediaType}
+                me={user}
+                stars={userRating}
+                onStarsSaved={(stars) => {
+                  setUserRating(stars)
+                  setRatingNote(`Saved · ${stars} star${stars > 1 ? 's' : ''}`)
+                }}
+              />
             )}
           </div>
 
