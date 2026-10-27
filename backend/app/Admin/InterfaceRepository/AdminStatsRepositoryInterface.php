@@ -4,7 +4,10 @@ namespace App\Admin\InterfaceRepository;
 
 use Carbon\CarbonInterface;
 
-/** Aggregate queries for the admin dashboard. A review here is a row with text; rating-only rows are star ratings. */
+/**
+ * Aggregate queries for the admin dashboard. A review here is a row with text; rating-only rows are star ratings.
+ * The movie rankings and genre weights count movies only: a TV show can share a movie's TMDB id.
+ */
 interface AdminStatsRepositoryInterface
 {
     public function usersTotal(): int;

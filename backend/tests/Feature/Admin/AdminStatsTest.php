@@ -100,6 +100,29 @@ class AdminStatsTest extends AdminTestCase
             ->assertJsonPath('popular_genres.1.name', 'Comedy');
     }
 
+    public function test_tv_shows_sharing_a_movie_id_do_not_change_the_movie_stats(): void
+    {
+        $admin = $this->admin();
+        LocalMovie::factory()->create(['tmdb_id' => 10, 'title' => 'Steady', 'genre_ids' => [18]]);
+
+        foreach (User::factory()->count(3)->create() as $index => $user) {
+            // The movie: watched and rated 4 by three members.
+            Watchlist::create(['user_id' => $user->id, 'tmdb_id' => 10, 'status' => 'watched', 'watched_at' => now()]);
+            $this->review(['user_id' => $user->id, 'tmdb_id' => 10, 'rating' => 4, 'content' => null, 'sentiment' => null, 'is_approved' => true]);
+            // A TV show with the same TMDB id: rated 1 and watched by the same members.
+            Watchlist::create(['user_id' => $user->id, 'tmdb_id' => 10, 'media_type' => 'tv', 'status' => 'watched', 'watched_at' => now()]);
+            $this->review(['user_id' => $user->id, 'tmdb_id' => 10, 'media_type' => 'tv', 'rating' => 1, 'content' => null, 'sentiment' => null, 'is_approved' => true]);
+        }
+
+        $this->as($admin)->getJson('/api/admin/stats')
+            ->assertOk()
+            ->assertJsonPath('most_watched.0.count', 3)
+            ->assertJsonPath('top_rated.0.count', 3)
+            ->assertJsonPath('top_rated.0.average', 4)
+            ->assertJsonPath('popular_genres.0.name', 'Drama')
+            ->assertJsonPath('popular_genres.0.count', 6);
+    }
+
     public function test_activity_is_a_daily_series_with_zeros_for_quiet_days(): void
     {
         $admin = $this->admin();

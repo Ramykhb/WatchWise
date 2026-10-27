@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Review extends Model
 {
-    protected $fillable = ['user_id', 'tmdb_id', 'content', 'rating', 'sentiment', 'is_approved'];
+    protected $fillable = ['user_id', 'tmdb_id', 'media_type', 'content', 'rating', 'sentiment', 'is_approved'];
 
     protected function casts(): array
     {

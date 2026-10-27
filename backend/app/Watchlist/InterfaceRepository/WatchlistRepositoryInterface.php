@@ -15,12 +15,12 @@ interface WatchlistRepositoryInterface
     public function forUser(User $user): Collection;
 
     /**
-     * @return SupportCollection<int, int> the user's review rating by TMDB id
+     * @return SupportCollection<string, int> the user's stars by title key ("550" for a movie, "tv-1399" for a show)
      */
     public function ratingsByTmdbId(User $user): SupportCollection;
 
     /** The user's row for this film, or an unsaved one when it is not in the watchlist yet. */
-    public function findOrNew(User $user, int $tmdbId): Watchlist;
+    public function findOrNew(User $user, int $tmdbId, string $mediaType): Watchlist;
 
     public function save(Watchlist $item): void;
 
