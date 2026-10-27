@@ -22,6 +22,7 @@ Route::prefix('auth')->group(function () {
 
 require __DIR__.'/auth_flows.php';
 require __DIR__.'/social.php';
+require __DIR__.'/admin.php';
 
 Route::prefix('chat')->middleware('auth.jwt')->group(function () {
     Route::get('connection', [ChatSocketController::class, 'show'])->middleware('throttle:60,1');
