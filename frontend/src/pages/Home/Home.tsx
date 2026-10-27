@@ -13,6 +13,7 @@ import pickWave from '../../assets/home/pick-wave.svg'
 import sparkleIcon from '../../assets/home/icon-sparkle.svg'
 import playIcon from '../../assets/home/icon-play.svg'
 import plusIcon from '../../assets/home/icon-plus.svg'
+import checkIcon from '../../assets/watchlist/icon-check-sm.svg'
 import calendarIcon from '../../assets/home/icon-calendar.svg'
 import calendarSmIcon from '../../assets/home/icon-calendar-sm.svg'
 import chatIcon from '../../assets/home/icon-chat.svg'
@@ -24,6 +25,7 @@ import { useAuth } from '../../contexts/useAuth.ts'
 import { api, useApi } from '../../lib/api.ts'
 import { look, shortName, timeAgo } from '../../lib/format.ts'
 import { movieFor, tmdbIdOf } from '../../lib/movies.ts'
+import { useWatchlist } from '../../lib/watchlist.ts'
 import type { ApiActivity, ApiHome } from '../../lib/types.ts'
 import { formatWhen, localDateTime } from '../MovieNights/nightsData.ts'
 import { toTileMovie, type TmdbMovie } from '../Discover/discoverApi.ts'
@@ -146,7 +148,8 @@ function greeting(hour = new Date().getHours()) {
 
 export default function Home() {
   const pageRef = useRef<HTMLDivElement>(null)
-  const [onWatchlist, setOnWatchlist] = useState(false)
+  // Tonight's pick "+ Watchlist" adds the film to the member's default Watchlist (and can take it off).
+  const watchlist = useWatchlist()
   useEntranceAnimation(pageRef)
   const { firstName } = useAuth()
   const home = useApi<ApiHome>('/home').data
@@ -317,10 +320,12 @@ export default function Home() {
       : `${Math.round(currentWeather?.current.temperature_2m ?? 0)}° · ${conditionText ?? 'Current conditions'} in ${currentWeather?.location.is_default ? 'Beirut' : 'your area'}`
 
   const pick = weatherPick
-  const addPick = () => {
-    if (onWatchlist || !pick) return
-    setOnWatchlist(true)
-    api.post('/watchlist', { tmdb_id: tmdbIdOf(pick) }).catch(() => setOnWatchlist(false))
+  const pickId = pick ? tmdbIdOf(pick) : 0
+  const onWatchlist = pickId > 0 && watchlist.has(pickId)
+  const togglePick = () => {
+    if (!pick || !watchlist.loaded || !(pickId > 0)) return
+    const request = onWatchlist ? watchlist.remove(pickId) : watchlist.add(pickId)
+    request.catch(() => undefined)
   }
   const night = home?.next_night
 
@@ -386,8 +391,8 @@ export default function Home() {
                       <img src={playIcon} width={14} height={14} alt="" />
                       Watch trailer
                     </button>
-                    <button type="button" className={styles.watchlist} aria-pressed={onWatchlist} onClick={addPick}>
-                      <img src={plusIcon} width={14} height={14} alt="" />
+                    <button type="button" className={styles.watchlist} aria-pressed={onWatchlist} onClick={togglePick}>
+                      <img src={onWatchlist ? checkIcon : plusIcon} width={14} height={14} alt="" />
                       {onWatchlist ? 'On watchlist' : 'Watchlist'}
                     </button>
                   </div>

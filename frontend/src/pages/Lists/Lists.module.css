@@ -215,6 +215,22 @@
   background: var(--surface-cream-deep);
 }
 
+/* The default Watchlist's badge and the note that stands in for its edit/delete buttons. */
+.visDefault {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-yellow);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink-900);
+}
+
+.defaultNote {
+  font-size: 13px;
+  color: var(--ink-400);
+}
+
 .description {
   font-size: 14px;
   line-height: 1.5;
