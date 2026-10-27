@@ -3,6 +3,7 @@
 use App\MovieList\Controllers\MovieListController;
 use App\MovieNight\Controllers\MovieNightController;
 use App\Rating\Controllers\RatingController;
+use App\Review\Controllers\MovieReviewController;
 use App\Room\Controllers\RoomController;
 use App\Room\Controllers\RoomSocketController;
 use App\User\Controllers\UserController;
@@ -40,6 +41,13 @@ Route::middleware('auth.jwt')->group(function () {
 
     Route::get('ratings/{tmdbId}', [RatingController::class, 'show'])->whereNumber('tmdbId');
     Route::put('ratings/{tmdbId}', [RatingController::class, 'update'])->whereNumber('tmdbId')->middleware('throttle:60,1');
+
+    // The Movie page's Reviews section.
+    Route::get('reviews', [MovieReviewController::class, 'index']);
+    Route::put('reviews/mine', [MovieReviewController::class, 'save'])->middleware('throttle:20,1');
+    Route::delete('reviews/mine', [MovieReviewController::class, 'destroy']);
+    Route::post('reviews/{review}/helpful', [MovieReviewController::class, 'helpful'])->whereNumber('review')->middleware('throttle:60,1');
+    Route::delete('reviews/{review}/helpful', [MovieReviewController::class, 'unhelpful'])->whereNumber('review');
 
     Route::get('movie-nights', [MovieNightController::class, 'index']);
     Route::post('movie-nights', [MovieNightController::class, 'store']);
