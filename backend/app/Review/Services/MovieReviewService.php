@@ -52,15 +52,27 @@ class MovieReviewService implements MovieReviewServiceInterface
 
     public function markHelpful(Review $review, User $user, bool $helpful): int
     {
-        // Only reviews others can read can be voted on, and never your own.
-        if (! $review->is_approved || $review->content === null || $review->content === '') {
-            throw ValidationException::withMessages(['review' => 'This review can’t be voted on.']);
+        // Taking back your own vote is always allowed: it only removes your vote.
+        if (! $helpful) {
+            $this->reviews->unvote($review, $user);
+
+            return $this->reviews->votesCount($review);
         }
+
         if ($review->user_id === $user->id) {
             throw ValidationException::withMessages(['review' => 'You can’t mark your own review as helpful.']);
         }
+        // Only reviews the voter can read: approved text by an author whose privacy shows it to them.
+        // A hidden review gets the same answer as an unapproved one, so the response reveals nothing about it.
+        $readable = $review->is_approved
+            && $review->content !== null
+            && $review->content !== ''
+            && $this->reviews->authorVisibleTo($review, $user);
+        if (! $readable) {
+            throw ValidationException::withMessages(['review' => 'This review can’t be voted on.']);
+        }
 
-        $helpful ? $this->reviews->vote($review, $user) : $this->reviews->unvote($review, $user);
+        $this->reviews->vote($review, $user);
 
         return $this->reviews->votesCount($review);
     }

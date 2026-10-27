@@ -115,6 +115,44 @@ class MovieReviewsTest extends SocialTestCase
         $this->as($viewer)->postJson("/api/reviews/{$pending->id}/helpful")->assertUnprocessable();
     }
 
+    public function test_reviews_the_viewer_cannot_see_cannot_be_voted_on(): void
+    {
+        $viewer = User::factory()->create();
+        $private = $this->approvedReview(User::factory()->private()->create(), 5, 'positive');
+        $quiet = User::factory()->create();
+        UserPreference::create(['user_id' => $quiet->id, 'settings' => ['privacy' => ['reviews' => false]]]);
+        $hidden = $this->approvedReview($quiet, 5, 'positive', ['tmdb_id' => 13]);
+        $friendsOnly = User::factory()->create(['profile_visibility' => 'followers']);
+        $forFollowers = $this->approvedReview($friendsOnly, 5, 'positive', ['tmdb_id' => 14]);
+
+        // Knowing the id isn't enough; the answer is the same as for an unapproved review.
+        $this->as($viewer)->postJson("/api/reviews/{$private->id}/helpful")->assertUnprocessable()->assertJsonPath('errors.review.0', 'This review can’t be voted on.');
+        $this->as($viewer)->postJson("/api/reviews/{$hidden->id}/helpful")->assertUnprocessable();
+        $this->as($viewer)->postJson("/api/reviews/{$forFollowers->id}/helpful")->assertUnprocessable();
+        $this->assertSame(0, $private->votes()->count() + $hidden->votes()->count() + $forFollowers->votes()->count());
+
+        // Following a followers-only author makes their reviews votable.
+        $viewer->following()->attach($friendsOnly->id);
+        $this->as($viewer)->postJson("/api/reviews/{$forFollowers->id}/helpful")->assertOk()->assertJson(['helpful' => 1]);
+    }
+
+    public function test_resubmitting_a_review_clears_its_helpful_votes(): void
+    {
+        $this->groqSays('positive');
+        $author = User::factory()->create();
+        $review = $this->approvedReview($author, 5, 'positive');
+        foreach (User::factory()->count(3)->create() as $voter) {
+            $this->as($voter)->postJson("/api/reviews/{$review->id}/helpful")->assertOk();
+        }
+        $this->assertSame(3, $review->votes()->count());
+
+        $this->as($author)->putJson('/api/reviews/mine', ['tmdb_id' => 550, 'content' => 'Completely different take.', 'rating' => 2])
+            ->assertOk()
+            ->assertJsonPath('review.helpful', 0)
+            ->assertJsonPath('review.approved', false);
+        $this->assertSame(0, $review->votes()->count());
+    }
+
     public function test_reviews_from_private_authors_stay_hidden(): void
     {
         $viewer = User::factory()->create();
