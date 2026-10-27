@@ -3,6 +3,7 @@
 namespace App\Watchlist\FormRequests;
 
 use App\Models\Watchlist;
+use App\Support\MediaType;
 use App\Watchlist\DTOs\Requests\AddToWatchlistData;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
@@ -23,6 +24,7 @@ class StoreWatchlistRequest extends FormRequest
         return [
             'tmdb_id' => ['required', 'integer', 'min:1'],
             'status' => ['sometimes', Rule::in(AddToWatchlistData::STATUSES)],
+            'media_type' => ['sometimes', Rule::in(MediaType::ALL)],
         ];
     }
 

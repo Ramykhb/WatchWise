@@ -30,12 +30,15 @@ class WatchlistService implements WatchlistServiceInterface
 
     public function add(User $user, AddToWatchlistData $data): AddToWatchlistResponse
     {
-        $item = $this->watchlist->findOrNew($user, $data->tmdbId);
+        $item = $this->watchlist->findOrNew($user, $data->tmdbId, $data->mediaType);
         $isNew = ! $item->exists;
         $item->status = $data->status ?? $item->status ?? 'to_watch';
         $item->watched_at = $item->status === 'watched' ? ($item->watched_at ?? now()) : null;
         $this->watchlist->save($item);
-        $this->catalog->remember($data->tmdbId);
+        // The local catalogue (admin "Movie data") only holds movies.
+        if ($data->mediaType === 'movie') {
+            $this->catalog->remember($data->tmdbId);
+        }
 
         return new AddToWatchlistResponse(WatchlistItemResponse::fromModel($item), $isNew);
     }

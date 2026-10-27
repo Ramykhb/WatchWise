@@ -11,6 +11,7 @@ final readonly class WatchlistItemResponse implements JsonSerializable
     public function __construct(
         public int $id,
         public int $tmdbId,
+        public string $mediaType,
         public string $status,
         public ?string $watchedAt,
         public ?string $createdAt,
@@ -21,6 +22,7 @@ final readonly class WatchlistItemResponse implements JsonSerializable
         return new self(
             id: $item->id,
             tmdbId: $item->tmdb_id,
+            mediaType: $item->media_type ?? 'movie',
             status: $item->status,
             watchedAt: $item->watched_at?->toJSON(),
             createdAt: $item->created_at?->toJSON(),
@@ -35,6 +37,7 @@ final readonly class WatchlistItemResponse implements JsonSerializable
         return [
             'id' => $this->id,
             'tmdb_id' => $this->tmdbId,
+            'media_type' => $this->mediaType,
             'status' => $this->status,
             'watched_at' => $this->watchedAt,
             'created_at' => $this->createdAt,
