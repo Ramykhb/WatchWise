@@ -9,6 +9,9 @@ use App\Models\User;
 use App\Room\Events\RoomMessageSent;
 use App\Room\Events\RoomMessagesRead;
 use App\Room\Events\RoomsChanged;
+use Carbon\CarbonInterface;
+use Illuminate\Console\Scheduling\Event as ScheduledEvent;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -50,6 +53,15 @@ class RoomMessagingTest extends SocialTestCase
         return Notification::where('type', Notification::ROOM_MESSAGE)->where('data->message_id', $messageId);
     }
 
+    /**
+     * Makes the message older, as if it had been sent at `$sentAt`. The clock itself can't travel here: access tokens
+     * are issued on the app's clock, but the JWT library checks them against the real one.
+     */
+    private function backdate(int $messageId, CarbonInterface $sentAt): void
+    {
+        Message::whereKey($messageId)->update(['created_at' => $sentAt]);
+    }
+
     public function test_a_message_waits_for_every_other_member_and_is_pushed_to_the_room(): void
     {
         [$lina, $omar, $sam] = User::factory()->count(3)->create()->all();
@@ -71,7 +83,7 @@ class RoomMessagingTest extends SocialTestCase
             && $event->broadcastWith()['id'] === $id);
     }
 
-    public function test_a_message_is_deleted_once_every_member_has_read_it(): void
+    public function test_a_message_every_member_has_read_is_kept_until_its_24_hours_are_up(): void
     {
         [$lina, $omar, $sam] = User::factory()->count(3)->create()->all();
         $room = $this->room($lina, [$omar, $sam]);
@@ -80,7 +92,6 @@ class RoomMessagingTest extends SocialTestCase
         $this->as($omar)->postJson("/api/rooms/{$room->id}/read", ['message_ids' => [$id]])
             ->assertOk()
             ->assertExactJson(['message_ids' => [$id], 'deleted_ids' => []]);
-        $this->assertDatabaseHas('messages', ['id' => $id]);
 
         // Sam opens the room: Lina's message shows it has been read by Lina and Omar, and waits for Sam.
         $this->as($sam)->getJson("/api/rooms/{$room->id}/messages")
@@ -93,13 +104,109 @@ class RoomMessagingTest extends SocialTestCase
 
         $this->as($sam)->postJson("/api/rooms/{$room->id}/read", ['message_ids' => [$id]])
             ->assertOk()
-            ->assertExactJson(['message_ids' => [$id], 'deleted_ids' => [$id]]);
+            ->assertExactJson(['message_ids' => [$id], 'deleted_ids' => []]);
 
+        // Everyone has read it, and it is still served (to a new device too) until its 24 hours are up.
+        $this->assertDatabaseHas('messages', ['id' => $id]);
+        $this->as($omar)->getJson("/api/rooms/{$room->id}/messages")
+            ->assertOk()
+            ->assertJsonPath('messages.0.id', $id)
+            ->assertJsonCount(0, 'messages.0.unread_by');
+        Event::assertDispatched(RoomMessagesRead::class, fn (RoomMessagesRead $event): bool => $event->reader->is($sam)
+            && $event->broadcastOn()[0]->name === "private-room.{$room->id}"
+            && $event->broadcastWith()['deleted_ids'] === []);
+    }
+
+    public function test_a_message_read_by_some_members_is_still_served_to_everyone_within_24_hours(): void
+    {
+        $this->freezeSecond();
+        [$lina, $omar, $sam] = User::factory()->count(3)->create()->all();
+        $room = $this->room($lina, [$omar, $sam]);
+        $id = $this->send($lina, $room);
+        $this->as($omar)->postJson("/api/rooms/{$room->id}/read", ['message_ids' => [$id]])->assertOk();
+        $this->backdate($id, now()->subDay()->addSecond());
+
+        $response = $this->as($omar)->getJson("/api/rooms/{$room->id}/messages");
+
+        $response->assertOk()->assertJsonCount(1, 'messages')->assertJsonPath('messages.0.id', $id);
+    }
+
+    public function test_after_24_hours_a_message_is_only_served_to_the_members_who_have_not_read_it(): void
+    {
+        $this->freezeSecond();
+        [$lina, $omar, $sam] = User::factory()->count(3)->create()->all();
+        $room = $this->room($lina, [$omar, $sam]);
+        $id = $this->send($lina, $room);
+        $this->as($omar)->postJson("/api/rooms/{$room->id}/read", ['message_ids' => [$id]])->assertOk();
+        $this->backdate($id, now()->subDay());
+
+        // The sender and Omar, who has read it, no longer get it; Sam, who hasn't, still does.
+        $this->as($lina)->getJson("/api/rooms/{$room->id}/messages")->assertOk()->assertJsonCount(0, 'messages');
+        $this->as($omar)->getJson("/api/rooms/{$room->id}/messages")->assertOk()->assertJsonCount(0, 'messages');
+        $this->as($sam)->getJson("/api/rooms/{$room->id}/messages")
+            ->assertOk()
+            ->assertJsonCount(1, 'messages')
+            ->assertJsonPath('messages.0.id', $id);
+
+        $this->assertDatabaseHas('messages', ['id' => $id]);
+    }
+
+    public function test_the_last_member_reading_a_message_after_24_hours_deletes_it(): void
+    {
+        $this->freezeSecond();
+        [$lina, $omar, $sam] = User::factory()->count(3)->create()->all();
+        $room = $this->room($lina, [$omar, $sam]);
+        $id = $this->send($lina, $room);
+        $this->as($omar)->postJson("/api/rooms/{$room->id}/read", ['message_ids' => [$id]])->assertOk();
+        $this->backdate($id, now()->subDays(3));
+
+        $response = $this->as($sam)->postJson("/api/rooms/{$room->id}/read", ['message_ids' => [$id]]);
+
+        $response->assertOk()->assertExactJson(['message_ids' => [$id], 'deleted_ids' => [$id]]);
         $this->assertDatabaseMissing('messages', ['id' => $id]);
         $this->assertSame(0, $this->receipts($id)->count());
         Event::assertDispatched(RoomMessagesRead::class, fn (RoomMessagesRead $event): bool => $event->reader->is($sam)
-            && $event->broadcastOn()[0]->name === "private-room.{$room->id}"
             && $event->broadcastWith()['deleted_ids'] === [$id]);
+    }
+
+    public function test_after_24_hours_the_room_list_shows_each_member_only_the_messages_they_can_still_see(): void
+    {
+        $this->freezeSecond();
+        [$lina, $omar, $sam] = User::factory()->count(3)->create()->all();
+        $room = $this->room($lina, [$omar, $sam]);
+        $first = $this->send($lina, $room, 'First');
+        $second = $this->send($lina, $room, 'Second');
+        $this->as($omar)->postJson("/api/rooms/{$room->id}/read", ['message_ids' => [$second]])->assertOk();
+        $this->backdate($first, now()->subDay());
+        $this->backdate($second, now()->subDay());
+
+        // Omar has read "Second", so the newest message he can still see is "First", which waits for him.
+        $this->as($omar)->getJson('/api/rooms')
+            ->assertOk()
+            ->assertJsonPath('rooms.0.last_message.content', 'First')
+            ->assertJsonPath('rooms.0.message_count', 1)
+            ->assertJsonPath('rooms.0.unread', 1);
+        $this->as($sam)->getJson('/api/rooms')
+            ->assertOk()
+            ->assertJsonPath('rooms.0.last_message.content', 'Second')
+            ->assertJsonPath('rooms.0.message_count', 2)
+            ->assertJsonPath('rooms.0.unread', 2);
+        $this->as($lina)->getJson('/api/rooms')
+            ->assertOk()
+            ->assertJsonPath('rooms.0.last_message', null)
+            ->assertJsonPath('rooms.0.message_count', 0);
+    }
+
+    public function test_someone_joining_after_24_hours_does_not_see_older_messages(): void
+    {
+        $this->freezeSecond();
+        [$lina, $omar, $newcomer] = User::factory()->count(3)->create()->all();
+        $room = $this->room($lina, [$omar]);
+        $this->backdate($this->send($lina, $room), now()->subDay());
+
+        $response = $this->as($newcomer)->postJson("/api/rooms/{$room->id}/join");
+
+        $response->assertOk()->assertJsonPath('room.last_message', null)->assertJsonPath('room.message_count', 0);
     }
 
     public function test_opening_a_room_does_not_mark_anything_read_on_its_own(): void
@@ -113,7 +220,7 @@ class RoomMessagingTest extends SocialTestCase
         $this->assertSame(1, $this->receipts($id)->whereNull('read_at')->count());
     }
 
-    public function test_a_message_nobody_else_has_to_read_is_not_kept(): void
+    public function test_a_message_nobody_else_has_to_read_is_still_kept_for_its_24_hours(): void
     {
         $host = User::factory()->create();
         $room = $this->room($host);
@@ -122,8 +229,21 @@ class RoomMessagingTest extends SocialTestCase
             ->assertCreated()
             ->assertJsonCount(0, 'message.unread_by');
 
-        $this->assertDatabaseCount('messages', 0);
+        $this->assertDatabaseCount('messages', 1);
         Event::assertDispatched(RoomMessageSent::class);
+    }
+
+    public function test_a_message_sent_while_alone_in_the_room_does_not_wait_for_people_who_join_later(): void
+    {
+        [$host, $newcomer] = User::factory()->count(2)->create()->all();
+        $room = $this->room($host);
+        $id = $this->send($host, $room, 'Anyone here?');
+        $this->as($newcomer)->postJson("/api/rooms/{$room->id}/join")->assertOk();
+
+        $response = $this->as($newcomer)->getJson("/api/rooms/{$room->id}/messages");
+
+        $response->assertOk()->assertJsonPath('messages.0.id', $id)->assertJsonCount(0, 'messages.0.unread_by');
+        $this->assertSame(0, $this->receipts($id)->count());
     }
 
     public function test_posting_without_joining_returns_403_and_does_not_make_you_a_member(): void
@@ -140,11 +260,13 @@ class RoomMessagingTest extends SocialTestCase
 
     public function test_a_member_who_joins_later_does_not_hold_up_older_messages(): void
     {
+        $this->freezeSecond();
         [$lina, $omar, $late] = User::factory()->count(3)->create()->all();
         $room = $this->room($lina, [$omar]);
         $id = $this->send($lina, $room);
         $this->as($late)->postJson("/api/rooms/{$room->id}/join")->assertOk();
         $this->send($late, $room, 'Just joined!');
+        $this->backdate($id, now()->subDay());
 
         $this->as($omar)->postJson("/api/rooms/{$room->id}/read", ['message_ids' => [$id]])
             ->assertOk()
@@ -170,27 +292,47 @@ class RoomMessagingTest extends SocialTestCase
         Event::assertNotDispatched(RoomMessagesRead::class);
     }
 
-    public function test_messages_from_before_read_tracking_wait_for_the_other_members(): void
+    public function test_pruning_deletes_the_messages_whose_24_hours_are_up_and_that_nobody_still_has_to_read(): void
     {
-        [$jad, $lina, $maya] = User::factory()->count(3)->create()->all();
-        $room = $this->room($jad, [$lina, $maya]);
-        $old = Message::create(['room_id' => $room->id, 'user_id' => $jad->id, 'content' => 'Ending explained?']);
+        $this->freezeSecond();
+        [$lina, $omar] = User::factory()->count(2)->create()->all();
+        $room = $this->room($lina, [$omar]);
+        $readOld = $this->send($lina, $room, 'Read by everyone, 24 hours old');
+        $unreadOld = $this->send($lina, $room, 'Not read by Omar, 24 hours old');
+        $readNew = $this->send($lina, $room, 'Read by everyone, 23 hours old');
+        $aloneOld = $this->send($lina, $this->room($lina), 'Sent while alone, 24 hours old');
+        $this->as($omar)->postJson("/api/rooms/{$room->id}/read", ['message_ids' => [$readOld, $readNew]])->assertOk();
+        $this->backdate($readOld, now()->subDay());
+        $this->backdate($unreadOld, now()->subDay());
+        $this->backdate($readNew, now()->subHours(23));
+        $this->backdate($aloneOld, now()->subDay());
 
-        $this->as($maya)->getJson("/api/rooms/{$room->id}/messages")
-            ->assertOk()
-            ->assertJsonPath('messages.0.id', $old->id)
-            ->assertJsonCount(1, 'messages.0.read_by')
-            ->assertJsonCount(2, 'messages.0.unread_by');
+        $this->artisan('rooms:prune-messages')->assertSuccessful();
 
-        $this->assertEqualsCanonicalizing([$lina->id, $maya->id], $this->receipts($old->id)->whereNull('read_at')->pluck('user_id')->all());
+        $this->assertDatabaseMissing('messages', ['id' => $readOld]);
+        $this->assertDatabaseMissing('messages', ['id' => $aloneOld]);
+        $this->assertSame(0, $this->receipts($readOld)->count());
+        $this->assertDatabaseHas('messages', ['id' => $unreadOld]);
+        $this->assertDatabaseHas('messages', ['id' => $readNew]);
+    }
+
+    public function test_messages_are_pruned_every_minute(): void
+    {
+        $prunes = collect(app(Schedule::class)->events())
+            ->filter(fn (ScheduledEvent $event): bool => str_contains((string) $event->command, 'rooms:prune-messages'));
+
+        $this->assertCount(1, $prunes);
+        $this->assertSame('* * * * *', $prunes->first()->expression);
     }
 
     public function test_a_message_nobody_is_waiting_on_any_more_is_cleaned_up_when_the_room_is_opened(): void
     {
+        $this->freezeSecond();
         [$lina, $omar, $sam] = User::factory()->count(3)->create()->all();
         $room = $this->room($lina, [$omar, $sam]);
         $id = $this->send($lina, $room);
         $this->as($omar)->postJson("/api/rooms/{$room->id}/read", ['message_ids' => [$id]])->assertOk();
+        $this->backdate($id, now()->subDay());
 
         // The only member still to read it deletes their account (their receipt goes with it).
         $sam->delete();

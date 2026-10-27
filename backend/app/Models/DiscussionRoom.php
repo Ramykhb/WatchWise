@@ -29,7 +29,7 @@ class DiscussionRoom extends Model
         return $this->hasMany(Message::class, 'room_id');
     }
 
-    /** The creator and everyone who has joined; a message is kept until all of them have read it. */
+    /** The creator and everyone who has joined; a message is kept for 24 hours, and after that until all of them have read it. */
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'room_members', 'room_id', 'user_id');
@@ -41,7 +41,7 @@ class DiscussionRoom extends Model
         return $this->belongsToMany(User::class, 'room_invites', 'room_id', 'user_id')->withPivot('invited_by');
     }
 
-    /** The newest message still stored (someone has yet to read it). */
+    /** The newest message still stored. */
     public function latestMessage(): HasOne
     {
         return $this->hasOne(Message::class, 'room_id')->latestOfMany();
