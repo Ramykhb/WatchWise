@@ -26,6 +26,8 @@ import { look, shortName, timeAgo } from '../../lib/format.ts'
 import { movieFor, tmdbIdOf } from '../../lib/movies.ts'
 import type { ApiActivity, ApiHome } from '../../lib/types.ts'
 import { formatWhen, localDateTime } from '../MovieNights/nightsData.ts'
+import { toTileMovie, type TmdbMovie } from '../Discover/discoverApi.ts'
+import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 
 type WeatherResponse = {
   location: { latitude: number; longitude: number; is_default: boolean }
@@ -43,6 +45,36 @@ type WeatherMood = { title: string; mood: string; description: string }
 type WeatherCache = { cachedAt: number; weather: WeatherResponse; mood?: WeatherMood }
 const WEATHER_CACHE_KEY = 'watchwise:weather-mood:v1'
 const WEATHER_CACHE_TTL = 60 * 60 * 1000
+const RECOMMENDATION_CACHE_KEY = 'watchwise:weather-recommendations:v1'
+type WeatherRecommendation = TmdbMovie & { reason: string }
+type RecommendationCache = { cachedAt: number; latitude: number; longitude: number; movies: WeatherRecommendation[] }
+
+function readRecommendationCache(location?: WeatherResponse['location']): RecommendationCache | null {
+  if (!location) return null
+  try {
+    const raw = localStorage.getItem(RECOMMENDATION_CACHE_KEY)
+    if (!raw) return null
+    const cache = JSON.parse(raw) as Partial<RecommendationCache>
+    const age = Date.now() - (cache.cachedAt ?? 0)
+    const validMovies = Array.isArray(cache.movies) && cache.movies.every((movie) =>
+      typeof movie?.id === 'number' && typeof movie.title === 'string' && typeof movie.reason === 'string',
+    )
+    if (cache.latitude !== location.latitude || cache.longitude !== location.longitude || !validMovies || age < 0 || age >= WEATHER_CACHE_TTL) {
+      localStorage.removeItem(RECOMMENDATION_CACHE_KEY)
+      return null
+    }
+    return cache as RecommendationCache
+  } catch {
+    try { localStorage.removeItem(RECOMMENDATION_CACHE_KEY) } catch { /* Storage may be unavailable. */ }
+    return null
+  }
+}
+
+function randomRecommendation(movies: WeatherRecommendation[]): Movie | null {
+  if (movies.length === 0) return null
+  const recommendation = movies[Math.floor(Math.random() * movies.length)]
+  return { ...toTileMovie(recommendation, new Map()), recommendationReason: recommendation.reason }
+}
 
 function readWeatherCache(): WeatherCache | null {
   try {
@@ -120,11 +152,34 @@ export default function Home() {
   const home = useApi<ApiHome>('/home').data
   const activity = home?.activity ?? []
   const [initialWeatherCache] = useState(readWeatherCache)
+  const [initialRecommendationCache] = useState(() => readRecommendationCache(initialWeatherCache?.weather.location))
+  const [weatherPick, setWeatherPick] = useState<Movie | null>(() => randomRecommendation(initialRecommendationCache?.movies ?? []))
+  const [pickLoading, setPickLoading] = useState(initialRecommendationCache === null)
   const [weather, setWeather] = useState<WeatherResponse | null>(() => initialWeatherCache?.weather ?? null)
   const [weatherTimestamp, setWeatherTimestamp] = useState<number | null>(() => initialWeatherCache?.cachedAt ?? null)
   const [weatherLoading, setWeatherLoading] = useState(initialWeatherCache === null)
   const [weatherError, setWeatherError] = useState(false)
   const [locationStatus, setLocationStatus] = useState<'checking' | 'requesting' | 'granted' | 'unavailable'>('checking')
+
+  const fetchWeatherRecommendations = useCallback(async (latitude: number, longitude: number) => {
+    setPickLoading(true)
+    try {
+      const { data } = await api.get<{ movies: WeatherRecommendation[] }>('/movie-recommendations', {
+        params: { latitude, longitude },
+      })
+      const movies = Array.isArray(data.movies) ? data.movies : []
+      const cachedAt = Date.now()
+      try {
+        localStorage.setItem(RECOMMENDATION_CACHE_KEY, JSON.stringify({ cachedAt, latitude, longitude, movies } satisfies RecommendationCache))
+      } catch { /* Keep recommendations usable if browser storage is unavailable. */ }
+      setWeatherPick(randomRecommendation(movies))
+    } catch (error) {
+      console.error('Unable to load Home weather recommendations:', error)
+      setWeatherPick(null)
+    } finally {
+      setPickLoading(false)
+    }
+  }, [])
 
   const fetchWeather = useCallback(async (latitude?: number, longitude?: number) => {
     setWeatherLoading(true)
@@ -135,6 +190,7 @@ export default function Home() {
       })
       const cachedAt = Date.now()
       setWeather(data)
+      void fetchWeatherRecommendations(data.location.latitude, data.location.longitude)
       setWeatherTimestamp(cachedAt)
       try {
         localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify({ cachedAt, weather: data } satisfies WeatherCache))
@@ -157,17 +213,27 @@ export default function Home() {
       console.error('Unable to load Home weather:', error)
       setWeatherError(true)
       setWeatherTimestamp(null)
+      setPickLoading(false)
     } finally {
       setWeatherLoading(false)
     }
-  }, [])
+  }, [fetchWeatherRecommendations])
 
   const useDefaultLocation = useCallback(() => {
     try { localStorage.removeItem(WEATHER_CACHE_KEY) } catch { /* Storage may be unavailable. */ }
+    try { localStorage.removeItem(RECOMMENDATION_CACHE_KEY) } catch { /* Storage may be unavailable. */ }
     setWeather(null)
+    setWeatherPick(null)
+    setPickLoading(true)
     setWeatherTimestamp(null)
     void fetchWeather()
   }, [fetchWeather])
+
+  useEffect(() => {
+    if (initialWeatherCache && !initialRecommendationCache) {
+      void fetchWeatherRecommendations(initialWeatherCache.weather.location.latitude, initialWeatherCache.weather.location.longitude)
+    }
+  }, [fetchWeatherRecommendations, initialRecommendationCache, initialWeatherCache])
 
   const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -250,9 +316,9 @@ export default function Home() {
       ? 'Weather is temporarily unavailable.'
       : `${Math.round(currentWeather?.current.temperature_2m ?? 0)}° · ${conditionText ?? 'Current conditions'} in ${currentWeather?.location.is_default ? 'Beirut' : 'your area'}`
 
-  const pick = TONIGHTS_PICK.movie
+  const pick = weatherPick
   const addPick = () => {
-    if (onWatchlist) return
+    if (onWatchlist || !pick) return
     setOnWatchlist(true)
     api.post('/watchlist', { tmdb_id: tmdbIdOf(pick) }).catch(() => setOnWatchlist(false))
   }
@@ -295,40 +361,48 @@ export default function Home() {
 
           <article
             className={styles.pick}
-            style={{ background: gradientCss(pick.gradient) }}
+            style={{ background: gradientCss((pick ?? TONIGHTS_PICK.movie).gradient) }}
+            aria-busy={pickLoading}
             data-enter
             data-enter-delay="0.3"
             data-enter-rise="80"
           >
-            <img className={styles.pickMoon} src={moonImg} width={220} height={220} alt="" />
-            <img className={styles.pickWave} src={pickWave} width={660} height={220} alt="" />
-            <div className={styles.pickInfo}>
-              <span className={styles.chipYellow}>
-                <img src={sparkleIcon} width={14} height={14} alt="" />
-                Tonight&apos;s pick · {currentWeather ? `a ${conditionText?.toLowerCase()}-weather pick` : TONIGHTS_PICK.reason}
-              </span>
-              <h2 className={styles.pickTitle}>
-                <Link to={`/movies/${pick.slug}`} className={styles.pickLink}>
-                  {pick.title}
-                </Link>
-              </h2>
-              <p className={styles.pickMeta}>{TONIGHTS_PICK.details}</p>
-              <div className={styles.pickActions}>
-                <button type="button" className={styles.trailer}>
-                  <img src={playIcon} width={14} height={14} alt="" />
-                  Watch trailer
-                </button>
-                <button
-                  type="button"
-                  className={styles.watchlist}
-                  aria-pressed={onWatchlist}
-                  onClick={addPick}
-                >
-                  <img src={plusIcon} width={14} height={14} alt="" />
-                  {onWatchlist ? 'On watchlist' : 'Watchlist'}
-                </button>
+            {pick ? (
+              <>
+                {pick.posterUrl && <img className={styles.pickPoster} src={pick.posterUrl} alt={`${pick.title} poster`} />}
+                <img className={styles.pickMoon} src={moonImg} width={220} height={220} alt="" />
+                <img className={styles.pickWave} src={pickWave} width={660} height={220} alt="" />
+                <div className={styles.pickInfo}>
+                  <span className={styles.chipYellow}>
+                    <img src={sparkleIcon} width={14} height={14} alt="" />
+                    Tonight&apos;s pick · {currentWeather ? `a ${conditionText?.toLowerCase()}-weather pick` : TONIGHTS_PICK.reason}
+                  </span>
+                  <h2 className={styles.pickTitle}>
+                    <Link to={`/movies/${pick.slug}`} className={styles.pickLink}>{pick.title}</Link>
+                  </h2>
+                  <p className={styles.pickMeta}>{pick.recommendationReason}</p>
+                  <div className={styles.pickActions}>
+                    <button type="button" className={styles.trailer}>
+                      <img src={playIcon} width={14} height={14} alt="" />
+                      Watch trailer
+                    </button>
+                    <button type="button" className={styles.watchlist} aria-pressed={onWatchlist} onClick={addPick}>
+                      <img src={plusIcon} width={14} height={14} alt="" />
+                      {onWatchlist ? 'On watchlist' : 'Watchlist'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : pickLoading ? (
+              <div className={styles.pickLoading} role="status" aria-label="Loading tonight’s movie pick">
+                <span className={`${styles.pickSkeleton} ${styles.pickSkeletonLabel}`} />
+                <span className={`${styles.pickSkeleton} ${styles.pickSkeletonTitle}`} />
+                <span className={`${styles.pickSkeleton} ${styles.pickSkeletonMeta}`} />
+                <span className={`${styles.pickSkeleton} ${styles.pickSkeletonAction}`} />
               </div>
-            </div>
+            ) : (
+              <p className={styles.pickUnavailable} role="status">Tonight&apos;s pick is temporarily unavailable.</p>
+            )}
           </article>
         </section>
 
