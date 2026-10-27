@@ -6,6 +6,7 @@ use App\Models\DiscussionRoom;
 use App\Models\Message;
 use App\Models\Notification;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 
 /**
@@ -16,19 +17,21 @@ interface RoomRepositoryInterface
 {
     /**
      * The rooms the user can see (every public room, and the private ones they belong or are invited to), each
-     * with its creator, members, invitees, newest stored message (and its author) and stored-message count.
+     * with its creator, members, invitees, and the stored messages the user can see: the newest one (with its
+     * author) and how many there are. The user sees the messages sent after `$sentAfter`, and older ones only
+     * while they still have to read them.
      *
      * @return Collection<int, DiscussionRoom>
      */
-    public function visibleTo(int $userId): Collection;
+    public function visibleTo(int $userId, CarbonInterface $sentAfter): Collection;
 
     /**
      * @param  array{name: string, tmdb_id: int, created_by: int, spoilers: bool, is_private: bool}  $attributes
      */
     public function create(array $attributes): DiscussionRoom;
 
-    /** Loads the creator, members, invitees, newest stored message and stored-message count. */
-    public function loadDetail(DiscussionRoom $room): DiscussionRoom;
+    /** Loads the creator, members, invitees, and the newest message the viewer can see and how many (as visibleTo() does). */
+    public function loadDetail(DiscussionRoom $room, int $viewerId, CarbonInterface $sentAfter): DiscussionRoom;
 
     /** Adds the user to the room's members; nothing happens when they already are one. */
     public function addMember(DiscussionRoom $room, int $userId): void;
@@ -101,12 +104,18 @@ interface RoomRepositoryInterface
     public function markRead(DiscussionRoom $room, int $userId, array $messageIds): array;
 
     /**
-     * Of these messages, the ones no receipt is waiting on any more.
+     * Of these messages, the ones sent at or before `$sentBy` that no receipt is waiting on any more.
      *
      * @param  list<int>  $messageIds
      * @return list<int>
      */
-    public function fullyRead(DiscussionRoom $room, array $messageIds): array;
+    public function fullyRead(DiscussionRoom $room, array $messageIds, CarbonInterface $sentBy): array;
+
+    /**
+     * Deletes, in every room, the messages sent at or before `$sentBy` that no receipt is waiting on (with their
+     * receipts); returns how many.
+     */
+    public function deleteFullyRead(CarbonInterface $sentBy): int;
 
     /**
      * Deletes the messages and their receipts.

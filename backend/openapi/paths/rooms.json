@@ -3,7 +3,7 @@
         "/api/rooms": {
             "get": {
                 "summary": "List discussion rooms",
-                "description": "The rooms you can see: every public room, and the private rooms you are a member of or invited to. Yours come first, then invitations, then the other public rooms, newest activity first. `members` are the creator and everyone who joined; `message_count`, `last_message` and `unread` only count messages that are still stored (someone has yet to read them). The list is kept current over the private channels `rooms.public` and `rooms.user.{your id}`: `message.sent` carries a new message, `rooms.changed` (`room_id`) means reload.",
+                "description": "The rooms you can see: every public room, and the private rooms you are a member of or invited to. Yours come first, then invitations, then the other public rooms, newest activity first. `members` are the creator and everyone who joined; `message_count` and `last_message` describe the messages you can still see (a message is shown for 24 hours after it is sent, then only to the members who have yet to read it), and `unread` counts the ones waiting for you. The list is kept current over the private channels `rooms.public` and `rooms.user.{your id}`: `message.sent` carries a new message, `rooms.changed` (`room_id`) means reload.",
                 "tags": ["Rooms"],
                 "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
                 "responses": {
@@ -140,13 +140,13 @@
         "/api/rooms/{room}/messages": {
             "parameters": [{ "name": "room", "in": "path", "required": true, "schema": { "type": "integer" } }],
             "get": {
-                "summary": "Messages someone still has to read",
-                "description": "Anyone who can see the room can read it: everyone for a public room, the members and invitees of a private one. A message is stored only until every member at the time it was sent has read it, so this lists the pending ones, oldest first, each with `read_by` (the author first) and `unread_by`. Opening a room does not mark anything read; the browser confirms with `POST /api/rooms/{room}/read`.",
+                "summary": "Messages you can still see",
+                "description": "Anyone who can see the room can read it: everyone for a public room, the members and invitees of a private one. A message is stored and shown to everyone for 24 hours after it is sent; after that only the members (at the time it was sent) who have yet to read it still get it, and it is deleted once none of them still has to. So this lists the messages you can still see, oldest first, each with `read_by` (the author first) and `unread_by`. Opening a room does not mark anything read; the browser confirms with `POST /api/rooms/{room}/read`.",
                 "tags": ["Rooms"],
                 "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
                 "responses": {
                     "200": {
-                        "description": "The stored messages.",
+                        "description": "The messages you can still see.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -165,7 +165,7 @@
             },
             "post": {
                 "summary": "Send a message to a room",
-                "description": "Only members post (join first). The message counts as read by the sender and waits for every other member; it is pushed as `message.sent` on the private channel `room.{room}` to everyone who has the room open, and on the room-list channels (`rooms.public`, or `rooms.user.{id}` of each member and invitee of a private room). With no other members it is not kept.",
+                "description": "Only members post (join first). The message counts as read by the sender and waits for every other member; it is pushed as `message.sent` on the private channel `room.{room}` to everyone who has the room open, and on the room-list channels (`rooms.public`, or `rooms.user.{id}` of each member and invitee of a private room). It is kept for 24 hours even with no other members, and after that until every other member has read it.",
                 "tags": ["Rooms"],
                 "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
                 "requestBody": {
@@ -201,7 +201,7 @@
             "parameters": [{ "name": "room", "in": "path", "required": true, "schema": { "type": "integer" } }],
             "post": {
                 "summary": "Mark room messages as read",
-                "description": "The signed-in member has seen these messages (the room was open). Ids that are not waiting for this member are ignored, so reading a room you have not joined counts for nothing. Messages every member has now read are deleted and listed in `deleted_ids`; a `messages.read` event tells everyone who has the room open.",
+                "description": "The signed-in member has seen these messages (the room was open). Ids that are not waiting for this member are ignored, so reading a room you have not joined counts for nothing. Messages past their 24 hours that every member has now read are deleted and listed in `deleted_ids` (ones read by everyone within their 24 hours are deleted when those are up, by the scheduled `rooms:prune-messages`); a `messages.read` event tells everyone who has the room open.",
                 "tags": ["Rooms"],
                 "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
                 "requestBody": {

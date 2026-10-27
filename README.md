@@ -174,6 +174,13 @@ php artisan serve
 
 The backend will normally be available at `http://localhost:8000`.
 
+Room messages are deleted by a scheduled command, so keep the scheduler running in another terminal while developing:
+
+```bash
+cd backend
+php artisan schedule:work
+```
+
 For a one-command Laravel setup after dependencies are available, the backend also provides:
 
 ```bash
