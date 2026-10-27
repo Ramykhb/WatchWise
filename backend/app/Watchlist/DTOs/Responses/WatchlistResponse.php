@@ -10,7 +10,7 @@ final readonly class WatchlistResponse implements JsonSerializable
 {
     /**
      * @param  list<WatchlistItemResponse>  $items
-     * @param  Collection<int, int>  $ratings  the user's review rating by TMDB id
+     * @param  Collection<string, int>  $ratings  the user's stars by title key ("550", "tv-1399")
      */
     public function __construct(
         public array $items,

@@ -41,3 +41,15 @@ export const isDemoId = (tmdbId: number) => BY_ID.has(tmdbId)
 export function tmdbIdOf(movie: Movie): number {
   return DEMO_IDS[movie.slug] ?? Number(movie.slug)
 }
+
+export type MediaType = 'movie' | 'tv'
+
+/**
+ * The TMDB id and type of a title. TV shows have "tv-1399" slugs, since TMDB numbers shows and movies
+ * separately (1399 is both); null when the slug names neither.
+ */
+export function titleOf(movie: Movie): { tmdbId: number; mediaType: MediaType } | null {
+  const isTv = movie.slug.startsWith('tv-')
+  const tmdbId = isTv ? Number(movie.slug.slice('tv-'.length)) : tmdbIdOf(movie)
+  return Number.isInteger(tmdbId) && tmdbId > 0 ? { tmdbId, mediaType: isTv ? 'tv' : 'movie' } : null
+}

@@ -39,7 +39,7 @@ import { loadGenres } from '../Discover/discoverApi.ts'
 import { getMovieDetails, type Community, type MovieDetails as Details } from './movieData.ts'
 import { fetchMovieDetails, toDetails, type TmdbMovieDetails as ApiMovie } from './movieApi.ts'
 import AddToListDialog from './AddToListDialog.tsx'
-import { tmdbIdOf } from '../../lib/movies.ts'
+import { titleOf, tmdbIdOf } from '../../lib/movies.ts'
 import { api } from '../../lib/api.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { useWatchlist } from '../../lib/watchlist.ts'
@@ -259,12 +259,16 @@ function MovieDetailsPage({ details }: { details: Details }) {
   // WatchWise's own data (reviews, premiere, showtimes, room). Only the design's mock movies have it;
   // TMDB movies don't, so those sections are hidden rather than filled with sample data.
   const { movie, community } = details
-  // Lists and ratings hold TMDB movie ids; TV shows ("tv-1399") use a separate id range, so they can't be added yet.
+  // Lists hold TMDB movie ids only; TV shows ("tv-1399") use a separate id range, so they can't be added yet.
   const listTmdbId = tmdbIdOf(movie)
   const canAddToList = Number.isInteger(listTmdbId) && listTmdbId > 0
-  const canRate = canAddToList
+  // Ratings know the title's type, so movies and TV shows can both be rated.
+  const title = titleOf(movie)
+  const canRate = title !== null
+  const ratingId = title?.tmdbId
+  const ratingType = title?.mediaType
 
-  // Your star rating is saved per film (GET/PUT /api/ratings/{tmdbId}) and loaded when the page opens.
+  // Your star rating is saved per title (GET/PUT /api/ratings/{tmdbId}?type=…) and loaded when the page opens.
   // The ratings API needs a signed-in member: a guest's 401 would be taken for an expired session and
   // sign them out of the page, so nothing is requested until there is a user.
   const { user } = useAuth()
@@ -279,22 +283,22 @@ function MovieDetailsPage({ details }: { details: Details }) {
   const ratingHintId = useId()
 
   useEffect(() => {
-    if (!canRate || !signedIn) return
+    if (ratingId === undefined || !signedIn) return
     let active = true
     api
-      .get<{ rating: number | null }>(`/ratings/${listTmdbId}`)
+      .get<{ rating: number | null }>(`/ratings/${ratingId}`, { params: { type: ratingType } })
       .then((response) => active && setUserRating(response.data.rating ?? 0))
       .catch(() => undefined)
       .finally(() => active && setRatingLoaded(true))
     return () => {
       active = false
     }
-  }, [canRate, signedIn, listTmdbId])
+  }, [signedIn, ratingId, ratingType])
 
   // Shows at once and saves in the background; a failed save puts the previous stars back.
   // A guest is sent to Sign in first and comes back to this movie afterwards.
   const rate = (stars: number) => {
-    if (!canRate) return
+    if (!title) return
     if (!signedIn) {
       navigate('/signin', { state: { from: location } })
       return
@@ -304,7 +308,7 @@ function MovieDetailsPage({ details }: { details: Details }) {
     setUserRating(stars)
     setRatingNote('')
     api
-      .put(`/ratings/${listTmdbId}`, { rating: stars })
+      .put(`/ratings/${title.tmdbId}`, { rating: stars, type: title.mediaType })
       .then(() => setRatingNote(`Saved · ${stars} star${stars > 1 ? 's' : ''}`))
       .catch(() => {
         setUserRating(previous)
@@ -477,7 +481,7 @@ function MovieDetailsPage({ details }: { details: Details }) {
                   </div>
                   {!canRate ? (
                     <span id={ratingHintId} className={styles.ratingNote}>
-                      TV shows can’t be rated yet
+                      This title can’t be rated
                     </span>
                   ) : (
                     <span className={styles.ratingNote} role="status">

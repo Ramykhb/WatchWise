@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Watchlist extends Model
 {
-    protected $fillable = ['user_id', 'tmdb_id', 'status', 'watched_at'];
+    protected $fillable = ['user_id', 'tmdb_id', 'media_type', 'status', 'watched_at'];
 
     protected function casts(): array
     {
