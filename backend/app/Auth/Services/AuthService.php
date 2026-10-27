@@ -9,6 +9,7 @@ use App\Auth\Exceptions\InvalidCredentials;
 use App\Auth\Factories\TokenFactory;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\AuthServiceInterface;
+use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -52,5 +53,10 @@ class AuthService implements AuthServiceInterface
     public function logout(string $plainRefreshToken): void
     {
         $this->tokens->revoke($plainRefreshToken);
+    }
+
+    public function revokeSessions(User $user): void
+    {
+        $this->tokens->revokeAllForUser($user);
     }
 }
