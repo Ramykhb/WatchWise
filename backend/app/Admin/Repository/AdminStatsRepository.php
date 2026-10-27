@@ -8,6 +8,7 @@ use App\Models\MovieList;
 use App\Models\Review;
 use App\Models\User;
 use App\Models\Watchlist;
+use App\Support\MediaType;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -42,6 +43,7 @@ class AdminStatsRepository implements AdminStatsRepositoryInterface
     {
         return Watchlist::query()
             ->where('status', 'watched')
+            ->where('media_type', MediaType::MOVIE)
             ->whereNotIn('tmdb_id', $excludedTmdbIds)
             ->selectRaw('tmdb_id, count(*) as total')
             ->groupBy('tmdb_id')
@@ -57,6 +59,7 @@ class AdminStatsRepository implements AdminStatsRepositoryInterface
     {
         return Review::query()
             ->where('is_approved', true)
+            ->where('media_type', MediaType::MOVIE)
             ->whereNotIn('tmdb_id', $excludedTmdbIds)
             ->selectRaw('tmdb_id, count(*) as total, avg(rating) as average')
             ->groupBy('tmdb_id')
@@ -78,6 +81,7 @@ class AdminStatsRepository implements AdminStatsRepositoryInterface
     {
         $watched = Watchlist::query()
             ->where('status', 'watched')
+            ->where('media_type', MediaType::MOVIE)
             ->whereNotIn('tmdb_id', $excludedTmdbIds)
             ->selectRaw('tmdb_id, count(*) as total')
             ->groupBy('tmdb_id')
@@ -85,6 +89,7 @@ class AdminStatsRepository implements AdminStatsRepositoryInterface
 
         $rated = Review::query()
             ->where('is_approved', true)
+            ->where('media_type', MediaType::MOVIE)
             ->whereNotIn('tmdb_id', $excludedTmdbIds)
             ->selectRaw('tmdb_id, count(*) as total')
             ->groupBy('tmdb_id')
