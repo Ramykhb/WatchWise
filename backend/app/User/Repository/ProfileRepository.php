@@ -66,7 +66,8 @@ class ProfileRepository implements ProfileRepositoryInterface
 
     public function topRatedTmdbIds(User $user, bool $approvedOnly, int $limit): SupportCollection
     {
-        return $this->reviews($user, $approvedOnly)->orderByDesc('rating')->latest()->limit($limit)->pluck('tmdb_id');
+        // Movies only: the profile shows these ids as movie posters (a TV show can share the id).
+        return $this->reviews($user, $approvedOnly)->where('media_type', 'movie')->orderByDesc('rating')->latest()->limit($limit)->pluck('tmdb_id');
     }
 
     public function listsCount(User $user, bool $publicOnly): int
@@ -87,7 +88,8 @@ class ProfileRepository implements ProfileRepositoryInterface
 
     public function watchedTmdbIds(User $user, int $limit): SupportCollection
     {
-        return $user->watchlists()->where('status', 'watched')->latest('watched_at')->limit($limit)->pluck('tmdb_id');
+        // Movies only, like top 4 (shown as movie tiles).
+        return $user->watchlists()->where('status', 'watched')->where('media_type', 'movie')->latest('watched_at')->limit($limit)->pluck('tmdb_id');
     }
 
     public function recentFollowers(User $user, int $limit): Collection

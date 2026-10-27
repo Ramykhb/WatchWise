@@ -17,13 +17,15 @@ final readonly class AddToWatchlistData
     public function __construct(
         public int $tmdbId,
         public ?string $status,
+        /** "movie" or "tv" (TMDB numbers them separately). */
+        public string $mediaType = 'movie',
     ) {}
 
     /**
-     * @param  array{tmdb_id: int|string, status?: string}  $validated
+     * @param  array{tmdb_id: int|string, status?: string, media_type?: string}  $validated
      */
     public static function fromValidated(array $validated): self
     {
-        return new self((int) $validated['tmdb_id'], $validated['status'] ?? null);
+        return new self((int) $validated['tmdb_id'], $validated['status'] ?? null, $validated['media_type'] ?? 'movie');
     }
 }
