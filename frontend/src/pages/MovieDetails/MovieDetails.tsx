@@ -506,6 +506,7 @@ function MovieDetailsPage({ details }: { details: Details }) {
                   className={onWatchlist ? styles.actionOn : styles.actionOutline}
                   aria-pressed={onWatchlist}
                   aria-disabled={!canAddToList || undefined}
+                  aria-busy={(canAddToList && watchlist.isPending(listTmdbId)) || undefined}
                   aria-describedby={canAddToList ? undefined : listHintId}
                   onClick={toggleWatchlist}
                 >

@@ -391,7 +391,13 @@ export default function Home() {
                       <img src={playIcon} width={14} height={14} alt="" />
                       Watch trailer
                     </button>
-                    <button type="button" className={styles.watchlist} aria-pressed={onWatchlist} onClick={togglePick}>
+                    <button
+                      type="button"
+                      className={styles.watchlist}
+                      aria-pressed={onWatchlist}
+                      aria-busy={(pickId > 0 && watchlist.isPending(pickId)) || undefined}
+                      onClick={togglePick}
+                    >
                       <img src={onWatchlist ? checkIcon : plusIcon} width={14} height={14} alt="" />
                       {onWatchlist ? 'On watchlist' : 'Watchlist'}
                     </button>
