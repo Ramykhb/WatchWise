@@ -61,6 +61,9 @@ export default function Cinemas() {
   const [selectedCinemaId, setSelectedCinemaId] = useState<string | null>(null)
 
   const selectedCinema = nearbyCinemas.find((cinema) => cinema.id === selectedCinemaId) ?? null
+  const cinemasByName = [...nearbyCinemas].sort((first, second) =>
+    first.name.localeCompare(second.name, undefined, { sensitivity: 'base' }),
+  )
 
   useEffect(() => {
     if (!currentLocation || !mapContainerRef.current || !MAPBOX_ACCESS_TOKEN) return
@@ -240,7 +243,7 @@ export default function Cinemas() {
           </p>
           {!loadingCinemas && !cinemaSearchNote && (
             <p className={styles.note}>
-              Powered by <a href="https://www.geoapify.com/">Geoapify</a> · © OpenStreetMap contributors
+              Cinema listings by <a href="https://maps.google.com/">Google Maps</a> · © OpenStreetMap contributors
             </p>
           )}
           {locationNote && (
@@ -250,7 +253,7 @@ export default function Cinemas() {
           )}
 
           <ul className={styles.list} aria-label="Nearby cinemas" aria-busy={loadingCinemas} data-lenis-prevent>
-            {nearbyCinemas.map((cinema) => (
+            {cinemasByName.map((cinema) => (
               <li key={cinema.id}>
                 <button
                   type="button"

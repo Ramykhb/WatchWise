@@ -2,6 +2,7 @@
 
 use App\Admin\Providers\AdminModuleServiceProvider;
 use App\Auth\Providers\AuthModuleServiceProvider;
+use App\Cinema\Providers\CinemaModuleServiceProvider;
 use App\Gemini\Providers\GeminiModuleServiceProvider;
 use App\Genre\Providers\GenreModuleServiceProvider;
 use App\Groq\Providers\GroqModuleServiceProvider;
@@ -24,6 +25,7 @@ return [
     AuthorizationServiceProvider::class,
     AdminModuleServiceProvider::class,
     AuthModuleServiceProvider::class,
+    CinemaModuleServiceProvider::class,
     GenreModuleServiceProvider::class,
     MovieModuleServiceProvider::class,
     PersonModuleServiceProvider::class,

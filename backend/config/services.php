@@ -1,8 +1,8 @@
 <?php
 
 return [
-    'geoapify' => [
-        'key' => env('GEOAPIFY_API_KEY'),
+    'google_places' => [
+        'key' => env('GOOGLE_PLACES_API_KEY'),
     ],
 
     'open_meteo' => [
