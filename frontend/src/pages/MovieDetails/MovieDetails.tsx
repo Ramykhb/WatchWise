@@ -42,6 +42,7 @@ import AddToListDialog from './AddToListDialog.tsx'
 import { tmdbIdOf } from '../../lib/movies.ts'
 import { api } from '../../lib/api.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
+import { useWatchlist } from '../../lib/watchlist.ts'
 import styles from './MovieDetails.module.css'
 
 /** What the last request for a TMDB movie returned, tagged with the request it answers. */
@@ -311,9 +312,21 @@ function MovieDetailsPage({ details }: { details: Details }) {
       })
   }
 
-  // The mock movies start from the design's state (in the watchlist).
-  // TODO: load and save the watchlist and "watched" through the API.
-  const [onWatchlist, setOnWatchlist] = useState(Boolean(community))
+  // "Add to watchlist" adds the film to the member's default Watchlist (GET/POST/DELETE /api/watchlist).
+  const watchlist = useWatchlist({ enabled: signedIn && canAddToList })
+  const onWatchlist = canAddToList && watchlist.has(listTmdbId)
+  const toggleWatchlist = () => {
+    if (!canAddToList) return
+    if (!signedIn) {
+      navigate('/signin', { state: { from: location } })
+      return
+    }
+    if (!watchlist.loaded) return
+    setShareNote('')
+    const request = onWatchlist ? watchlist.remove(listTmdbId) : watchlist.add(listTmdbId)
+    request.catch(() => setShareNote("Couldn't update your watchlist. Please try again."))
+  }
+  // TODO: save "Mark as watched" through the API.
   const [watched, setWatched] = useState(false)
   const [shareNote, setShareNote] = useState('')
   const [playing, setPlaying] = useState(false)
@@ -492,7 +505,10 @@ function MovieDetailsPage({ details }: { details: Details }) {
                   type="button"
                   className={onWatchlist ? styles.actionOn : styles.actionOutline}
                   aria-pressed={onWatchlist}
-                  onClick={() => setOnWatchlist((value) => !value)}
+                  aria-disabled={!canAddToList || undefined}
+                  aria-busy={(canAddToList && watchlist.isPending(listTmdbId)) || undefined}
+                  aria-describedby={canAddToList ? undefined : listHintId}
+                  onClick={toggleWatchlist}
                 >
                   <img src={onWatchlist ? checkIcon : plusIcon} width={16} height={16} alt="" />
                   {onWatchlist ? 'In watchlist' : 'Add to watchlist'}

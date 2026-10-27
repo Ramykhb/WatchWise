@@ -143,7 +143,8 @@ type ApiState<T> = { key: string; data: T | undefined; error: unknown }
  * and is refreshed. `setData` updates the value after a mutation; `reload` fetches again (the
  * previous data stays on screen meanwhile).
  */
-export function useApi<T>(path: string) {
+/** `enabled: false` sends nothing (e.g. a signed-out visitor, whose 401 would end the session). */
+export function useApi<T>(path: string, { enabled = true }: { enabled?: boolean } = {}) {
   const [version, setVersion] = useState(0)
   const key = `${path}#${version}`
   const [state, setState] = useState<ApiState<T>>(() => ({ key: '', data: cache.get(path) as T | undefined, error: undefined }))
@@ -155,6 +156,7 @@ export function useApi<T>(path: string) {
   }
 
   useEffect(() => {
+    if (!enabled) return
     let active = true
     fetchShared<T>(path)
       .then((data) => active && setState({ key, data, error: undefined }))
@@ -162,7 +164,7 @@ export function useApi<T>(path: string) {
     return () => {
       active = false
     }
-  }, [path, key])
+  }, [path, key, enabled])
 
   const setData = useCallback(
     (update: T | ((current: T) => T)) => {
@@ -180,7 +182,7 @@ export function useApi<T>(path: string) {
     setVersion((v) => v + 1)
   }, [path])
 
-  return { data: state.data, error: state.error, loading: state.key !== key, setData, reload }
+  return { data: state.data, error: state.error, loading: enabled && state.key !== key, setData, reload }
 }
 
 /** True when the request failed with this HTTP status (e.g. 404 → "not found" page). */
