@@ -4,10 +4,19 @@ namespace Tests\Feature\Admin;
 
 use App\Models\Review;
 use App\Models\User;
+use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
+use App\Movie\Services\MovieCatalogService;
 use Tests\Feature\Social\SocialTestCase;
 
 abstract class AdminTestCase extends SocialTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->app->bind(MovieCatalogServiceInterface::class, MovieCatalogService::class);
+    }
+
     protected function admin(): User
     {
         return User::factory()->admin()->create();

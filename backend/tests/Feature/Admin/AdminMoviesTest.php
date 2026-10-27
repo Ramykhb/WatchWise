@@ -37,6 +37,19 @@ class AdminMoviesTest extends AdminTestCase
         $this->assertDatabaseHas('movies', ['tmdb_id' => 550, 'title' => 'Fight Club (Local)', 'overview' => 'Edited.', 'is_hidden' => true, 'is_featured' => true]);
     }
 
+    public function test_an_explicit_null_clears_the_overview_but_leaving_it_out_keeps_it(): void
+    {
+        LocalMovie::factory()->create(['tmdb_id' => 550, 'overview' => 'Original.']);
+
+        $this->as($this->admin())->patchJson('/api/admin/movies/550', ['is_featured' => true])->assertOk();
+        $this->assertDatabaseHas('movies', ['tmdb_id' => 550, 'overview' => 'Original.']);
+
+        $this->as($this->admin())->patchJson('/api/admin/movies/550', ['overview' => null])
+            ->assertOk()
+            ->assertJsonPath('movie.overview', null);
+        $this->assertDatabaseHas('movies', ['tmdb_id' => 550, 'overview' => null, 'is_featured' => true]);
+    }
+
     public function test_fields_that_are_left_out_stay_as_they_were(): void
     {
         LocalMovie::factory()->featured()->create(['tmdb_id' => 550, 'title' => 'Fight Club']);
