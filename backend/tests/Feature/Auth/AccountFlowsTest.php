@@ -264,6 +264,8 @@ class AccountFlowsTest extends TestCase
 
     public function test_social_redirect_sets_state_cookie(): void
     {
+        // The redirect refuses to run without real-looking credentials, so the test can't depend on .env.
+        config(['services.google.client_id' => 'test-client-id', 'services.google.client_secret' => 'test-client-secret']);
         $driver = Mockery::mock(Provider::class);
         $driver->shouldReceive('stateless')->andReturnSelf();
         $driver->shouldReceive('with')->with(Mockery::on(fn ($a) => isset($a['state'])))->andReturnSelf();
