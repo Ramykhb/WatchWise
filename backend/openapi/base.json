@@ -18,7 +18,8 @@
         { "name": "Weather" },
         { "name": "Recommendations" },
         { "name": "Social" },
-        { "name": "Rooms" }
+        { "name": "Rooms" },
+        { "name": "Admin" }
     ],
     "paths": {},
     "components": {

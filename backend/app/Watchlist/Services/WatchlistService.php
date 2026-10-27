@@ -4,6 +4,7 @@ namespace App\Watchlist\Services;
 
 use App\Models\User;
 use App\Models\Watchlist;
+use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Watchlist\DTOs\Requests\AddToWatchlistData;
 use App\Watchlist\DTOs\Requests\UpdateWatchlistStatusData;
 use App\Watchlist\DTOs\Responses\AddToWatchlistResponse;
@@ -14,7 +15,10 @@ use App\Watchlist\InterfaceServices\WatchlistServiceInterface;
 
 class WatchlistService implements WatchlistServiceInterface
 {
-    public function __construct(private readonly WatchlistRepositoryInterface $watchlist) {}
+    public function __construct(
+        private readonly WatchlistRepositoryInterface $watchlist,
+        private readonly MovieCatalogServiceInterface $catalog,
+    ) {}
 
     public function overview(User $user): WatchlistResponse
     {
@@ -31,6 +35,7 @@ class WatchlistService implements WatchlistServiceInterface
         $item->status = $data->status ?? $item->status ?? 'to_watch';
         $item->watched_at = $item->status === 'watched' ? ($item->watched_at ?? now()) : null;
         $this->watchlist->save($item);
+        $this->catalog->remember($data->tmdbId);
 
         return new AddToWatchlistResponse(WatchlistItemResponse::fromModel($item), $isNew);
     }

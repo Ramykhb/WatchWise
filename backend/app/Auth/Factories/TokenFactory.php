@@ -135,6 +135,12 @@ class TokenFactory
         $this->refreshTokens->revokeFamily($familyId);
     }
 
+    /** Revoke every refresh token the user holds. */
+    public function revokeAllForUser(User $user): void
+    {
+        $this->refreshTokens->revokeAllForUser($user->id);
+    }
+
     public function hash(string $plain): string
     {
         return hash('sha256', $plain);

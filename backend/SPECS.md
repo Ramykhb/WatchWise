@@ -22,7 +22,7 @@ Every feature also has a **Frontend** line: *real API*, *mock data* (page exists
 | Module | Brief objective | State |
 |---|---|---|
 | Activity | 9 (recent activity) | **[Rebuild]** new module |
-| Admin | 11 (dashboard) | **[Missing]** new module |
+| Admin | 11 (dashboard) | Backend **[Done]** on `Admin-Features`. Frontend wiring and role guard still **[Missing]**. |
 | Auth | 1 (authentication) | Done, with 3 refactors and 1 decision |
 | Calendar | 7 (calendar integration) | Done in the frontend. A backend module is **[Optional]**. |
 | Chat (now `Groq`) | not in brief | Done. Rename is a **[Refactor]**. |
@@ -87,51 +87,50 @@ The `activity_feed` table and the `ActivityFeed` model still exist. The code tha
 
 ## Admin (new module: `app/Admin/`)
 
-Brief objective 11: Administrator Dashboard. The frontend has `pages/Admin/*` (Overview, Users, Reviews, Movies), but all of it is mock data from `adminData.ts`. The backend has the `users.role` column, the `role` middleware alias (`EnsureRole`) and `CurrentUser::isAdmin()`, but no admin routes.
+Brief objective 11: Administrator Dashboard. The backend is built on the `Admin-Features` branch. The frontend has `pages/Admin/*` (Overview, Users, Reviews, Movies), but all of it is still mock data from `adminData.ts`.
 
-All routes go under `/api/admin` with `auth.jwt` and `role:admin`, plus a policy check per action.
+All routes go under `/api/admin` with `auth.jwt` and `role:admin`, plus a policy check per action (gates `admin.dashboard`, `admin.users`, `admin.reviews`, `admin.movies`, backed by `AdminPolicy` and defined in `AuthorizationServiceProvider`). Routes live in `routes/admin.php`.
 
-1. **Number of registered users [Missing]**: `GET /api/admin/stats` returns `users_total` and new users per period. Frontend: mock data.
-2. **Number of reviews [Missing]**
-   - `reviews_total`, `reviews_pending` (unapproved) and reviews per period, in the same stats response.
-   - Count only rows with text. Rating-only rows are star ratings, not reviews, the same rule `ProfileRepository::reviewsCount()` uses.
+1. **Number of registered users [Done in backend]**: `GET /api/admin/stats` returns `users_total` and `new_users` (`last_7_days`, `last_30_days`). Frontend: mock data.
+2. **Number of reviews [Done in backend]**
+   - `reviews_total`, `reviews_pending` (unapproved) and `new_reviews` (7 and 30 days), in the same stats response.
+   - Only rows with text count. Rating-only rows are star ratings, not reviews.
    - Frontend: mock data.
-3. **Most watched movies [Missing]**: top `tmdb_id`s by count of watched entries (see Watchlist 4), with titles from the local movie catalogue (Movie 7). Frontend: mock data.
-4. **Most highly rated movies [Missing]**
-   - Top `tmdb_id`s by average approved rating, star ratings included, with a minimum rating count so one 5-star rating doesn't win.
-   - Frontend: mock data.
-5. **Most popular genres [Missing]**: genre share across watched and rated movies. This needs genre IDs per movie, which come from the local movie catalogue (Movie 7). Frontend: mock data.
-6. **User activity [Missing]**
-   - A time series (per day or week) of sign-ups, ratings and reviews, list creations, watch events and room messages.
-   - Source it from `users.created_at`, `reviews.created_at` and `activity_feed`.
+3. **Most watched movies [Done in backend]**: `most_watched`, the top 5 `tmdb_id`s by count of `watched` watchlist entries, with titles from the local catalogue. Hidden films are left out. Titles are `null` for films that were activity before the catalogue existed and were never back-filled (see Movie 7). Frontend: mock data.
+4. **Most highly rated movies [Done in backend]**: `top_rated`, the top 5 by average approved rating (star ratings included), needing at least 3 ratings. Frontend: mock data.
+5. **Most popular genres [Done in backend]**: `popular_genres`, the top 8 genres weighted by watched plus rated counts, with `share` in percent. Genre ids come from the local catalogue, names from `GenreServiceInterface` (falls back to "Genre {id}" if TMDB is down). Only films in the catalogue count (Movie 7). Frontend: mock data.
+6. **User activity [Done in backend]**
+   - `activity` is a daily series (`?days=`, default 30, max 90, zeros on quiet days) of `signups`, `ratings`, `reviews`, `lists`, `watches` and `messages`.
+   - It is sourced from `users.created_at`, `reviews.created_at`, `movie_lists.created_at`, `watchlists.watched_at` and `messages.created_at`, not from `activity_feed`, because the Activity module isn't rebuilt yet.
    - Frontend: mock data (`ACTIVITY_LABELS`).
-7. **User management [Missing]**
-   - `GET /api/admin/users?q=&role=&status=` (paginated).
-   - `PATCH /api/admin/users/{user}` changes `role` and `is_active`. Deactivating revokes the user's refresh tokens.
+7. **User management [Done in backend]**
+   - `GET /api/admin/users?q=&role=&status=&page=&per_page=` (paginated; `status` is `active` or `inactive`; `q` matches name, username or email).
+   - `PATCH /api/admin/users/{user}` changes `role` and `is_active`. Deactivating revokes the user's refresh tokens through `AuthServiceInterface::revokeSessions()`; login, refresh and existing access tokens stop working.
    - `DELETE /api/admin/users/{user}`.
-   - An admin cannot demote, deactivate or delete themselves.
+   - An admin cannot demote, deactivate or delete themselves (`CannotModerateSelf`, 403).
    - Frontend: mock data (`AdminUsers.tsx`).
-8. **Review moderation [Missing]**
-   - `GET /api/admin/reviews?status=pending|approved` lists reviews.
-   - `PATCH /api/admin/reviews/{review}` approves or rejects.
-   - `DELETE /api/admin/reviews/{review}`.
-   - The moderation logic itself lives in the Review module (`ReviewServiceInterface::approve()`); Admin calls it through the interface.
+8. **Review moderation [Done in backend]**
+   - `GET /api/admin/reviews?status=pending|approved` (default `pending`) lists reviews with text.
+   - `PATCH /api/admin/reviews/{review}` with `status` = `approved` or `rejected`. Rejecting clears the text and sentiment and keeps the star rating.
+   - `DELETE /api/admin/reviews/{review}` removes the row.
+   - The logic lives in the new `app/Review/` module (`ReviewServiceInterface::moderationQueue()`, `approve()`, `reject()`, `delete()`); Admin calls it through the interface. The rest of the Review module is still **[Missing]** (see Review).
    - Frontend: mock data (`AdminReviews.tsx`).
-9. **Local movie data management [Missing]**
-   - `GET /api/admin/movies` and `PATCH /api/admin/movies/{tmdbId}` (hide, feature, edit the local title or overview).
-   - The data and logic live in the Movie module's local catalogue (Movie 7); Admin calls `MovieCatalogServiceInterface`.
+9. **Local movie data management [Done in backend]**
+   - `GET /api/admin/movies?q=&page=&per_page=` and `PATCH /api/admin/movies/{tmdbId}` (hide, feature, edit the local title or overview; `"overview": null` clears it, leaving it out keeps it). An id that isn't in the catalogue returns 404.
+   - The data and logic live in the Movie module's local catalogue (`MovieCatalogServiceInterface`, Movie 7).
    - Frontend: mock data (`AdminMovies.tsx`).
-10. **[Optional] Room moderation**: let admins delete a room or a message, through `RoomServiceInterface` (see Room 9).
+10. **[Optional] Room moderation**: let admins delete a room or a message, through `RoomServiceInterface` (see Room 9). Not built.
 11. **Frontend guard [Missing]**: the `/admin` routes in `frontend/src/router.tsx` are only behind sign-in, not behind the admin role. Add a role guard. The backend `role:admin` check is still the real protection.
-12. **Layout:**
+12. **Layout [Done]:**
     - `Controllers/AdminController` (one controller for the dashboard, users, reviews and movies).
-    - `FormRequests/` (`AdminUserIndexRequest`, `UpdateUserRequest`, `ModerateReviewRequest`, `UpdateLocalMovieRequest`).
-    - `DTOs/Responses/` (`AdminStatsResponse`, `RankedMovieResponse`, ...).
+    - `FormRequests/` (`AdminStatsRequest`, `AdminUserIndexRequest`, `UpdateUserRequest`, `AdminReviewIndexRequest`, `ModerateReviewRequest`, `AdminMovieIndexRequest`, `UpdateLocalMovieRequest`).
+    - `DTOs/Requests/` (`AdminStatsQuery`, `AdminUserQuery`, `UpdateUserData`, `ReviewModerationQuery`, `ModerateReviewData`). The movie requests use the Movie module's `LocalMovieQuery` and `UpdateLocalMovieData`, because they are part of `MovieCatalogServiceInterface`.
+    - `DTOs/Responses/` (`AdminStatsResponse`, `RankedMovieResponse`, `GenreShareResponse`, `ActivityPointResponse`, `AdminUserResponse`, `AdminReviewResponse`, `AdminMovieResponse`, `AdminPageResponse`).
     - `InterfaceServices/AdminServiceInterface`, `Services/AdminService`.
-    - `InterfaceRepository/AdminStatsRepositoryInterface`, `Repository/AdminStatsRepository` (aggregate queries only).
-    - `Exceptions/CannotModerateSelf`, `Policies/` (if needed), `Providers/AdminModuleServiceProvider`.
-    - Add the paths to `openapi/paths/admin.json`.
-13. **Tests:** non-admins get 403 on every admin route; stats count correctly; self-demotion is blocked; deactivation blocks login and refresh.
+    - `InterfaceRepository/AdminStatsRepositoryInterface` and `AdminUserRepositoryInterface`, with their `Repository/` implementations.
+    - `Exceptions/CannotModerateSelf`, `Policies/AdminPolicy`, `Providers/AdminModuleServiceProvider`.
+    - Paths are in `openapi/paths/admin.json`.
+13. **Tests [Done]:** `tests/Feature/Admin/` covers 401 and 403 on every admin route, stat counts, ranking rules, self-demotion and self-deletion blocks, deactivation blocking login, refresh and access tokens, review approve, reject and delete, and the movie catalogue edits.
 
 ---
 
@@ -159,7 +158,7 @@ Brief objective 1: User Authentication. Unchanged since the last check.
    - `auth.jwt`, `auth.optional` and `role` middleware.
    - The `CurrentUser` abstraction, with the Gate bound to it in `AuthorizationServiceProvider`.
    - Policies for every owned model.
-   - `role:admin` isn't used yet because the Admin module doesn't exist.
+   - `role:admin` is now used by the Admin routes (`routes/admin.php`).
 9. **[Refactor] `SocialAuthController` holds business and HTTP logic**
    - The OAuth credential check (`abort_if(... CHANGE_ME ...)`) is in the controller.
    - So is the whole Discord token exchange and user fetch (`discordUser()` with two `Http::` calls).
@@ -290,12 +289,12 @@ Brief objectives 2 (Movie Database), 3 (External Movie API) and 11 (local movie 
 6. **[Refactor] Raw query input in the controller**
    - `MovieController::show()` reads `$request->query('type')` itself.
    - Add `FormRequests/MovieShowRequest` (`type` in `movie,tv`) with `toDto()`, and inject that instead of `Request`.
-7. **Local movie catalogue [Missing]**
-   - Admin "local movie data management" and the admin stats (most watched, popular genres) need movie data stored locally. Today the app stores only `tmdb_id`s.
-   - Add a `movies` table (migration and model in `app/Models`): `tmdb_id` (unique), `title`, `poster_path`, `release_date`, `runtime`, `genre_ids` (json), `is_hidden`, `is_featured`, `synced_at`.
-   - Upsert a row when a user first watchlists, rates or reviews, or lists a movie, through `MovieCatalogServiceInterface::remember(int $tmdbId)` called by those services.
-   - Admin edits go through the same interface (Admin 9).
-   - Hidden movies are left out of the app's own lists and stats.
+7. **Local movie catalogue [Done], except review and hiding**
+   - **Done:** the `movies` table (`tmdb_id` unique, `title`, `overview`, `poster_path`, `release_date`, `runtime`, `genre_ids`, `is_hidden`, `is_featured`, `synced_at`), the `LocalMovie` model and factory, and `MovieCatalogServiceInterface` (`remember()`, `paginate()`, `update()`, `summaries()`, `hiddenTmdbIds()`) with its repository. Admin edits and stats use it (Admin 3, 5, 9). Hidden movies are left out of the admin stats.
+   - **Done:** `remember(int $tmdbId)` is called by `WatchlistService::add()`, `RatingService::rate()` and `MovieListService` (`create()`, `update()` when films are sent, `addMovie()`). It stores a film once, from TMDB, and never overwrites admin edits. If TMDB can't be reached the film is skipped and the user's action still succeeds. Films added before this change are not back-filled.
+   - **Missing:** the Review module's write flow must call `remember()` too once it exists.
+   - **Missing:** hidden movies are not yet left out of the app's own lists (search, discover, recommendations).
+   - **Note:** the base `Tests\TestCase` stubs `MovieCatalogServiceInterface` so no test reaches TMDB by accident; the Admin tests bind the real one.
 8. **Average user rating on the movie page [Missing]**
    - The brief asks to "calculate and display average user ratings".
    - Star ratings are now stored (Rating), but nothing computes or returns an average.
@@ -454,8 +453,9 @@ This is still the largest gap.
    - `GET /api/movies/{tmdbId}/reviews?sort=newest|highest|lowest&page=` returns approved reviews with text, plus the viewer's own review (even if pending).
    - It also returns a `summary` with `average`, `count` and the distribution per star. The summary counts all approved ratings, including rating-only rows.
    - Frontend: mock data (`MovieDetails.tsx`, `ReviewCard`). The "Most helpful" sort has no backing data, so drop it or add helpful votes as **[Optional]**.
-5. **Administrator moderation [Missing]**
-   - `ReviewServiceInterface::pending()`, `approve()` and `reject()`, called by the Admin module.
+5. **Administrator moderation [Done for the queue]**
+   - **Done:** `app/Review/` exists with `ReviewServiceInterface::moderationQueue()`, `approve()`, `reject()` and `delete()` (repository, service and `ReviewModuleServiceProvider`), called by the Admin module. `reject()` clears the text and keeps the star rating.
+   - **Still to do:** the rest of this module (items 2 to 4, 6 to 9), and moving `ReviewPolicy` from `app/Policies/` into `app/Review/Policies/`.
    - Rating-only rows are saved approved (there's nothing to moderate).
    - Rows with text should start unapproved (pre-moderation), so they're only visible to their author and admins until approved. `ProfilePrivacy::seesUnapprovedReviews()` already follows this.
    - Keep pre-moderation, or switch to auto-approve and moderate afterwards. Decide once and test it.
@@ -634,7 +634,7 @@ Brief objective 7: "Weather API – adapt movie suggestions to the current weath
      - `/api/weather-mood` and `/api/movie-recommendations` call the AI without sign-in, and `/api/nearby-cinemas` spends the Geoapify key without sign-in. Each is protected only by a rate limit; consider requiring `auth.jwt`.
      - Room messages can't be moderated (Room 9).
 7. **Frontend still on mock data, or calling removed endpoints:**
-   - Admin (all four pages).
+   - Admin (all four pages). Their backend endpoints now exist (Admin 1 to 9), so the pages can be wired to the real API.
    - The movie page's community parts (reviews, average rating, showtimes; demo movies only).
    - For You (every shelf except the weather row).
    - The Notifications page, which calls endpoints that no longer exist.
@@ -643,4 +643,4 @@ Brief objective 7: "Weather API – adapt movie suggestions to the current weath
    - `calendar_events` is unused (Calendar 3).
    - `notifications` is used only by Room read receipts (Notification 2, Room 6).
    - `activity_feed` is kept for Activity, and `reviews` is now shared by Rating and the future Review module (Rating 4).
-9. **Test status** (`php artisan test`, after `composer install`): all 298 tests pass. The social redirect test that used to fail because of the Google credentials in `.env` is fixed (Auth 12).
+9. **Test status** (`php artisan test`, after `composer install`): all 355 tests pass on `Admin-Features`, including the new `tests/Feature/Admin/` suite. The social redirect test that used to fail because of the Google credentials in `.env` is fixed (Auth 12).

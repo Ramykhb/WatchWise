@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Admin\Policies\AdminPolicy;
 use App\Auth\CurrentUser\CurrentUser;
 use App\Auth\CurrentUser\GuestUser;
 use App\Models\DiscussionRoom;
@@ -65,5 +66,11 @@ class AuthorizationServiceProvider extends ServiceProvider
         foreach ($this->policies as $model => $policy) {
             Gate::policy($model, $policy);
         }
+
+        // Admin abilities belong to no single model, so they are gates backed by AdminPolicy.
+        Gate::define('admin.dashboard', [AdminPolicy::class, 'viewDashboard']);
+        Gate::define('admin.users', [AdminPolicy::class, 'manageUsers']);
+        Gate::define('admin.reviews', [AdminPolicy::class, 'moderateReviews']);
+        Gate::define('admin.movies', [AdminPolicy::class, 'manageMovies']);
     }
 }

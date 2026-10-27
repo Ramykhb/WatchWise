@@ -1,5 +1,6 @@
 <?php
 
+use App\Admin\Providers\AdminModuleServiceProvider;
 use App\Auth\Providers\AuthModuleServiceProvider;
 use App\Gemini\Providers\GeminiModuleServiceProvider;
 use App\Genre\Providers\GenreModuleServiceProvider;
@@ -12,6 +13,7 @@ use App\Person\Providers\PersonModuleServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\AuthorizationServiceProvider;
 use App\Rating\Providers\RatingModuleServiceProvider;
+use App\Review\Providers\ReviewModuleServiceProvider;
 use App\Room\Providers\RoomModuleServiceProvider;
 use App\User\Providers\UserModuleServiceProvider;
 use App\Watchlist\Providers\WatchlistModuleServiceProvider;
@@ -20,6 +22,7 @@ use App\Weather\Providers\WeatherModuleServiceProvider;
 return [
     AppServiceProvider::class,
     AuthorizationServiceProvider::class,
+    AdminModuleServiceProvider::class,
     AuthModuleServiceProvider::class,
     GenreModuleServiceProvider::class,
     MovieModuleServiceProvider::class,
@@ -27,6 +30,7 @@ return [
     MovieListModuleServiceProvider::class,
     MovieNightModuleServiceProvider::class,
     RatingModuleServiceProvider::class,
+    ReviewModuleServiceProvider::class,
     RoomModuleServiceProvider::class,
     UserModuleServiceProvider::class,
     WatchlistModuleServiceProvider::class,
