@@ -51,12 +51,10 @@ function WatchlistCard() {
         <Link to="/lists/watchlist" className={styles.cardTitle}>
           Watchlist
         </Link>
-        <span className={styles.visDefault}>Default</span>
       </div>
       <p className={styles.description}>Films you want to watch, added from movie pages and Tonight’s pick on Home.</p>
       <div className={styles.footer}>
         <span className={styles.count}>{loaded ? `${films} ${films === 1 ? 'film' : 'films'} to watch` : 'Loading…'}</span>
-        <span className={styles.defaultNote}>Can’t be edited or deleted</span>
       </div>
     </li>
   )
