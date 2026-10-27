@@ -29,7 +29,7 @@ class RoomService implements RoomServiceInterface
 {
     /** How long a message is shown to everyone who can see its room; after that only to the members who have yet to read it. */
     //change to 24, 2 is for testing
-    private const MESSAGE_LIFETIME_HOURS = 2;
+    private const MESSAGE_LIFETIME_HOURS = 24;
 
     public function __construct(private readonly RoomRepositoryInterface $rooms) {}
 
@@ -109,23 +109,36 @@ class RoomService implements RoomServiceInterface
         /** @var Collection<int, Collection<int, Notification>> $receipts by message id */
         $receipts = $this->rooms->receipts($room)->groupBy(fn (Notification $receipt): int => (int) $receipt->data['message_id']);
 
+        // Older messages may predate read tracking. Backfill their receipts before deciding whether an expired
+        // message has nobody left to read it; otherwise an untracked message would look fully read and be deleted.
+        $memberIds = null;
+        $untracked = [];
+        foreach ($messages as $message) {
+            if (! $receipts->has($message->id)) {
+                $memberIds ??= $this->rooms->memberIds($room);
+                $untracked[$message->id] = array_values(array_diff($memberIds, [$message->user_id]));
+                $this->rooms->createReceipts($message, $untracked[$message->id]);
+            }
+        }
+
         // Clean-up: receipts of messages that are gone (e.g. their author deleted their account), and messages whose
         // 24 hours are up that nobody is waiting on any more (e.g. the last reader deleted theirs) and the scheduled
         // prune hasn't reached yet.
         $stale = $receipts->keys()->diff($messages->modelKeys())
-            ->merge($messages->filter(fn (Message $message): bool => $this->hasExpired($message, $cutoff) && $this->waitingFor($message, $receipts) === [])->modelKeys())
+            ->merge($messages->filter(fn (Message $message): bool => $this->hasExpired($message, $cutoff) && $this->waitingFor($message, $receipts, $untracked) === [])->modelKeys())
             ->all();
         $this->rooms->deleteMessages($room, array_values($stale));
 
-        $users = $this->rooms->usersByIds($receipts->flatten(1)->pluck('user_id')->unique()->values()->all());
+        $userIds = $receipts->flatten(1)->pluck('user_id')->merge(array_merge([], ...array_values($untracked)));
+        $users = $this->rooms->usersByIds($userIds->unique()->values()->all());
 
         return new RoomMessagesResponse($messages
             ->reject(fn (Message $message): bool => in_array($message->id, $stale, true))
-            ->filter(fn (Message $message): bool => $this->isShownTo($viewer, $message, $this->waitingFor($message, $receipts), $cutoff))
+            ->filter(fn (Message $message): bool => $this->isShownTo($viewer, $message, $this->waitingFor($message, $receipts, $untracked), $cutoff))
             ->map(fn (Message $message): RoomMessageResponse => new RoomMessageResponse(
                 $message,
                 [$message->user, ...$this->users($users, $this->readers($message, $receipts))],
-                $this->users($users, $this->waitingFor($message, $receipts)),
+                $this->users($users, $this->waitingFor($message, $receipts, $untracked)),
             ))
             ->values()
             ->all());
@@ -192,8 +205,12 @@ class RoomService implements RoomServiceInterface
      * @param  Collection<int, Collection<int, Notification>>  $receipts
      * @return list<int>
      */
-    private function waitingFor(Message $message, Collection $receipts): array
+    private function waitingFor(Message $message, Collection $receipts, array $untracked = []): array
     {
+        if (array_key_exists($message->id, $untracked)) {
+            return $untracked[$message->id];
+        }
+
         return $receipts->get($message->id, collect())
             ->filter(fn (Notification $receipt): bool => $receipt->read_at === null)
             ->map(fn (Notification $receipt): int => (int) $receipt->user_id)
@@ -222,7 +239,7 @@ class RoomService implements RoomServiceInterface
     private function lifetimeCutoff(): CarbonInterface
     {
         //change to subHours in real, currently testing
-        return now()->subMinutes(self::MESSAGE_LIFETIME_HOURS);
+        return now()->subHours(self::MESSAGE_LIFETIME_HOURS);
     }
 
     /**
