@@ -4,7 +4,7 @@ import { clearApiCache, SESSION_EXPIRED_EVENT } from '../lib/api.ts'
 import { clearMyLists } from '../pages/Lists/myListsStore.ts'
 import { clearNights } from '../pages/MovieNights/nightsStore.ts'
 import { clearNotifications } from '../pages/Notifications/notificationsStore.ts'
-import { clearRoomHistory } from '../pages/Rooms/roomHistory.ts'
+import { forgetSavedRooms } from '../pages/Rooms/roomHistory.ts'
 import { AuthContext } from './useAuth.ts'
 
 /** Everything kept in memory for one account; dropped whenever the signed-in account changes. */
@@ -26,11 +26,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if ((next?.id ?? null) !== previous) {
       userId.current = next?.id ?? null
       resetUserData()
-      // The saved room conversations belong to the account that just signed out (not to the session load at start).
-      if (previous !== null) clearRoomHistory()
     }
     setUserState(next)
   }, [])
+
+  // Room conversations are no longer saved in the browser; drop any an earlier version left behind.
+  useEffect(() => forgetSavedRooms(), [])
 
   useEffect(() => {
     let active = true

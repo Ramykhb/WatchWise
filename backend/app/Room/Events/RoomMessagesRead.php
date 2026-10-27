@@ -7,7 +7,7 @@ use App\User\Resources\MemberResource;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 
-/** A member has read messages; the ones in `deleted_ids` have now been read by every member and are gone. */
+/** A member has read messages; the ones in `deleted_ids` were past their 24 hours and are gone now that every member has read them. */
 class RoomMessagesRead implements ShouldBroadcastNow
 {
     /**

@@ -13,7 +13,7 @@ class Notification extends Model
 
     /**
      * A room message the user still has to read (`data`: room_id, message_id). `read_at` is set once they have
-     * seen it, and the message is deleted, with these rows, when every recipient has.
+     * seen it, and the message is deleted, with these rows, once its 24 hours are up and every recipient has.
      */
     public const ROOM_MESSAGE = 'room_message';
 

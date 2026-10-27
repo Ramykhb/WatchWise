@@ -664,37 +664,6 @@
   color: var(--ground-cream);
 }
 
-.reactions {
-  display: flex;
-  gap: 6px;
-}
-
-.reaction,
-.reactionStatic {
-  padding: 7px 14px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-white);
-  font-weight: 700;
-  font-size: 13px;
-}
-
-.reaction {
-  border: 1.5px solid transparent;
-  cursor: pointer;
-  transition:
-    background-color 0.2s ease-out,
-    border-color 0.2s ease-out;
-}
-
-.reaction:hover {
-  border-color: var(--border-subtle);
-}
-
-.reaction[aria-pressed='true'] {
-  background: var(--surface-violet-tint);
-  color: var(--ground-violet);
-}
-
 .typing {
   display: flex;
   align-items: center;
@@ -1099,6 +1068,7 @@
 
   /* Title gets its own row; the chips and menu wrap underneath. */
   .chatHead {
+    position: relative;
     flex-wrap: wrap;
     gap: 10px;
     padding: 14px 16px;
@@ -1106,6 +1076,24 @@
 
   .chatTitle {
     flex-basis: calc(100% - 54px);
+  }
+
+  /* The ⋯ button now sits near the left of the second row. Hung from it, its menu and the invite picker would
+     stick out past the card's left edge, where the chat's overflow: hidden cuts them off, so they hang from the
+     header instead. */
+  .menuWrap {
+    position: static;
+  }
+
+  .menu {
+    left: 16px;
+    right: auto;
+  }
+
+  .chatHead .invitePicker {
+    left: 16px;
+    right: 16px;
+    width: auto;
   }
 
   .messages {

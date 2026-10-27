@@ -20,19 +20,24 @@ use App\Room\Events\RoomMessagesRead;
 use App\Room\Events\RoomsChanged;
 use App\Room\InterfaceRepository\RoomRepositoryInterface;
 use App\Room\InterfaceServices\RoomServiceInterface;
+use Carbon\CarbonInterface;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class RoomService implements RoomServiceInterface
 {
+    /** How long a message is shown to everyone who can see its room; after that only to the members who have yet to read it. */
+    //change to 24, 2 is for testing
+    private const MESSAGE_LIFETIME_HOURS = 24;
+
     public function __construct(private readonly RoomRepositoryInterface $rooms) {}
 
     public function list(User $viewer): RoomListResponse
     {
         $unread = $this->rooms->unreadCounts($viewer->id);
 
-        $rooms = $this->rooms->visibleTo($viewer->id)
+        $rooms = $this->rooms->visibleTo($viewer->id, $this->lifetimeCutoff())
             ->map(fn (DiscussionRoom $room): RoomResponse => RoomResponse::fromModel($room, $viewer->id, $unread[$room->id] ?? 0))
             ->sort(fn (RoomResponse $a, RoomResponse $b): int => [$b->joined(), $b->invited(), $b->lastActivity()] <=> [$a->joined(), $a->invited(), $a->lastActivity()])
             ->values()
@@ -61,7 +66,7 @@ class RoomService implements RoomServiceInterface
             $this->broadcast(new RoomsChanged($room->id, $this->listChannels($room)));
         }
 
-        return RoomResponse::fromModel($this->rooms->loadDetail($room), $creator->id, 0);
+        return RoomResponse::fromModel($this->rooms->loadDetail($room, $creator->id, $this->lifetimeCutoff()), $creator->id, 0);
     }
 
     public function join(DiscussionRoom $room, User $user): RoomResponse
@@ -97,13 +102,15 @@ class RoomService implements RoomServiceInterface
         $this->broadcast(new RoomsChanged($room->id, $this->listChannels($room, [$user->id])));
     }
 
-    public function messages(DiscussionRoom $room): RoomMessagesResponse
+    public function messages(DiscussionRoom $room, User $viewer): RoomMessagesResponse
     {
+        $cutoff = $this->lifetimeCutoff();
         $messages = $this->rooms->storedMessages($room);
         /** @var Collection<int, Collection<int, Notification>> $receipts by message id */
         $receipts = $this->rooms->receipts($room)->groupBy(fn (Notification $receipt): int => (int) $receipt->data['message_id']);
 
-        // Messages written before read tracking have no receipts: every other member still has to read them.
+        // Older messages may predate read tracking. Backfill their receipts before deciding whether an expired
+        // message has nobody left to read it; otherwise an untracked message would look fully read and be deleted.
         $memberIds = null;
         $untracked = [];
         foreach ($messages as $message) {
@@ -114,19 +121,20 @@ class RoomService implements RoomServiceInterface
             }
         }
 
-        // Clean-up: receipts of messages that are gone (e.g. their author deleted their account), and messages
-        // nobody is waiting on any more (e.g. the last reader deleted theirs, or nobody else is a member).
+        // Clean-up: receipts of messages that are gone (e.g. their author deleted their account), and messages whose
+        // 24 hours are up that nobody is waiting on any more (e.g. the last reader deleted theirs) and the scheduled
+        // prune hasn't reached yet.
         $stale = $receipts->keys()->diff($messages->modelKeys())
-            ->merge($messages->filter(fn (Message $message): bool => $this->waitingFor($message, $receipts, $untracked) === [])->modelKeys())
+            ->merge($messages->filter(fn (Message $message): bool => $this->hasExpired($message, $cutoff) && $this->waitingFor($message, $receipts, $untracked) === [])->modelKeys())
             ->all();
         $this->rooms->deleteMessages($room, array_values($stale));
 
-        // Everyone named in a receipt, including the ones just created.
         $userIds = $receipts->flatten(1)->pluck('user_id')->merge(array_merge([], ...array_values($untracked)));
         $users = $this->rooms->usersByIds($userIds->unique()->values()->all());
 
         return new RoomMessagesResponse($messages
             ->reject(fn (Message $message): bool => in_array($message->id, $stale, true))
+            ->filter(fn (Message $message): bool => $this->isShownTo($viewer, $message, $this->waitingFor($message, $receipts, $untracked), $cutoff))
             ->map(fn (Message $message): RoomMessageResponse => new RoomMessageResponse(
                 $message,
                 [$message->user, ...$this->users($users, $this->readers($message, $receipts))],
@@ -149,11 +157,6 @@ class RoomService implements RoomServiceInterface
         $response = new RoomMessageResponse($message, [$sender], $this->users($this->rooms->usersByIds($recipientIds), $recipientIds));
         $this->broadcast(new RoomMessageSent($response, $this->listChannels($room)));
 
-        // Nobody else has to read it, so it has already been seen by everyone.
-        if ($recipientIds === []) {
-            $this->rooms->deleteMessages($room, [$message->id]);
-        }
-
         return $response;
     }
 
@@ -166,13 +169,19 @@ class RoomService implements RoomServiceInterface
         }
 
         // Checked after the reader's receipts are saved, so when two members read the last copies at the same
-        // time at least one of them sees nothing left and deletes the message.
-        $deletedIds = $this->rooms->fullyRead($room, $readIds);
+        // time at least one of them sees nothing left and deletes the message. One read by everyone within its
+        // 24 hours stays until they are up (see pruneMessages()).
+        $deletedIds = $this->rooms->fullyRead($room, $readIds, $this->lifetimeCutoff());
         $this->rooms->deleteMessages($room, $deletedIds);
 
         $this->broadcast(new RoomMessagesRead($room->id, $reader, $readIds, $deletedIds));
 
         return new ReadReceiptsResponse($readIds, $deletedIds);
+    }
+
+    public function pruneMessages(): int
+    {
+        return $this->rooms->deleteFullyRead($this->lifetimeCutoff());
     }
 
     /**
@@ -194,10 +203,9 @@ class RoomService implements RoomServiceInterface
      * Members who still have to read the message.
      *
      * @param  Collection<int, Collection<int, Notification>>  $receipts
-     * @param  array<int, list<int>>  $untracked  receipts just created for older messages, by message id
      * @return list<int>
      */
-    private function waitingFor(Message $message, Collection $receipts, array $untracked): array
+    private function waitingFor(Message $message, Collection $receipts, array $untracked = []): array
     {
         if (array_key_exists($message->id, $untracked)) {
             return $untracked[$message->id];
@@ -208,6 +216,30 @@ class RoomService implements RoomServiceInterface
             ->map(fn (Notification $receipt): int => (int) $receipt->user_id)
             ->values()
             ->all();
+    }
+
+    /**
+     * Whether the viewer still sees the message: everyone who can see the room does until its lifetime is up,
+     * then only the members who have yet to read it.
+     *
+     * @param  list<int>  $waitingFor
+     */
+    private function isShownTo(User $viewer, Message $message, array $waitingFor, CarbonInterface $cutoff): bool
+    {
+        return ! $this->hasExpired($message, $cutoff) || in_array($viewer->id, $waitingFor, true);
+    }
+
+    /** Whether the message's 24 hours are up. */
+    private function hasExpired(Message $message, CarbonInterface $cutoff): bool
+    {
+        return ! $message->created_at->isAfter($cutoff);
+    }
+
+    /** Messages sent after this moment are still within their lifetime. */
+    private function lifetimeCutoff(): CarbonInterface
+    {
+        //change to subHours in real, currently testing
+        return now()->subHours(self::MESSAGE_LIFETIME_HOURS);
     }
 
     /**
@@ -222,7 +254,11 @@ class RoomService implements RoomServiceInterface
 
     private function present(DiscussionRoom $room, User $viewer): RoomResponse
     {
-        return RoomResponse::fromModel($this->rooms->loadDetail($room), $viewer->id, $this->rooms->unreadCount($room, $viewer->id));
+        return RoomResponse::fromModel(
+            $this->rooms->loadDetail($room, $viewer->id, $this->lifetimeCutoff()),
+            $viewer->id,
+            $this->rooms->unreadCount($room, $viewer->id),
+        );
     }
 
     /**
@@ -245,8 +281,8 @@ class RoomService implements RoomServiceInterface
     }
 
     /**
-     * A failed push only delays delivery: a message stays stored until every member has read it, and a list
-     * catches up the next time it loads.
+     * A failed push only delays delivery: a message stays stored for its 24 hours and until every member has
+     * read it, and a list catches up the next time it loads.
      */
     private function broadcast(object $event): void
     {

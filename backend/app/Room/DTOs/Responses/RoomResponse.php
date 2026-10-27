@@ -34,7 +34,8 @@ final readonly class RoomResponse implements JsonSerializable
             'invited' => $invite !== null,
             'invited_by' => $inviter ? (new MemberResource($inviter))->resolve() : null,
             'invitees' => MemberResource::collection($room->invitees)->resolve(),
-            // Only messages someone still has to read are stored, so these describe the pending ones.
+            // The messages the viewer can still see: the ones sent in the last 24 hours, and older ones that still
+            // wait for the viewer to read them.
             'message_count' => (int) $room->messages_count,
             'unread' => $unread,
             'last_message' => $last ? [
@@ -56,7 +57,7 @@ final readonly class RoomResponse implements JsonSerializable
         return $this->payload['invited'];
     }
 
-    /** When the room last had activity: its newest stored message, else its creation. */
+    /** When the room last had activity: the newest message the viewer can see, else its creation. */
     public function lastActivity(): string
     {
         return $this->payload['last_message']['created_at'] ?? $this->payload['created_at'] ?? '';

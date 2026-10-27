@@ -487,8 +487,8 @@ Brief objective 7: "Real-Time Communication – create movie discussion rooms us
    - Channels are authorized through `POST /api/rooms/socket-auth` and `routes/channels.php`.
    - Frontend: real API (`roomSocket.ts`, `laravel-echo`).
 5. **Read receipts and message lifetime [Done]**
-   - `POST /api/rooms/{room}/read` broadcasts `RoomMessagesRead`. A message is deleted once every member at the time it was sent has read it.
-   - **Design note:** the server keeps only unread messages, and each browser keeps its own history in localStorage. A member on a new device, or someone who joins later, doesn't see older messages.
+   - `POST /api/rooms/{room}/read` broadcasts `RoomMessagesRead`. A message is shown for 24 hours, then only to the members who haven't read it; it's deleted once its 24 hours are up and every member at the time it was sent has read it (the scheduled `rooms:prune-messages` deletes the ones read in time).
+   - **Design note:** the server is the only copy; browsers save nothing. A member on a new device, or someone who joins later, sees the last 24 hours of messages.
    - The brief doesn't require history, but make sure this is the behaviour you want to demo.
 6. **[Refactor] Read receipts live in the `notifications` table**
    - The Room module writes `notifications` rows of type `room_message` (`Notification::ROOM_MESSAGE`). That table belongs to another feature, and `AccountResponse` already had to filter these rows out of the unread count.

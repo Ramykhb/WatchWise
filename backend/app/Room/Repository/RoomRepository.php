@@ -7,18 +7,22 @@ use App\Models\Message;
 use App\Models\Notification;
 use App\Models\User;
 use App\Room\InterfaceRepository\RoomRepositoryInterface;
+use Carbon\CarbonInterface;
+use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 
 class RoomRepository implements RoomRepositoryInterface
 {
-    private const DETAIL = ['creator', 'members', 'invitees', 'latestMessage.user'];
-
-    public function visibleTo(int $userId): Collection
+    public function visibleTo(int $userId, CarbonInterface $sentAfter): Collection
     {
-        return DiscussionRoom::with(self::DETAIL)
-            ->withCount('messages')
+        $shown = $this->shownTo($userId, $sentAfter);
+
+        return DiscussionRoom::with($this->detail($shown))
+            ->withCount(['messages' => $shown])
             ->where(fn (Builder $rooms) => $rooms
                 ->where('is_private', false)
                 ->orWhereHas('members', fn (Builder $members) => $members->whereKey($userId))
@@ -31,9 +35,11 @@ class RoomRepository implements RoomRepositoryInterface
         return DiscussionRoom::create($attributes);
     }
 
-    public function loadDetail(DiscussionRoom $room): DiscussionRoom
+    public function loadDetail(DiscussionRoom $room, int $viewerId, CarbonInterface $sentAfter): DiscussionRoom
     {
-        return $room->load(self::DETAIL)->loadCount('messages');
+        $shown = $this->shownTo($viewerId, $sentAfter);
+
+        return $room->load($this->detail($shown))->loadCount(['messages' => $shown]);
     }
 
     public function addMember(DiscussionRoom $room, int $userId): void
@@ -125,17 +131,44 @@ class RoomRepository implements RoomRepositoryInterface
         return $this->messageIdsOf($receipts);
     }
 
-    public function fullyRead(DiscussionRoom $room, array $messageIds): array
+    public function fullyRead(DiscussionRoom $room, array $messageIds, CarbonInterface $sentBy): array
     {
-        if ($messageIds === []) {
+        $sent = $messageIds === [] ? [] : $room->messages()
+            ->whereKey($messageIds)
+            ->where('created_at', '<=', $sentBy)
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        if ($sent === []) {
             return [];
         }
 
         $waiting = $this->messageIdsOf(
-            $this->roomReceipts($room)->whereNull('read_at')->whereIn('data->message_id', $messageIds)->get(['data']),
+            $this->roomReceipts($room)->whereNull('read_at')->whereIn('data->message_id', $sent)->get(['data']),
         );
 
-        return array_values(array_diff($messageIds, $waiting));
+        return array_values(array_diff($sent, $waiting));
+    }
+
+    public function deleteFullyRead(CarbonInterface $sentBy): int
+    {
+        $deleted = 0;
+
+        Message::query()
+            ->select('id')
+            ->where('created_at', '<=', $sentBy)
+            ->whereNotExists(fn (QueryBuilder $receipts) => $this->unreadReceipts($receipts, 'messages.id'))
+            ->chunkById(500, function (Collection $messages) use (&$deleted): void {
+                $ids = $messages->modelKeys();
+                DB::transaction(function () use ($ids): void {
+                    Notification::where('type', Notification::ROOM_MESSAGE)->whereIn('data->message_id', $ids)->delete();
+                    Message::whereKey($ids)->delete();
+                });
+                $deleted += count($ids);
+            });
+
+        return $deleted;
     }
 
     public function deleteMessages(DiscussionRoom $room, array $messageIds): void
@@ -163,6 +196,48 @@ class RoomRepository implements RoomRepositoryInterface
     public function unreadCount(DiscussionRoom $room, int $userId): int
     {
         return $this->roomReceipts($room)->where('user_id', $userId)->whereNull('read_at')->count();
+    }
+
+    /**
+     * The creator, members, invitees and the newest message `$shown` lets through, with its author.
+     *
+     * @param  Closure(Builder<Message>): Builder<Message>  $shown
+     * @return array<int|string, string|Closure>
+     */
+    private function detail(Closure $shown): array
+    {
+        return [
+            'creator',
+            'members',
+            'invitees',
+            // Narrows the "newest of many" subquery itself: a constraint on the relation would only drop the newest
+            // stored message instead of finding the newest one the user can see.
+            'latestMessage' => fn (HasOne $latest) => $shown($latest->getOneOfManySubQuery()),
+            'latestMessage.user',
+        ];
+    }
+
+    /**
+     * Narrows a messages query to the ones the user can see: those sent after `$sentAfter`, and older ones the
+     * user still has to read.
+     *
+     * @return Closure(Builder<Message>): Builder<Message>
+     */
+    private function shownTo(int $userId, CarbonInterface $sentAfter): Closure
+    {
+        return fn (Builder $messages): Builder => $messages->where(fn (Builder $shown) => $shown
+            ->where($messages->qualifyColumn('created_at'), '>', $sentAfter)
+            ->orWhereExists(fn (QueryBuilder $receipts) => $this->unreadReceipts($receipts, $messages->qualifyColumn('id'))
+                ->where('notifications.user_id', $userId)));
+    }
+
+    /** Narrows a subquery to the unread receipts of the message whose id is in `$messageIdColumn`. */
+    private function unreadReceipts(QueryBuilder $receipts, string $messageIdColumn): QueryBuilder
+    {
+        return $receipts->from('notifications')
+            ->where('notifications.type', Notification::ROOM_MESSAGE)
+            ->whereNull('notifications.read_at')
+            ->whereColumn('notifications.data->message_id', $messageIdColumn);
     }
 
     /**

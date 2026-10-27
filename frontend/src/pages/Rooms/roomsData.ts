@@ -2,6 +2,7 @@ import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import { look, shortName } from '../../lib/format.ts'
 import { movieFor } from '../../lib/movies.ts'
 import type { ApiMember, ApiMessage, ApiRoom } from '../../lib/types.ts'
+import { hasExpired } from './roomHistory.ts'
 
 // Turns GET /api/rooms and the room's messages (this browser's copy, the server and the socket) into what the
 // Rooms page draws.
@@ -32,7 +33,7 @@ export type Room = {
   unread: number
   /** Last-message preview in the room list. */
   preview: string
-  /** The newest stored message's time, else the room's creation (ISO). */
+  /** The time of the newest message you can still see, else the room's creation (ISO). */
   lastActivity: string
   rules: string[]
 }
@@ -69,27 +70,31 @@ export const rulesFor = (spoilers: boolean) => [
   'No links to pirated content',
 ]
 
-export const toRoom = (room: ApiRoom): Room => ({
-  id: String(room.id),
-  name: room.name,
-  movie: movieFor(room.tmdb_id),
-  members: room.members.map(toRoomMember),
-  host: room.host ? toRoomMember(room.host) : null,
-  spoilers: room.spoilers,
-  isPrivate: room.is_private,
-  joined: room.joined,
-  invited: room.invited,
-  invitedBy: room.invited_by ? toRoomMember(room.invited_by) : null,
-  invitees: room.invitees.map(toRoomMember),
-  unread: room.unread,
-  preview: room.last_message
-    ? `${room.last_message.author?.split(' ')[0] ?? 'Someone'}: ${room.last_message.content}`
-    : room.invited
-      ? `${room.invited_by?.name.split(' ')[0] ?? 'A member'} invited you`
-      : 'No new messages',
-  lastActivity: room.last_message?.created_at ?? room.created_at,
-  rules: rulesFor(room.spoilers),
-})
+export function toRoom(room: ApiRoom, now: number): Room {
+  // The newest message's 24 hours can run out while the list is open; with nothing waiting for you, it's gone.
+  const last = room.last_message && (room.unread > 0 || !hasExpired(room.last_message, now)) ? room.last_message : null
+  return {
+    id: String(room.id),
+    name: room.name,
+    movie: movieFor(room.tmdb_id),
+    members: room.members.map(toRoomMember),
+    host: room.host ? toRoomMember(room.host) : null,
+    spoilers: room.spoilers,
+    isPrivate: room.is_private,
+    joined: room.joined,
+    invited: room.invited,
+    invitedBy: room.invited_by ? toRoomMember(room.invited_by) : null,
+    invitees: room.invitees.map(toRoomMember),
+    unread: room.unread,
+    preview: last
+      ? `${last.author?.split(' ')[0] ?? 'Someone'}: ${last.content}`
+      : room.invited
+        ? `${room.invited_by?.name.split(' ')[0] ?? 'A member'} invited you`
+        : 'No new messages',
+    lastActivity: last?.created_at ?? room.created_at,
+    rules: rulesFor(room.spoilers),
+  }
+}
 
 /**
  * A message pushed to the room list (`message.sent` on `rooms.public` / `rooms.user.{id}`): it becomes the
@@ -106,9 +111,6 @@ export const withNewMessage = (rooms: ApiRoom[], message: ApiMessage, viewerId: 
           last_message: { author: message.user.name, content: message.content, created_at: message.created_at },
         },
   )
-
-/** "Lina: see you at 9" for the room list. */
-export const previewOf = (message: ApiMessage) => `${message.user.name.split(' ')[0]}: ${message.content}`
 
 /** Messages with a "Today" / "Yesterday" / date line wherever the day changes, and who has read each one. */
 export function toMessages(messages: ApiMessage[], viewerId: number | undefined): Message[] {
