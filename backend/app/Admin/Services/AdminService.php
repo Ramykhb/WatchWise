@@ -16,6 +16,7 @@ use App\Admin\DTOs\Responses\AdminUserResponse;
 use App\Admin\DTOs\Responses\GenreShareResponse;
 use App\Admin\DTOs\Responses\RankedMovieResponse;
 use App\Admin\Exceptions\CannotModerateSelf;
+use App\Admin\Exceptions\CannotModerateStaff;
 use App\Admin\InterfaceRepository\AdminStatsRepositoryInterface;
 use App\Admin\InterfaceRepository\AdminUserRepositoryInterface;
 use App\Admin\InterfaceServices\AdminServiceInterface;
@@ -30,6 +31,7 @@ use App\Movie\DTOs\Requests\UpdateLocalMovieData;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Review\InterfaceServices\ReviewServiceInterface;
 use App\Support\Exceptions\TmdbUnavailable;
+use App\Support\MediaType;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use JsonSerializable;
@@ -61,6 +63,9 @@ class AdminService implements AdminServiceInterface
         $hidden = $this->catalog->hiddenTmdbIds();
         $lastWeek = now()->subDays(7);
         $lastMonth = now()->subDays(30);
+        $windowStart = today()->subDays($query->days - 1);
+        $previousStart = $windowStart->copy()->subDays($query->days);
+        $tomorrow = today()->addDay();
 
         $watched = $this->stats->mostWatched($hidden, self::RANKING_SIZE);
         $rated = $this->stats->topRated($hidden, self::MIN_RATINGS_TO_RANK, self::RANKING_SIZE);
@@ -81,6 +86,17 @@ class AdminService implements AdminServiceInterface
                 'last_7_days' => $this->stats->reviewsCreatedSince($lastWeek),
                 'last_30_days' => $this->stats->reviewsCreatedSince($lastMonth),
             ],
+            activeToday: $this->stats->usersActiveBetween(today(), $tomorrow),
+            activeYesterday: $this->stats->usersActiveBetween(today()->subDay(), today()),
+            flaggedReviews: $this->reviews->moderationTotals()['flagged'],
+            range: [
+                'name' => $query->range ?? (string) $query->days,
+                'days' => $query->days,
+                'new_users' => $this->stats->usersCreatedBetween($windowStart, $tomorrow),
+                'previous_new_users' => $this->stats->usersCreatedBetween($previousStart, $windowStart),
+                'new_reviews' => $this->stats->reviewsCreatedBetween($windowStart, $tomorrow),
+                'previous_new_reviews' => $this->stats->reviewsCreatedBetween($previousStart, $windowStart),
+            ],
             mostWatched: array_map(
                 fn (array $row): RankedMovieResponse => $this->ranked($row['tmdb_id'], $row['count'], $titles),
                 $watched,
@@ -96,11 +112,16 @@ class AdminService implements AdminServiceInterface
 
     public function users(AdminUserQuery $query): AdminPageResponse
     {
-        return $this->page($this->users->paginate($query), fn (User $user): AdminUserResponse => AdminUserResponse::fromModel($user));
+        return $this->page($this->users->paginate($query), fn (User $user): AdminUserResponse => AdminUserResponse::fromModel($user))
+            ->withSummary($this->users->totals());
     }
 
     public function updateUser(User $admin, User $target, UpdateUserData $data): AdminUserResponse
     {
+        if ($admin->role !== 'admin') {
+            $this->assertModeratorMayUpdate($admin, $target, $data);
+        }
+
         if ($admin->is($target)) {
             if ($data->role !== null && $data->role !== 'admin') {
                 throw CannotModerateSelf::forDemotion();
@@ -120,6 +141,22 @@ class AdminService implements AdminServiceInterface
         return AdminUserResponse::fromModel($updated);
     }
 
+    /** A moderator may only suspend or reinstate plain members. */
+    private function assertModeratorMayUpdate(User $moderator, User $target, UpdateUserData $data): void
+    {
+        if ($moderator->is($target)) {
+            throw CannotModerateSelf::forDeactivation();
+        }
+
+        if ($data->role !== null) {
+            throw CannotModerateStaff::forRoleChange();
+        }
+
+        if ($target->role !== 'user') {
+            throw CannotModerateStaff::forStaffAccount();
+        }
+    }
+
     public function deleteUser(User $admin, User $target): void
     {
         if ($admin->is($target)) {
@@ -132,17 +169,22 @@ class AdminService implements AdminServiceInterface
 
     public function reviews(ReviewModerationQuery $query): AdminPageResponse
     {
+        $paginator = $this->reviews->moderationQueue($query->status, $query->page, $query->perPage);
+        $films = $this->filmsOf(collect($paginator->items()));
+
         return $this->page(
-            $this->reviews->moderationQueue($query->status, $query->page, $query->perPage),
-            fn (Review $review): AdminReviewResponse => AdminReviewResponse::fromModel($review),
-        );
+            $paginator,
+            fn (Review $review): AdminReviewResponse => AdminReviewResponse::fromModel($review, $this->filmOf($review, $films)),
+        )->withSummary($this->reviewSummary());
     }
 
     public function moderateReview(Review $review, ModerateReviewData $data): AdminReviewResponse
     {
         $moderated = $data->isApproval() ? $this->reviews->approve($review) : $this->reviews->reject($review);
 
-        return AdminReviewResponse::fromModel($moderated->loadMissing('user'));
+        $moderated->loadMissing(['user', 'reports']);
+
+        return AdminReviewResponse::fromModel($moderated, $this->filmOf($moderated, $this->filmsOf(collect([$moderated]))));
     }
 
     public function deleteReview(Review $review): void
@@ -152,12 +194,55 @@ class AdminService implements AdminServiceInterface
 
     public function movies(LocalMovieQuery $query): AdminPageResponse
     {
-        return $this->page($this->catalog->paginate($query), fn (LocalMovie $movie): AdminMovieResponse => AdminMovieResponse::fromModel($movie));
+        return $this->page($this->catalog->paginate($query), fn (LocalMovie $movie): AdminMovieResponse => AdminMovieResponse::fromModel($movie))
+            ->withSummary(['sync' => $this->catalog->syncSummary()]);
     }
 
     public function updateMovie(int $tmdbId, UpdateLocalMovieData $data): AdminMovieResponse
     {
         return AdminMovieResponse::fromModel($this->catalog->update($tmdbId, $data));
+    }
+
+    /**
+     * Catalogue entries for the movies among the reviews, keyed by TMDB id (a TV show can share a movie's id).
+     *
+     * @param  Collection<int, Review>  $reviews
+     * @return Collection<int, LocalMovie>
+     */
+    private function filmsOf(Collection $reviews): Collection
+    {
+        return $this->catalog->summaries(
+            $reviews->where('media_type', MediaType::MOVIE)->pluck('tmdb_id')->map(fn ($id): int => (int) $id)->unique()->values()->all(),
+        );
+    }
+
+    /**
+     * @param  Collection<int, LocalMovie>  $films
+     */
+    private function filmOf(Review $review, Collection $films): ?LocalMovie
+    {
+        return $review->media_type === MediaType::MOVIE ? $films->get((int) $review->tmdb_id) : null;
+    }
+
+    /**
+     * Whole-site moderation numbers: flagged and removed counts and the sentiment split of the reviews that stand.
+     *
+     * @return array{flagged: int, removed: int, sentiment_total: int, sentiment: array<string, array{count: int, percent: float}>}
+     */
+    private function reviewSummary(): array
+    {
+        $totals = $this->reviews->moderationTotals();
+        $whole = array_sum($totals['sentiment']);
+
+        return [
+            'flagged' => $totals['flagged'],
+            'removed' => $totals['removed'],
+            'sentiment_total' => $whole,
+            'sentiment' => array_map(
+                fn (int $count): array => ['count' => $count, 'percent' => $whole > 0 ? round($count / $whole * 100, 1) : 0.0],
+                $totals['sentiment'],
+            ),
+        ];
     }
 
     /**

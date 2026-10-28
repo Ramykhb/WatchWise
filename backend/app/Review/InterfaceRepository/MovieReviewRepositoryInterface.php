@@ -32,11 +32,18 @@ interface MovieReviewRepositoryInterface
     /** Whether the review's author lets the viewer read their reviews (same rules as the review list). */
     public function authorVisibleTo(Review $review, User $viewer): bool;
 
-    /** Writes the review (and so the member's stars); it waits for moderation again and its old helpful votes are cleared. */
+    /** Writes the review (and so the member's stars); it waits for moderation again and its old helpful votes and reports are cleared. */
     public function save(User $user, SaveReviewData $data, string $sentiment): Review;
 
     /** Removes the text and its helpful votes; the member's stars stay. */
     public function clearText(User $user, int $tmdbId, string $mediaType): void;
+
+    /**
+     * Stores the member's report of the review, or changes the reason of the one they already filed.
+     *
+     * @return bool true when the report is new
+     */
+    public function saveReport(Review $review, User $reporter, string $reason): bool;
 
     /** Marks the review as helpful for the member; doing it twice is harmless. */
     public function vote(Review $review, User $user): void;

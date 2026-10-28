@@ -6,11 +6,14 @@ use App\Models\Review;
 use App\Models\User;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Review\DTOs\Requests\MovieReviewQuery;
+use App\Review\DTOs\Requests\ReportReviewData;
 use App\Review\DTOs\Requests\SaveReviewData;
 use App\Review\DTOs\Responses\MovieReviewResponse;
+use App\Review\DTOs\Responses\ReportReviewResponse;
 use App\Review\InterfaceRepository\MovieReviewRepositoryInterface;
 use App\Review\InterfaceServices\MovieReviewServiceInterface;
 use App\Support\MediaType;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
 
 class MovieReviewService implements MovieReviewServiceInterface
@@ -48,6 +51,16 @@ class MovieReviewService implements MovieReviewServiceInterface
     public function delete(User $user, int $tmdbId, string $mediaType): void
     {
         $this->reviews->clearText($user, $tmdbId, $mediaType);
+    }
+
+    public function report(Review $review, User $reporter, ReportReviewData $data): ReportReviewResponse
+    {
+        // A review the reporter can't read answers like one the policy refuses, so the response reveals nothing about it.
+        if (! $this->reviews->authorVisibleTo($review, $reporter)) {
+            throw new AuthorizationException;
+        }
+
+        return new ReportReviewResponse($this->reviews->saveReport($review, $reporter, $data->reason), $data->reason);
     }
 
     public function markHelpful(Review $review, User $user, bool $helpful): int
