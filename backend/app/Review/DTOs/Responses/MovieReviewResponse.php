@@ -25,6 +25,7 @@ final readonly class MovieReviewResponse implements JsonSerializable
             'sentiment' => $review->sentiment,
             'content' => $review->content,
             'has_spoilers' => (bool) $review->has_spoilers,
+            'moderation_labels' => $review->moderation_labels,
             'helpful' => (int) ($review->votes_count ?? 0),
             // Only set when the query asked (other members' reviews); your own review can't get your vote.
             'marked_helpful' => (bool) ($review->voted ?? false),

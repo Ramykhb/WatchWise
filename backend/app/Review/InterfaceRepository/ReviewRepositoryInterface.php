@@ -13,7 +13,7 @@ interface ReviewRepositoryInterface
      * @param  'pending'|'approved'  $status
      * @return LengthAwarePaginator<int, Review>
      */
-    public function paginateWithText(string $status, int $page, int $perPage): LengthAwarePaginator;
+    public function paginateWithText(string $status, int $page, int $perPage, string $search = '', ?string $sentiment = null, ?string $reason = null): LengthAwarePaginator;
 
     public function markApproved(Review $review): Review;
 

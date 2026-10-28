@@ -86,12 +86,12 @@ class MovieReviewRepository implements MovieReviewRepositoryInterface
         return $author->exists();
     }
 
-    public function save(User $user, SaveReviewData $data, string $sentiment): Review
+    public function save(User $user, SaveReviewData $data, string $sentiment, ?array $labels, bool $approved, bool $hasSpoilers): Review
     {
-        return DB::transaction(fn (): Review => $this->write($user, $data, $sentiment));
+        return DB::transaction(fn (): Review => $this->write($user, $data, $sentiment, $labels, $approved, $hasSpoilers));
     }
 
-    private function write(User $user, SaveReviewData $data, string $sentiment): Review
+    private function write(User $user, SaveReviewData $data, string $sentiment, ?array $labels, bool $approved, bool $hasSpoilers): Review
     {
         // Votes belong to the text they were given for: new or resubmitted text starts from zero.
         $this->forTitle($data->tmdbId, $data->mediaType)->where('user_id', $user->id)->first()?->votes()->delete();
@@ -102,9 +102,9 @@ class MovieReviewRepository implements MovieReviewRepositoryInterface
                 'content' => $data->content,
                 'rating' => $data->rating,
                 'sentiment' => $sentiment,
-                'has_spoilers' => $data->hasSpoilers,
-                // New or edited text waits for an administrator again.
-                'is_approved' => false,
+                'has_spoilers' => $hasSpoilers,
+                'moderation_labels' => $labels,
+                'is_approved' => $approved,
             ],
         );
 
@@ -120,7 +120,7 @@ class MovieReviewRepository implements MovieReviewRepositoryInterface
 
         $review->votes()->delete();
         // A rating with no text has nothing to moderate.
-        $review->update(['content' => null, 'sentiment' => null, 'has_spoilers' => false, 'is_approved' => true]);
+        $review->update(['content' => null, 'sentiment' => null, 'moderation_labels' => null, 'has_spoilers' => false, 'is_approved' => true]);
     }
 
     public function vote(Review $review, User $user): void
