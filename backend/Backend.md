@@ -24,6 +24,7 @@ What each module does. Paths are relative to `backend/`. The backend is split in
 - [Wiring](#wiring)
 - [Tests](#tests)
 - [Genre and Movie modules](#genre-and-movie-modules)
+- [Admin module](#admin-module)
 - [Gemini module](#gemini-module)
 - [Groq module](#groq-module)
 - [Weather module](#weather-module)
@@ -476,6 +477,53 @@ app/Room/
 - `room_message` rows are read receipts, not notifications for the bell: `/api/me` leaves them out of `counts.unread_notifications`, and a future notifications feed must too.
 - Tests: `tests/Feature/Room/RoomMessagingTest.php`, `tests/Feature/Room/RoomMembershipTest.php` (the permission matrix is in `tests/Feature/Auth/PolicyTest.php`).
 
+## Admin module
+
+`app/Admin/` is the administrator and moderator dashboard API (brief objective 11). It uses the same layers as Auth. One `AdminController` serves the dashboard, users, reviews and movies, and the routes are in `routes/admin.php` under `/api/admin` with `auth.jwt` and `role:admin,moderator`. The `reviews`, `movies` and `users` data stay in their own modules and tables: Admin calls `ReviewServiceInterface` and `MovieCatalogServiceInterface`, and only its two repositories (`AdminStatsRepository`, `AdminUserRepository`) read the `users` and statistics tables.
+
+```
+app/Admin/
+  Controllers/          AdminController
+  FormRequests/         AdminStatsRequest, AdminUserIndexRequest, UpdateUserRequest, AdminReviewIndexRequest, ModerateReviewRequest, AdminMovieIndexRequest, UpdateLocalMovieRequest
+  DTOs/Requests/        AdminStatsQuery, AdminUserQuery, UpdateUserData, ReviewModerationQuery, ModerateReviewData
+  DTOs/Responses/       AdminStatsResponse, RankedMovieResponse, GenreShareResponse, ActivityPointResponse, AdminUserResponse, AdminReviewResponse, AdminMovieResponse, AdminPageResponse
+  InterfaceServices/    AdminServiceInterface
+  Services/             AdminService
+  InterfaceRepository/  AdminStatsRepositoryInterface, AdminUserRepositoryInterface
+  Repository/           AdminStatsRepository, AdminUserRepository
+  Exceptions/           CannotModerateSelf, CannotModerateStaff (both render a 403)
+  Policies/             AdminPolicy
+  Providers/            AdminModuleServiceProvider
+```
+
+**Who can do what** (a guest gets 401 everywhere, a normal member 403):
+
+| Route | admin | moderator |
+| --- | --- | --- |
+| `GET /api/admin/stats` | yes | yes (read-only) |
+| `GET /api/admin/users` | yes | yes (read-only) |
+| `PATCH /api/admin/users/{user}` | `role` and `is_active` | `is_active` only, on a plain `user` account, never themselves |
+| `DELETE /api/admin/users/{user}` | yes | no |
+| `GET`, `PATCH`, `DELETE /api/admin/reviews*` | yes | yes |
+| `GET /api/admin/movies`, `PATCH /api/admin/movies/{tmdbId}` | yes | no |
+
+An admin cannot demote, deactivate or delete themselves (`CannotModerateSelf`). A moderator who targets themselves, an admin or another moderator, or sends `role`, gets `CannotModerateStaff`. Deactivating a user revokes their sessions (`AuthServiceInterface::revokeSessions()`), so login, refresh and existing access tokens stop working. The gates `admin.dashboard`, `admin.users`, `admin.reviews`, `admin.movies` and `admin.users.manage` (admin-only: delete users) are defined in `AuthorizationServiceProvider` and backed by `AdminPolicy`.
+
+**What the endpoints return:**
+
+- `stats`: `users_total`, `new_users`, `reviews_total`, `reviews_pending`, `new_reviews`, `active_today`, `active_yesterday`, `flagged_reviews`, `most_watched`, `top_rated`, `popular_genres` and the daily `activity` series. `?range=7|30|90|year` (or `?days=1..90`) picks the window; `range` in the response carries the counts for that window and the equally long one before it, for the change figures.
+- `users`: filters `q`, `role` (`user`, `moderator`, `admin`), `status` (`active`, `unverified`, `inactive`), `page`, `per_page`. Each row has `status`, `reviews_count` (reviews with text only) and `last_active_at`. A `summary` gives site-wide totals whatever the filters.
+- `reviews`: `?status=pending|approved|flagged|removed` (default `pending`; the four never overlap). A row's `status` is `removed` if `removed_at` is set, else `flagged` if it has an open report, else `approved` if `is_approved`, else `pending`. Rows carry `reports_count`, `reasons`, the author and the film (`movie.title` is null for TV and films not in the catalogue). A `summary` gives the flagged and removed totals and the sentiment split. Approving or rejecting closes the review's open reports; rejecting clears the text and sentiment, keeps the stars and sets `removed_at`.
+- `movies`: local catalogue rows (`title`, `overview`, `director`, `runtime`, `release_date`, `genre_ids`, `is_hidden`, `is_featured`, `is_edited`, `synced_at`, `edited_at`) and a `summary.sync` block (`cached`, `overrides`, `last_synced_at`). `PATCH` takes any of those editable fields; `null` clears `director`, `runtime`, `release_date` and `overview`, and an empty `genre_ids` clears the genres. Editing content sets `edited_at`; hiding or featuring does not.
+
+**Supporting changes**
+
+- `users.last_active_at` is stamped by the `auth.jwt` middleware at most once every 5 minutes per user. It is in `User::$hidden`, so public payloads and `/api/auth/me` do not expose it.
+- `users.role` accepts `moderator` besides `user` and `admin` (migration `2026_10_29_000001`). `role` is guarded against mass assignment.
+- `review_reports` (migration `2026_10_29_000002`) holds one report per member per review with a reason (`Spam`, `Links`, `Spoilers`, `Offensive language`) and `resolved_at`. The same migration adds `reviews.removed_at`. A member reports a review with `POST /api/reviews/{review}/report` (`throttle:10,1`, in the Review module). It is refused (403) for your own review, an unapproved, text-less or removed review, and a review whose author's privacy hides it from you. Re-reporting changes the reason and returns 200; a new report returns 201. When the author rewrites the review, its reports and `removed_at` are cleared.
+- `movies.director` and `movies.edited_at` (migration `2026_10_29_000003`). The director is filled from TMDB when a film is first cached.
+- Tests: `tests/Feature/Admin/` (every route for guest, member, moderator and admin; stats windows; user insights; moderation; moderator permissions) and `tests/Feature/Review/ReviewReportTest.php`. The API paths are in `openapi/paths/admin.json` and `openapi/paths/social.json`.
+
 ## Removed code
 
 `app/Http/` and `app/Services/` no longer exist. The base `Controller` class is gone too (controllers are plain classes), and so is everything that only lived in those two folders:
@@ -587,7 +635,7 @@ How it is built (no extra package is needed):
 - Passwords are hashed by the `User` model cast. Refresh tokens and reset tokens are stored hashed. The refresh token is rotated on every use, and presenting an already-used one revokes the whole session chain.
 - Tokens travel in HttpOnly cookies (the access token is also accepted as a Bearer header).
 - Social login refuses emails the provider has not verified. If an unverified local account already uses that email, its password is replaced and its sessions are revoked, so a pre-registered account cannot be taken over.
-- Registration ignores any `role` in the request, so every new user is a `user`. Admins are set in the database.
+- Registration ignores any `role` in the request, so every new user is a `user`. Admins and moderators are set in the database or by an admin through `PATCH /api/admin/users/{user}`.
 
 ## Known follow-ups
 
