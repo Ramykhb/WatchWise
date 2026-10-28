@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react'
 import type { Movie } from '../components/MovieTile/MovieTile.tsx'
 import { genreLabel, toTileMovie, type TmdbMovie } from '../pages/Discover/discoverApi.ts'
 import { api } from './api.ts'
-import { isDemoId, movieFor, tmdbIdOf } from './movies.ts'
+import { filmKeyOf, isDemoId, movieForKey, type FilmKey } from './movies.ts'
 
-// Films saved by TMDB id (a list's films, …) only come back from the API as ids. This loads their
-// title, year and poster from GET /api/movies/{id}, once per film, and keeps them in this browser for
-// a week so lists show their posters straight away on the next visit.
+// Titles saved by TMDB id (a list's movies and shows, …) only come back from the API as ids. This loads
+// their title, year and poster from GET /api/movies/{id} (?type=tv for shows), once per title, and keeps
+// them in this browser for a week so lists show their posters straight away on the next visit.
 
 type TmdbMovieDetails = TmdbMovie & { genres: { id: number; name: string }[] }
 
@@ -15,23 +15,29 @@ const STORAGE_DAYS = 7
 /** Keeps the stored films well under the browser's storage limit. */
 const STORAGE_MAX = 400
 
-/** Films already known in full (loaded, stored, or picked from a search), so pages can show them at once. */
-const known = new Map<number, Movie>(readStored())
-const requests = new Map<number, Promise<Movie>>()
+/** Titles already known in full (loaded, stored, or picked from a search), by key ("550", "tv-1399"). */
+const known = new Map<string, Movie>(readStored())
+const requests = new Map<string, Promise<Movie>>()
 
-function readStored(): [number, Movie][] {
+function readStored(): [string, Movie][] {
   try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as { savedAt: number; movies: [number, Movie][] } | null
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as { savedAt: number; movies: [FilmKey, Movie][] } | null
     if (!stored || Date.now() - stored.savedAt > STORAGE_DAYS * 86_400_000) return []
-    return stored.movies
+    return stored.movies.map(([key, movie]) => [String(key), movie])
   } catch {
     return []
   }
 }
 
+/** Demo movies (1001–1008) are known locally and never loaded. */
+const isDemo = (key: FilmKey) => typeof key === 'number' && isDemoId(key)
+
+/** "tv-1399" back to a key the API understands (a plain number for movies). */
+const toKey = (part: string): FilmKey => (part.startsWith('tv-') ? part : Number(part))
+
 let storeTimer = 0
-function remember(tmdbId: number, movie: Movie) {
-  known.set(tmdbId, movie)
+function remember(key: FilmKey, movie: Movie) {
+  known.set(String(key), movie)
   // Batched, so a page loading many films writes once.
   window.clearTimeout(storeTimer)
   storeTimer = window.setTimeout(() => {
@@ -44,9 +50,9 @@ function remember(tmdbId: number, movie: Movie) {
   }, 500)
 }
 
-/** Keeps a film the user already has in full (e.g. picked from search), so it never needs loading. */
+/** Keeps a title the user already has in full (e.g. picked from search), so it never needs loading. */
 export function rememberMovie(movie: Movie) {
-  remember(tmdbIdOf(movie), movie)
+  remember(filmKeyOf(movie), movie)
 }
 
 /** At most this many film requests run at once; the rest wait their turn, so a page can't flood the API. */
@@ -70,21 +76,25 @@ function queued<T>(task: () => Promise<T>): Promise<T> {
   })
 }
 
-function loadMovie(tmdbId: number): Promise<Movie> {
-  let request = requests.get(tmdbId)
+function loadMovie(key: FilmKey): Promise<Movie> {
+  const id = String(key)
+  let request = requests.get(id)
   if (!request) {
-    request = queued(() => api.get<TmdbMovieDetails>(`/movies/${tmdbId}`))
+    const isTv = id.startsWith('tv-')
+    request = queued(() =>
+      api.get<TmdbMovieDetails>(`/movies/${isTv ? id.slice('tv-'.length) : id}`, { params: isTv ? { type: 'tv' } : undefined }),
+    )
       .then(({ data }) => {
         const movie = toTileMovie(data, new Map(data.genres.map((genre) => [genre.id, genreLabel(genre.name)])))
-        remember(tmdbId, movie)
+        remember(key, movie)
         return movie
       })
       .catch((error: unknown) => {
         // Let the next page that needs this film try again.
-        requests.delete(tmdbId)
+        requests.delete(id)
         throw error
       })
-    requests.set(tmdbId, request)
+    requests.set(id, request)
   }
   return request
 }
@@ -92,8 +102,8 @@ function loadMovie(tmdbId: number): Promise<Movie> {
 const loadingMovies = new WeakSet<Movie>()
 
 /** Shown while a film's details load. */
-function loading(tmdbId: number): Movie {
-  const movie = { ...movieFor(tmdbId), title: 'Loading…', posterTitle: ['', ''] as [string, string], meta: '' }
+function loading(key: FilmKey): Movie {
+  const movie = { ...movieForKey(key), title: 'Loading…', posterTitle: ['', ''] as [string, string], meta: '' }
   loadingMovies.add(movie)
   return movie
 }
@@ -108,33 +118,36 @@ export const isLoading = (movie: Movie) => loadingMovies.has(movie)
 export const posterAt = (url: string | undefined, size: 'w92' | 'w185' | 'w342') => url?.replace(/\/t\/p\/w\d+\//, `/t/p/${size}/`)
 
 /**
- * Loads the real details of `tmdbIds` and returns a lookup: a known film, "Loading…" while it loads,
- * otherwise `fallback` (or the id's placeholder when TMDB can't be reached). Demo ids need no request.
- * With `load` false nothing is requested yet (e.g. a card still off screen); its films show as loading.
+ * Loads the real details of these titles (movie ids, or "tv-1399" for shows) and returns a lookup: a
+ * known title, "Loading…" while it loads, otherwise `fallback` (or the key's placeholder when TMDB can't
+ * be reached). Demo ids need no request. With `load` false nothing is requested yet (e.g. a card still
+ * off screen); its titles show as loading.
  */
-export function useMovies(tmdbIds: number[], load = true) {
-  const [loaded, setLoaded] = useState<Map<number, Movie>>(new Map())
-  const [failed, setFailed] = useState<Set<number>>(new Set())
-  const key = tmdbIds.join(',')
+export function useMovies(keys: FilmKey[], load = true) {
+  const [loaded, setLoaded] = useState<Map<string, Movie>>(new Map())
+  const [failed, setFailed] = useState<Set<string>>(new Set())
+  const joined = keys.join(',')
 
   useEffect(() => {
     if (!load) return
     let active = true
-    for (const id of new Set(key.split(',').filter(Boolean).map(Number))) {
-      if (isDemoId(id) || known.has(id)) continue
-      loadMovie(id)
-        .then((movie) => active && setLoaded((current) => new Map(current).set(id, movie)))
-        .catch(() => active && setFailed((current) => new Set(current).add(id)))
+    for (const part of new Set(joined.split(',').filter(Boolean))) {
+      const key = toKey(part)
+      if (isDemo(key) || known.has(part)) continue
+      loadMovie(key)
+        .then((movie) => active && setLoaded((current) => new Map(current).set(part, movie)))
+        .catch(() => active && setFailed((current) => new Set(current).add(part)))
     }
     return () => {
       active = false
     }
-  }, [key, load])
+  }, [joined, load])
 
-  return (tmdbId: number, fallback?: Movie): Movie => {
-    const movie = loaded.get(tmdbId) ?? known.get(tmdbId)
+  return (key: FilmKey, fallback?: Movie): Movie => {
+    const id = String(key)
+    const movie = loaded.get(id) ?? known.get(id)
     if (movie) return movie
-    if (tmdbIds.includes(tmdbId) && !isDemoId(tmdbId) && !failed.has(tmdbId)) return loading(tmdbId)
-    return fallback ?? movieFor(tmdbId)
+    if (keys.some((wanted) => String(wanted) === id) && !isDemo(key) && !failed.has(id)) return loading(key)
+    return fallback ?? movieForKey(key)
   }
 }
