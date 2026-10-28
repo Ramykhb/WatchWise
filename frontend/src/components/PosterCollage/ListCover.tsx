@@ -2,12 +2,13 @@ import { useRef } from 'react'
 import type { Gradient } from '../../pages/Home/homeData.ts'
 import { useInView } from '../../hooks/useInView.ts'
 import { isLoading, useMovies } from '../../lib/movieDetails.ts'
+import type { FilmKey } from '../../lib/movies.ts'
 import PosterCollage from './PosterCollage.tsx'
 import styles from './PosterCollage.module.css'
 
 type ListCoverProps = {
   /** TMDB ids of the cover films (up to three). */
-  tmdbIds: number[]
+  tmdbIds: FilmKey[]
   /** Shown behind each poster, and for films with no poster. */
   gradients: Gradient[]
   size?: 'xl' | 'lg' | 'sm'
