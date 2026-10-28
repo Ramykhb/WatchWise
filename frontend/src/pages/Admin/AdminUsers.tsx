@@ -1,60 +1,63 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
+import AdminPagination from '../../components/AdminPagination/AdminPagination.tsx'
 import searchIcon from '../../assets/listdetail/icon-search.svg'
 import chevDownIcon from '../../assets/watchlist/icon-chev-down.svg'
-import mailIcon from '../../assets/admin/icon-mail.svg'
 import mailSmIcon from '../../assets/admin/icon-mail-sm.svg'
 import banWhiteIcon from '../../assets/admin/icon-ban-white.svg'
 import checkIcon from '../../assets/admin/icon-check-sm.svg'
 import editIcon from '../../assets/movie/icon-edit.svg'
 import banIcon from '../../assets/admin/icon-ban.svg'
 import dotsIcon from '../../assets/admin/icon-dots.svg'
-import chevLeftIcon from '../../assets/admin/icon-chev-left.svg'
-import chevRightIcon from '../../assets/admin/icon-chev-right.svg'
-import {
-  USERS,
-  USER_ROLES,
-  USER_STATUSES,
-  USER_TOTALS,
-  type AdminUserRow,
-  type UserRole,
-  type UserStatus,
-} from './adminData.ts'
+import { useAuth } from '../../contexts/useAuth.ts'
+import { adminApi, canSuspendUser, isAdminRole, useAdminUsers, type AdminUser, type AdminUserRole } from '../../lib/adminApi.ts'
+import { apiErrorMessage } from '../../lib/auth.ts'
+import { colorOf, initialsOf, longDate, timeAgo } from '../../lib/format.ts'
+import { USER_ROLES, USER_ROLE_LABEL, type UserStatus } from './adminData.ts'
 import styles from './AdminUsers.module.css'
 
-const ROLE_CLASS: Record<UserRole, string> = {
-  Member: styles.chipCream,
-  Moderator: styles.chipYellow,
-  Admin: styles.chipViolet,
+const ROLE_CLASS: Record<AdminUserRole, string> = {
+  user: styles.chipCream,
+  moderator: styles.chipYellow,
+  admin: styles.chipViolet,
 }
 const STATUS_CLASS: Record<UserStatus, string> = {
   Active: styles.chipMint,
   Unverified: styles.chipYellow,
   Suspended: styles.chipCoral,
 }
+const STATUS_FILTERS: UserStatus[] = ['Active', 'Unverified', 'Suspended']
+const STATUS_PARAM = { Active: 'active', Unverified: 'unverified', Suspended: 'inactive' } as const
+const PER_PAGE = 20
 
 const fmt = (n: number) => n.toLocaleString('en-US')
 
-/** Page buttons around the current page, e.g. 1 2 3 … 6,888. */
-function pageItems(page: number, total: number): (number | '…')[] {
-  if (page <= 3) return [1, 2, 3, '…', total]
-  if (page >= total - 2) return [1, '…', total - 2, total - 1, total]
-  return [1, '…', page, '…', total]
-}
+const STATUS_LABEL: Record<AdminUser['status'], UserStatus> = { active: 'Active', unverified: 'Unverified', inactive: 'Suspended' }
 
-type Menu = { id: string; kind: 'role' | 'more' } | null
+type Menu = { id: number; kind: 'role' | 'more' } | null
 
 export default function AdminUsers() {
   const [searchParams] = useSearchParams()
-  // TODO: load, filter and page users through the admin API; changes below are local only.
-  const [users, setUsers] = useState(USERS)
+  const { user: me } = useAuth()
+  const isAdmin = isAdminRole(me?.role)
   const [query, setQuery] = useState(searchParams.get('q') ?? '')
-  const [role, setRole] = useState<UserRole | 'All'>('All')
+  const [search, setSearch] = useState(query.trim())
+  const [role, setRole] = useState<AdminUserRole | 'All'>('All')
   const [status, setStatus] = useState<UserStatus | 'All'>('All')
-  const [selected, setSelected] = useState<string[]>([])
-  const [menu, setMenu] = useState<Menu>(null)
   const [page, setPage] = useState(1)
+  const [selected, setSelected] = useState<number[]>([])
+  const [menu, setMenu] = useState<Menu>(null)
   const [note, setNote] = useState('')
+
+  // Search the API once typing pauses.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearch(query.trim())
+      setPage(1)
+      setSelected([])
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [query])
 
   // Close an open row menu on outside click or Escape.
   useEffect(() => {
@@ -72,71 +75,91 @@ export default function AdminUsers() {
     }
   }, [menu])
 
-  const q = query.trim().toLowerCase()
-  const shown = users.filter(
-    (u) =>
-      (!q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)) &&
-      (role === 'All' || u.role === role) &&
-      (status === 'All' || u.status === status),
-  )
-  const allShownSelected = shown.length > 0 && shown.every((u) => selected.includes(u.id))
+  const { data, error, loading, setData, reload } = useAdminUsers({
+    q: search,
+    role: role === 'All' ? undefined : role,
+    status: status === 'All' ? undefined : STATUS_PARAM[status],
+    page,
+    per_page: PER_PAGE,
+  })
+  const users = data?.data ?? []
+  const hasFilters = search !== '' || role !== 'All' || status !== 'All'
+
+  const allShownSelected = users.length > 0 && users.every((u) => selected.includes(u.id))
   const selectedUsers = users.filter((u) => selected.includes(u.id))
 
-  const toggle = (id: string) => setSelected((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]))
+  const filterBy = (apply: () => void) => {
+    apply()
+    setPage(1)
+    setSelected([])
+  }
+  const toggle = (id: number) => setSelected((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]))
   const toggleAll = () =>
     setSelected((list) =>
-      allShownSelected ? list.filter((id) => !shown.some((u) => u.id === id)) : [...new Set([...list, ...shown.map((u) => u.id)])],
+      allShownSelected ? list.filter((id) => !users.some((u) => u.id === id)) : [...new Set([...list, ...users.map((u) => u.id)])],
     )
 
-  const update = (ids: string[], patch: Partial<AdminUserRow>) =>
-    setUsers((list) => list.map((u) => (ids.includes(u.id) ? { ...u, ...patch } : u)))
+  const replaceUser = (updated: AdminUser) =>
+    setData((current) => ({ ...current, data: current.data.map((u) => (u.id === updated.id ? { ...u, ...updated } : u)) }))
 
-  const toggleSuspend = (user: AdminUserRow) => {
-    const suspending = user.status !== 'Suspended'
+  const toggleSuspend = async (user: AdminUser) => {
+    const suspending = user.is_active
     if (suspending && !window.confirm(`Suspend ${user.name}? They won't be able to sign in or post.`)) return
-    update([user.id], { status: suspending ? 'Suspended' : 'Active' })
-    setNote(`${user.name} ${suspending ? 'suspended' : 'reinstated'}`)
+    try {
+      replaceUser(await adminApi.updateUser(user.id, { is_active: !suspending }))
+      setNote(`${user.name} ${suspending ? 'suspended' : 'reinstated'}`)
+    } catch (updateError) {
+      setNote(apiErrorMessage(updateError, 'Unable to update this user. Please try again.'))
+    }
   }
 
-  const suspendSelected = () => {
-    if (!window.confirm(`Suspend ${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''}?`)) return
-    update(selected, { status: 'Suspended' })
-    setNote(`${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''} suspended`)
+  const changeRole = async (user: AdminUser, next: AdminUserRole) => {
+    setMenu(null)
+    if (next === user.role) return
+    try {
+      replaceUser(await adminApi.updateUser(user.id, { role: next }))
+      setNote(`${user.name} is now ${next === 'admin' ? 'an' : 'a'} ${USER_ROLE_LABEL[next]}`)
+    } catch (updateError) {
+      setNote(apiErrorMessage(updateError, 'Unable to change the role. Please try again.'))
+    }
+  }
+
+  const deleteUser = async (user: AdminUser) => {
+    setMenu(null)
+    if (!window.confirm(`Delete ${user.name}? The account is removed for good.`)) return
+    try {
+      await adminApi.deleteUser(user.id)
+      setSelected((list) => list.filter((id) => id !== user.id))
+      setNote(`${user.name} was deleted`)
+      reload()
+    } catch (deleteError) {
+      setNote(apiErrorMessage(deleteError, 'Unable to delete this user. Please try again.'))
+    }
+  }
+
+  const suspendSelected = async () => {
+    const targets = selectedUsers.filter((u) => u.is_active && canSuspendUser(me, u))
+    if (targets.length === 0) {
+      setNote('Nothing to suspend in this selection.')
+      return
+    }
+    if (!window.confirm(`Suspend ${targets.length} user${targets.length > 1 ? 's' : ''}?`)) return
+    const results = await Promise.allSettled(targets.map((u) => adminApi.updateUser(u.id, { is_active: false })))
+    const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+    setNote(
+      failed.length === 0
+        ? `${targets.length} user${targets.length > 1 ? 's' : ''} suspended`
+        : apiErrorMessage(failed[0].reason, `${failed.length} of ${targets.length} users could not be suspended.`),
+    )
     setSelected([])
+    reload()
   }
 
   const emailSelected = () => {
     window.location.href = `mailto:?bcc=${selectedUsers.map((u) => u.email).join(',')}`
   }
 
-  const inviteAdmin = () => {
-    const email = window.prompt('Invite an admin — email address:')?.trim()
-    if (!email) return
-    if (!/^\S+@\S+\.\S+$/.test(email)) {
-      setNote('That email address looks wrong')
-      return
-    }
-    // TODO: POST /admin/invitations once the API exists.
-    const name = email.split('@')[0]
-    setUsers((list) => [
-      ...list,
-      {
-        id: `invite-${Date.now()}`,
-        initials: name.slice(0, 2).toUpperCase(),
-        color: 'var(--surface-violet-tint)',
-        name,
-        email,
-        role: 'Admin',
-        status: 'Unverified',
-        joined: 'Invited',
-        reviews: 0,
-        lastActive: '—',
-      },
-    ])
-    setNote(`Invitation sent to ${email}`)
-  }
-
-  const copyEmail = async (user: AdminUserRow) => {
+  const copyEmail = async (user: AdminUser) => {
     try {
       await navigator.clipboard.writeText(user.email)
       setNote(`Copied ${user.email}`)
@@ -146,12 +169,15 @@ export default function AdminUsers() {
     setMenu(null)
   }
 
-  const summary: { label: string; value: number; className: string; onClick: () => void; pressed: boolean }[] = [
-    { label: 'Total', value: USER_TOTALS.total, className: styles.chipWhite, onClick: () => (setRole('All'), setStatus('All')), pressed: false },
-    { label: 'Active', value: USER_TOTALS.active, className: styles.chipMint, onClick: () => setStatus('Active'), pressed: status === 'Active' },
-    { label: 'Unverified', value: USER_TOTALS.unverified, className: styles.chipYellow, onClick: () => setStatus('Unverified'), pressed: status === 'Unverified' },
-    { label: 'Suspended', value: USER_TOTALS.suspended, className: styles.chipCoral, onClick: () => setStatus('Suspended'), pressed: status === 'Suspended' },
-    { label: 'Admins', value: USER_TOTALS.admins, className: styles.chipViolet, onClick: () => setRole('Admin'), pressed: role === 'Admin' },
+  // Site-wide totals from the API, whatever filter is applied.
+  const totals = data?.summary
+  const summary: { label: string; className: string; onClick: () => void; pressed: boolean; count?: number }[] = [
+    { label: 'Total', className: styles.chipWhite, onClick: () => filterBy(() => (setRole('All'), setStatus('All'))), pressed: role === 'All' && status === 'All', count: totals?.total },
+    { label: 'Active', className: styles.chipMint, onClick: () => filterBy(() => setStatus('Active')), pressed: status === 'Active', count: totals?.active },
+    { label: 'Unverified', className: styles.chipYellow, onClick: () => filterBy(() => setStatus('Unverified')), pressed: status === 'Unverified', count: totals?.unverified },
+    { label: 'Suspended', className: styles.chipCoral, onClick: () => filterBy(() => setStatus('Suspended')), pressed: status === 'Suspended', count: totals?.inactive },
+    { label: 'Moderators', className: styles.chipYellow, onClick: () => filterBy(() => setRole('moderator')), pressed: role === 'moderator', count: totals?.moderators },
+    { label: 'Admins', className: styles.chipViolet, onClick: () => filterBy(() => setRole('admin')), pressed: role === 'admin', count: totals?.admins },
   ]
 
   return (
@@ -159,7 +185,7 @@ export default function AdminUsers() {
       <header className={styles.topBar}>
         <div className={styles.titleBlock}>
           <h1 className={styles.title}>Users</h1>
-          <p className={styles.lead}>Manage accounts, roles and access.</p>
+          <p className={styles.lead}>{isAdmin ? 'Manage accounts, roles and access.' : 'Review accounts and suspend those that break the rules.'}</p>
         </div>
         <div className={styles.controls}>
           <label className={styles.search}>
@@ -174,11 +200,11 @@ export default function AdminUsers() {
           </label>
           <label className={styles.select}>
             <span className="sr-only">Filter by role</span>
-            <select value={role} onChange={(event) => setRole(event.target.value as UserRole | 'All')}>
+            <select value={role} onChange={(event) => filterBy(() => setRole(event.target.value as AdminUserRole | 'All'))}>
               <option value="All">Role: All</option>
               {USER_ROLES.map((r) => (
                 <option key={r} value={r}>
-                  Role: {r}
+                  Role: {USER_ROLE_LABEL[r]}
                 </option>
               ))}
             </select>
@@ -186,9 +212,9 @@ export default function AdminUsers() {
           </label>
           <label className={styles.select}>
             <span className="sr-only">Filter by status</span>
-            <select value={status} onChange={(event) => setStatus(event.target.value as UserStatus | 'All')}>
+            <select value={status} onChange={(event) => filterBy(() => setStatus(event.target.value as UserStatus | 'All'))}>
               <option value="All">Status: All</option>
-              {USER_STATUSES.map((s) => (
+              {STATUS_FILTERS.map((s) => (
                 <option key={s} value={s}>
                   Status: {s}
                 </option>
@@ -196,17 +222,14 @@ export default function AdminUsers() {
             </select>
             <img src={chevDownIcon} width={14} height={14} alt="" />
           </label>
-          <button type="button" className={styles.invite} onClick={inviteAdmin}>
-            <img src={mailIcon} width={16} height={16} alt="" />
-            Invite admin
-          </button>
         </div>
       </header>
 
       <div className={styles.summary} role="group" aria-label="Quick filters">
         {summary.map((chip) => (
           <button key={chip.label} type="button" className={chip.className} aria-pressed={chip.pressed} onClick={chip.onClick}>
-            {chip.label} {fmt(chip.value)}
+            {chip.label}
+            {chip.count !== undefined && ` ${fmt(chip.count)}`}
           </button>
         ))}
         <span className={styles.note} role="status">
@@ -223,14 +246,14 @@ export default function AdminUsers() {
             <img src={mailSmIcon} width={14} height={14} alt="" />
             Email
           </button>
-          <button type="button" className={styles.bulkSuspend} onClick={suspendSelected}>
+          <button type="button" className={styles.bulkSuspend} onClick={() => void suspendSelected()}>
             <img src={banWhiteIcon} width={14} height={14} alt="" />
             Suspend
           </button>
         </div>
       )}
 
-      <section className={styles.tableCard} aria-label="Users">
+      <section className={styles.tableCard} aria-label="Users" aria-busy={loading}>
         <div className={styles.scroll}>
           <table className={styles.table}>
             <thead>
@@ -253,15 +276,33 @@ export default function AdminUsers() {
               </tr>
             </thead>
             <tbody>
-              {shown.length === 0 && (
+              {!data && (
                 <tr>
-                  <td colSpan={8} className={styles.empty}>
-                    No users match these filters.
+                  <td colSpan={8} className={styles.empty} role={error ? 'alert' : 'status'}>
+                    {error ? (
+                      <>
+                        {apiErrorMessage(error, 'Unable to load users.')}{' '}
+                        <button type="button" className={styles.menuItem} onClick={reload}>
+                          Try again
+                        </button>
+                      </>
+                    ) : (
+                      'Loading users…'
+                    )}
                   </td>
                 </tr>
               )}
-              {shown.map((user) => {
+              {data && users.length === 0 && (
+                <tr>
+                  <td colSpan={8} className={styles.empty}>
+                    {hasFilters ? 'No users match these filters.' : 'No users yet.'}
+                  </td>
+                </tr>
+              )}
+              {users.map((user) => {
                 const isSelected = selected.includes(user.id)
+                const userStatus = STATUS_LABEL[user.status]
+                const isMe = user.id === me?.id
                 return (
                   <tr key={user.id} className={isSelected ? styles.rowSelected : undefined}>
                     <td>
@@ -279,8 +320,8 @@ export default function AdminUsers() {
                     </td>
                     <td>
                       <span className={styles.user}>
-                        <span className={styles.avatar} style={{ background: user.color }} aria-hidden="true">
-                          {user.initials}
+                        <span className={styles.avatar} style={{ background: colorOf(user.id) }} aria-hidden="true">
+                          {initialsOf(user.name)}
                         </span>
                         <span className={styles.userText}>
                           <span className={styles.userName}>{user.name}</span>
@@ -289,22 +330,24 @@ export default function AdminUsers() {
                       </span>
                     </td>
                     <td>
-                      <span className={ROLE_CLASS[user.role]}>{user.role}</span>
+                      <span className={ROLE_CLASS[user.role] ?? styles.chipCream}>{USER_ROLE_LABEL[user.role] ?? user.role}</span>
                     </td>
                     <td>
-                      <span className={STATUS_CLASS[user.status]}>{user.status}</span>
+                      <span className={STATUS_CLASS[userStatus]}>{userStatus}</span>
                     </td>
-                    <td className={styles.muted}>{user.joined}</td>
-                    <td className={styles.strong}>{fmt(user.reviews)}</td>
-                    <td className={styles.muted}>{user.lastActive}</td>
+                    <td className={styles.muted}>{user.created_at ? longDate(user.created_at) : '—'}</td>
+                    <td className={styles.strong}>{fmt(user.reviews_count)}</td>
+                    <td className={styles.muted}>{user.last_active_at ? timeAgo(user.last_active_at) : '—'}</td>
                     <td>
                       <div className={styles.actions}>
+                        {isAdmin && (
                         <div className={styles.menuWrap} data-menu>
                           <button
                             type="button"
                             className={styles.actionCream}
                             aria-label={`Change ${user.name}'s role`}
                             aria-expanded={menu?.id === user.id && menu.kind === 'role'}
+                            disabled={isMe}
                             onClick={() => setMenu(menu?.id === user.id && menu.kind === 'role' ? null : { id: user.id, kind: 'role' })}
                           >
                             <img src={editIcon} width={14} height={14} alt="" />
@@ -318,25 +361,23 @@ export default function AdminUsers() {
                                     role="menuitemradio"
                                     aria-checked={user.role === r}
                                     className={styles.menuItem}
-                                    onClick={() => {
-                                      update([user.id], { role: r })
-                                      setNote(`${user.name} is now ${r === 'Admin' ? 'an' : 'a'} ${r}`)
-                                      setMenu(null)
-                                    }}
+                                    onClick={() => void changeRole(user, r)}
                                   >
-                                    {r}
+                                    {USER_ROLE_LABEL[r]}
                                   </button>
                                 </li>
                               ))}
                             </ul>
                           )}
                         </div>
+                        )}
                         <button
                           type="button"
-                          className={user.status === 'Suspended' ? styles.actionCoralOn : styles.actionCoral}
-                          aria-pressed={user.status === 'Suspended'}
-                          aria-label={user.status === 'Suspended' ? `Reinstate ${user.name}` : `Suspend ${user.name}`}
-                          onClick={() => toggleSuspend(user)}
+                          className={!user.is_active ? styles.actionCoralOn : styles.actionCoral}
+                          aria-pressed={!user.is_active}
+                          aria-label={!user.is_active ? `Reinstate ${user.name}` : `Suspend ${user.name}`}
+                          disabled={!canSuspendUser(me, user)}
+                          onClick={() => void toggleSuspend(user)}
                         >
                           <img src={banIcon} width={14} height={14} alt="" />
                         </button>
@@ -358,22 +399,14 @@ export default function AdminUsers() {
                                 </a>
                               </li>
                               <li>
-                                <button type="button" role="menuitem" className={styles.menuItem} onClick={() => copyEmail(user)}>
+                                <button type="button" role="menuitem" className={styles.menuItem} onClick={() => void copyEmail(user)}>
                                   Copy email
                                 </button>
                               </li>
-                              {user.status === 'Unverified' && (
+                              {isAdmin && !isMe && (
                                 <li>
-                                  <button
-                                    type="button"
-                                    role="menuitem"
-                                    className={styles.menuItem}
-                                    onClick={() => {
-                                      setNote(`Verification email re-sent to ${user.email}`)
-                                      setMenu(null)
-                                    }}
-                                  >
-                                    Resend verification
+                                  <button type="button" role="menuitem" className={styles.menuItem} onClick={() => void deleteUser(user)}>
+                                    Delete user
                                   </button>
                                 </li>
                               )}
@@ -389,48 +422,16 @@ export default function AdminUsers() {
           </table>
         </div>
 
-        <div className={styles.pagination}>
-          <p className={styles.showing}>
-            Showing 1–{shown.length} of {fmt(USER_TOTALS.total)}
-          </p>
-          <nav className={styles.pages} aria-label="Pages">
-            <button
-              type="button"
-              className={styles.pageButton}
-              aria-label="Previous page"
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              <img src={chevLeftIcon} width={15} height={15} alt="" />
-            </button>
-            {pageItems(page, USER_TOTALS.pages).map((item, index) =>
-              item === '…' ? (
-                <span key={`gap-${index}`} className={styles.pageGap}>
-                  …
-                </span>
-              ) : (
-                <button
-                  key={item}
-                  type="button"
-                  className={item === page ? styles.pageOn : styles.pageButton}
-                  aria-current={item === page ? 'page' : undefined}
-                  onClick={() => setPage(item)}
-                >
-                  {fmt(item)}
-                </button>
-              ),
-            )}
-            <button
-              type="button"
-              className={styles.pageButton}
-              aria-label="Next page"
-              disabled={page === USER_TOTALS.pages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              <img src={chevRightIcon} width={15} height={15} alt="" />
-            </button>
-          </nav>
-        </div>
+        {data && (
+          <AdminPagination
+            meta={data.meta}
+            shown={users.length}
+            onPage={(next) => {
+              setPage(next)
+              setSelected([])
+            }}
+          />
+        )}
       </section>
     </div>
   )
