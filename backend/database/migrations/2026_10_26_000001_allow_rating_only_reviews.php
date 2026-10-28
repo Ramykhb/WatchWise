@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -12,6 +13,22 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() === 'pgsql') {
+            // Laravel's PostgreSQL enum is a varchar plus a CHECK constraint. enum()->change()
+            // incorrectly puts the CHECK expression into ALTER COLUMN TYPE, which PostgreSQL rejects.
+            DB::statement('ALTER TABLE reviews DROP CONSTRAINT IF EXISTS reviews_sentiment_check');
+
+            Schema::table('reviews', function (Blueprint $table) {
+                $table->text('content')->nullable()->change();
+                $table->unique(['user_id', 'tmdb_id']);
+            });
+
+            DB::statement('ALTER TABLE reviews ALTER COLUMN sentiment DROP NOT NULL');
+            DB::statement("ALTER TABLE reviews ADD CONSTRAINT reviews_sentiment_allowed_check CHECK (sentiment IN ('positive', 'neutral', 'negative'))");
+
+            return;
+        }
+
         Schema::table('reviews', function (Blueprint $table) {
             $table->text('content')->nullable()->change();
             $table->enum('sentiment', ['positive', 'neutral', 'negative'])->nullable()->change();
