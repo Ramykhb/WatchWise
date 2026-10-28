@@ -26,7 +26,7 @@ import NightDetail from './pages/MovieNights/NightDetail.tsx'
 import Rooms from './pages/Rooms/Rooms.tsx'
 import Notifications from './pages/Notifications/Notifications.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
-import { RequireAuth, RequireGuest } from './components/RouteGuards/RouteGuards.tsx'
+import { RequireAdmin, RequireAuth, RequireGuest } from './components/RouteGuards/RouteGuards.tsx'
 import AuthCallback from './pages/AuthCallback/AuthCallback.tsx'
 
 export const router = createBrowserRouter([
@@ -67,12 +67,17 @@ export const router = createBrowserRouter([
           { path: 'settings', element: <Settings /> },
           {
             path: 'admin',
-            element: <AdminLayout />,
+            element: <RequireAdmin />,
             children: [
-              { index: true, element: <AdminOverview /> },
-              { path: 'users', element: <AdminUsers /> },
-              { path: 'reviews', element: <AdminReviews /> },
-              { path: 'movies', element: <AdminMovies /> },
+              {
+                element: <AdminLayout />,
+                children: [
+                  { index: true, element: <AdminOverview /> },
+                  { path: 'users', element: <AdminUsers /> },
+                  { path: 'reviews', element: <AdminReviews /> },
+                  { path: 'movies', element: <AdminMovies /> },
+                ],
+              },
             ],
           },
           { path: 'notifications', element: <Notifications /> },
