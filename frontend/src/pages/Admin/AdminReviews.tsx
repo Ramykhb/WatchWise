@@ -171,7 +171,7 @@ export default function AdminReviews() {
           {!data && (
             <div className={styles.empty} role={error ? 'alert' : 'status'}>
               <p className={styles.emptyTitle}>{error ? apiErrorMessage(error, 'Unable to load reviews.') : 'Loading reviews…'}</p>
-              {error && (
+              {Boolean(error) && (
                 <button type="button" className={styles.view} onClick={reload}>
                   Try again
                 </button>
