@@ -10,6 +10,7 @@ final readonly class AdminStatsResponse implements JsonSerializable
     /**
      * @param  array{last_7_days: int, last_30_days: int}  $newUsers
      * @param  array{last_7_days: int, last_30_days: int}  $newReviews
+     * @param  array{name: string, days: int, new_users: int, previous_new_users: int, new_reviews: int, previous_new_reviews: int}  $range  the selected window and the equally long one before it
      * @param  list<RankedMovieResponse>  $mostWatched
      * @param  list<RankedMovieResponse>  $topRated
      * @param  list<GenreShareResponse>  $popularGenres
@@ -21,6 +22,10 @@ final readonly class AdminStatsResponse implements JsonSerializable
         public int $reviewsTotal,
         public int $reviewsPending,
         public array $newReviews,
+        public int $activeToday,
+        public int $activeYesterday,
+        public int $flaggedReviews,
+        public array $range,
         public array $mostWatched,
         public array $topRated,
         public array $popularGenres,
@@ -38,6 +43,10 @@ final readonly class AdminStatsResponse implements JsonSerializable
             'reviews_total' => $this->reviewsTotal,
             'reviews_pending' => $this->reviewsPending,
             'new_reviews' => $this->newReviews,
+            'active_today' => $this->activeToday,
+            'active_yesterday' => $this->activeYesterday,
+            'flagged_reviews' => $this->flaggedReviews,
+            'range' => $this->range,
             'most_watched' => $this->mostWatched,
             'top_rated' => $this->topRated,
             'popular_genres' => $this->popularGenres,

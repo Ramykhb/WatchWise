@@ -69,7 +69,8 @@ class AuthorizationServiceProvider extends ServiceProvider
 
         // Admin abilities belong to no single model, so they are gates backed by AdminPolicy.
         Gate::define('admin.dashboard', [AdminPolicy::class, 'viewDashboard']);
-        Gate::define('admin.users', [AdminPolicy::class, 'manageUsers']);
+        Gate::define('admin.users', [AdminPolicy::class, 'viewUsers']);
+        Gate::define('admin.users.manage', [AdminPolicy::class, 'manageUsers']);
         Gate::define('admin.reviews', [AdminPolicy::class, 'moderateReviews']);
         Gate::define('admin.movies', [AdminPolicy::class, 'manageMovies']);
     }

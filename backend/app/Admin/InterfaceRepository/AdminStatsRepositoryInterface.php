@@ -21,6 +21,15 @@ interface AdminStatsRepositoryInterface
 
     public function reviewsCreatedSince(CarbonInterface $since): int;
 
+    /** Sign-ups from `$from` (inclusive) until `$until` (exclusive). */
+    public function usersCreatedBetween(CarbonInterface $from, CarbonInterface $until): int;
+
+    /** Reviews written from `$from` (inclusive) until `$until` (exclusive). */
+    public function reviewsCreatedBetween(CarbonInterface $from, CarbonInterface $until): int;
+
+    /** Members whose `last_active_at` falls from `$from` (inclusive) until `$until` (exclusive). */
+    public function usersActiveBetween(CarbonInterface $from, CarbonInterface $until): int;
+
     /**
      * @param  list<int>  $excludedTmdbIds
      * @return list<array{tmdb_id: int, count: int}> most watched first

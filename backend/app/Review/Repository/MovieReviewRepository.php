@@ -3,6 +3,7 @@
 namespace App\Review\Repository;
 
 use App\Models\Review;
+use App\Models\ReviewReport;
 use App\Models\ReviewVote;
 use App\Models\User;
 use App\Review\DTOs\Requests\MovieReviewQuery;
@@ -94,7 +95,9 @@ class MovieReviewRepository implements MovieReviewRepositoryInterface
     private function write(User $user, SaveReviewData $data, string $sentiment): Review
     {
         // Votes belong to the text they were given for: new or resubmitted text starts from zero.
-        $this->forTitle($data->tmdbId, $data->mediaType)->where('user_id', $user->id)->first()?->votes()->delete();
+        $existing = $this->forTitle($data->tmdbId, $data->mediaType)->where('user_id', $user->id)->first();
+        $existing?->votes()->delete();
+        $existing?->reports()->delete();
 
         $review = Review::updateOrCreate(
             ['user_id' => $user->id, 'tmdb_id' => $data->tmdbId, 'media_type' => $data->mediaType],
@@ -105,6 +108,7 @@ class MovieReviewRepository implements MovieReviewRepositoryInterface
                 'has_spoilers' => $data->hasSpoilers,
                 // New or edited text waits for an administrator again.
                 'is_approved' => false,
+                'removed_at' => null,
             ],
         );
 
@@ -121,6 +125,13 @@ class MovieReviewRepository implements MovieReviewRepositoryInterface
         $review->votes()->delete();
         // A rating with no text has nothing to moderate.
         $review->update(['content' => null, 'sentiment' => null, 'has_spoilers' => false, 'is_approved' => true]);
+    }
+
+    public function saveReport(Review $review, User $reporter, string $reason): bool
+    {
+        $report = ReviewReport::updateOrCreate(['review_id' => $review->id, 'user_id' => $reporter->id], ['reason' => $reason]);
+
+        return $report->wasRecentlyCreated;
     }
 
     public function vote(Review $review, User $user): void

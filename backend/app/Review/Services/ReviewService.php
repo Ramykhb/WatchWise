@@ -13,7 +13,12 @@ class ReviewService implements ReviewServiceInterface
 
     public function moderationQueue(string $status, int $page, int $perPage): LengthAwarePaginator
     {
-        return $this->reviews->paginateWithText($status, $page, $perPage);
+        return $this->reviews->paginateForModeration($status, $page, $perPage);
+    }
+
+    public function moderationTotals(): array
+    {
+        return $this->reviews->moderationTotals();
     }
 
     public function approve(Review $review): Review
