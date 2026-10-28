@@ -195,6 +195,7 @@ export type ApiMovieReview = {
   sentiment: 'positive' | 'neutral' | 'negative' | null
   content: string
   has_spoilers: boolean
+  moderation_labels: string[] | null
   helpful: number
   marked_helpful: boolean
   /** Your own review shows "Waiting for approval" until an administrator approves it. */

@@ -16,8 +16,9 @@ export type Review = {
   sentiment: SentimentType
   body: string
   helpful: number
-  /** Hidden behind "Show spoiler" until the reader asks. */
+  /** Text is blurred until clicked. */
   spoilers?: boolean
+  moderationLabels?: string[]
 }
 
 type ReviewCardProps = {
@@ -30,15 +31,22 @@ type ReviewCardProps = {
   own?: boolean
   /** Show the Reply button (only where replies exist). */
   canReply?: boolean
+  /** Classification is still running; sentiment is not available yet. */
+  pending?: boolean
 }
 
 /** Member review with rating, sentiment, "helpful" and reply actions (Figma "Review Card"). */
-export default function ReviewCard({ review, onHelpful, markedHelpful, own = false, canReply = !onHelpful }: ReviewCardProps) {
+export default function ReviewCard({ review, onHelpful, markedHelpful, own = false, canReply = !onHelpful, pending = false }: ReviewCardProps) {
   const [localHelpful, setLocalHelpful] = useState(false)
-  const [revealed, setRevealed] = useState(false)
+  const [revealedReview, setRevealedReview] = useState<string | null>(null)
   const pressed = onHelpful ? Boolean(markedHelpful) : localHelpful
   const helpful = review.helpful + (onHelpful ? 0 : localHelpful ? 1 : 0)
-  const hidden = review.spoilers && !revealed && !own
+  const reviewVersion = `${review.id}:${review.body}`
+  const hidden = (review.spoilers || review.moderationLabels?.includes('spoiler')) && revealedReview !== reviewVersion
+  const labels = [...new Set([
+    ...(review.moderationLabels ?? []),
+    ...(review.spoilers ? ['spoiler'] : []),
+  ])]
 
   return (
     <article className={styles.card}>
@@ -54,22 +62,27 @@ export default function ReviewCard({ review, onHelpful, markedHelpful, own = fal
         </div>
         <div className={styles.rating}>
           <RatingStars value={review.rating} label={`${review.name}'s rating`} />
-          <Sentiment type={review.sentiment} />
+          {!pending && <Sentiment type={review.sentiment} />}
         </div>
       </header>
-      {hidden ? (
-        <p className={styles.spoiler}>
-          This review contains spoilers.{' '}
-          <button type="button" className={styles.reveal} onClick={() => setRevealed(true)}>
-            Show spoiler
+      <div className={styles.body}>
+        {labels.map((label) => (
+          <span key={label} className={styles.spoilerTag}>
+            {label.charAt(0).toUpperCase() + label.slice(1)}
+          </span>
+        ))}
+        {hidden ? (
+          <button
+            type="button"
+            className={styles.spoilerReveal}
+            aria-label="This review contains spoilers. Reveal review text"
+            onClick={() => setRevealedReview(reviewVersion)}
+          >
+            <span className={styles.blurredText} aria-hidden="true">{review.body}</span>
+            <span className={styles.revealHint} aria-hidden="true">Spoiler · Click to reveal</span>
           </button>
-        </p>
-      ) : (
-        <p className={styles.body}>
-          {review.spoilers && <span className={styles.spoilerTag}>Spoiler</span>}
-          {review.body}
-        </p>
-      )}
+        ) : <span>{review.body}</span>}
+      </div>
       <footer className={styles.footer}>
         {own ? (
           helpful > 0 && (

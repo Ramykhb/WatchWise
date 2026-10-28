@@ -9,11 +9,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Review extends Model
 {
-    protected $fillable = ['user_id', 'tmdb_id', 'media_type', 'content', 'rating', 'sentiment', 'has_spoilers', 'is_approved'];
+    protected $fillable = ['user_id', 'tmdb_id', 'media_type', 'content', 'rating', 'sentiment', 'has_spoilers', 'is_approved', 'moderation_labels'];
 
     protected function casts(): array
     {
-        return ['rating' => 'integer', 'is_approved' => 'boolean', 'has_spoilers' => 'boolean'];
+        return ['rating' => 'integer', 'is_approved' => 'boolean', 'has_spoilers' => 'boolean', 'moderation_labels' => 'array'];
     }
 
     public function user(): BelongsTo

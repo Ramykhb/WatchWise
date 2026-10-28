@@ -133,7 +133,7 @@ class AdminService implements AdminServiceInterface
     public function reviews(ReviewModerationQuery $query): AdminPageResponse
     {
         return $this->page(
-            $this->reviews->moderationQueue($query->status, $query->page, $query->perPage),
+            $this->reviews->moderationQueue($query->status, $query->page, $query->perPage, $query->search, $query->sentiment, $query->reason),
             fn (Review $review): AdminReviewResponse => AdminReviewResponse::fromModel($review),
         );
     }

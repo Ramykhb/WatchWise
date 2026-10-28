@@ -13,7 +13,7 @@ interface ReviewServiceInterface
      * @param  'pending'|'approved'  $status
      * @return LengthAwarePaginator<int, Review>
      */
-    public function moderationQueue(string $status, int $page, int $perPage): LengthAwarePaginator;
+    public function moderationQueue(string $status, int $page, int $perPage, string $search = '', ?string $sentiment = null, ?string $reason = null): LengthAwarePaginator;
 
     /** Makes the review visible to everyone. */
     public function approve(Review $review): Review;

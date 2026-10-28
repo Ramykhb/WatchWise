@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import Sentiment from '../../components/Sentiment/Sentiment.tsx'
 import RatingStars from '../../components/RatingStars/RatingStars.tsx'
@@ -7,88 +7,102 @@ import searchIcon from '../../assets/listdetail/icon-search.svg'
 import eyeIcon from '../../assets/profile/icon-eye.svg'
 import checkIcon from '../../assets/watchlist/icon-check-sm.svg'
 import flagIcon from '../../assets/admin/icon-flag-sm.svg'
-import warnIcon from '../../assets/admin/icon-warn.svg'
 import trashIcon from '../../assets/admin/icon-trash.svg'
 import bookIcon from '../../assets/admin/icon-book.svg'
 import checkMintIcon from '../../assets/admin/icon-check-mint.svg'
-import { gradientCss } from '../Home/homeData.ts'
-import {
-  FLAG_REASONS,
-  GUIDELINES,
-  MODERATION_REVIEWS,
-  MODERATION_WEEK,
-  REVIEW_SENTIMENTS,
-  REVIEW_TOTALS,
-  SENTIMENT_SHARE,
-  type FlagReason,
-  type ModerationReview,
-  type ModerationStatus,
-  type ReviewSentiment,
-} from './adminData.ts'
+import { api } from '../../lib/api.ts'
+import { apiErrorMessage } from '../../lib/auth.ts'
+import { colorOf, initialsOf, longDate } from '../../lib/format.ts'
+import { GUIDELINES, REVIEW_SENTIMENTS, type ReviewSentiment } from './adminData.ts'
 import styles from './AdminReviews.module.css'
 
-type Tab = 'flagged' | 'all' | 'approved' | 'removed'
-
+type Tab = 'flagged' | 'approved'
 const TABS: { id: Tab; label: string }[] = [
   { id: 'flagged', label: 'Flagged' },
-  { id: 'all', label: 'All reviews' },
   { id: 'approved', label: 'Approved' },
-  { id: 'removed', label: 'Removed' },
 ]
+const FLAG_REASONS = ['Offensive language', 'Spoiler', 'Spam', 'Awaiting classification'] as const
+type FlagReason = typeof FLAG_REASONS[number]
+type ApiReview = {
+  id: number
+  tmdb_id: number
+  media_type: 'movie' | 'tv'
+  content: string
+  rating: number
+  sentiment: ReviewSentiment | null
+  is_approved: boolean
+  moderation_labels: string[] | null
+  author: { id: number | null; name: string | null; username: string | null }
+  created_at: string | null
+}
+type ReviewsPage = { data: ApiReview[]; meta: { current_page: number; last_page: number; total: number } }
 
-const SENTIMENT_ORDER: Record<ReviewSentiment, number> = { negative: 0, neutral: 1, positive: 2 }
 const capitalize = (text: string) => text[0].toUpperCase() + text.slice(1)
 
-type Note = { text: string; undo?: () => void }
-
 export default function AdminReviews() {
-  // TODO: load the queue from the admin API and send each decision to it.
-  const [reviews, setReviews] = useState(MODERATION_REVIEWS)
-  const [warned, setWarned] = useState<Set<string>>(() => new Set())
+  const [data, setData] = useState<ReviewsPage | null>(null)
   const [tab, setTab] = useState<Tab>('flagged')
+  const [page, setPage] = useState(1)
+  const [revision, setRevision] = useState(0)
   const [query, setQuery] = useState('')
   const [sentiment, setSentiment] = useState<ReviewSentiment | 'all'>('all')
   const [reason, setReason] = useState<FlagReason | 'all'>('all')
-  const [note, setNote] = useState<Note | null>(null)
+  const [note, setNote] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
+  const [busy, setBusy] = useState<number | null>(null)
 
-  // Decisions taken here move the site-wide totals too.
-  const handled = (status: ModerationStatus) =>
-    reviews.filter((r) => r.status === status && MODERATION_REVIEWS.find((o) => o.id === r.id)?.status === 'flagged').length
-  const flaggedCount = REVIEW_TOTALS.flagged - handled('approved') - handled('removed')
-  const removedCount = REVIEW_TOTALS.removed + handled('removed')
-  const counts: Partial<Record<Tab, number>> = { flagged: flaggedCount, removed: removedCount }
+  useEffect(() => {
+    let active = true
+    api.get<ReviewsPage>('/admin/reviews', { params: {
+      status: tab === 'flagged' ? 'pending' : 'approved', page,
+      q: query.trim() || undefined,
+      sentiment: sentiment === 'all' ? undefined : sentiment,
+      reason: reason === 'all' ? undefined : reason.toLowerCase(),
+    } })
+      .then(({ data: result }) => {
+        if (active) { setData(result); setFailed(false) }
+      })
+      .catch((error) => {
+        if (active) { setFailed(true); setNote(apiErrorMessage(error, 'Couldn’t load reviews.')) }
+      })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [tab, page, revision, query, sentiment, reason])
 
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return reviews
-      .filter((r) => tab === 'all' || r.status === tab)
-      .filter((r) => sentiment === 'all' || r.sentiment === sentiment)
-      .filter((r) => reason === 'all' || r.reasons.includes(reason))
-      .filter((r) => !q || [r.user, r.text, r.movie.title].some((field) => field.toLowerCase().includes(q)))
-      .sort((a, b) => SENTIMENT_ORDER[a.sentiment] - SENTIMENT_ORDER[b.sentiment] || b.reports - a.reports)
-  }, [reviews, tab, sentiment, reason, query])
+  const reviews = useMemo(() => (data?.data ?? []).map((review) => ({
+    ...review,
+    user: review.author.name ?? review.author.username ?? 'Deleted user',
+    initials: initialsOf(review.author.name ?? '?'),
+    color: colorOf(review.author.id ?? 0),
+    movie: { slug: `${review.media_type === 'tv' ? 'tv-' : ''}${review.tmdb_id}`, title: `${review.media_type === 'tv' ? 'TV show' : 'Movie'} #${review.tmdb_id}` },
+    time: review.created_at ? longDate(review.created_at) : '',
+    sentiment: review.sentiment ?? 'neutral',
+    text: review.content,
+    reasons: (review.moderation_labels === null ? ['Awaiting classification'] : review.moderation_labels.map(capitalize)) as FlagReason[],
+  })), [data])
 
-  const setStatus = (review: ModerationReview, status: ModerationStatus) => {
-    const previous = review.status
-    setReviews((list) => list.map((r) => (r.id === review.id ? { ...r, status } : r)))
-    setNote({
-      text: `Review by ${review.user} ${status === 'removed' ? 'removed' : 'approved'}.`,
-      undo: () => {
-        setReviews((list) => list.map((r) => (r.id === review.id ? { ...r, status: previous } : r)))
-        setNote({ text: `Review by ${review.user} is back in the queue.` })
-      },
-    })
+  const resetPage = () => {
+    setPage(1)
+    setData(null)
+    setLoading(true)
   }
 
-  const remove = (review: ModerationReview) => {
-    if (window.confirm(`Remove this review by ${review.user}? It will be hidden from ${review.movie.title}.`)) {
-      setStatus(review, 'removed')
+  const decide = async (review: ApiReview, status: 'approved' | 'rejected') => {
+    if (busy !== null) return
+    setBusy(review.id)
+    try {
+      await api.patch(`/admin/reviews/${review.id}`, { status })
+      setNote(status === 'approved' ? 'Review approved and published.' : 'Review removed. Its star rating was kept.')
+      setData(null)
+      setLoading(true)
+      setPage(1)
+      setRevision((n) => n + 1)
+    } catch (error) {
+      setNote(apiErrorMessage(error, 'Couldn’t save this decision.'))
+    } finally {
+      setBusy(null)
     }
-  }
-
-  const warn = (review: ModerationReview) => {
-    setWarned((set) => new Set(set).add(review.id))
-    setNote({ text: `${review.user} was warned about the community guidelines.` })
   }
 
   const hasFilters = query.trim() !== '' || sentiment !== 'all' || reason !== 'all'
@@ -98,7 +112,7 @@ export default function AdminReviews() {
       <header className={styles.topBar}>
         <div className={styles.titleBlock}>
           <h1 className={styles.title}>Review moderation</h1>
-          <p className={styles.lead}>Flagged reviews are auto-sorted by sentiment and report count.</p>
+          <p className={styles.lead}>Groq flags offensive language, spoilers and spam for your approval.</p>
         </div>
         <div className={styles.controls}>
           <label className={styles.search}>
@@ -106,14 +120,15 @@ export default function AdminReviews() {
             <input
               type="search"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              maxLength={200}
+              onChange={(event) => { setQuery(event.target.value); resetPage() }}
               placeholder="Search reviews or users"
               aria-label="Search reviews or users"
             />
           </label>
           <label className={styles.select}>
             <span className="sr-only">Sentiment</span>
-            <select value={sentiment} onChange={(event) => setSentiment(event.target.value as ReviewSentiment | 'all')}>
+            <select value={sentiment} onChange={(event) => { setSentiment(event.target.value as ReviewSentiment | 'all'); resetPage() }}>
               <option value="all">Sentiment: All</option>
               {REVIEW_SENTIMENTS.map((s) => (
                 <option key={s} value={s}>
@@ -125,7 +140,7 @@ export default function AdminReviews() {
           </label>
           <label className={styles.select}>
             <span className="sr-only">Reason</span>
-            <select value={reason} onChange={(event) => setReason(event.target.value as FlagReason | 'all')}>
+            <select value={reason} onChange={(event) => { setReason(event.target.value as FlagReason | 'all'); resetPage() }}>
               <option value="all">Reason: All</option>
               {FLAG_REASONS.map((r) => (
                 <option key={r} value={r}>
@@ -148,11 +163,11 @@ export default function AdminReviews() {
             aria-selected={tab === t.id}
             aria-controls="review-queue"
             className={tab === t.id ? styles.tabOn : styles.tab}
-            onClick={() => setTab(t.id)}
+            onClick={() => { if (tab !== t.id) { setTab(t.id); setPage(1); setData(null); setLoading(true) } }}
           >
             <span>
               {t.label}
-              {counts[t.id] !== undefined && <span className={styles.tabCount}>{counts[t.id]!.toLocaleString('en-US')}</span>}
+              {tab === t.id && data && <span className={styles.tabCount}>{data.meta.total.toLocaleString('en-US')}</span>}
             </span>
             <span className={styles.indicator} aria-hidden="true" />
           </button>
@@ -161,18 +176,15 @@ export default function AdminReviews() {
 
       {note && (
         <p className={styles.note} role="status">
-          {note.text}
-          {note.undo && (
-            <button type="button" className={styles.undo} onClick={note.undo}>
-              Undo
-            </button>
-          )}
+          {note}
         </p>
       )}
 
       <div className={styles.body}>
         <div id="review-queue" className={styles.queue} role="tabpanel" aria-labelledby={`tab-${tab}`}>
-          {visible.length === 0 && (
+          {loading && <p role="status">Loading reviews…</p>}
+          {failed && <button type="button" onClick={() => { setLoading(true); setRevision((n) => n + 1) }}>Try again</button>}
+          {!loading && !failed && reviews.length === 0 && (
             <div className={styles.empty}>
               <img src={checkMintIcon} width={28} height={28} alt="" />
               <p className={styles.emptyTitle}>{hasFilters ? 'No reviews match these filters' : 'Nothing here'}</p>
@@ -182,7 +194,7 @@ export default function AdminReviews() {
             </div>
           )}
 
-          {visible.map((review) => (
+          {!loading && !failed && reviews.map((review) => (
             <article key={review.id} className={styles.review} aria-label={`Review by ${review.user}`}>
               <div className={styles.head}>
                 <span className={styles.avatar} style={{ background: review.color }} aria-hidden="true">
@@ -199,7 +211,6 @@ export default function AdminReviews() {
               </div>
 
               <div className={styles.context}>
-                <span className={styles.thumb} style={{ background: gradientCss(review.movie.gradient) }} />
                 <p className={styles.text}>{review.text}</p>
               </div>
 
@@ -211,9 +222,6 @@ export default function AdminReviews() {
                       {r}
                     </span>
                   ))}
-                  <span className={styles.reports}>
-                    {review.reports} report{review.reports === 1 ? '' : 's'}
-                  </span>
                 </div>
 
                 <div className={styles.actions}>
@@ -221,97 +229,30 @@ export default function AdminReviews() {
                     <img src={eyeIcon} width={14} height={14} alt="" />
                     View
                   </Link>
-                  {review.status === 'flagged' ? (
-                    <>
-                      <button type="button" className={styles.warn} onClick={() => warn(review)} disabled={warned.has(review.id)}>
-                        <img src={warnIcon} width={14} height={14} alt="" />
-                        {warned.has(review.id) ? 'Warned' : 'Warn user'}
-                      </button>
-                      <button type="button" className={styles.remove} onClick={() => remove(review)}>
-                        <img src={trashIcon} width={14} height={14} alt="" />
-                        Remove
-                      </button>
-                      <button type="button" className={styles.approve} onClick={() => setStatus(review, 'approved')}>
-                        <img src={checkIcon} width={14} height={14} alt="" />
-                        Approve
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <span className={review.status === 'removed' ? styles.badgeRemoved : styles.badgeApproved}>
-                        {capitalize(review.status)}
-                      </span>
-                      <button type="button" className={styles.view} onClick={() => setStatus(review, 'flagged')}>
-                        Reopen
-                      </button>
-                    </>
-                  )}
+                  <button type="button" className={styles.remove} onClick={() => void decide(review, 'rejected')} disabled={busy !== null}>
+                    <img src={trashIcon} width={14} height={14} alt="" />
+                    {review.is_approved ? 'Remove' : 'Decline'}
+                  </button>
+                  {!review.is_approved ? (
+                    <button type="button" className={styles.approve} onClick={() => void decide(review, 'approved')} disabled={busy !== null}>
+                      <img src={checkIcon} width={14} height={14} alt="" />
+                      Approve
+                    </button>
+                  ) : <span className={styles.badgeApproved}>Approved</span>}
                 </div>
               </div>
             </article>
           ))}
+          {data && data.meta.last_page > 1 && (
+            <div className={styles.actions}>
+              <button type="button" disabled={loading || page <= 1} onClick={() => { setLoading(true); setPage((n) => n - 1) }}>Previous</button>
+              <span>Page {page} of {data.meta.last_page}</span>
+              <button type="button" disabled={loading || page >= data.meta.last_page} onClick={() => { setLoading(true); setPage((n) => n + 1) }}>Next</button>
+            </div>
+          )}
         </div>
 
         <aside className={styles.side}>
-          <section className={styles.card} aria-labelledby="sentiment-title">
-            <h2 id="sentiment-title" className={styles.cardTitle}>
-              Sentiment overview
-            </h2>
-            <p className={styles.cardSub}>All reviews · last 30 days</p>
-            <div
-              className={styles.stacked}
-              role="img"
-              aria-label={SENTIMENT_SHARE.map((s) => `${capitalize(s.type)} ${s.percent}%`).join(', ')}
-            >
-              {SENTIMENT_SHARE.map((s) => (
-                <span key={s.type} style={{ flexGrow: s.percent, background: s.color }} />
-              ))}
-            </div>
-            <ul className={styles.shares}>
-              {SENTIMENT_SHARE.map((s) => (
-                <li key={s.type}>
-                  <button
-                    type="button"
-                    className={styles.share}
-                    aria-pressed={sentiment === s.type}
-                    onClick={() => setSentiment(sentiment === s.type ? 'all' : s.type)}
-                    title={`Show ${s.type} reviews only`}
-                  >
-                    <Sentiment type={s.type} />
-                    <span className={styles.shareVal}>
-                      <span className={styles.sharePercent}>{s.percent}%</span>
-                      <span className={styles.shareCount}>{s.count}</span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className={styles.week} aria-labelledby="week-title">
-            <h2 id="week-title" className={styles.weekTitle}>
-              This week
-            </h2>
-            <dl className={styles.weekRows}>
-              <div>
-                <dt>Reviews flagged</dt>
-                <dd>{MODERATION_WEEK.flagged}</dd>
-              </div>
-              <div>
-                <dt>Removed</dt>
-                <dd>{MODERATION_WEEK.removed + handled('removed')}</dd>
-              </div>
-              <div>
-                <dt>Approved</dt>
-                <dd>{MODERATION_WEEK.approved + handled('approved')}</dd>
-              </div>
-              <div>
-                <dt>Avg. response</dt>
-                <dd>{MODERATION_WEEK.avgResponse}</dd>
-              </div>
-            </dl>
-          </section>
-
           <section className={styles.card} aria-labelledby="guidelines-title">
             <h2 id="guidelines-title" className={styles.guideTitle}>
               <img src={bookIcon} width={18} height={18} alt="" />

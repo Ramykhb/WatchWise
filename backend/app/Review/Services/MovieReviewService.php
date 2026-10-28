@@ -10,6 +10,7 @@ use App\Review\DTOs\Requests\SaveReviewData;
 use App\Review\DTOs\Responses\MovieReviewResponse;
 use App\Review\InterfaceRepository\MovieReviewRepositoryInterface;
 use App\Review\InterfaceServices\MovieReviewServiceInterface;
+use App\Review\InterfaceServices\ReviewModerationServiceInterface;
 use App\Support\MediaType;
 use Illuminate\Validation\ValidationException;
 
@@ -19,6 +20,7 @@ class MovieReviewService implements MovieReviewServiceInterface
         private readonly MovieReviewRepositoryInterface $reviews,
         private readonly SentimentClassifier $sentiment,
         private readonly MovieCatalogServiceInterface $catalog,
+        private readonly ReviewModerationServiceInterface $moderation,
     ) {}
 
     public function forTitle(MovieReviewQuery $query, User $viewer): array
@@ -36,7 +38,14 @@ class MovieReviewService implements MovieReviewServiceInterface
 
     public function save(User $user, SaveReviewData $data): MovieReviewResponse
     {
-        $review = $this->reviews->save($user, $data, $this->sentiment->classify($data->content, $data->rating));
+        $labels = $this->moderation->classify($data->content);
+        if ($data->hasSpoilers && $labels !== null && ! in_array('spoiler', $labels, true)) {
+            $labels[] = 'spoiler';
+        }
+        $review = $this->reviews->save(
+            $user, $data, $this->sentiment->classify($data->content, $data->rating),
+            $labels, $labels === [], $data->hasSpoilers || in_array('spoiler', $labels ?? [], true),
+        );
         // The local catalogue (admin "Movie data") only holds movies.
         if ($data->mediaType === MediaType::MOVIE) {
             $this->catalog->remember($data->tmdbId);
