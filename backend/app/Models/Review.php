@@ -9,11 +9,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Review extends Model
 {
-    protected $fillable = ['user_id', 'tmdb_id', 'media_type', 'content', 'rating', 'sentiment', 'has_spoilers', 'is_approved'];
+    protected $fillable = ['user_id', 'tmdb_id', 'media_type', 'content', 'rating', 'sentiment', 'has_spoilers', 'is_approved', 'removed_at'];
 
     protected function casts(): array
     {
-        return ['rating' => 'integer', 'is_approved' => 'boolean', 'has_spoilers' => 'boolean'];
+        return ['rating' => 'integer', 'is_approved' => 'boolean', 'has_spoilers' => 'boolean', 'removed_at' => 'datetime'];
     }
 
     public function user(): BelongsTo
@@ -29,6 +29,12 @@ class Review extends Model
     public function scopeWithText(Builder $query): void
     {
         $query->whereNotNull('content')->where('content', '!=', '');
+    }
+
+    /** Reports members filed against this review. */
+    public function reports(): HasMany
+    {
+        return $this->hasMany(ReviewReport::class);
     }
 
     /** Members who marked this review as helpful. */

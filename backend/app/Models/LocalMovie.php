@@ -14,8 +14,8 @@ class LocalMovie extends Model
     protected $table = 'movies';
 
     protected $fillable = [
-        'tmdb_id', 'title', 'overview', 'poster_path', 'release_date', 'runtime',
-        'genre_ids', 'is_hidden', 'is_featured', 'synced_at',
+        'tmdb_id', 'title', 'overview', 'poster_path', 'release_date', 'runtime', 'director',
+        'genre_ids', 'is_hidden', 'is_featured', 'synced_at', 'edited_at',
     ];
 
     protected function casts(): array
@@ -28,6 +28,7 @@ class LocalMovie extends Model
             'is_hidden' => 'boolean',
             'is_featured' => 'boolean',
             'synced_at' => 'datetime',
+            'edited_at' => 'datetime',
         ];
     }
 }
