@@ -3,10 +3,13 @@
 namespace App\MovieList\Repository;
 
 use App\Models\MovieList;
+use App\Models\MovieListItem;
 use App\Models\User;
+use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\InterfaceRepository\MovieListRepositoryInterface;
 use App\Support\LikePattern;
+use App\Support\MediaType;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 
@@ -18,7 +21,7 @@ class MovieListRepository implements MovieListRepositoryInterface
 
         return MovieList::with(['user', 'items'])->withCount('items')
             ->when($query->contains !== null, fn ($builder) => $builder->withExists([
-                'items as has_movie' => fn ($items) => $items->where('tmdb_id', $query->contains),
+                'items as has_movie' => fn ($items) => $items->where('tmdb_id', $query->contains)->where('media_type', $query->containsType),
             ]))
             ->when($query->q !== '', fn ($builder) => $builder->whereRaw("title LIKE ? ESCAPE '!'", [LikePattern::contains($query->q)]))
             ->when($scope === 'mine', fn ($builder) => $builder->where('user_id', $viewer->id))
@@ -48,16 +51,20 @@ class MovieListRepository implements MovieListRepositoryInterface
         $list->delete();
     }
 
-    public function addItem(MovieList $list, int $tmdbId): bool
+    public function addItem(MovieList $list, ListFilmData $film): bool
     {
-        if ($list->items()->where('tmdb_id', $tmdbId)->exists()) {
+        if ($list->items()->where('tmdb_id', $film->tmdbId)->where('media_type', $film->mediaType)->exists()) {
             return false;
         }
 
         try {
-            $list->items()->create(['tmdb_id' => $tmdbId, 'position' => (int) $list->items()->max('position') + 1]);
+            $list->items()->create([
+                'tmdb_id' => $film->tmdbId,
+                'media_type' => $film->mediaType,
+                'position' => (int) $list->items()->max('position') + 1,
+            ]);
         } catch (UniqueConstraintViolationException) {
-            // Another request added the same film between the check and the insert: it's there either way.
+            // Another request added the same title between the check and the insert: it's there either way.
             return false;
         }
         $list->touch();
@@ -65,9 +72,9 @@ class MovieListRepository implements MovieListRepositoryInterface
         return true;
     }
 
-    public function removeItem(MovieList $list, int $tmdbId): bool
+    public function removeItem(MovieList $list, ListFilmData $film): bool
     {
-        $removed = $list->items()->where('tmdb_id', $tmdbId)->delete() > 0;
+        $removed = $list->items()->where('tmdb_id', $film->tmdbId)->where('media_type', $film->mediaType)->delete() > 0;
         if ($removed) {
             $list->touch();
         }
@@ -75,16 +82,21 @@ class MovieListRepository implements MovieListRepositoryInterface
         return $removed;
     }
 
-    public function syncItems(MovieList $list, array $tmdbIds): array
+    public function syncItems(MovieList $list, array $films): array
     {
-        $existing = $list->items()->pluck('tmdb_id')->all();
-        $list->items()->whereNotIn('tmdb_id', $tmdbIds)->delete();
+        $wanted = array_map(fn (ListFilmData $film): string => $film->key(), $films);
+        $items = $list->items()->get(['id', 'tmdb_id', 'media_type']);
+        $existing = $items->map(fn (MovieListItem $item): string => MediaType::key($item->media_type, $item->tmdb_id))->all();
 
-        foreach (array_values($tmdbIds) as $position => $tmdbId) {
-            $list->items()->updateOrCreate(['tmdb_id' => $tmdbId], ['position' => $position]);
+        // A movie and a TV show can share a TMDB id, so titles are compared by id and type together.
+        $stale = $items->reject(fn (MovieListItem $item): bool => in_array(MediaType::key($item->media_type, $item->tmdb_id), $wanted, true));
+        $list->items()->whereKey($stale->modelKeys())->delete();
+
+        foreach (array_values($films) as $position => $film) {
+            $list->items()->updateOrCreate(['tmdb_id' => $film->tmdbId, 'media_type' => $film->mediaType], ['position' => $position]);
         }
 
-        return array_values(array_diff($tmdbIds, $existing));
+        return array_values(array_filter($films, fn (ListFilmData $film): bool => ! in_array($film->key(), $existing, true)));
     }
 
     public function loadDetail(MovieList $list): MovieList

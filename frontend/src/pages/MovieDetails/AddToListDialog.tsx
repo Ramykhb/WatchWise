@@ -8,6 +8,7 @@ import checkIcon from '../../assets/movie/icon-check.svg'
 import { api } from '../../lib/api.ts'
 import { apiErrorMessage } from '../../lib/auth.ts'
 import { posterAt, useMovies } from '../../lib/movieDetails.ts'
+import { itemKey, type FilmKey, type MediaType } from '../../lib/movies.ts'
 import type { ApiList } from '../../lib/types.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { addMovieToList, createList, removeMovieFromList } from '../Lists/myListsStore.ts'
@@ -15,10 +16,18 @@ import styles from './AddToListDialog.module.css'
 
 const CLOSE_MS = 220
 
+/** A list's first title, as a key (a show's cover isn't mistaken for the movie with the same id). */
+const coverKeyOf = (list: ApiList): FilmKey | undefined => {
+  const first = list.cover?.[0]
+  return first ? itemKey(first) : list.posters[0]
+}
+
 type AddToListDialogProps = {
   /** Keep it rendered and flip this to false to close it with its exit animation. */
   open: boolean
   tmdbId: number
+  /** Whether `tmdbId` is a movie or a TV show (TMDB numbers them separately). */
+  mediaType: MediaType
   title: string
   onClose: () => void
   /** Called once the exit animation has finished after `open` became false. */
@@ -30,7 +39,7 @@ type AddToListDialogProps = {
  * with a tick on the ones that already hold this film. Clicking a list adds or removes the film;
  * "New list" creates one that starts with it.
  */
-export default function AddToListDialog({ open, tmdbId, title, onClose, onClosed }: AddToListDialogProps) {
+export default function AddToListDialog({ open, tmdbId, mediaType, title, onClose, onClosed }: AddToListDialogProps) {
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const [lists, setLists] = useState<ApiList[] | null>(null)
@@ -49,7 +58,7 @@ export default function AddToListDialog({ open, tmdbId, title, onClose, onClosed
   useEffect(() => {
     let active = true
     api
-      .get<{ lists: ApiList[] }>('/lists', { params: { scope: 'mine', contains: tmdbId } })
+      .get<{ lists: ApiList[] }>('/lists', { params: { scope: 'mine', contains: tmdbId, contains_type: mediaType } })
       .then((response) => {
         if (!active) return
         setLists(response.data.lists)
@@ -59,10 +68,10 @@ export default function AddToListDialog({ open, tmdbId, title, onClose, onClosed
     return () => {
       active = false
     }
-  }, [tmdbId, retries])
+  }, [tmdbId, mediaType, retries])
 
   // Cover thumbnails: the first film of each list.
-  const coverIds = (lists ?? []).map((list) => list.posters[0]).filter((id): id is number => id !== undefined)
+  const coverIds = (lists ?? []).map(coverKeyOf).filter((key): key is FilmKey => key !== undefined)
   const movieOf = useMovies(coverIds)
 
   // Focus the dialog, lock the page scroll and give focus back to "Add to list" when it goes away.
@@ -105,7 +114,7 @@ export default function AddToListDialog({ open, tmdbId, title, onClose, onClosed
     // Shows at once; put back if the request fails.
     replace(list, adding)
     try {
-      const updated = adding ? await addMovieToList(list.id, tmdbId) : await removeMovieFromList(list.id, tmdbId)
+      const updated = adding ? await addMovieToList(list.id, tmdbId, mediaType) : await removeMovieFromList(list.id, tmdbId, mediaType)
       replace(updated, adding)
       setStatus(adding ? `Added to “${list.title}”` : `Removed from “${list.title}”`)
     } catch (failure) {
@@ -123,7 +132,7 @@ export default function AddToListDialog({ open, tmdbId, title, onClose, onClosed
     setSubmitting(true)
     setError('')
     try {
-      const created = await createList({ title: clean, description: '', is_public: newPublic, tmdb_ids: [tmdbId] })
+      const created = await createList({ title: clean, description: '', is_public: newPublic, tmdb_ids: [mediaType === 'tv' ? `tv-${tmdbId}` : tmdbId] })
       setLists((current) => [{ ...created, has_movie: true }, ...(current ?? [])])
       setStatus(`Created “${clean}” with ${title}`)
       setCreating(false)
@@ -201,7 +210,8 @@ export default function AddToListDialog({ open, tmdbId, title, onClose, onClosed
           <ul className={styles.lists}>
             {lists.length === 0 && !creating && <li className={styles.note}>You don't have any lists yet. Start one below.</li>}
             {lists.map((list) => {
-              const cover = list.posters[0] !== undefined ? movieOf(list.posters[0]) : undefined
+              const coverKey = coverKeyOf(list)
+              const cover = coverKey !== undefined ? movieOf(coverKey) : undefined
               const image = posterAt(cover?.posterUrl, 'w92')
               const busy = saving.includes(list.id)
               return (

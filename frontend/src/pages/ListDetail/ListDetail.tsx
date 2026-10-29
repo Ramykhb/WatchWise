@@ -20,7 +20,7 @@ import { gradientCss } from '../Home/homeData.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { isStatus, useApi } from '../../lib/api.ts'
 import { isLoading, posterAt, useMovies } from '../../lib/movieDetails.ts'
-import { tmdbIdOf } from '../../lib/movies.ts'
+import { filmKeyOf, itemKey } from '../../lib/movies.ts'
 import type { ApiList } from '../../lib/types.ts'
 import { listIdFrom } from '../Lists/listsData.ts'
 import { updateList } from '../Lists/myListsStore.ts'
@@ -68,7 +68,7 @@ export default function ListDetail() {
   if (!data) return null
   // Keyed by the list and its films, so local state (order, search) resets when moving between lists
   // and when a fresh copy arrives after an edit (the first render may use the copy from an earlier visit).
-  const films = (data.list.items ?? []).map((item) => item.tmdb_id).join(',')
+  const films = (data.list.items ?? []).map(itemKey).join(',')
   return <ListDetailPage key={`${data.list.id}:${films}`} detail={toListDetail(data.list, user?.id)} />
 }
 
@@ -79,9 +79,9 @@ function ListDetailPage({ detail }: { detail: Detail }) {
   // The owner's reorder and remove are saved through PATCH /api/lists/{id}; others only read.
   const [entries, setEntries] = useState(detail.entries)
   // The films arrive as ids only; load their real titles and posters.
-  const [savedIds] = useState(() => detail.entries.map((entry) => tmdbIdOf(entry.movie)))
+  const [savedIds] = useState(() => detail.entries.map((entry) => filmKeyOf(entry.movie)))
   const movieOf = useMovies(savedIds)
-  const resolved = entries.map((entry) => ({ ...entry, movie: movieOf(tmdbIdOf(entry.movie), entry.movie) }))
+  const resolved = entries.map((entry) => ({ ...entry, movie: movieOf(filmKeyOf(entry.movie), entry.movie) }))
   // The header collage shows the list's first three films, so it follows reorders and removals.
   const cover = resolved.slice(0, 3)
   const similar = (useApi<{ lists: ApiList[] }>('/lists?scope=public').data?.lists ?? [])
@@ -143,7 +143,7 @@ function ListDetailPage({ detail }: { detail: Detail }) {
     const previous = entries
     setEntries(next)
     setStatus(message)
-    updateList(detail.id, { tmdb_ids: next.map((entry) => tmdbIdOf(entry.movie)) }).catch(() => {
+    updateList(detail.id, { tmdb_ids: next.map((entry) => filmKeyOf(entry.movie)) }).catch(() => {
       setEntries(previous)
       setStatus("Couldn't save that change. Please try again.")
     })
@@ -435,7 +435,7 @@ function ListDetailPage({ detail }: { detail: Detail }) {
                   <li key={list.slug}>
                     <Link to={`/lists/${list.slug}`} className={styles.similarItem}>
                       <span className={styles.similarThumb} style={{ background: gradientCss(list.poster) }}>
-                        {list.posterId > 0 && similarMovieOf(list.posterId).posterUrl && (
+                        {Boolean(list.posterId) && similarMovieOf(list.posterId).posterUrl && (
                           <img
                             className={styles.thumbImg}
                             src={posterAt(similarMovieOf(list.posterId).posterUrl, 'w92')}

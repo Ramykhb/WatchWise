@@ -13,7 +13,7 @@ import { gradientCss } from '../Home/homeData.ts'
 import { apiErrorMessage } from '../../lib/auth.ts'
 import { api, useApi } from '../../lib/api.ts'
 import { isLoading, posterAt, rememberMovie, useMovies } from '../../lib/movieDetails.ts'
-import { movieFor, tmdbIdOf } from '../../lib/movies.ts'
+import { filmKeyOf, itemKey, movieForKey } from '../../lib/movies.ts'
 import type { ApiList } from '../../lib/types.ts'
 import { loadGenres, toTileMovie, type MoviePage } from '../Discover/discoverApi.ts'
 import { listSlug } from '../Profile/profileData.ts'
@@ -65,9 +65,9 @@ function Dialog({ existing }: { existing?: ApiList }) {
   const [title, setTitle] = useState(existing?.title ?? '')
   const [description, setDescription] = useState(existing?.description ?? '')
   const [isPublic, setIsPublic] = useState(existing?.is_public ?? true)
-  const [picked, setPicked] = useState<Movie[]>(() => existing?.items?.map((item) => movieFor(item.tmdb_id)) ?? [])
+  const [picked, setPicked] = useState<Movie[]>(() => existing?.items?.map((item) => movieForKey(itemKey(item))) ?? [])
   // The list's saved films arrive as ids only; load their real titles and posters.
-  const [savedIds] = useState(() => existing?.items?.map((item) => item.tmdb_id) ?? [])
+  const [savedIds] = useState(() => existing?.items?.map(itemKey) ?? [])
   const movieOf = useMovies(savedIds)
   const [query, setQuery] = useState('')
   const [titleError, setTitleError] = useState('')
@@ -87,13 +87,13 @@ function Dialog({ existing }: { existing?: ApiList }) {
     .filter((movie) => !picked.some((p) => p.slug === movie.slug))
     .slice(0, MAX_RESULTS)
 
-  // Searches TMDB movies (not TV: lists store movie ids) once typing pauses; a newer query cancels the older one.
+  // Searches TMDB movies and TV shows once typing pauses; a newer query cancels the older one.
   useEffect(() => {
     if (!key || searchCache.has(key)) return
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
       Promise.all([
-        api.get<MoviePage>('/movies/search', { params: { q: key, type: 'movie' }, signal: controller.signal }),
+        api.get<MoviePage>('/movies/search', { params: { q: key, type: 'all' }, signal: controller.signal }),
         loadGenres().catch(() => NO_GENRES),
       ])
         .then(([{ data }, genres]) => {
@@ -167,7 +167,7 @@ function Dialog({ existing }: { existing?: ApiList }) {
       dialogRef.current?.querySelector<HTMLInputElement>('input')?.focus()
       return
     }
-    const input = { title: cleanTitle, description: description.trim(), is_public: isPublic, tmdb_ids: picked.map(tmdbIdOf) }
+    const input = { title: cleanTitle, description: description.trim(), is_public: isPublic, tmdb_ids: picked.map(filmKeyOf) }
     setSaving(true)
     setFormError('')
     try {
@@ -267,7 +267,7 @@ function Dialog({ existing }: { existing?: ApiList }) {
                       if (!searching && results[0]) pick(results[0])
                     }
                   }}
-                  placeholder="Search TMDB to add films…"
+                  placeholder="Search movies and TV shows…"
                   autoComplete="off"
                   aria-controls={`${titleId}-results`}
                 />
@@ -304,7 +304,7 @@ function Dialog({ existing }: { existing?: ApiList }) {
             </div>
             {picked.length > 0 && (
               <ul className={styles.picked} aria-label="Picked films">
-                {picked.map((pickedMovie) => movieOf(tmdbIdOf(pickedMovie), pickedMovie)).map((movie) => (
+                {picked.map((pickedMovie) => movieOf(filmKeyOf(pickedMovie), pickedMovie)).map((movie) => (
                   <li key={movie.slug} className={styles.pickedFilm}>
                     <Thumb movie={movie} className={styles.pickedThumb} />
                     {movie.title}
