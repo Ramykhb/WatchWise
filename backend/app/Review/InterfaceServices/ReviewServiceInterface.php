@@ -8,14 +8,19 @@ use Illuminate\Pagination\LengthAwarePaginator;
 interface ReviewServiceInterface
 {
     /**
-     * The reviews with text an administrator can moderate.
+     * The reviews an administrator or moderator can moderate (see `ReviewRepositoryInterface::paginateForModeration()`).
      *
-     * @param  'pending'|'approved'  $status
+     * @param  'pending'|'approved'|'flagged'|'removed'  $status
      * @return LengthAwarePaginator<int, Review>
      */
     public function moderationQueue(string $status, int $page, int $perPage, string $search = '', ?string $sentiment = null, ?string $reason = null): LengthAwarePaginator;
 
-    /** Makes the review visible to everyone. */
+    /**
+     * @return array{flagged: int, removed: int, sentiment: array{positive: int, neutral: int, negative: int}}
+     */
+    public function moderationTotals(): array;
+
+    /** Makes the review visible to everyone and closes its reports. */
     public function approve(Review $review): Review;
 
     /** Rejects the text; the member's star rating stays. */

@@ -1,74 +1,57 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import AdminPagination from '../../components/AdminPagination/AdminPagination.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
 import Toggle from '../../components/Toggle/Toggle.tsx'
 import searchIcon from '../../assets/listdetail/icon-search.svg'
-import syncIcon from '../../assets/admin/icon-sync.svg'
-import plusIcon from '../../assets/landing/icon-plus-cream.svg'
 import dbIcon from '../../assets/admin/icon-db.svg'
-import checkIcon from '../../assets/watchlist/icon-check-sm.svg'
-import starIcon from '../../assets/auth/icon-star-sm.svg'
 import editIcon from '../../assets/movie/icon-edit.svg'
-import trashIcon from '../../assets/movie/icon-trash.svg'
 import closeIcon from '../../assets/listmodal/icon-x.svg'
-import uploadIcon from '../../assets/admin/icon-upload.svg'
 import xCreamIcon from '../../assets/admin/icon-x-cream.svg'
-import { gradientCss } from '../Home/homeData.ts'
-import { ADMIN_MOVIES, MOVIE_GENRES, MOVIE_SYNC, type AdminMovie, type MovieFields } from './adminData.ts'
+import {
+  adminApi,
+  adminPosterUrl,
+  useAdminMovies,
+  useMovieGenres,
+  type AdminMovie,
+  type AdminMovieChanges,
+  type AdminMovieSync,
+} from '../../lib/adminApi.ts'
+import { apiErrorMessage } from '../../lib/auth.ts'
+import { timeAgo } from '../../lib/format.ts'
 import styles from './AdminMovies.module.css'
 
-const MAX_POSTER_BYTES = 2 * 1024 * 1024
-const NEW_MOVIE_GRADIENT: AdminMovie['gradient'] = ['#ccbfff', '#8c66d9', '#331a66']
-const CONTENT_KEYS = ['title', 'releaseDate', 'runtime', 'director', 'genres', 'description'] as const
+const PER_PAGE = 20
+const POSTER_BACKDROP = 'var(--surface-violet-tint)'
 
-const EMPTY_FIELDS: MovieFields = {
-  title: '',
-  releaseDate: '',
-  runtime: 0,
-  director: '',
-  genres: [],
-  description: '',
-  visible: false,
-  featured: false,
-}
+const formatRuntime = (minutes: number | null) =>
+  minutes && minutes > 0 ? `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m` : '—'
 
-const formatRuntime = (minutes: number) =>
-  minutes > 0 ? `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m` : '—'
-
-const statusOf = (movie: AdminMovie) => (movie.visible ? 'Published' : movie.source === 'Local' ? 'Draft' : 'Hidden')
-
-/** A TMDB movie counts as "Edited" once any of its content differs from TMDB's copy. */
-const isOverridden = (fields: MovieFields, tmdb: MovieFields) =>
-  CONTENT_KEYS.some((key) => JSON.stringify(fields[key]) !== JSON.stringify(tmdb[key]))
-
-const pickFields = (movie: AdminMovie): MovieFields => ({
-  title: movie.title,
-  releaseDate: movie.releaseDate,
-  runtime: movie.runtime,
-  director: movie.director,
-  genres: movie.genres,
-  description: movie.description,
-  visible: movie.visible,
-  featured: movie.featured,
-})
-
-const SOURCE_CLASS = { TMDB: 'chipViolet', Edited: 'chipYellow', Local: 'chipMint' } as const
-const STATUS_CLASS = { Published: 'chipMint', Draft: 'chipCream', Hidden: 'chipCoral' } as const
+const statusOf = (movie: AdminMovie) => (movie.is_hidden ? 'Hidden' : 'Published')
+const STATUS_CLASS = { Published: 'chipMint', Hidden: 'chipCoral' } as const
 
 type EditorProps = {
-  movie: AdminMovie | null
-  onSave: (fields: MovieFields, poster: string | undefined) => void
+  movie: AdminMovie
+  genreNames: Map<number, string>
+  onSave: (changes: AdminMovieChanges) => Promise<string | null>
   onClose: () => void
   /** Focus the form and scroll to it (not when the page first loads with it open). */
   focusOnOpen: boolean
 }
 
-function MovieEditor({ movie, onSave, onClose, focusOnOpen }: EditorProps) {
-  const [fields, setFields] = useState<MovieFields>(movie ? pickFields(movie) : EMPTY_FIELDS)
-  const [poster, setPoster] = useState(movie?.poster)
+function MovieEditor({ movie, genreNames, onSave, onClose, focusOnOpen }: EditorProps) {
+  const [title, setTitle] = useState(movie.title)
+  const [overview, setOverview] = useState(movie.overview ?? '')
+  const [director, setDirector] = useState(movie.director ?? '')
+  const [runtime, setRuntime] = useState(movie.runtime ? String(movie.runtime) : '')
+  const [releaseDate, setReleaseDate] = useState(movie.release_date ?? '')
+  const [genreIds, setGenreIds] = useState(movie.genre_ids)
+  const [visible, setVisible] = useState(!movie.is_hidden)
+  const [featured, setFeatured] = useState(movie.is_featured)
   const [error, setError] = useState('')
-  const [note, setNote] = useState('')
-  const fileInput = useRef<HTMLInputElement>(null)
+  const [saving, setSaving] = useState(false)
   const panel = useRef<HTMLFormElement>(null)
+  const poster = adminPosterUrl(movie.poster_path)
+  const remaining = [...genreNames].filter(([id]) => !genreIds.includes(id) && genreNames.size > 0)
 
   useEffect(() => {
     if (!focusOnOpen) return
@@ -77,49 +60,40 @@ function MovieEditor({ movie, onSave, onClose, focusOnOpen }: EditorProps) {
     panel.current?.querySelector('input')?.focus({ preventScroll: true })
   }, [focusOnOpen])
 
-  const set = <K extends keyof MovieFields>(key: K, value: MovieFields[K]) => setFields((f) => ({ ...f, [key]: value }))
-  const remaining = MOVIE_GENRES.filter((g) => !fields.genres.includes(g))
-
-  const choosePoster = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) return
-    if (!['image/jpeg', 'image/png'].includes(file.type)) return setError('The poster has to be a JPG or PNG.')
-    if (file.size > MAX_POSTER_BYTES) return setError('The poster has to be 2 MB or smaller.')
-    setError('')
-    setPoster(URL.createObjectURL(file))
-  }
-
-  const resetToTmdb = () => {
-    if (!movie?.tmdb) return
-    setFields((f) => ({ ...f, ...Object.fromEntries(CONTENT_KEYS.map((key) => [key, movie.tmdb![key]])) }))
-    setNote('Fields reset to the TMDB values. Save to apply.')
-  }
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!fields.title.trim()) return setError('Give the movie a title.')
-    if (fields.releaseDate && !/^\d{4}-\d{2}-\d{2}$/.test(fields.releaseDate)) return setError('Write the release date as YYYY-MM-DD.')
+    const trimmed = title.trim()
+    if (!trimmed) return setError('Give the movie a title.')
+    const runtimeValue = runtime.trim() === '' ? null : Number(runtime)
+    if (runtimeValue !== null && (!Number.isInteger(runtimeValue) || runtimeValue < 1 || runtimeValue > 1000)) {
+      return setError('Runtime has to be a whole number of minutes between 1 and 1000.')
+    }
+    if (releaseDate.trim() !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(releaseDate.trim())) return setError('Write the release date as YYYY-MM-DD.')
+    const changes: AdminMovieChanges = {}
+    if (trimmed !== movie.title) changes.title = trimmed
+    if (overview.trim() !== (movie.overview ?? '')) changes.overview = overview.trim() === '' ? null : overview.trim()
+    if (director.trim() !== (movie.director ?? '')) changes.director = director.trim() === '' ? null : director.trim()
+    if (runtimeValue !== movie.runtime) changes.runtime = runtimeValue
+    if (releaseDate.trim() !== (movie.release_date ?? '')) changes.release_date = releaseDate.trim() === '' ? null : releaseDate.trim()
+    if (genreIds.length !== movie.genre_ids.length || genreIds.some((id, index) => id !== movie.genre_ids[index])) changes.genre_ids = genreIds
+    if (!visible !== movie.is_hidden) changes.is_hidden = !visible
+    if (featured !== movie.is_featured) changes.is_featured = featured
+    if (Object.keys(changes).length === 0) return setError('Nothing changed yet.')
     setError('')
-    onSave({ ...fields, title: fields.title.trim(), director: fields.director.trim() }, poster)
+    setSaving(true)
+    const failure = await onSave(changes)
+    setSaving(false)
+    if (failure) setError(failure)
   }
-
-  const chip = !movie
-    ? 'New local movie'
-    : movie.tmdbId
-      ? movie.source === 'Edited'
-        ? `Local override of TMDB #${movie.tmdbId}`
-        : `Cached from TMDB #${movie.tmdbId}`
-      : 'Local movie'
 
   return (
-    <form ref={panel} className={styles.editor} onSubmit={submit} aria-labelledby="editor-title" noValidate>
+    <form ref={panel} className={styles.editor} onSubmit={(event) => void submit(event)} aria-labelledby="editor-title" noValidate>
       <div className={styles.editorHead}>
         <div className={styles.editorTitleBlock}>
           <h2 id="editor-title" className={styles.editorTitle}>
-            {movie ? 'Edit movie' : 'Add movie'}
+            Edit movie
           </h2>
-          <span className={movie?.source === 'TMDB' ? styles.chipViolet : styles.chipYellow}>{chip}</span>
+          <span className={styles.chipViolet}>TMDB #{movie.tmdb_id}</span>
         </div>
         <button type="button" className={styles.close} onClick={onClose} aria-label="Close editor">
           <img src={closeIcon} width={15} height={15} alt="" />
@@ -128,26 +102,18 @@ function MovieEditor({ movie, onSave, onClose, focusOnOpen }: EditorProps) {
 
       <div className={styles.posterRow}>
         {poster ? (
-          <img className={styles.poster} src={poster} alt={`${fields.title || 'Movie'} poster`} />
+          <img className={styles.poster} src={poster} alt={`${movie.title} poster`} />
         ) : (
-          <span className={styles.poster} style={{ background: gradientCss(movie?.gradient ?? NEW_MOVIE_GRADIENT) }} />
+          <span className={styles.poster} style={{ background: POSTER_BACKDROP }} />
         )}
-        <div className={styles.upload}>
-          <button type="button" className={styles.replace} onClick={() => fileInput.current?.click()}>
-            <img src={uploadIcon} width={14} height={14} alt="" />
-            {poster ? 'Replace poster' : movie ? 'Replace poster' : 'Upload poster'}
-          </button>
-          <input ref={fileInput} type="file" accept="image/jpeg,image/png" hidden onChange={choosePoster} />
-          <p className={styles.uploadHint}>JPG or PNG, 2:3, max 2 MB</p>
-        </div>
       </div>
 
-      <TextField label="Title" value={fields.title} onChange={(e) => set('title', e.target.value)} required />
+      <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
       <div className={styles.pair}>
         <TextField
           label="Release date"
-          value={fields.releaseDate}
-          onChange={(e) => set('releaseDate', e.target.value)}
+          value={releaseDate}
+          onChange={(e) => setReleaseDate(e.target.value)}
           placeholder="YYYY-MM-DD"
           inputMode="numeric"
         />
@@ -155,26 +121,27 @@ function MovieEditor({ movie, onSave, onClose, focusOnOpen }: EditorProps) {
           label="Runtime (min)"
           type="number"
           min={1}
+          max={1000}
           inputMode="numeric"
-          value={fields.runtime || ''}
-          onChange={(e) => set('runtime', Math.max(0, Number(e.target.value)))}
+          value={runtime}
+          onChange={(e) => setRuntime(e.target.value)}
         />
       </div>
-      <TextField label="Director" value={fields.director} onChange={(e) => set('director', e.target.value)} />
+      <TextField label="Director" value={director} onChange={(e) => setDirector(e.target.value)} />
 
       <fieldset className={styles.genres}>
         <legend className={styles.fieldLabel}>Genres</legend>
         <div className={styles.genreChips}>
-          {fields.genres.map((genre) => (
+          {genreIds.map((id) => (
             <button
-              key={genre}
+              key={id}
               type="button"
               className={styles.genreChip}
-              onClick={() => set('genres', fields.genres.filter((g) => g !== genre))}
-              aria-label={`Remove ${genre}`}
+              onClick={() => setGenreIds(genreIds.filter((g) => g !== id))}
+              aria-label={`Remove ${genreNames.get(id) ?? `genre ${id}`}`}
             >
               <img src={xCreamIcon} width={13} height={13} alt="" />
-              {genre}
+              {genreNames.get(id) ?? `Genre ${id}`}
             </button>
           ))}
           {remaining.length > 0 && (
@@ -183,13 +150,15 @@ function MovieEditor({ movie, onSave, onClose, focusOnOpen }: EditorProps) {
               <select
                 value=""
                 aria-label="Add a genre"
-                onChange={(e) => e.target.value && set('genres', [...fields.genres, e.target.value])}
+                onChange={(e) => e.target.value && setGenreIds([...genreIds, Number(e.target.value)])}
               >
                 <option value="" disabled>
                   Add a genre
                 </option>
-                {remaining.map((g) => (
-                  <option key={g}>{g}</option>
+                {remaining.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
                 ))}
               </select>
             </label>
@@ -199,105 +168,82 @@ function MovieEditor({ movie, onSave, onClose, focusOnOpen }: EditorProps) {
 
       <label className={styles.description}>
         <span className={styles.fieldLabel}>Description</span>
-        <textarea rows={3} value={fields.description} onChange={(e) => set('description', e.target.value)} />
+        <textarea rows={4} value={overview} onChange={(e) => setOverview(e.target.value)} maxLength={5000} />
       </label>
 
       <div className={styles.toggleRow}>
         <span id="featured-label" className={styles.fieldLabel}>
           Featured on Home
         </span>
-        <Toggle className={styles.toggle} checked={fields.featured} onChange={(v) => set('featured', v)} labelledBy="featured-label" />
+        <Toggle className={styles.toggle} checked={featured} onChange={setFeatured} labelledBy="featured-label" />
       </div>
       <div className={styles.toggleRow}>
         <span id="visible-label" className={styles.fieldLabel}>
           Visible to users
         </span>
-        <Toggle className={styles.toggle} checked={fields.visible} onChange={(v) => set('visible', v)} labelledBy="visible-label" />
+        <Toggle className={styles.toggle} checked={visible} onChange={setVisible} labelledBy="visible-label" />
       </div>
 
-      {(error || note) && (
-        <p className={error ? styles.formError : styles.formNote} role={error ? 'alert' : 'status'}>
-          {error || note}
+      {error && (
+        <p className={styles.formError} role="alert">
+          {error}
         </p>
       )}
 
       <div className={styles.editorFooter}>
-        {movie?.tmdb && (
-          <button type="button" className={styles.outline} onClick={resetToTmdb}>
-            Reset to TMDB
-          </button>
-        )}
-        <button type="submit" className={styles.solid}>
-          {movie ? 'Save changes' : 'Add movie'}
+        <button type="submit" className={styles.solid} disabled={saving}>
+          {saving ? 'Saving…' : 'Save changes'}
         </button>
       </div>
     </form>
   )
 }
 
+function SyncSummary({ sync }: { sync: AdminMovieSync }) {
+  return (
+    <div className={styles.syncStatus}>
+      <img src={dbIcon} width={18} height={18} alt="" />
+      <p className={styles.syncText}>
+        Last synced {sync.last_synced_at ? timeAgo(sync.last_synced_at) : 'never'} · {sync.cached.toLocaleString('en-US')} movies cached ·{' '}
+        {sync.overrides} local overrides
+      </p>
+    </div>
+  )
+}
+
 export default function AdminMovies() {
-  // TODO: load the catalogue and send edits, deletes and syncs to the admin API.
-  const [movies, setMovies] = useState(ADMIN_MOVIES)
   const [query, setQuery] = useState('')
-  // The Figma frame opens on Neon Tide; `'new'` is the Add movie form, null hides the panel.
-  const [editing, setEditing] = useState<string | 'new' | null>(ADMIN_MOVIES[0].id)
-  const [syncing, setSyncing] = useState(false)
-  const [lastSynced, setLastSynced] = useState(MOVIE_SYNC.lastSynced)
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [editing, setEditing] = useState<number | null>(null)
   const [note, setNote] = useState('')
-  const [userOpened, setUserOpened] = useState(false)
 
-  const open = (id: string | 'new') => {
-    setUserOpened(true)
-    setEditing(id)
-  }
+  // Search the API once typing pauses.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearch(query.trim())
+      setPage(1)
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [query])
 
-  const editingMovie = movies.find((m) => m.id === editing) ?? null
-  const overrides =
-    MOVIE_SYNC.overrides +
-    movies.filter((m) => m.source === 'Edited').length -
-    ADMIN_MOVIES.filter((m) => m.source === 'Edited').length
+  const { data, error, loading, setData, reload } = useAdminMovies({ q: search, page, per_page: PER_PAGE })
+  const { data: genreData } = useMovieGenres()
+  const genreNames = useMemo(() => new Map((genreData?.genres ?? []).map((g) => [g.id, g.name])), [genreData])
+  const movies = useMemo(() => data?.data ?? [], [data])
+  const editingMovie = movies.find((m) => m.tmdb_id === editing) ?? null
 
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return q ? movies.filter((m) => [m.title, m.director].some((field) => field.toLowerCase().includes(q))) : movies
-  }, [movies, query])
-
-  const sync = () => {
-    setSyncing(true)
-    setNote('')
-    window.setTimeout(() => {
-      setSyncing(false)
-      setLastSynced('just now')
-      setNote('Synced with TMDB. Your local overrides were kept.')
-    }, 1500)
-  }
-
-  const save = (fields: MovieFields, poster: string | undefined) => {
-    if (editing === 'new') {
-      const movie: AdminMovie = { ...fields, id: `local-${Date.now()}`, source: 'Local', rating: null, gradient: NEW_MOVIE_GRADIENT, poster }
-      setMovies((list) => [movie, ...list])
-      setEditing(movie.id)
-      setNote(`${fields.title} was added as a local movie.`)
-      return
+  const save = async (changes: AdminMovieChanges): Promise<string | null> => {
+    if (!editingMovie) return null
+    try {
+      const updated = await adminApi.updateMovie(editingMovie.tmdb_id, changes)
+      setData((current) => ({ ...current, data: current.data.map((m) => (m.tmdb_id === updated.tmdb_id ? { ...m, ...updated } : m)) }))
+      reload()
+      setNote(`Changes to ${updated.title} saved.`)
+      return null
+    } catch (saveError) {
+      return apiErrorMessage(saveError, 'Unable to save this movie. Please try again.')
     }
-    setMovies((list) =>
-      list.map((m) =>
-        m.id === editing
-          ? { ...m, ...fields, poster, source: m.tmdb ? (isOverridden(fields, m.tmdb) ? 'Edited' : 'TMDB') : 'Local' }
-          : m,
-      ),
-    )
-    setNote(`Changes to ${fields.title} saved.`)
-  }
-
-  const remove = (movie: AdminMovie) => {
-    const message = movie.tmdbId
-      ? `Remove ${movie.title} from the local catalogue? It comes back from TMDB on the next sync, without your overrides.`
-      : `Delete ${movie.title}? This local movie can't be restored.`
-    if (!window.confirm(message)) return
-    setMovies((list) => list.filter((m) => m.id !== movie.id))
-    if (editing === movie.id) setEditing(null)
-    setNote(`${movie.title} was removed.`)
   }
 
   return (
@@ -314,32 +260,14 @@ export default function AdminMovies() {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search title, director…"
-              aria-label="Search by title or director"
+              placeholder="Search title…"
+              aria-label="Search by title"
             />
           </label>
-          <button type="button" className={styles.syncButton} onClick={sync} disabled={syncing}>
-            <img className={syncing ? styles.spin : undefined} src={syncIcon} width={16} height={16} alt="" />
-            {syncing ? 'Syncing…' : 'Sync from TMDB'}
-          </button>
-          <button type="button" className={styles.add} onClick={() => open('new')}>
-            <img src={plusIcon} width={16} height={16} alt="" />
-            Add movie
-          </button>
         </div>
       </header>
 
-      <div className={styles.syncStatus}>
-        <img src={dbIcon} width={18} height={18} alt="" />
-        <p className={styles.syncText}>
-          Last synced {lastSynced} · {MOVIE_SYNC.cached.toLocaleString('en-US')} movies cached · {overrides} local overrides · next
-          sync in {MOVIE_SYNC.nextSync}
-        </p>
-        <span className={styles.chipWhite}>
-          <img src={checkIcon} width={13} height={13} alt="" />
-          TMDB API connected
-        </span>
-      </div>
+      {data && <SyncSummary sync={data.summary.sync} />}
 
       {note && (
         <p className={styles.note} role="status">
@@ -348,13 +276,11 @@ export default function AdminMovies() {
       )}
 
       <div className={styles.body}>
-        <section className={styles.tableCard} aria-label="Movies">
+        <section className={styles.tableCard} aria-label="Movies" aria-busy={loading}>
           <div className={styles.scroll}>
             <table className={styles.table}>
               <colgroup>
                 <col />
-                <col className={styles.colSource} />
-                <col className={styles.colRating} />
                 <col className={styles.colRuntime} />
                 <col className={styles.colStatus} />
                 <col className={styles.colActions} />
@@ -362,75 +288,70 @@ export default function AdminMovies() {
               <thead>
                 <tr>
                   <th scope="col">MOVIE</th>
-                  <th scope="col">SOURCE</th>
-                  <th scope="col">RATING</th>
                   <th scope="col">RUNTIME</th>
                   <th scope="col">STATUS</th>
                   <th scope="col">ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
-                {visible.length === 0 && (
+                {!data && (
                   <tr>
-                    <td colSpan={6} className={styles.empty}>
-                      No movies match “{query.trim()}”.
+                    <td colSpan={4} className={styles.empty} role={error ? 'alert' : 'status'}>
+                      {error ? (
+                        <>
+                          {apiErrorMessage(error, 'Unable to load movies.')}{' '}
+                          <button type="button" className={styles.outline} onClick={reload}>
+                            Try again
+                          </button>
+                        </>
+                      ) : (
+                        'Loading movies…'
+                      )}
                     </td>
                   </tr>
                 )}
-                {visible.map((movie) => {
+                {data && movies.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className={styles.empty}>
+                      {search ? `No movies match “${search}”.` : 'No movies in the local catalogue yet.'}
+                    </td>
+                  </tr>
+                )}
+                {movies.map((movie) => {
                   const status = statusOf(movie)
-                  const year = movie.releaseDate.slice(0, 4)
+                  const poster = adminPosterUrl(movie.poster_path)
+                  const meta = [movie.release_date?.slice(0, 4), movie.genre_ids.map((id) => genreNames.get(id)).filter(Boolean).join(', ')].filter(Boolean).join(' · ')
                   return (
-                    <tr key={movie.id} className={movie.id === editing ? styles.rowSelected : undefined}>
+                    <tr key={movie.tmdb_id} className={movie.tmdb_id === editing ? styles.rowSelected : undefined}>
                       <td>
                         <span className={styles.movie}>
-                          {movie.poster ? (
-                            <img className={styles.thumb} src={movie.poster} alt="" />
+                          {poster ? (
+                            <img className={styles.thumb} src={poster} alt="" />
                           ) : (
-                            <span className={styles.thumb} style={{ background: gradientCss(movie.gradient) }} />
+                            <span className={styles.thumb} style={{ background: POSTER_BACKDROP }} />
                           )}
                           <span className={styles.movieText}>
                             <span className={styles.movieTitle}>{movie.title}</span>
-                            <span className={styles.movieMeta}>{[year, movie.genres.join(', ')].filter(Boolean).join(' · ')}</span>
+                            {meta && <span className={styles.movieMeta}>{meta}</span>}
                           </span>
                         </span>
-                      </td>
-                      <td>
-                        <span className={styles[SOURCE_CLASS[movie.source]]}>{movie.source}</span>
-                      </td>
-                      <td>
-                        {movie.rating === null ? (
-                          <span className={styles.muted}>—</span>
-                        ) : (
-                          <span className={styles.score}>
-                            <img src={starIcon} width={13} height={13} alt="" />
-                            <span className="sr-only">Rated </span>
-                            {movie.rating.toFixed(1)}
-                          </span>
-                        )}
                       </td>
                       <td className={styles.muted}>{formatRuntime(movie.runtime)}</td>
                       <td>
                         <span className={styles[STATUS_CLASS[status]]}>{status}</span>
+                        {movie.is_edited && <span className={styles.chipYellow}>Edited</span>}
+                        {movie.is_featured && <span className={styles.chipYellow}>Featured</span>}
                       </td>
                       <td>
                         <span className={styles.actions}>
                           <button
                             type="button"
                             className={styles.actionCream}
-                            onClick={() => open(movie.id)}
+                            onClick={() => setEditing(movie.tmdb_id)}
                             aria-label={`Edit ${movie.title}`}
-                            aria-pressed={movie.id === editing}
+                            aria-pressed={movie.tmdb_id === editing}
                           >
                             <img src={editIcon} width={14} height={14} alt="" />
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.actionCoral}
-                            onClick={() => remove(movie)}
-                            aria-label={`Remove ${movie.title}`}
-                          >
-                            <img src={trashIcon} width={14} height={14} alt="" />
                           </button>
                         </span>
                       </td>
@@ -440,17 +361,19 @@ export default function AdminMovies() {
               </tbody>
             </table>
           </div>
+          {data && (
+            <AdminPagination
+              meta={data.meta}
+              shown={movies.length}
+              onPage={(next) => {
+                setPage(next)
+                setEditing(null)
+              }}
+            />
+          )}
         </section>
 
-        {editing && (
-          <MovieEditor
-            key={editing}
-            movie={editing === 'new' ? null : editingMovie}
-            onSave={save}
-            onClose={() => setEditing(null)}
-            focusOnOpen={userOpened}
-          />
-        )}
+        {editingMovie && <MovieEditor key={editingMovie.tmdb_id} movie={editingMovie} genreNames={genreNames} onSave={save} onClose={() => setEditing(null)} focusOnOpen />}
       </div>
     </div>
   )

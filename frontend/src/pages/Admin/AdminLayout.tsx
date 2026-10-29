@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuth } from '../../contexts/useAuth.ts'
 import Logo from '../../components/Logo/Logo.tsx'
 import gridIcon from '../../assets/admin/icon-grid.svg'
@@ -9,15 +9,16 @@ import chartIcon from '../../assets/admin/icon-chart.svg'
 import flagIcon from '../../assets/admin/icon-flag.svg'
 import settingsIcon from '../../assets/admin/icon-settings.svg'
 import logoutIcon from '../../assets/admin/icon-logout.svg'
-import { ADMIN_USER } from './adminData.ts'
+import { isAdminRole } from '../../lib/adminApi.ts'
+import { initialsOf } from '../../lib/format.ts'
 import styles from './AdminLayout.module.css'
 
 // Screens with a Figma design. Genres, Reports and Settings appear in the sidebar but have no screen yet.
-const LINKS = [
+const LINKS: { to: string; label: string; icon: string; end?: boolean; adminOnly?: boolean }[] = [
   { to: '/admin', label: 'Overview', icon: gridIcon, end: true },
   { to: '/admin/users', label: 'Users', icon: usersIcon },
   { to: '/admin/reviews', label: 'Reviews', icon: chatIcon },
-  { to: '/admin/movies', label: 'Movies', icon: filmIcon },
+  { to: '/admin/movies', label: 'Movies', icon: filmIcon, adminOnly: true },
 ]
 const UPCOMING = [
   { label: 'Genres', icon: chartIcon },
@@ -38,17 +39,23 @@ function MaskIcon({ src, size = 20 }: { src: string; size?: number }) {
 
 /**
  * Admin dashboard shell: violet sidebar (Figma "Admin/Sidebar") and the page on the right.
- * TODO: guard these routes so only signed-in administrators can open them once auth is connected.
+ * Only administrators and moderators reach it (see RequireAdmin in the router).
  */
 export default function AdminLayout() {
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const isAdmin = isAdminRole(user?.role)
+  const links = LINKS.filter((link) => isAdmin || !link.adminOnly)
   return (
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
         <Logo theme="dark" />
         <nav className={styles.nav} aria-label="Admin">
-          {LINKS.map((link) => (
+          <Link to="/home-page" className={styles.item}>
+            <span aria-hidden="true">←</span>
+            Back to WatchWise
+          </Link>
+          {links.map((link) => (
             <NavLink
               key={link.to}
               to={link.to}
@@ -59,7 +66,7 @@ export default function AdminLayout() {
               {link.label}
             </NavLink>
           ))}
-          {UPCOMING.map((item) => (
+          {isAdmin && UPCOMING.map((item) => (
             <span key={item.label} className={styles.itemDisabled} aria-disabled="true" title="Coming soon">
               <MaskIcon src={item.icon} />
               {item.label}
@@ -69,11 +76,11 @@ export default function AdminLayout() {
 
         <div className={styles.admin}>
           <span className={styles.avatar} aria-hidden="true">
-            {ADMIN_USER.initials}
+            {initialsOf(user?.name ?? '')}
           </span>
           <span className={styles.who}>
-            <span className={styles.name}>{ADMIN_USER.name}</span>
-            <span className={styles.role}>{ADMIN_USER.role}</span>
+            <span className={styles.name}>{user?.name}</span>
+            <span className={styles.role}>{isAdmin ? 'Administrator' : 'Moderator'}</span>
           </span>
           <button type="button" onClick={() => void logout().then(() => navigate('/signin', { replace: true }))} className={styles.logout} aria-label="Log out">
             <MaskIcon src={logoutIcon} size={18} />

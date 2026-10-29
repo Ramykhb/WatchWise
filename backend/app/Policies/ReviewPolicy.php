@@ -32,6 +32,17 @@ class ReviewPolicy
         return $this->owns($current, $review) || $current->isAdmin();
     }
 
+    /** Members report published reviews by others; their own, unpublished and removed ones can't be reported. */
+    public function report(CurrentUser $current, Review $review): bool
+    {
+        return $current->isAuthenticated()
+            && ! $this->owns($current, $review)
+            && $review->is_approved
+            && $review->removed_at === null
+            && $review->content !== null
+            && $review->content !== '';
+    }
+
     private function owns(CurrentUser $current, Review $review): bool
     {
         return $current->isAuthenticated() && $current->id() === $review->user_id;

@@ -5,15 +5,15 @@ namespace App\Admin\DTOs\Requests;
 /** One page of the user list, optionally filtered by text, role or account status. */
 final readonly class AdminUserQuery
 {
-    public const ROLES = ['user', 'admin'];
+    public const ROLES = ['user', 'moderator', 'admin'];
 
-    public const STATUSES = ['active', 'inactive'];
+    public const STATUSES = ['active', 'unverified', 'inactive'];
 
     public const MAX_PER_PAGE = 50;
 
     /**
-     * @param  'user'|'admin'|null  $role
-     * @param  'active'|'inactive'|null  $status
+     * @param  'user'|'moderator'|'admin'|null  $role
+     * @param  'active'|'unverified'|'inactive'|null  $status
      */
     public function __construct(
         public string $search = '',

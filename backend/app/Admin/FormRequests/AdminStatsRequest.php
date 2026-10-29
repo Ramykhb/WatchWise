@@ -5,6 +5,7 @@ namespace App\Admin\FormRequests;
 use App\Admin\DTOs\Requests\AdminStatsQuery;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class AdminStatsRequest extends FormRequest
 {
@@ -20,6 +21,7 @@ class AdminStatsRequest extends FormRequest
     {
         return [
             'days' => ['sometimes', 'integer', 'min:1', 'max:'.AdminStatsQuery::MAX_DAYS],
+            'range' => ['sometimes', Rule::in(AdminStatsQuery::RANGES)],
         ];
     }
 

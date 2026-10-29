@@ -5,16 +5,16 @@ namespace App\Admin\DTOs\Requests;
 /** One page of the reviews an admin can moderate. */
 final readonly class ReviewModerationQuery
 {
-    public const STATUSES = ['pending', 'approved'];
-
-    public const MAX_PER_PAGE = 50;
+    public const STATUSES = ['pending', 'approved', 'flagged', 'removed'];
 
     public const SENTIMENTS = ['positive', 'neutral', 'negative'];
 
-    public const REASONS = ['offensive language', 'spoiler', 'spam', 'awaiting classification'];
+    public const REASONS = ['Spam', 'Links', 'Spoilers', 'Offensive language', 'offensive language', 'spoiler', 'spam', 'awaiting classification'];
+
+    public const MAX_PER_PAGE = 50;
 
     /**
-     * @param  'pending'|'approved'  $status
+     * @param  'pending'|'approved'|'flagged'|'removed'  $status
      */
     public function __construct(
         public string $status = 'pending',

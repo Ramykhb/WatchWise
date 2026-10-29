@@ -39,6 +39,21 @@ class AdminStatsRepository implements AdminStatsRepositoryInterface
         return $this->withText()->where('created_at', '>=', $since)->count();
     }
 
+    public function usersCreatedBetween(CarbonInterface $from, CarbonInterface $until): int
+    {
+        return User::where('created_at', '>=', $from)->where('created_at', '<', $until)->count();
+    }
+
+    public function reviewsCreatedBetween(CarbonInterface $from, CarbonInterface $until): int
+    {
+        return $this->withText()->where('created_at', '>=', $from)->where('created_at', '<', $until)->count();
+    }
+
+    public function usersActiveBetween(CarbonInterface $from, CarbonInterface $until): int
+    {
+        return User::where('last_active_at', '>=', $from)->where('last_active_at', '<', $until)->count();
+    }
+
     public function mostWatched(array $excludedTmdbIds, int $limit): array
     {
         return Watchlist::query()

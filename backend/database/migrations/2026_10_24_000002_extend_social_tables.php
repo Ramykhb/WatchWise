@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -29,13 +30,28 @@ return new class extends Migration
         });
 
         // Guests can also answer "maybe".
+        if (DB::getDriverName() === 'pgsql') {
+            // Laravel represents PostgreSQL enums with CHECK constraints; drop the old allowed
+            // values before widening the status column.
+            DB::statement('ALTER TABLE movie_night_invites DROP CONSTRAINT IF EXISTS movie_night_invites_status_check');
+        }
+
         Schema::table('movie_night_invites', function (Blueprint $table) {
             $table->string('status', 20)->default('pending')->change();
         });
+
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement("ALTER TABLE movie_night_invites ADD CONSTRAINT movie_night_invites_status_allowed_check CHECK (status IN ('pending', 'accepted', 'maybe', 'declined'))");
+        }
     }
 
     public function down(): void
     {
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE movie_night_invites DROP CONSTRAINT IF EXISTS movie_night_invites_status_allowed_check');
+            DB::statement("ALTER TABLE movie_night_invites ADD CONSTRAINT movie_night_invites_status_check CHECK (status IN ('pending', 'accepted', 'declined'))");
+        }
+
         Schema::table('movie_nights', fn (Blueprint $table) => $table->dropColumn('note'));
         Schema::table('discussion_rooms', function (Blueprint $table) {
             $table->dropConstrainedForeignId('created_by');

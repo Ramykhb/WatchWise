@@ -8,6 +8,7 @@ use App\Movie\InterfaceRepository\MovieCatalogRepositoryInterface;
 use App\Support\LikePattern;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Date;
 
 class MovieCatalogRepository implements MovieCatalogRepositoryInterface
 {
@@ -40,6 +41,17 @@ class MovieCatalogRepository implements MovieCatalogRepositoryInterface
     public function findManyByTmdbId(array $tmdbIds): Collection
     {
         return LocalMovie::whereIn('tmdb_id', $tmdbIds)->get()->keyBy('tmdb_id');
+    }
+
+    public function syncTotals(): array
+    {
+        $lastSynced = LocalMovie::max('synced_at');
+
+        return [
+            'cached' => LocalMovie::count(),
+            'overrides' => LocalMovie::whereNotNull('edited_at')->count(),
+            'last_synced_at' => $lastSynced === null ? null : Date::parse($lastSynced),
+        ];
     }
 
     public function hiddenTmdbIds(): array

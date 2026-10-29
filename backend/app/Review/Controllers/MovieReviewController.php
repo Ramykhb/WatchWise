@@ -6,6 +6,7 @@ use App\Auth\CurrentUser\CurrentUser;
 use App\Models\Review;
 use App\Review\FormRequests\MovieReviewIndexRequest;
 use App\Review\FormRequests\MyReviewRequest;
+use App\Review\FormRequests\ReportReviewRequest;
 use App\Review\FormRequests\SaveReviewRequest;
 use App\Review\InterfaceServices\MovieReviewServiceInterface;
 use Illuminate\Http\JsonResponse;
@@ -33,6 +34,14 @@ class MovieReviewController
         $this->reviews->delete($current->user(), $request->tmdbId(), $request->mediaType());
 
         return response()->json(['message' => 'Review deleted.']);
+    }
+
+    /** POST /api/reviews/{review}/report — `reason`: Spam, Links, Spoilers or Offensive language. 201 when new, 200 when changed. */
+    public function report(ReportReviewRequest $request, Review $review, CurrentUser $current): JsonResponse
+    {
+        $result = $this->reviews->report($review, $current->user(), $request->toDto());
+
+        return response()->json($result, $result->created ? 201 : 200);
     }
 
     /** POST /api/reviews/{review}/helpful */

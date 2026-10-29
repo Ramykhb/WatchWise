@@ -5,6 +5,7 @@ namespace App\Movie\InterfaceServices;
 use App\Models\LocalMovie;
 use App\Movie\DTOs\Requests\LocalMovieQuery;
 use App\Movie\DTOs\Requests\UpdateLocalMovieData;
+use App\Movie\DTOs\Responses\CatalogSyncResponse;
 use App\Movie\Exceptions\MovieNotFound;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -28,6 +29,9 @@ interface MovieCatalogServiceInterface
      * @return Collection<int, LocalMovie> keyed by TMDB id
      */
     public function summaries(array $tmdbIds): Collection;
+
+    /** How many films are cached, how many an admin edited, and when one was last synced from TMDB. */
+    public function syncSummary(): CatalogSyncResponse;
 
     /**
      * Films admins have hidden; the app's own lists and stats leave them out.

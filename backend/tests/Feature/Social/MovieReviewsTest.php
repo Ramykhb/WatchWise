@@ -7,6 +7,7 @@ use App\Groq\InterfaceServices\GroqStructuredOutputInterface;
 use App\Models\Review;
 use App\Models\User;
 use App\Models\UserPreference;
+use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use Illuminate\Support\Facades\Http;
 use Mockery;
 
@@ -103,6 +104,8 @@ class MovieReviewsTest extends SocialTestCase
 
     public function test_each_groq_label_holds_the_review_until_admin_approval(): void
     {
+        $this->mock(MovieCatalogServiceInterface::class)->shouldIgnoreMissing()
+            ->shouldReceive('summaries')->andReturn(collect());
         $author = User::factory()->create();
         $viewer = User::factory()->create();
         $admin = User::factory()->create(['role' => 'admin']);
@@ -125,6 +128,8 @@ class MovieReviewsTest extends SocialTestCase
 
     public function test_an_edit_is_reclassified_and_can_be_declined(): void
     {
+        $this->mock(MovieCatalogServiceInterface::class)->shouldIgnoreMissing()
+            ->shouldReceive('summaries')->andReturn(collect());
         $author = User::factory()->create();
         $review = $this->approvedReview($author, 4, 'positive');
         $this->groqSays('neutral', ['offensive language', 'spam']);
