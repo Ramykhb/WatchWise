@@ -33,7 +33,9 @@ export type ApiList = {
   /** Only with `?contains={tmdbId}`: whether the list already holds that film. */
   has_movie?: boolean
   /** Only on a single list (GET /lists/:id, create, update). */
-  items?: { tmdb_id: number; note: string | null; added_at: string | null }[]
+  /** The first five titles with their type (posters holds the same ids without it). */
+  cover?: { tmdb_id: number; media_type: 'movie' | 'tv' }[]
+  items?: { tmdb_id: number; media_type?: 'movie' | 'tv'; note: string | null; added_at: string | null }[]
 }
 
 export type ApiActivity = {
@@ -195,6 +197,7 @@ export type ApiMovieReview = {
   sentiment: 'positive' | 'neutral' | 'negative' | null
   content: string
   has_spoilers: boolean
+  moderation_labels: string[] | null
   helpful: number
   marked_helpful: boolean
   /** Your own review shows "Waiting for approval" until an administrator approves it. */

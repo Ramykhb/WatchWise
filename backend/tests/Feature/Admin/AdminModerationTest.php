@@ -24,7 +24,7 @@ class AdminModerationTest extends AdminTestCase
     public function test_reported_reviews_are_flagged_with_their_reports_and_film(): void
     {
         LocalMovie::factory()->create(['tmdb_id' => 550, 'title' => 'Fight Club']);
-        $review = $this->review(['is_approved' => true]);
+        $review = $this->review(['is_approved' => true, 'moderation_labels' => ['spam']]);
         $this->report($review, 'Spam');
         $this->report($review, 'Links');
         $this->report($review, 'Spam');
@@ -37,6 +37,7 @@ class AdminModerationTest extends AdminTestCase
             ->assertJsonPath('data.0.status', 'flagged')
             ->assertJsonPath('data.0.reports_count', 3)
             ->assertJsonPath('data.0.reasons', ['Spam', 'Links'])
+            ->assertJsonPath('data.0.moderation_labels', ['spam'])
             ->assertJsonPath('data.0.rating', 4)
             ->assertJsonPath('data.0.sentiment', 'positive')
             ->assertJsonPath('data.0.movie.title', 'Fight Club')

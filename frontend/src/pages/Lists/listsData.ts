@@ -1,4 +1,5 @@
 import { shortName, look, updatedLabel } from '../../lib/format.ts'
+import { itemKey, type FilmKey } from '../../lib/movies.ts'
 import type { ApiList } from '../../lib/types.ts'
 import type { Gradient } from '../Home/homeData.ts'
 import { listSlug, posterGradients } from '../Profile/profileData.ts'
@@ -17,7 +18,7 @@ export type MyList = {
   cover: string
   posters: Gradient[]
   /** TMDB ids of the cover posters, to load their images. */
-  posterIds: number[]
+  posterIds: FilmKey[]
 }
 
 export type PublicList = {
@@ -31,12 +32,13 @@ export type PublicList = {
   films: number
   posters: Gradient[]
   /** TMDB ids of the cover posters, to load their images. */
-  posterIds: number[]
+  posterIds: FilmKey[]
 }
 
 /** Three cover posters; empty lists show the neutral placeholder poster. */
 const coverOf = (list: ApiList) => posterGradients(list.posters.length ? list.posters.slice(0, 3) : [0])
-const coverIdsOf = (list: ApiList) => list.posters.slice(0, 3)
+// `cover` says which ids are TV shows; `posters` (ids only) is the fallback for older responses.
+const coverIdsOf = (list: ApiList): FilmKey[] => (list.cover ?? list.posters.map((tmdb_id) => ({ tmdb_id }))).slice(0, 3).map(itemKey)
 
 export const toMyList = (list: ApiList): MyList => ({
   id: list.id,

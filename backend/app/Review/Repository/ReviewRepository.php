@@ -31,7 +31,15 @@ class ReviewRepository implements ReviewRepositoryInterface
                         ->orWhereRaw("LOWER(username) LIKE ? ESCAPE '!'", [$pattern])));
             })
             ->when($sentiment !== null, fn (Builder $builder) => $builder->where('sentiment', $sentiment))
-            ->when($reason !== null, fn (Builder $builder) => $builder->whereHas('reports', fn (Builder $reports) => $reports->where('reason', $reason)))
+            ->when($reason !== null, function (Builder $builder) use ($reason) {
+                if ($reason === 'awaiting classification') {
+                    $builder->whereNull('moderation_labels');
+                } elseif (in_array($reason, ['offensive language', 'spoiler', 'spam'], true)) {
+                    $builder->whereJsonContains('moderation_labels', $reason);
+                } else {
+                    $builder->whereHas('reports', fn (Builder $reports) => $reports->where('reason', $reason));
+                }
+            })
             ->latest()
             ->orderByDesc('id')
             ->paginate($perPage, ['*'], 'page', $page);
@@ -67,7 +75,8 @@ class ReviewRepository implements ReviewRepositoryInterface
     public function clearText(Review $review): Review
     {
         // With no text left there is nothing to moderate, the same as a plain star rating.
-        $review->update(['content' => null, 'sentiment' => null, 'has_spoilers' => false, 'is_approved' => true, 'removed_at' => now()]);
+        $review->votes()->delete();
+        $review->update(['content' => null, 'sentiment' => null, 'moderation_labels' => null, 'has_spoilers' => false, 'is_approved' => true, 'removed_at' => now()]);
         $review->reports()->whereNull('resolved_at')->update(['resolved_at' => now()]);
 
         return $review;

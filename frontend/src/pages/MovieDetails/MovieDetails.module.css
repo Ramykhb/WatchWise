@@ -967,6 +967,23 @@
 }
 
 /* ---------- Your review ---------- */
+.checkingReview,
+.checkedReview {
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+.checkingReview {
+  opacity: 0.5;
+  filter: grayscale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checkingReview,
+  .checkedReview {
+    transition: none;
+  }
+}
+
 .yourReview {
   display: flex;
   flex-direction: column;

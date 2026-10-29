@@ -111,6 +111,7 @@ export type AdminReview = {
   has_spoilers: boolean
   is_approved: boolean
   status: AdminReviewStatus
+  moderation_labels: string[] | null
   reports_count: number
   reasons: string[]
   author: { id: number | null; name: string | null; username: string | null }

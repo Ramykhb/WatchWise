@@ -246,11 +246,12 @@ function MovieDetailsPage({ details }: { details: Details }) {
   // WatchWise's own data (reviews, premiere, showtimes, room). Only the design's mock movies have it;
   // TMDB movies don't, so those sections are hidden rather than filled with sample data.
   const { movie, community } = details
-  // Lists hold TMDB movie ids only; TV shows ("tv-1399") use a separate id range, so they can't be added yet.
-  const listTmdbId = tmdbIdOf(movie)
-  const canAddToList = Number.isInteger(listTmdbId) && listTmdbId > 0
-  // Ratings know the title's type, so movies and TV shows can both be rated.
+  // Lists, ratings and the watchlist know each title's type, so movies and TV shows can all be saved.
   const title = titleOf(movie)
+  const canAddToList = title !== null
+  // The watchlist button still saves movies only (lib/watchlist.ts has no TV type yet), so it stays off on shows.
+  const watchlistTmdbId = tmdbIdOf(movie)
+  const canWatchlist = Number.isInteger(watchlistTmdbId) && watchlistTmdbId > 0
   const canRate = title !== null
   const ratingId = title?.tmdbId
   const ratingType = title?.mediaType
@@ -304,17 +305,17 @@ function MovieDetailsPage({ details }: { details: Details }) {
   }
 
   // "Add to watchlist" adds the film to the member's default Watchlist (GET/POST/DELETE /api/watchlist).
-  const watchlist = useWatchlist({ enabled: signedIn && canAddToList })
-  const onWatchlist = canAddToList && watchlist.has(listTmdbId)
+  const watchlist = useWatchlist({ enabled: signedIn && canWatchlist })
+  const onWatchlist = canWatchlist && watchlist.has(watchlistTmdbId)
   const toggleWatchlist = () => {
-    if (!canAddToList) return
+    if (!canWatchlist) return
     if (!signedIn) {
       navigate('/signin', { state: { from: location } })
       return
     }
     if (!watchlist.loaded) return
     setShareNote('')
-    const request = onWatchlist ? watchlist.remove(listTmdbId) : watchlist.add(listTmdbId)
+    const request = onWatchlist ? watchlist.remove(watchlistTmdbId) : watchlist.add(watchlistTmdbId)
     request.catch(() => setShareNote("Couldn't update your watchlist. Please try again."))
   }
   // TODO: save "Mark as watched" through the API.
@@ -324,6 +325,7 @@ function MovieDetailsPage({ details }: { details: Details }) {
   // "Add to list" pop-up: 'open', 'closing' (exit animation) or closed.
   const [listDialog, setListDialog] = useState<'open' | 'closing' | null>(null)
   const listHintId = useId()
+  const watchlistHintId = useId()
 
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
 
@@ -466,14 +468,19 @@ function MovieDetailsPage({ details }: { details: Details }) {
                   type="button"
                   className={onWatchlist ? styles.actionOn : styles.actionOutline}
                   aria-pressed={onWatchlist}
-                  aria-disabled={!canAddToList || undefined}
-                  aria-busy={(canAddToList && watchlist.isPending(listTmdbId)) || undefined}
-                  aria-describedby={canAddToList ? undefined : listHintId}
+                  aria-disabled={!canWatchlist || undefined}
+                  aria-busy={(canWatchlist && watchlist.isPending(watchlistTmdbId)) || undefined}
+                  aria-describedby={canWatchlist ? undefined : watchlistHintId}
                   onClick={toggleWatchlist}
                 >
                   <img src={onWatchlist ? checkIcon : plusIcon} width={16} height={16} alt="" />
                   {onWatchlist ? 'In watchlist' : 'Add to watchlist'}
                 </button>
+                {!canWatchlist && (
+                  <span id={watchlistHintId} className={styles.actionHint}>
+                    TV shows can’t be added to the watchlist yet
+                  </span>
+                )}
                 <button
                   type="button"
                   className={watched ? styles.actionWatched : styles.actionOutline}
@@ -497,7 +504,7 @@ function MovieDetailsPage({ details }: { details: Details }) {
                 </button>
                 {!canAddToList && (
                   <span id={listHintId} className={styles.actionHint}>
-                    TV shows can’t be added to lists yet
+                    This title can’t be added to lists
                   </span>
                 )}
                 {community && (
@@ -765,10 +772,11 @@ function MovieDetailsPage({ details }: { details: Details }) {
         </section>
       </main>
 
-      {listDialog && (
+      {listDialog && title && (
         <AddToListDialog
           open={listDialog === 'open'}
-          tmdbId={listTmdbId}
+          tmdbId={title.tmdbId}
+          mediaType={title.mediaType}
           title={movie.title}
           onClose={() => setListDialog('closing')}
           onClosed={() => setListDialog(null)}
