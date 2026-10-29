@@ -48,6 +48,7 @@ Route::middleware('auth.jwt')->group(function () {
     Route::delete('reviews/mine', [MovieReviewController::class, 'destroy']);
     Route::post('reviews/{review}/helpful', [MovieReviewController::class, 'helpful'])->whereNumber('review')->middleware('throttle:60,1');
     Route::delete('reviews/{review}/helpful', [MovieReviewController::class, 'unhelpful'])->whereNumber('review');
+    Route::post('reviews/{review}/report', [MovieReviewController::class, 'report'])->whereNumber('review')->middleware('throttle:10,1');
 
     Route::get('movie-nights', [MovieNightController::class, 'index']);
     Route::post('movie-nights', [MovieNightController::class, 'store']);

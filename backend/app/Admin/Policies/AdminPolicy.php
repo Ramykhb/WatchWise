@@ -10,11 +10,19 @@ use App\Auth\CurrentUser\CurrentUser;
  */
 class AdminPolicy
 {
+    /** Moderators may read the dashboard statistics. */
     public function viewDashboard(CurrentUser $current): bool
     {
-        return $current->isAdmin();
+        return $this->isStaff($current);
     }
 
+    /** Listing users and suspending plain members; the service limits what a moderator may change. */
+    public function viewUsers(CurrentUser $current): bool
+    {
+        return $this->isStaff($current);
+    }
+
+    /** Deleting accounts and changing roles stay with admins. */
     public function manageUsers(CurrentUser $current): bool
     {
         return $current->isAdmin();
@@ -22,11 +30,16 @@ class AdminPolicy
 
     public function moderateReviews(CurrentUser $current): bool
     {
-        return $current->isAdmin();
+        return $this->isStaff($current);
     }
 
     public function manageMovies(CurrentUser $current): bool
     {
         return $current->isAdmin();
+    }
+
+    private function isStaff(CurrentUser $current): bool
+    {
+        return $current->isAdmin() || $current->role() === 'moderator';
     }
 }

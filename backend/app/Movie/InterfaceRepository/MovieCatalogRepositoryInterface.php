@@ -4,6 +4,7 @@ namespace App\Movie\InterfaceRepository;
 
 use App\Models\LocalMovie;
 use App\Movie\DTOs\Requests\LocalMovieQuery;
+use Carbon\CarbonInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
@@ -32,4 +33,9 @@ interface MovieCatalogRepositoryInterface
 
     /** @return list<int> */
     public function hiddenTmdbIds(): array;
+
+    /**
+     * @return array{cached: int, overrides: int, last_synced_at: CarbonInterface|null}
+     */
+    public function syncTotals(): array;
 }

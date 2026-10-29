@@ -27,6 +27,13 @@ class UserRepository implements UserRepositoryInterface
         $user->forceFill(['email_verified_at' => now()])->save();
     }
 
+    public function markActive(User $user): void
+    {
+        $now = now();
+        User::whereKey($user->id)->update(['last_active_at' => $now]);
+        $user->setAttribute('last_active_at', $now)->syncOriginalAttribute('last_active_at');
+    }
+
     public function updatePassword(User $user, string $plainPassword): void
     {
         $user->password = $plainPassword; // 'hashed' cast

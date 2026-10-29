@@ -5,6 +5,7 @@ namespace App\Movie\Services;
 use App\Models\LocalMovie;
 use App\Movie\DTOs\Requests\LocalMovieQuery;
 use App\Movie\DTOs\Requests\UpdateLocalMovieData;
+use App\Movie\DTOs\Responses\CatalogSyncResponse;
 use App\Movie\Exceptions\MovieNotFound;
 use App\Movie\InterfaceRepository\MovieCatalogRepositoryInterface;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
@@ -43,6 +44,7 @@ class MovieCatalogService implements MovieCatalogServiceInterface
             'poster_path' => $posterPath,
             'release_date' => $details->movie->releaseDate,
             'runtime' => $details->runtime,
+            'director' => $details->directors[0]->name ?? null,
             'genre_ids' => $details->movie->genreIds ?: array_map(fn ($genre): int => $genre->id, $details->genres),
             'synced_at' => now(),
         ]);
@@ -57,7 +59,20 @@ class MovieCatalogService implements MovieCatalogServiceInterface
     {
         $movie = $this->catalog->findByTmdbId($tmdbId) ?? throw new MovieNotFound($tmdbId);
 
-        return $this->catalog->update($movie, $data->changes());
+        $changes = $data->changes();
+
+        if ($data->editsContent()) {
+            $changes['edited_at'] = now();
+        }
+
+        return $this->catalog->update($movie, $changes);
+    }
+
+    public function syncSummary(): CatalogSyncResponse
+    {
+        $totals = $this->catalog->syncTotals();
+
+        return new CatalogSyncResponse($totals['cached'], $totals['overrides'], $totals['last_synced_at']?->toJSON());
     }
 
     public function summaries(array $tmdbIds): Collection

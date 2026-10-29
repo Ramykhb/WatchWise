@@ -7,6 +7,7 @@ import searchIcon from '../../assets/home/icon-search.svg'
 import bellIcon from '../../assets/home/icon-bell.svg'
 import { useNotificationPolling, useUnreadCount } from '../../pages/Notifications/notificationsStore.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
+import { isAdminRole, isModeratorRole } from '../../lib/adminApi.ts'
 import { api } from '../../lib/api.ts'
 import { colorOf, initialsOf } from '../../lib/format.ts'
 import type { ApiUserSearch } from '../../lib/types.ts'
@@ -21,6 +22,12 @@ const LINKS: { to: string; label: string; alsoActiveOn?: string[] }[] = [
   { to: '/movie-nights', label: 'Movie Nights' },
   { to: '/rooms', label: 'Rooms' },
 ]
+
+/** Only staff see this link; admins and moderators both land on the admin Overview. */
+function adminLinkFor(role: string | undefined): { to: string; label: string; alsoActiveOn: string[] } | null {
+  if (isAdminRole(role) || isModeratorRole(role)) return { to: '/admin', label: 'Admin', alsoActiveOn: ['/admin'] }
+  return null
+}
 
 /** Wait this long after the last keystroke before searching people. */
 const SEARCH_DELAY_MS = 250
@@ -40,6 +47,8 @@ export default function AppNav() {
   const unread = useUnreadCount()
 
   const q = query.trim()
+  const adminLink = adminLinkFor(user?.role)
+  const links = adminLink ? [...LINKS, adminLink] : LINKS
 
   useEffect(() => {
     if (q.length < 2) return
@@ -89,7 +98,7 @@ export default function AppNav() {
       <div className={styles.left}>
         <Logo />
         <nav className={styles.links} aria-label="Main">
-          {LINKS.map((link) => (
+          {links.map((link) => (
             <NavLink
               key={link.to}
               to={link.to}

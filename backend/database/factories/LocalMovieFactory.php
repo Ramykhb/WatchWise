@@ -24,6 +24,7 @@ class LocalMovieFactory extends Factory
             'poster_path' => '/'.fake()->lexify('??????????').'.jpg',
             'release_date' => fake()->date(),
             'runtime' => fake()->numberBetween(80, 180),
+            'director' => fake()->name(),
             'genre_ids' => [18],
             'is_hidden' => false,
             'is_featured' => false,

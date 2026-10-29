@@ -42,7 +42,7 @@ class AdminController
     /** DELETE /api/admin/users/{user} */
     public function destroyUser(User $user, CurrentUser $current): JsonResponse
     {
-        Gate::authorize('admin.users');
+        Gate::authorize('admin.users.manage');
         $this->admin->deleteUser($current->user(), $user);
 
         return response()->json(['message' => 'User deleted.']);

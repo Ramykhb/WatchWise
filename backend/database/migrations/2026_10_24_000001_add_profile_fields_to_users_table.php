@@ -16,9 +16,19 @@ return new class extends Migration
         });
 
         // 'followers' joins public/private, so the column becomes a plain string validated in the app.
+        if (DB::getDriverName() === 'pgsql') {
+            // Laravel creates PostgreSQL enums as varchar columns with a CHECK constraint. Changing
+            // the column type alone leaves that old two-value constraint in place.
+            DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_profile_visibility_check');
+        }
+
         Schema::table('users', function (Blueprint $table) {
             $table->string('profile_visibility', 20)->default('public')->change();
         });
+
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement("ALTER TABLE users ADD CONSTRAINT users_profile_visibility_allowed_check CHECK (profile_visibility IN ('public', 'private', 'followers'))");
+        }
 
         // Existing accounts get a handle from their name, made unique with a number.
         $taken = [];
@@ -35,6 +45,11 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_profile_visibility_allowed_check');
+            DB::statement("ALTER TABLE users ADD CONSTRAINT users_profile_visibility_check CHECK (profile_visibility IN ('public', 'private'))");
+        }
+
         Schema::table('users', function (Blueprint $table) {
             $table->dropUnique(['username']);
             $table->dropColumn(['username', 'location']);
