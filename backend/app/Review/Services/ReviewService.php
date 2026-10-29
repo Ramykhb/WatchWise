@@ -11,9 +11,9 @@ class ReviewService implements ReviewServiceInterface
 {
     public function __construct(private readonly ReviewRepositoryInterface $reviews) {}
 
-    public function moderationQueue(string $status, int $page, int $perPage): LengthAwarePaginator
+    public function moderationQueue(string $status, int $page, int $perPage, string $search = '', ?string $sentiment = null, ?string $reason = null): LengthAwarePaginator
     {
-        return $this->reviews->paginateForModeration($status, $page, $perPage);
+        return $this->reviews->paginateForModeration($status, $page, $perPage, $search, $sentiment, $reason);
     }
 
     public function moderationTotals(): array

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import AdminPagination from '../../components/AdminPagination/AdminPagination.tsx'
 import Sentiment from '../../components/Sentiment/Sentiment.tsx'
@@ -36,44 +36,51 @@ const SENTIMENT_COLOR = { positive: 'var(--accent-mint)', neutral: 'var(--surfac
 const capitalize = (text: string) => text[0].toUpperCase() + text.slice(1)
 const fmt = (n: number) => n.toLocaleString('en-US')
 const authorOf = (review: AdminReview) => review.author.name ?? review.author.username ?? 'Deleted user'
-const movieOf = (review: AdminReview) => review.movie.title ?? `Movie #${review.tmdb_id}`
+const movieOf = (review: AdminReview) => review.movie.title ?? `${review.media_type === 'tv' ? 'TV show' : 'Movie'} #${review.tmdb_id}`
+const reviewPath = (review: AdminReview) => `/movies/${review.media_type === 'tv' ? 'tv-' : ''}${review.tmdb_id}`
 
 export default function AdminReviews() {
   const [tab, setTab] = useState<AdminReviewStatus>('flagged')
   const [page, setPage] = useState(1)
   const [query, setQuery] = useState('')
+  const [search, setSearch] = useState('')
+  const [busy, setBusy] = useState(false)
   const [sentiment, setSentiment] = useState<(typeof REVIEW_SENTIMENTS)[number] | 'all'>('all')
   const [reason, setReason] = useState('all')
   const [note, setNote] = useState('')
 
-  const { data, error, loading, setData, reload } = useAdminReviews({ status: tab, page, per_page: PER_PAGE })
+  const { data, error, loading, setData, reload } = useAdminReviews({ status: tab, page, per_page: PER_PAGE, q: search, sentiment: sentiment === 'all' ? undefined : sentiment, reason: reason === 'all' ? undefined : reason })
   const { data: stats, reload: reloadStats } = useAdminStats()
   const reviews = useMemo(() => data?.data ?? [], [data])
 
-  // The reason filter only appears once the API reports reasons for flagged reviews.
-  const reasons = useMemo(() => [...new Set(reviews.flatMap((r) => r.reasons))].sort(), [reviews])
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearch(query.trim())
+      setPage(1)
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [query])
 
-  // The API has no text search; this narrows the page that is loaded.
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return reviews
-      .filter((r) => sentiment === 'all' || r.sentiment === sentiment)
-      .filter((r) => reason === 'all' || r.reasons.includes(reason))
-      .filter((r) => !q || [authorOf(r), r.content ?? '', movieOf(r)].some((field) => field.toLowerCase().includes(q)))
-  }, [reviews, sentiment, reason, query])
+  const reasons = ['Spam', 'Links', 'Spoilers', 'Offensive language']
+  const visible = reviews
 
   const summary = data?.summary
   const shares = REVIEW_SENTIMENTS.map((type) => ({ type, ...(summary?.sentiment[type] ?? { count: 0, percent: 0 }) }))
 
   const decide = async (review: AdminReview, decision: 'approved' | 'rejected') => {
+    if (busy) return
+    setBusy(true)
     try {
       await adminApi.moderateReview(review.id, decision)
       setData((current) => ({ ...current, data: current.data.filter((r) => r.id !== review.id) }))
       setNote(`Review by ${authorOf(review)} ${decision === 'approved' ? 'approved' : 'removed'}.`)
+      setPage(1)
       reload()
       reloadStats()
     } catch (moderationError) {
       setNote(apiErrorMessage(moderationError, 'Unable to update this review. Please try again.'))
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -109,7 +116,7 @@ export default function AdminReviews() {
           </label>
           <label className={styles.select}>
             <span className="sr-only">Sentiment</span>
-            <select value={sentiment} onChange={(event) => setSentiment(event.target.value as typeof sentiment)}>
+            <select value={sentiment} onChange={(event) => { setSentiment(event.target.value as typeof sentiment); setPage(1) }}>
               <option value="all">Sentiment: All</option>
               {REVIEW_SENTIMENTS.map((s) => (
                 <option key={s} value={s}>
@@ -122,7 +129,7 @@ export default function AdminReviews() {
           {reasons.length > 0 && (
             <label className={styles.select}>
               <span className="sr-only">Reason</span>
-              <select value={reason} onChange={(event) => setReason(event.target.value)}>
+              <select value={reason} onChange={(event) => { setReason(event.target.value); setPage(1) }}>
                 <option value="all">Reason: All</option>
                 {reasons.map((r) => (
                   <option key={r} value={r}>
@@ -200,7 +207,7 @@ export default function AdminReviews() {
                   <div className={styles.who}>
                     <p className={styles.user}>{author}</p>
                     <p className={styles.meta}>
-                      on <Link to={`/movies/${review.tmdb_id}`}>{movieOf(review)}</Link>
+                      on <Link to={reviewPath(review)}>{movieOf(review)}</Link>
                       {review.created_at && ` · ${timeAgo(review.created_at)}`}
                     </p>
                   </div>
@@ -229,18 +236,18 @@ export default function AdminReviews() {
                   </div>
 
                   <div className={styles.actions}>
-                    <Link to={`/movies/${review.tmdb_id}`} className={styles.view}>
+                    <Link to={reviewPath(review)} className={styles.view}>
                       <img src={eyeIcon} width={14} height={14} alt="" />
                       View
                     </Link>
                     {review.status !== 'removed' && (
-                      <button type="button" className={styles.remove} onClick={() => remove(review)}>
+                      <button type="button" className={styles.remove} disabled={busy} onClick={() => remove(review)}>
                         <img src={trashIcon} width={14} height={14} alt="" />
                         Remove
                       </button>
                     )}
                     {(review.status === 'flagged' || review.status === 'pending') && (
-                      <button type="button" className={styles.approve} onClick={() => void decide(review, 'approved')}>
+                      <button type="button" className={styles.approve} disabled={busy} onClick={() => void decide(review, 'approved')}>
                         <img src={checkIcon} width={14} height={14} alt="" />
                         Approve
                       </button>
@@ -280,7 +287,7 @@ export default function AdminReviews() {
                         type="button"
                         className={styles.share}
                         aria-pressed={sentiment === s.type}
-                        onClick={() => setSentiment(sentiment === s.type ? 'all' : s.type)}
+                        onClick={() => { setSentiment(sentiment === s.type ? 'all' : s.type); setPage(1) }}
                         title={`Show ${s.type} reviews only`}
                       >
                         <Sentiment type={s.type} />

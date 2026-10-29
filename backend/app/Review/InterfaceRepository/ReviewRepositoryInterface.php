@@ -15,7 +15,7 @@ interface ReviewRepositoryInterface
      * @param  'pending'|'approved'|'flagged'|'removed'  $status
      * @return LengthAwarePaginator<int, Review>
      */
-    public function paginateForModeration(string $status, int $page, int $perPage): LengthAwarePaginator;
+    public function paginateForModeration(string $status, int $page, int $perPage, string $search = '', ?string $sentiment = null, ?string $reason = null): LengthAwarePaginator;
 
     /**
      * Site-wide moderation numbers: flagged and removed reviews, and the sentiment of the reviews with text that still stand.

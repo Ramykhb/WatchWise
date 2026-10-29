@@ -169,7 +169,7 @@ class AdminService implements AdminServiceInterface
 
     public function reviews(ReviewModerationQuery $query): AdminPageResponse
     {
-        $paginator = $this->reviews->moderationQueue($query->status, $query->page, $query->perPage);
+        $paginator = $this->reviews->moderationQueue($query->status, $query->page, $query->perPage, $query->search, $query->sentiment, $query->reason);
         $films = $this->filmsOf(collect($paginator->items()));
 
         return $this->page(
