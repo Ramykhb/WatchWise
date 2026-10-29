@@ -4,12 +4,13 @@ namespace App\Review\Repository;
 
 use App\Models\Review;
 use App\Review\InterfaceRepository\ReviewRepositoryInterface;
+use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class ReviewRepository implements ReviewRepositoryInterface
 {
-    public function paginateForModeration(string $status, int $page, int $perPage): LengthAwarePaginator
+    public function paginateForModeration(string $status, int $page, int $perPage, string $search = '', ?string $sentiment = null, ?string $reason = null): LengthAwarePaginator
     {
         $reviews = Review::query()->with(['user', 'reports']);
 
@@ -21,6 +22,16 @@ class ReviewRepository implements ReviewRepositoryInterface
         };
 
         return $reviews
+            ->when($search !== '', function (Builder $builder) use ($search) {
+                $pattern = LikePattern::contains(mb_strtolower($search));
+                $builder->where(fn (Builder $match) => $match
+                    ->whereRaw("LOWER(content) LIKE ? ESCAPE '!'", [$pattern])
+                    ->orWhereHas('user', fn (Builder $author) => $author
+                        ->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern])
+                        ->orWhereRaw("LOWER(username) LIKE ? ESCAPE '!'", [$pattern])));
+            })
+            ->when($sentiment !== null, fn (Builder $builder) => $builder->where('sentiment', $sentiment))
+            ->when($reason !== null, fn (Builder $builder) => $builder->whereHas('reports', fn (Builder $reports) => $reports->where('reason', $reason)))
             ->latest()
             ->orderByDesc('id')
             ->paginate($perPage, ['*'], 'page', $page);

@@ -15,7 +15,7 @@ function pageItems(page: number, total: number): (number | '…')[] {
 
 /** Pager under an admin table: "Showing 1–20 of 48,210" and the page buttons. */
 export default function AdminPagination({ meta, shown, onPage }: { meta: AdminPageMeta; shown: number; onPage: (page: number) => void }) {
-  const first = meta.total === 0 ? 0 : (meta.current_page - 1) * meta.per_page + 1
+  const first = shown === 0 ? 0 : (meta.current_page - 1) * meta.per_page + 1
   return (
     <div className={styles.pagination}>
       <p className={styles.showing}>

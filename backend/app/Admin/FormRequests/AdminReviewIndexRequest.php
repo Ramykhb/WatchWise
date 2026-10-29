@@ -21,6 +21,9 @@ class AdminReviewIndexRequest extends FormRequest
     {
         return [
             'status' => ['sometimes', Rule::in(ReviewModerationQuery::STATUSES)],
+            'q' => ['sometimes', 'nullable', 'string', 'max:200'],
+            'sentiment' => ['sometimes', 'nullable', Rule::in(ReviewModerationQuery::SENTIMENTS)],
+            'reason' => ['sometimes', 'nullable', Rule::in(ReviewModerationQuery::REASONS)],
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:'.ReviewModerationQuery::MAX_PER_PAGE],
         ];

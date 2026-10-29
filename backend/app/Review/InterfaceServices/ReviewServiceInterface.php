@@ -13,7 +13,7 @@ interface ReviewServiceInterface
      * @param  'pending'|'approved'|'flagged'|'removed'  $status
      * @return LengthAwarePaginator<int, Review>
      */
-    public function moderationQueue(string $status, int $page, int $perPage): LengthAwarePaginator;
+    public function moderationQueue(string $status, int $page, int $perPage, string $search = '', ?string $sentiment = null, ?string $reason = null): LengthAwarePaginator;
 
     /**
      * @return array{flagged: int, removed: int, sentiment: array{positive: int, neutral: int, negative: int}}

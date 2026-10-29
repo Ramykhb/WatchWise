@@ -238,6 +238,7 @@ export default function AdminMovies() {
     try {
       const updated = await adminApi.updateMovie(editingMovie.tmdb_id, changes)
       setData((current) => ({ ...current, data: current.data.map((m) => (m.tmdb_id === updated.tmdb_id ? { ...m, ...updated } : m)) }))
+      reload()
       setNote(`Changes to ${updated.title} saved.`)
       return null
     } catch (saveError) {

@@ -116,6 +116,24 @@ class AdminModerationTest extends AdminTestCase
         $this->as($moderator)->getJson('/api/admin/movies')->assertForbidden();
     }
 
+    public function test_filters_find_reported_reviews_beyond_the_first_page(): void
+    {
+        $this->freezeTime();
+        $target = $this->review(['content' => 'Unwanted promotion', 'sentiment' => 'negative', 'is_approved' => true]);
+        $this->report($target, 'Links');
+        for ($id = 1; $id <= 21; $id++) {
+            $this->report($this->review(['tmdb_id' => $id, 'is_approved' => true]));
+        }
+
+        $this->as($this->admin())->getJson('/api/admin/reviews?status=flagged')
+            ->assertOk()->assertJsonMissing(['id' => $target->id, 'content' => $target->content]);
+
+        foreach (['q=PROMOTION', 'sentiment=negative', 'reason=Links', 'q=promotion&sentiment=negative&reason=Links'] as $filter) {
+            $this->getJson('/api/admin/reviews?status=flagged&'.$filter)
+                ->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $target->id);
+        }
+    }
+
     public function test_plain_members_cannot_reach_the_review_queue(): void
     {
         $this->as(User::factory()->create())->getJson('/api/admin/reviews')->assertForbidden();

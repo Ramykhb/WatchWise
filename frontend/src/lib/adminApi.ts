@@ -124,7 +124,7 @@ export type AdminReviewSummary = {
   sentiment: Record<AdminReviewSentiment, { count: number; percent: number }>
 }
 export type AdminReviewPage = AdminPage<AdminReview> & { summary: AdminReviewSummary }
-export type AdminReviewFilters = { status?: AdminReviewStatus; page?: number; per_page?: number }
+export type AdminReviewFilters = { q?: string; sentiment?: AdminReviewSentiment; reason?: string; status?: AdminReviewStatus; page?: number; per_page?: number }
 
 // ---------- Movies ----------
 

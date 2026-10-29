@@ -107,6 +107,8 @@ export default function AdminUsers() {
     if (suspending && !window.confirm(`Suspend ${user.name}? They won't be able to sign in or post.`)) return
     try {
       replaceUser(await adminApi.updateUser(user.id, { is_active: !suspending }))
+      setPage(1)
+      reload()
       setNote(`${user.name} ${suspending ? 'suspended' : 'reinstated'}`)
     } catch (updateError) {
       setNote(apiErrorMessage(updateError, 'Unable to update this user. Please try again.'))
@@ -118,6 +120,8 @@ export default function AdminUsers() {
     if (next === user.role) return
     try {
       replaceUser(await adminApi.updateUser(user.id, { role: next }))
+      setPage(1)
+      reload()
       setNote(`${user.name} is now ${next === 'admin' ? 'an' : 'a'} ${USER_ROLE_LABEL[next]}`)
     } catch (updateError) {
       setNote(apiErrorMessage(updateError, 'Unable to change the role. Please try again.'))
@@ -131,6 +135,7 @@ export default function AdminUsers() {
       await adminApi.deleteUser(user.id)
       setSelected((list) => list.filter((id) => id !== user.id))
       setNote(`${user.name} was deleted`)
+      setPage(1)
       reload()
     } catch (deleteError) {
       setNote(apiErrorMessage(deleteError, 'Unable to delete this user. Please try again.'))
@@ -152,6 +157,7 @@ export default function AdminUsers() {
         : apiErrorMessage(failed[0].reason, `${failed.length} of ${targets.length} users could not be suspended.`),
     )
     setSelected([])
+    setPage(1)
     reload()
   }
 
