@@ -6,10 +6,12 @@ use App\Models\MovieList;
 use App\Models\User;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\MovieList\DTOs\Requests\CreateMovieListData;
+use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\DTOs\Requests\UpdateMovieListData;
 use App\MovieList\InterfaceRepository\MovieListRepositoryInterface;
 use App\MovieList\InterfaceServices\MovieListServiceInterface;
+use App\Support\MediaType;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -34,11 +36,11 @@ class MovieListService implements MovieListServiceInterface
                 'description' => $data->description,
                 'is_public' => $data->isPublic,
             ]);
-            $this->lists->syncItems($list, $data->tmdbIds);
+            $this->lists->syncItems($list, $data->films);
 
             return $list;
         });
-        $this->rememberAll($data->tmdbIds);
+        $this->rememberAll($data->films);
 
         return $this->detail($list);
     }
@@ -53,11 +55,11 @@ class MovieListService implements MovieListServiceInterface
         DB::transaction(function () use ($list, $data) {
             $this->lists->update($list, $data->attributes);
 
-            if ($data->tmdbIds !== null) {
-                $this->lists->syncItems($list, $data->tmdbIds);
+            if ($data->films !== null) {
+                $this->lists->syncItems($list, $data->films);
             }
         });
-        $this->rememberAll($data->tmdbIds ?? []);
+        $this->rememberAll($data->films ?? []);
 
         return $this->detail($list);
     }
@@ -67,28 +69,32 @@ class MovieListService implements MovieListServiceInterface
         $this->lists->delete($list);
     }
 
-    public function addMovie(MovieList $list, int $tmdbId): MovieList
+    public function addMovie(MovieList $list, ListFilmData $film): MovieList
     {
-        $this->lists->addItem($list, $tmdbId);
-        $this->catalog->remember($tmdbId);
+        $this->lists->addItem($list, $film);
+        $this->rememberAll([$film]);
 
         return $this->detail($list);
     }
 
-    public function removeMovie(MovieList $list, int $tmdbId): MovieList
+    public function removeMovie(MovieList $list, ListFilmData $film): MovieList
     {
-        $this->lists->removeItem($list, $tmdbId);
+        $this->lists->removeItem($list, $film);
 
         return $this->detail($list);
     }
 
     /**
-     * @param  list<int>  $tmdbIds
+     * The local catalogue (admin "Movie data") only holds movies, so TV shows are skipped.
+     *
+     * @param  list<ListFilmData>  $films
      */
-    private function rememberAll(array $tmdbIds): void
+    private function rememberAll(array $films): void
     {
-        foreach ($tmdbIds as $tmdbId) {
-            $this->catalog->remember($tmdbId);
+        foreach ($films as $film) {
+            if ($film->mediaType === MediaType::MOVIE) {
+                $this->catalog->remember($film->tmdbId);
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { api } from '../../lib/api.ts'
+import type { FilmKey, MediaType } from '../../lib/movies.ts'
 import type { ApiList } from '../../lib/types.ts'
 import { toMyList, type MyList } from './listsData.ts'
 
@@ -52,7 +53,8 @@ export function useMyLists() {
   return useSyncExternalStore(subscribe, getState)
 }
 
-export type ListInput = { title: string; description: string; is_public: boolean; tmdb_ids: number[] }
+/** `tmdb_ids`: movies as TMDB ids (550) and TV shows as "tv-1399", in list order. */
+export type ListInput = { title: string; description: string; is_public: boolean; tmdb_ids: FilmKey[] }
 
 export async function createList(input: ListInput) {
   const started = generation
@@ -70,18 +72,18 @@ export async function updateList(id: number, input: Partial<ListInput>) {
   return response.data.list
 }
 
-/** Adds one film to the end of a list (the Movie page's "Add to list"); returns the updated list. */
-export async function addMovieToList(id: number, tmdbId: number) {
+/** Adds one movie or TV show to the end of a list (the Movie page's "Add to list"); returns the updated list. */
+export async function addMovieToList(id: number, tmdbId: number, mediaType: MediaType = 'movie') {
   const started = generation
-  const response = await api.post<{ list: ApiList }>(`/lists/${id}/items`, { tmdb_id: tmdbId })
+  const response = await api.post<{ list: ApiList }>(`/lists/${id}/items`, { tmdb_id: tmdbId, media_type: mediaType })
   const updated = toMyList(response.data.list)
   if (started === generation) emit(state.lists.map((list) => (list.id === id ? updated : list)))
   return response.data.list
 }
 
-export async function removeMovieFromList(id: number, tmdbId: number) {
+export async function removeMovieFromList(id: number, tmdbId: number, mediaType: MediaType = 'movie') {
   const started = generation
-  const response = await api.delete<{ list: ApiList }>(`/lists/${id}/items/${tmdbId}`)
+  const response = await api.delete<{ list: ApiList }>(`/lists/${id}/items/${tmdbId}`, { params: { type: mediaType } })
   const updated = toMyList(response.data.list)
   if (started === generation) emit(state.lists.map((list) => (list.id === id ? updated : list)))
   return response.data.list

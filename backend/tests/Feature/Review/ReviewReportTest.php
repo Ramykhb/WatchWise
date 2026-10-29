@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Review;
 
+use App\Groq\InterfaceServices\GroqStructuredOutputInterface;
 use App\Models\Review;
 use App\Models\ReviewReport;
 use App\Models\User;
@@ -95,6 +96,8 @@ class ReviewReportTest extends SocialTestCase
 
     public function test_rewriting_a_review_clears_its_reports_and_removal(): void
     {
+        $this->mock(GroqStructuredOutputInterface::class)->shouldReceive('askWithSchema')
+            ->twice()->andReturn(['labels' => [], 'sentiment' => 'neutral']);
         $review = $this->published(['removed_at' => now()]);
         ReviewReport::factory()->create(['review_id' => $review->id]);
 
@@ -102,5 +105,7 @@ class ReviewReportTest extends SocialTestCase
 
         $this->assertSame(0, ReviewReport::count());
         $this->assertNull($review->fresh()->removed_at);
+        $this->assertSame([], $review->fresh()->moderation_labels);
+        $this->assertTrue($review->fresh()->is_approved);
     }
 }

@@ -5,10 +5,12 @@ namespace App\Review\Providers;
 use App\Review\InterfaceRepository\MovieReviewRepositoryInterface;
 use App\Review\InterfaceRepository\ReviewRepositoryInterface;
 use App\Review\InterfaceServices\MovieReviewServiceInterface;
+use App\Review\InterfaceServices\ReviewModerationServiceInterface;
 use App\Review\InterfaceServices\ReviewServiceInterface;
 use App\Review\Repository\MovieReviewRepository;
 use App\Review\Repository\ReviewRepository;
 use App\Review\Services\MovieReviewService;
+use App\Review\Services\ReviewModerationService;
 use App\Review\Services\ReviewService;
 use Illuminate\Support\ServiceProvider;
 
@@ -25,5 +27,6 @@ class ReviewModuleServiceProvider extends ServiceProvider
         ReviewServiceInterface::class => ReviewService::class,
         MovieReviewRepositoryInterface::class => MovieReviewRepository::class,
         MovieReviewServiceInterface::class => MovieReviewService::class,
+        ReviewModerationServiceInterface::class => ReviewModerationService::class,
     ];
 }

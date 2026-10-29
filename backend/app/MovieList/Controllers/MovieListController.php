@@ -4,8 +4,10 @@ namespace App\MovieList\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\MovieList;
+use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\FormRequests\AddMovieListItemRequest;
 use App\MovieList\FormRequests\MovieListIndexRequest;
+use App\MovieList\FormRequests\RemoveMovieListItemRequest;
 use App\MovieList\FormRequests\StoreMovieListRequest;
 use App\MovieList\FormRequests\UpdateMovieListRequest;
 use App\MovieList\InterfaceServices\MovieListServiceInterface;
@@ -19,8 +21,9 @@ class MovieListController
     public function __construct(private readonly MovieListServiceInterface $lists) {}
 
     /**
-     * GET /api/lists?scope=mine|public|following&q=&contains= — `q` matches the title (Discover ›
-     * Lists); `contains` (a TMDB id) adds `has_movie` to each list (the Movie page's "Add to list").
+     * GET /api/lists?scope=mine|public|following&q=&contains=&contains_type= — `q` matches the title
+     * (Discover › Lists); `contains` (a TMDB id, a movie unless `contains_type=tv`) adds `has_movie` to
+     * each list (the Movie page's "Add to list").
      */
     public function index(MovieListIndexRequest $request, CurrentUser $current): JsonResponse
     {
@@ -62,18 +65,18 @@ class MovieListController
         return response()->json(['message' => 'List deleted.']);
     }
 
-    /** POST /api/lists/{list}/items — adds one film at the end; adding it twice is harmless. */
+    /** POST /api/lists/{list}/items — adds one movie or TV show at the end; adding it twice is harmless. */
     public function addItem(AddMovieListItemRequest $request, MovieList $list): JsonResponse
     {
-        return response()->json(['list' => $this->present($this->lists->addMovie($list, $request->tmdbId()))]);
+        return response()->json(['list' => $this->present($this->lists->addMovie($list, $request->film()))]);
     }
 
-    /** DELETE /api/lists/{list}/items/{tmdbId} */
-    public function removeItem(MovieList $list, int $tmdbId): JsonResponse
+    /** DELETE /api/lists/{list}/items/{tmdbId}?type=movie|tv */
+    public function removeItem(RemoveMovieListItemRequest $request, MovieList $list, int $tmdbId): JsonResponse
     {
-        Gate::authorize('update', $list);
+        $film = new ListFilmData($tmdbId, $request->mediaType());
 
-        return response()->json(['list' => $this->present($this->lists->removeMovie($list, $tmdbId))]);
+        return response()->json(['list' => $this->present($this->lists->removeMovie($list, $film))]);
     }
 
     private function present(MovieList $list): MovieListResource

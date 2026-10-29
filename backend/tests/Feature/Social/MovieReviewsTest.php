@@ -7,16 +7,30 @@ use App\Groq\InterfaceServices\GroqStructuredOutputInterface;
 use App\Models\Review;
 use App\Models\User;
 use App\Models\UserPreference;
+use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
+use Illuminate\Support\Facades\Http;
 use Mockery;
 
 class MovieReviewsTest extends SocialTestCase
 {
+    private ?string $groqSentiment = null;
+
+    private mixed $groqLabels = [];
+
     /** Groq answers with this sentiment (null = Groq is down). */
-    private function groqSays(?string $sentiment): void
+    private function groqSays(?string $sentiment, mixed $labels = []): void
     {
-        $this->app->instance(GroqStructuredOutputInterface::class, Mockery::mock(GroqStructuredOutputInterface::class, function ($mock) use ($sentiment) {
+        $this->groqSentiment = $sentiment;
+        $this->groqLabels = $labels;
+        $this->app->instance(GroqStructuredOutputInterface::class, Mockery::mock(GroqStructuredOutputInterface::class, function ($mock) {
             $call = $mock->shouldReceive('askWithSchema');
-            $sentiment === null ? $call->andThrow(new GroqUnavailable('down')) : $call->andReturn(['sentiment' => $sentiment]);
+            $call->andReturnUsing(function ($prompt, $name) {
+                if ($this->groqSentiment === null) {
+                    throw new GroqUnavailable('down');
+                }
+
+                return $name === 'review_moderation' ? ['labels' => $this->groqLabels] : ['sentiment' => $this->groqSentiment];
+            });
         }));
     }
 
@@ -71,7 +85,102 @@ class MovieReviewsTest extends SocialTestCase
 
         $this->as($me)->putJson('/api/reviews/mine', ['tmdb_id' => 550, 'content' => 'Not for me.', 'rating' => 2])
             ->assertOk()
-            ->assertJsonPath('review.sentiment', 'negative');
+            ->assertJsonPath('review.sentiment', 'negative')
+            ->assertJsonPath('review.approved', false);
+    }
+
+    public function test_clean_reviews_publish_immediately_and_appear_to_other_members(): void
+    {
+        $this->groqSays('negative');
+        $author = User::factory()->create();
+        $this->as($author)->putJson('/api/reviews/mine', [
+            'tmdb_id' => 550, 'content' => 'Boring pacing, not for me.', 'rating' => 2,
+            'is_approved' => false, 'moderation_labels' => ['spam'],
+        ])->assertOk()->assertJsonPath('review.approved', true);
+        $this->assertSame([], Review::first()->moderation_labels);
+        $this->as(User::factory()->create())->getJson('/api/reviews?tmdb_id=550')
+            ->assertJsonCount(1, 'reviews')->assertJsonPath('summary.reviews', 1);
+    }
+
+    public function test_each_groq_label_holds_the_review_until_admin_approval(): void
+    {
+        $this->mock(MovieCatalogServiceInterface::class)->shouldIgnoreMissing()
+            ->shouldReceive('summaries')->andReturn(collect());
+        $author = User::factory()->create();
+        $viewer = User::factory()->create();
+        $admin = User::factory()->create(['role' => 'admin']);
+        foreach (['offensive language', 'spoiler', 'spam'] as $label) {
+            $this->groqSays('neutral', [$label]);
+            $response = $this->as($author)->putJson('/api/reviews/mine', [
+                'tmdb_id' => 550, 'content' => 'Text for moderation.', 'rating' => 3,
+                'is_approved' => true, 'moderation_labels' => [],
+            ])->assertOk()->assertJsonPath('review.approved', false)
+                ->assertJsonPath('review.moderation_labels', [$label])
+                ->assertJsonPath('review.has_spoilers', $label === 'spoiler');
+            $id = $response->json('review.id');
+            $this->as($viewer)->getJson('/api/reviews?tmdb_id=550')->assertJsonCount(0, 'reviews');
+            $this->as($admin)->getJson('/api/admin/reviews')
+                ->assertJsonPath('data.0.moderation_labels', [$label]);
+            $this->as($admin)->patchJson("/api/admin/reviews/{$id}", ['status' => 'approved'])->assertOk();
+            $this->as($viewer)->getJson('/api/reviews?tmdb_id=550')->assertJsonCount(1, 'reviews');
+        }
+    }
+
+    public function test_an_edit_is_reclassified_and_can_be_declined(): void
+    {
+        $this->mock(MovieCatalogServiceInterface::class)->shouldIgnoreMissing()
+            ->shouldReceive('summaries')->andReturn(collect());
+        $author = User::factory()->create();
+        $review = $this->approvedReview($author, 4, 'positive');
+        $this->groqSays('neutral', ['offensive language', 'spam']);
+        $this->as($author)->putJson('/api/reviews/mine', [
+            'tmdb_id' => 550, 'content' => 'Changed text.', 'rating' => 3,
+        ])->assertOk()->assertJsonPath('review.approved', false);
+        $this->assertSame(['offensive language', 'spam'], $review->fresh()->moderation_labels);
+        $this->as(User::factory()->create(['role' => 'admin']))
+            ->patchJson("/api/admin/reviews/{$review->id}", ['status' => 'rejected'])->assertOk();
+        $this->assertNull($review->fresh()->content);
+        $this->assertNull($review->fresh()->moderation_labels);
+        $this->groqSays('positive');
+        $this->as($author)->putJson('/api/reviews/mine', [
+            'tmdb_id' => 550, 'content' => 'A thoughtful film.', 'rating' => 4,
+        ])->assertOk()->assertJsonPath('review.approved', true);
+    }
+
+    public function test_invalid_classifier_results_never_auto_approve(): void
+    {
+        $author = User::factory()->create();
+        foreach ([null, 'spam', ['unknown'], [false], ['flag' => 'spam']] as $labels) {
+            $this->groqSays('neutral', $labels);
+            $this->as($author)->putJson('/api/reviews/mine', [
+                'tmdb_id' => 550, 'content' => 'Review text.', 'rating' => 3,
+            ])->assertOk()->assertJsonPath('review.approved', false);
+            $this->assertNull(Review::first()->moderation_labels);
+        }
+    }
+
+    public function test_review_text_is_sent_to_groq_with_a_strict_label_schema(): void
+    {
+        config(['services.groq.key' => 'test-key', 'services.groq.url' => 'https://api.groq.com/openai/v1', 'services.groq.model' => 'openai/gpt-oss-20b']);
+        Http::preventStrayRequests();
+        Http::fake([
+            'api.groq.com/openai/v1/chat/completions' => function ($request) {
+                $moderation = $request['response_format']['json_schema']['name'] === 'review_moderation';
+                if ($moderation) {
+                    $this->assertStringContainsString('Full review text.', $request['messages'][0]['content']);
+                    $this->assertSame(['offensive language', 'spoiler', 'spam'], $request['response_format']['json_schema']['schema']['properties']['labels']['items']['enum']);
+                    $this->assertTrue($request['response_format']['json_schema']['strict']);
+                }
+
+                return Http::response(['choices' => [['message' => [
+                    'content' => json_encode($moderation ? ['labels' => []] : ['sentiment' => 'positive']),
+                ]]]]);
+            },
+        ]);
+        $this->as(User::factory()->create())->putJson('/api/reviews/mine', [
+            'tmdb_id' => 550, 'type' => 'tv', 'content' => 'Full review text.', 'rating' => 4,
+        ])->assertOk()->assertJsonPath('review.approved', true);
+        Http::assertSentCount(2);
     }
 
     public function test_the_summary_counts_approved_ratings_and_reviews(): void
@@ -149,7 +258,7 @@ class MovieReviewsTest extends SocialTestCase
         $this->as($author)->putJson('/api/reviews/mine', ['tmdb_id' => 550, 'content' => 'Completely different take.', 'rating' => 2])
             ->assertOk()
             ->assertJsonPath('review.helpful', 0)
-            ->assertJsonPath('review.approved', false);
+            ->assertJsonPath('review.approved', true);
         $this->assertSame(0, $review->votes()->count());
     }
 

@@ -35,6 +35,66 @@ class AdminReviewsTest extends AdminTestCase
         $this->as($this->admin())->getJson('/api/admin/reviews?status=spam')->assertUnprocessable();
     }
 
+    public function test_filters_find_reviews_beyond_the_first_unfiltered_page(): void
+    {
+        $target = $this->review(['content' => 'Unwanted promotion', 'sentiment' => 'negative', 'moderation_labels' => ['spam', 'offensive language']]);
+        for ($id = 1; $id <= 21; $id++) {
+            $this->review(['tmdb_id' => $id]);
+        }
+
+        $this->as($this->admin())->getJson('/api/admin/reviews')
+            ->assertJsonMissing(['id' => $target->id, 'content' => $target->content]);
+
+        foreach (['q=PROMOTION', 'sentiment=negative', 'reason=spam', 'q=promotion&sentiment=negative&reason=spam'] as $filter) {
+            $this->getJson('/api/admin/reviews?'.$filter)
+                ->assertOk()->assertJsonPath('meta.total', 1)
+                ->assertJsonPath('data.0.id', $target->id);
+        }
+    }
+
+    public function test_search_matches_authors_and_treats_wildcards_literally(): void
+    {
+        $target = $this->review();
+        $target->user->forceFill(['name' => 'Distinct Name', 'username' => 'unique_handle'])->save();
+        $this->review(['tmdb_id' => 2, 'content' => 'uniqueXhandle']);
+
+        foreach (['DISTINCT', 'unique_handle'] as $search) {
+            $this->as($this->admin())->getJson('/api/admin/reviews?q='.$search)
+                ->assertOk()->assertJsonPath('meta.total', 1)
+                ->assertJsonPath('data.0.id', $target->id);
+        }
+    }
+
+    public function test_filters_combine_with_status_and_distinguish_unclassified_reviews(): void
+    {
+        $target = $this->review(['is_approved' => true]);
+        $this->review(['tmdb_id' => 2, 'is_approved' => true, 'moderation_labels' => []]);
+        $this->review(['tmdb_id' => 3]);
+
+        $this->as($this->admin())->getJson('/api/admin/reviews?status=approved&reason=awaiting%20classification')
+            ->assertOk()->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $target->id);
+        $this->getJson('/api/admin/reviews?status=approved&sentiment=negative')
+            ->assertOk()->assertJsonPath('meta.total', 0);
+        foreach (['sentiment=invalid', 'reason=invalid', 'q[]=invalid'] as $filter) {
+            $this->getJson('/api/admin/reviews?'.$filter)->assertUnprocessable();
+        }
+    }
+
+    public function test_removing_an_automatically_approved_review_keeps_stars_and_clears_votes(): void
+    {
+        $review = $this->review(['is_approved' => true, 'moderation_labels' => [], 'rating' => 2]);
+        $review->votes()->create(['user_id' => $this->admin()->id]);
+
+        $this->as($this->admin())->patchJson("/api/admin/reviews/{$review->id}", ['status' => 'rejected'])
+            ->assertOk()->assertJsonPath('review.content', null);
+        $review->refresh();
+        $this->assertSame(2, $review->rating);
+        $this->assertNull($review->moderation_labels);
+        $this->assertSame(0, $review->votes()->count());
+        $this->getJson('/api/admin/reviews?status=approved')->assertJsonPath('meta.total', 0);
+    }
+
     public function test_approving_makes_a_review_visible(): void
     {
         $review = $this->review(['is_approved' => false]);

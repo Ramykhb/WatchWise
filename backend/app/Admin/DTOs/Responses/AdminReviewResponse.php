@@ -33,6 +33,7 @@ final readonly class AdminReviewResponse implements JsonSerializable
         public ?string $moviePosterPath,
         public ?string $movieReleaseDate,
         public ?string $createdAt,
+        public ?array $moderationLabels,
     ) {}
 
     /**
@@ -69,6 +70,7 @@ final readonly class AdminReviewResponse implements JsonSerializable
             moviePosterPath: $movie?->poster_path,
             movieReleaseDate: $movie?->release_date?->toDateString(),
             createdAt: $review->created_at?->toJSON(),
+            moderationLabels: $review->moderation_labels,
         );
     }
 
@@ -86,6 +88,7 @@ final readonly class AdminReviewResponse implements JsonSerializable
             'sentiment' => $this->sentiment,
             'has_spoilers' => $this->hasSpoilers,
             'is_approved' => $this->isApproved,
+            'moderation_labels' => $this->moderationLabels,
             'status' => $this->status,
             'reports_count' => $this->reportsCount,
             'reasons' => $this->reasons,

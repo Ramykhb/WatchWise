@@ -9,7 +9,7 @@ final readonly class ReviewModerationQuery
 
     public const SENTIMENTS = ['positive', 'neutral', 'negative'];
 
-    public const REASONS = ['Spam', 'Links', 'Spoilers', 'Offensive language'];
+    public const REASONS = ['Spam', 'Links', 'Spoilers', 'Offensive language', 'offensive language', 'spoiler', 'spam', 'awaiting classification'];
 
     public const MAX_PER_PAGE = 50;
 

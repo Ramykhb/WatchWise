@@ -61,7 +61,7 @@ export default function AdminReviews() {
     return () => window.clearTimeout(timer)
   }, [query])
 
-  const reasons = ['Spam', 'Links', 'Spoilers', 'Offensive language']
+  const reasons = ['Spam', 'Links', 'Spoilers', 'Offensive language', 'offensive language', 'spoiler', 'spam', 'awaiting classification']
   const visible = reviews
 
   const summary = data?.summary
@@ -222,7 +222,7 @@ export default function AdminReviews() {
 
                 <div className={styles.footer}>
                   <div className={styles.reasons}>
-                    {review.reasons.map((r) => (
+                    {[...new Set([...review.reasons, ...(review.moderation_labels ?? (review.status === 'pending' ? ['awaiting classification'] : []))])].map((r) => (
                       <span key={r} className={styles.reason}>
                         <img src={flagIcon} width={13} height={13} alt="" />
                         {r}
