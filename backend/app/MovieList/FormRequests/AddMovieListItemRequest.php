@@ -2,8 +2,11 @@
 
 namespace App\MovieList\FormRequests;
 
+use App\MovieList\DTOs\Requests\ListFilmData;
+use App\Support\MediaType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 /** POST /api/lists/{list}/items — only the list's owner can add films. */
 class AddMovieListItemRequest extends FormRequest
@@ -20,11 +23,13 @@ class AddMovieListItemRequest extends FormRequest
     {
         return [
             'tmdb_id' => ['required', 'integer', 'min:1'],
+            'media_type' => ['sometimes', Rule::in(MediaType::ALL)],
         ];
     }
 
-    public function tmdbId(): int
+    /** The title to add: a movie unless `media_type` is "tv" (as on POST /api/watchlist). */
+    public function film(): ListFilmData
     {
-        return (int) $this->validated('tmdb_id');
+        return new ListFilmData((int) $this->validated('tmdb_id'), $this->validated('media_type') ?? MediaType::MOVIE);
     }
 }

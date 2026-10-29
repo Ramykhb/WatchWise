@@ -4,6 +4,7 @@ namespace App\MovieList\InterfaceRepository;
 
 use App\Models\MovieList;
 use App\Models\User;
+use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -31,18 +32,18 @@ interface MovieListRepositoryInterface
     public function delete(MovieList $list): void;
 
     /**
-     * Makes the list hold exactly these films in this order, keeping notes of films that stay.
+     * Makes the list hold exactly these movies and TV shows in this order, keeping notes of titles that stay.
      *
-     * @param  list<int>  $tmdbIds
-     * @return list<int> films that were not in the list before
+     * @param  list<ListFilmData>  $films
+     * @return list<ListFilmData> titles that were not in the list before
      */
-    public function syncItems(MovieList $list, array $tmdbIds): array;
+    public function syncItems(MovieList $list, array $films): array;
 
-    /** Adds the film at the end of the list; false when it is already there. */
-    public function addItem(MovieList $list, int $tmdbId): bool;
+    /** Adds the title at the end of the list; false when it is already there. */
+    public function addItem(MovieList $list, ListFilmData $film): bool;
 
-    /** Removes the film; false when it was not in the list. */
-    public function removeItem(MovieList $list, int $tmdbId): bool;
+    /** Removes the title; false when it was not in the list. */
+    public function removeItem(MovieList $list, ListFilmData $film): bool;
 
     /** Loads the owner, the films and the film count. */
     public function loadDetail(MovieList $list): MovieList;

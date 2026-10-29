@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class MovieListItem extends Model
 {
-    protected $fillable = ['movie_list_id', 'tmdb_id', 'position', 'note', 'added_at'];
+    protected $fillable = ['movie_list_id', 'tmdb_id', 'media_type', 'position', 'note', 'added_at'];
 
     public $timestamps = false;
 
