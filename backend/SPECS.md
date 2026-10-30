@@ -1,6 +1,6 @@
 # WatchWise Feature Specification
 
-Every feature the Web2 project brief (PROG302-EC10, "Modern Movie Discovery & Social Platform") requires, grouped by backend module the way `app/` is laid out. Each feature is checked against the code on `dev` at commit `56454c6` (2026-10-27).
+Every feature the Web2 project brief (PROG302-EC10, "Modern Movie Discovery & Social Platform") requires, grouped by backend module the way `app/` is laid out. Each feature is checked against the code on `dev` at commit `9f7c7bd` (2026-10-30). Test results were not re-run for this update.
 
 New modules must follow the rules in `backend/CLAUDE.md` › "WatchWise Module Architecture". Each module section lists the brief objectives it covers.
 
@@ -21,39 +21,39 @@ Every feature also has a **Frontend** line: *real API*, *mock data* (page exists
 
 | Module | Brief objective | State |
 |---|---|---|
-| Activity | 9 (recent activity) | **[Rebuild]** new module |
-| Admin | 11 (dashboard) | **[Done]** on `Admin-Wiring`: backend extended, frontend wired to the real API, role guard added, moderator role built. Frontend not yet type-checked. |
-| Auth | 1 (authentication) | Done, with 3 refactors and 1 decision |
+| Activity | 9 (recent activity) | **[Rebuild]** new module. Still not started. |
+| Admin | 11 (dashboard) | **[Done]**, merged into `dev` (PR #52): backend, wired frontend, role guard, moderator role and review reports. Only the member-facing Report button is missing. |
+| Auth | 1 (authentication) | Done, with 1 decision (email verification) |
 | Calendar | 7 (calendar integration) | Done in the frontend. A backend module is **[Optional]**. |
 | Chat (now `Groq`) | not in brief | Done. Rename is a **[Refactor]**. |
 | Cinema | 7 (maps / geolocation) | **[Done]**: Google Places-backed module; the page still uses Mapbox |
 | Docs | 5 (documentation) | **[Done]** |
 | Gemini | 7 (AI) | Unused. **[Refactor]**: use it or delete it. |
 | Genre | 2, 3 | **[Done]** |
-| Movie | 2, 3, 11 (local data) | Done, with 1 refactor and 2 missing pieces |
-| MovieList | 8 | **[Done]** (+ activity hooks) |
+| Movie | 2, 3, 11 (local data) | Done, with 1 refactor and 1 missing piece (hidden films in the app's own lists) |
+| MovieList | 8 | **[Done]**, lists hold movies and TV shows (+ activity hooks) |
 | MovieNight | 10 | **[Done]**, with 1 small fix |
 | MovieRecommendation | 6, 7 (weather) | **[Modify]**: weather only, not personalized |
 | Notification | not in brief | **[Optional]**: deleted. The table now also holds room read receipts. |
 | Person | 2, 3 (actors / directors) | **[Done]** |
-| Rating | 4 (rate movies) | **[Done]**. Merge into Review when it's built (**[Refactor]**). |
-| Review | 4, 7 (sentiment) | **[Missing]** apart from star ratings (biggest gap) |
+| Rating | 4 (rate movies) | **[Done]**, movies and TV shows. **[Refactor]**: merge into Review, which now exists. |
+| Review | 4, 7 (sentiment) | **[Done]** on the movie page (write, view, average, sentiment, auto-moderation, helpful votes, reports). Profile reviews, activity hooks, the Report button and the module cleanup are still open. |
 | Room | 7 (real-time rooms) | **[Done]**, with 3 refactors and missing moderation |
 | Support | shared | **[Done]** |
-| User | 1 (profile), 9 (follow) | Mostly done. Profile reviews and activity need **[Rebuild]**. |
+| User | 1 (profile), 9 (follow) | Mostly done. Profile reviews and activity need **[Rebuild]**. Favorite actors and directors can't be set. |
 | Watchlist | 5 | Done, with 1 modification (history) |
 | Weather | 7 (weather) | **[Done]** |
 
-Suggested order of work: Review (absorbing Rating), Activity, Admin (with the local movie catalogue), personalized recommendations, the Cinemas refactor, then the remaining refactors.
+Suggested order of work: Activity (with the Review, Rating, Watchlist and MovieList hooks and the profile reviews list), personalized recommendations, the hidden-film filter, the email-verification decision, then the remaining refactors (absorbing Rating into Review is one of them).
 
-### What changed since the last check (`8b2637b`)
+### What changed since the last check (`56454c6`)
 
-- **Room module (`app/Room/`)**: built with Reverb. Rooms can be public or private, with invites, a live rooms list, real-time messages and read receipts. This moves Room from **[Rebuild]** to **[Done]**.
-- **Person module (`app/Person/`)**: TMDB person details and frequent collaborators. Moves from **[Missing]** to **[Done]**.
-- **Rating module (`app/Rating/`)**: members save a 1–5 star rating per film. The "Rate movies" part of objective 4 is now **[Done]**.
-- **Cinema (`app/Cinema/`)**: `GET /api/nearby-cinemas` through Google Places, with a Mapbox map in the frontend.
-- **MovieList**: added single-film add and remove (`POST /api/lists/{list}/items`, `DELETE /api/lists/{list}/items/{tmdbId}`) and `?contains=` for the movie page's "Add to list".
-- **Migrations**: `reviews.content` and `reviews.sentiment` are now nullable, with a unique index on (`user_id`, `tmdb_id`). New tables `room_members` and `room_invites`, and a new column `discussion_rooms.is_private`.
+- **Admin** (PR #52, merged): the admin pages are on the real API, `/admin` is behind a role guard, and the moderator role, review reports, "active today", range picker and richer movie fields exist. See Admin.
+- **Review** (`app/Review/`): movie-page reviews with sentiment, automatic moderation, helpful votes, spoiler marking and member reports, for movies and TV shows. See Review.
+- **TV shows**: ratings, reviews, the watchlist and lists now store a `media_type` (`movie` or `tv`), so a TV show and a movie with the same TMDB id no longer clash. TV shows are kept out of the admin movie stats and the local catalogue.
+- **Rooms**: messages are kept on the server for 24 hours (see Room 5).
+- **Migrations**: `reviews.has_spoilers`, `review_votes`, `reviews.moderation_labels`, `reviews.removed_at`, `review_reports`, `users.last_active_at`, the `moderator` role, `movies.director`, `movies.edited_at`, and `media_type` on `reviews`, `watchlists` and `movie_list_items`.
+- **Not changed**: Activity, personalized recommendations, favorite actors and directors, watch history, room moderation, email-verification enforcement, the Notifications page and all the module refactors.
 
 ---
 
@@ -177,18 +177,14 @@ Brief objective 1: User Authentication. Unchanged since the last check.
    - Policies for every owned model.
    - `role:admin,moderator` is used by the Admin routes (`routes/admin.php`). `moderator` is a new role value (Admin 7), and the frontend `RequireAdmin` guard reads `user.role` from `/auth/me`.
    - `auth.jwt` stamps `users.last_active_at` at most every 5 minutes (not exposed in any payload).
-9. **[Refactor] `SocialAuthController` holds business and HTTP logic**
-   - The OAuth credential check (`abort_if(... CHANGE_ME ...)`) is in the controller.
-   - So is the whole Discord token exchange and user fetch (`discordUser()` with two `Http::` calls).
-   - Move both into the service layer, for example `SocialAuthServiceInterface::redirectUrl()` and an `Auth/Support/DiscordOAuthClient` used by the service. The controller should only translate the result into a redirect.
-10. **[Refactor] Persistence in a service**
-    - `SocialAuthService.php:101` calls `$user->forceFill(['avatar' => null])->save()` directly.
-    - Move this into `UserRepositoryInterface` (for example `clearAvatar(User $user)`).
-11. **[Refactor] Controllers catch domain exceptions to build responses**
-    - `AuthController::login()` catches `InvalidCredentials`, and `PasswordResetController::reset()` catches `InvalidResetToken`, each to build JSON by hand.
-    - Give both exceptions a `render()` that returns their 401 or 422 JSON, and remove the try/catch.
-    - `AuthController::refresh()` may keep its catch, because it must also clear the auth cookies. Add a PHPDoc saying so.
-    - The `EmailRequired`, `UnverifiedProviderEmail` and `AccountDisabled` catches in the social callback map to redirect reasons, which is acceptable for a redirect flow.
+9. **[Done] `SocialAuthController` is thin**
+   - `SocialAuthServiceInterface::redirectUrl()` checks the OAuth credentials (a missing or `CHANGE_ME` client id or secret throws `SocialLoginNotConfigured`, 503) and returns the provider URL. `providerUser()` returns the signed-in provider's user.
+   - The Discord authorize URL, code exchange and profile fetch live in `Auth/Support/DiscordOAuthClient`, which throws `SocialProviderFailed` for an unusable answer. The controller only turns the results into redirects, and still maps any provider failure to the `provider_error` redirect reason.
+10. **[Done] Persistence moved to the repository**: `SocialAuthService` calls `UserRepositoryInterface::clearAvatar()` instead of saving the model itself.
+11. **[Done] Controllers no longer catch to build responses**
+    - `InvalidCredentials` (401) and `InvalidResetToken` (422) render themselves, and the try/catch in `AuthController::login()` and `PasswordResetController::reset()` is gone.
+    - `AuthController::refresh()` keeps its catch on purpose, because it must also clear the auth cookies (documented in its PHPDoc).
+    - The `EmailRequired`, `UnverifiedProviderEmail` and `AccountDisabled` catches in the social callback stay, because they map to redirect reasons.
 12. **[Done] Social redirect test no longer depends on `.env`**: `AccountFlowsTest::test_social_redirect_sets_state_cookie` sets the Google client ID and secret in config itself, so it passes even when `.env` has `GOOGLE_CLIENT_ID=CHANGE_ME`.
 13. **[Optional]** Captcha after repeated failed logins (existing TODO in `AuthController::login()`).
 
@@ -283,8 +279,8 @@ Brief objectives 2 (Movie Database), 3 (External Movie API) and 11 (local movie 
 3. **Filtering and sorting [Done]**: `GET /api/movies/discover` with genres, year range, minimum rating, runtime range, language and sort, for movies, tv or both. Frontend: real API (Discover).
 4. **Detailed movie page [Done]**
    - `GET /api/movies/{id}` returns title, poster, backdrop, overview, release date, genres, cast (12), directors, TMDB rating, runtime, certification, language, budget, revenue, trailer and related titles. It's cached for 6 hours.
-   - Frontend: real API for the TMDB data, your star rating (Rating) and "Add to list" (MovieList).
-   - The community parts are still mock data and appear only on the design's demo movies: reviews, average user rating, showtimes.
+   - Frontend: real API for the TMDB data, your star rating (Rating), "Add to list" (MovieList), and the reviews with the average rating (Review, `MovieReviews.tsx`).
+   - Showtimes are still mock data and appear only on the design's demo movies.
 5. **TV shows [Done]**: an extra, `?type=tv` on the same endpoints.
 6. **[Refactor] Raw query input in the controller**
    - `MovieController::show()` reads `$request->query('type')` itself.
@@ -292,13 +288,12 @@ Brief objectives 2 (Movie Database), 3 (External Movie API) and 11 (local movie 
 7. **Local movie catalogue [Done], except review and hiding**
    - **Done:** the `movies` table (`tmdb_id` unique, `title`, `overview`, `poster_path`, `release_date`, `runtime`, `genre_ids`, `is_hidden`, `is_featured`, `synced_at`), the `LocalMovie` model and factory, and `MovieCatalogServiceInterface` (`remember()`, `paginate()`, `update()`, `summaries()`, `hiddenTmdbIds()`) with its repository. Admin edits and stats use it (Admin 3, 5, 9). Hidden movies are left out of the admin stats.
    - **Done:** `remember(int $tmdbId)` is called by `WatchlistService::add()`, `RatingService::rate()` and `MovieListService` (`create()`, `update()` when films are sent, `addMovie()`). It stores a film once, from TMDB, and never overwrites admin edits. If TMDB can't be reached the film is skipped and the user's action still succeeds. Films added before this change are not back-filled.
-   - **Missing:** the Review module's write flow must call `remember()` too once it exists.
-   - **Missing:** hidden movies are not yet left out of the app's own lists (search, discover, recommendations).
+   - **Done:** the Review write flow (`MovieReviewService::save()`) calls `remember()` for movies. TV shows are not stored in the catalogue.
+   - **Missing:** hidden movies are not yet left out of the app's own lists (search, discover, recommendations). Only Admin and the catalogue use `hiddenTmdbIds()`.
    - **Note:** the base `Tests\TestCase` stubs `MovieCatalogServiceInterface` so no test reaches TMDB by accident; the Admin tests bind the real one.
-8. **Average user rating on the movie page [Missing]**
-   - The brief asks to "calculate and display average user ratings".
-   - Star ratings are now stored (Rating), but nothing computes or returns an average.
-   - The number comes from the Review module (Review 4). Show it either in the reviews response, or by having `MovieService` call `ReviewServiceInterface::summary($tmdbId)`. `MovieService` must not query `reviews` itself.
+8. **Average user rating on the movie page [Done through Review]**
+   - `GET /api/reviews` returns a `summary` with the average, the star distribution and the sentiment split (Review 4). The movie page shows it.
+   - `GET /api/movies/{id}` itself doesn't carry the average, and `MovieService` doesn't call the Review module. Add that only if another consumer needs it; `MovieService` must not query `reviews` itself.
 
 ---
 
@@ -313,14 +308,15 @@ Brief objective 8: Custom Movie Lists.
    - Frontend: real API (list dialog with TMDB search, and the movie page's "Add to list" pop-up).
 3. **Title and description [Done]**: validated at 80 and 280 characters. Frontend: real API.
 4. **Public or private [Done]**: `is_public`. Private lists are visible only to the owner. Frontend: real API.
-5. **Browse other users' public lists [Done]**
+5. **TV shows in lists [Done]**: list items carry a `media_type` (migration `2026_10_28_154529`), unique per list, TMDB id and type, so a list can hold movies and TV shows.
+6. **Browse other users' public lists [Done]**
    - `GET /api/lists?scope=public|following|mine&q=`.
    - `&contains={tmdbId}` adds `has_movie` to each list.
    - Frontend: real API (Lists, Discover › Lists, the movie page).
-6. **[Modify] Activity hooks**
+7. **[Modify] Activity hooks**
    - When the Activity module exists, `MovieListService` records `list_created` on create, and `list_movie_added` for films added through `update()` or `addMovie()`.
    - Use `ActivityServiceInterface`, with `is_public` copied from the list.
-7. **[Refactor] Small convention gap**: `AddMovieListItemRequest` exposes `tmdbId()` instead of `toDto()`. See Cross-cutting 3.
+8. **[Refactor] Small convention gap**: `AddMovieListItemRequest` and `RemoveMovieListItemRequest` have no `toDto()`. See Cross-cutting 3.
 
 ---
 
@@ -412,78 +408,67 @@ Brief objectives 2 and 3: "actors, director" and "Actors and directors".
 Brief objective 4: "Rate movies".
 
 1. **Rate a movie [Done]**
-   - `PUT /api/ratings/{tmdbId}` (`rating` 1–5, `throttle:60,1`) saves the signed-in member's rating.
+   - `PUT /api/ratings/{tmdbId}` (`rating` 1–5, optional `type` of `movie` or `tv`, `throttle:60,1`) saves the signed-in member's rating.
    - A new rating is stored as an approved `reviews` row without text. Rating a film you already reviewed only changes the stars.
    - `GET /api/ratings/{tmdbId}` returns your rating, or `null`.
    - Frontend: real API (the movie page's "Your rating", loaded only when signed in).
 2. **Schema [Done]**: migration `2026_10_26_000001_allow_rating_only_reviews` made `content` and `sentiment` nullable, and added the unique index on (`user_id`, `tmdb_id`), so each member has one review per film.
 3. **Tests [Done]**: `tests/Feature/Social/RatingTest.php` (to be moved, see Cross-cutting 2).
-4. **[Refactor] Two modules will own the `reviews` table**
-   - A rating is a review without text, so it's one entity. When the Review module is built, move this module's controller actions, service and repository into `app/Review/`.
+4. **[Refactor] Two modules own the `reviews` table**
+   - `app/Review/` now exists and writes review text to the same `reviews` rows that `app/Rating/` writes stars to. A rating is a review without text, so it's one entity: move this module's controller actions, service and repository into `app/Review/`.
    - The `/api/ratings/{tmdbId}` routes can stay, pointing at the Review controller.
    - That way only one module writes `reviews` (`CLAUDE.md` › section 1).
 5. **[Refactor] Small convention gaps**
-   - `RateMovieRequest` exposes `rating()` instead of `toDto()` (see Cross-cutting 3).
+   - `RateMovieRequest` and `ShowRatingRequest` have no `toDto()` (see Cross-cutting 3).
    - The controller builds `['rating' => ...]` by hand instead of returning a response DTO.
 6. **[Optional] Remove a rating**: there's no way to clear your stars. If added, removing the stars from a row that has review text should keep the review.
 7. **[Modify] Activity hook**: record `rating` through `ActivityServiceInterface` when it exists (Activity 1).
 
 ---
 
-## Review (new module: `app/Review/`)
+## Review (`app/Review/`)
 
 Brief objective 4 (User Ratings and Reviews) and objective 7 (Sentiment Analysis).
 
-This is still the largest gap.
-- **Already in place:** star ratings (Rating), the `reviews` table (now with nullable `content` and `sentiment` and a unique index per member and film), the `Review` model and `app/Policies/ReviewPolicy.php`.
-- **Missing:** there are no endpoints for written reviews, and the movie page's reviews are mock data.
-- **Already relies on this data:** other modules read reviews (Watchlist ratings, profile `top4` and counts), so the data shape is fixed.
+The movie page's reviews now run on the real API for movies and TV shows. The module has two services, one for the movie page (`MovieReviewServiceInterface`) and one for admin moderation (`ReviewServiceInterface`), plus `ReviewModerationService` and `SentimentClassifier`. Star ratings still live in `app/Rating/` (Rating 4).
 
 1. **Rate movies [Done]**: see Rating. Fold that module into this one (Rating 4).
-2. **Write a review [Missing]**
-   - `POST /api/movies/{tmdbId}/reviews` (`rating`, `content`).
-   - Because of the unique index, this fills in the text on the member's existing rating row if there is one, rather than inserting a second row.
-   - Requires sign-in, plus verified email if that decision is made (Auth 6).
-3. **Edit and delete your own review [Missing]**
-   - `PATCH /api/reviews/{review}` and `DELETE /api/reviews/{review}`, authorized by `ReviewPolicy`.
-   - Move the policy to `app/Review/Policies/` and update `AuthorizationServiceProvider`.
-   - Editing the text sends the review back to moderation and re-runs sentiment.
-   - Deleting the text should keep the star rating, unless the member wants both gone.
-4. **View other users' reviews and the average rating [Missing]**
-   - `GET /api/movies/{tmdbId}/reviews?sort=newest|highest|lowest&page=` returns approved reviews with text, plus the viewer's own review (even if pending).
-   - It also returns a `summary` with `average`, `count` and the distribution per star. The summary counts all approved ratings, including rating-only rows.
-   - Frontend: mock data (`MovieDetails.tsx`, `ReviewCard`). The "Most helpful" sort has no backing data, so drop it or add helpful votes as **[Optional]**.
-5. **Administrator moderation [Done for the queue]**
-   - **Done:** `app/Review/` exists with `ReviewServiceInterface::moderationQueue()`, `approve()`, `reject()` and `delete()` (repository, service and `ReviewModuleServiceProvider`), called by the Admin module. `reject()` clears the text and keeps the star rating.
-   - **Still to do:** the rest of this module (items 2 to 4, 6 to 9), and moving `ReviewPolicy` from `app/Policies/` into `app/Review/Policies/`.
-   - Rating-only rows are saved approved (there's nothing to moderate).
-   - Rows with text should start unapproved (pre-moderation), so they're only visible to their author and admins until approved. `ProfilePrivacy::seesUnapprovedReviews()` already follows this.
-   - Keep pre-moderation, or switch to auto-approve and moderate afterwards. Decide once and test it.
-6. **Sentiment classification [Missing]**
-   - When a review with text is created or edited, classify it as `positive`, `neutral` or `negative` through an AI client interface: Groq structured output (already used by recommendations), or the unused Gemini module (see Gemini).
-   - If the AI is unavailable, save the review as `neutral` and report the error. Never fail the write.
-   - Rating-only rows keep `sentiment = null`.
-   - Frontend: the `Sentiment` component exists.
+2. **Write and edit a review [Done]**
+   - `PUT /api/reviews/mine` (`tmdb_id`, `type`, `rating`, `content`, `has_spoilers`; `throttle:20,1`) creates or replaces the member's review. The text goes onto the member's existing rating row, so each member has one row per title.
+   - Frontend: real API (`MovieReviews.tsx`).
+   - **[Missing]** It requires sign-in only. Whether a verified email is needed is still undecided (Auth 6).
+3. **Delete your own review [Done]**: `DELETE /api/reviews/mine?tmdb_id=&type=` removes the text and keeps the star rating. There is no way to delete the stars together with the text (Rating 6).
+4. **View reviews and the average rating [Done]**
+   - `GET /api/reviews?tmdb_id=&type=&sort=&page=` returns a `summary` (average, count, distribution per star, sentiment in percent), your own review and one page of other members' reviews, with `has_more`.
+   - Frontend: real API. The "Most helpful" sort is backed by the helpful votes (item 8).
+5. **Moderation [Done]**
+   - **Automatic:** `ReviewModerationService` asks Groq to label the text `offensive language`, `spoiler` or `spam`. A review with no labels is approved at once. A review with labels, or one saved while Groq is down, waits as pending. The labels are stored in `reviews.moderation_labels`, and a spoiler label also sets `has_spoilers`.
+   - **Administrators and moderators:** the queue, approve, reject and delete are in Admin 8, through `ReviewServiceInterface`. Rejecting clears the text, keeps the stars and sets `removed_at`.
+   - Rating-only rows are saved approved. `ProfilePrivacy::seesUnapprovedReviews()` lets authors and staff see unapproved reviews.
+   - **[Refactor]** `ReviewPolicy` is still in `app/Policies/` (Cross-cutting 1). Move it to `app/Review/Policies/`.
+6. **Sentiment classification [Done]**
+   - `SentimentClassifier` labels the text `positive`, `neutral` or `negative` through Groq structured output. If Groq fails, the member's stars decide (4–5 positive, 3 neutral, 1–2 negative), so the write never fails.
+   - Rating-only rows keep `sentiment = null`. Frontend: the `Sentiment` component.
+   - The unused Gemini module was not used for this (Gemini 1).
 7. **Reviews on public profiles [Rebuild]**
    - The brief says "View public profiles, reviews and movie lists".
-   - The `reviews` list was removed from `GET /api/users/{username}` (only `counts.reviews` remains, which now counts only reviews with text).
-   - Restore it through `ReviewServiceInterface::forProfile(User $owner, CurrentUser $viewer)`, honouring the `reviews` privacy section.
+   - The `reviews` list was removed from `GET /api/users/{username}` (only `counts.reviews` remains, which counts only reviews with text).
+   - Restore it through a `ReviewServiceInterface::forProfile(User $owner, CurrentUser $viewer)` method, honouring the `reviews` privacy section.
    - Frontend: real API, which reads `data.reviews ?? []`.
-8. **Activity hooks [Missing]**: record `review` (or `rating` for rating-only) through `ActivityServiceInterface`.
-9. **Layout:**
-   - `Controllers/ReviewController`, including the rating actions moved from `app/Rating/`.
-   - `FormRequests/StoreReviewRequest`, `UpdateReviewRequest`, `ReviewIndexRequest`, `RateMovieRequest`.
-   - `DTOs/Requests/WriteReviewData`, `RateMovieData`, `ReviewListQuery`; `DTOs/Responses/ReviewResponse`, `ReviewPageResponse`, `RatingSummaryResponse`, `RatingResponse`.
-   - `InterfaceServices/ReviewServiceInterface` and `SentimentAnalyzerInterface`, `Services/ReviewService`.
-   - `InterfaceRepository/ReviewRepositoryInterface`, `Repository/ReviewRepository`.
-   - `Policies/ReviewPolicy`, `Providers/ReviewModuleServiceProvider`, and `openapi/paths/reviews.json`.
-10. **Tests:**
-    - Only the author can edit or delete.
-    - Pending reviews are hidden from others.
-    - The average counts approved ratings only.
-    - Writing a review on a rated film updates the same row.
-    - Sentiment is stored, and an AI failure saves the review as neutral.
-    - Admin approval makes a review visible.
+8. **Helpful votes and spoilers [Done, an extra]**
+   - `POST` and `DELETE /api/reviews/{review}/helpful` (`throttle:60,1` on the vote) mark a review helpful. A vote needs a review the member is allowed to see, and votes are cleared when a review is resubmitted. Table `review_votes`.
+   - `has_spoilers` is set by the author or by the moderation labels.
+9. **Reports [Done in the backend]**
+   - `POST /api/reviews/{review}/report` (`reason`: Spam, Links, Spoilers or Offensive language; `throttle:10,1`). See Admin 8 for the rules and the moderation queue.
+   - **[Missing]** The Report button on the movie page's review cards.
+10. **Activity hooks [Missing]**: record `review` (or `rating` for rating-only) through `ActivityServiceInterface` once Activity exists.
+11. **Layout [Done, with gaps]**
+    - `Controllers/MovieReviewController` (index, save, destroy, helpful, unhelpful, report).
+    - `FormRequests/` (`MovieReviewIndexRequest`, `SaveReviewRequest`, `MyReviewRequest`, `ReportReviewRequest`). `MyReviewRequest` has no `toDto()`.
+    - `InterfaceServices/` (`MovieReviewServiceInterface`, `ReviewServiceInterface`, `ReviewModerationServiceInterface`), `Services/` (`MovieReviewService`, `ReviewService`, `ReviewModerationService`, `SentimentClassifier`), with `MovieReviewRepository` and `ReviewRepository`.
+    - **[Refactor]** `SentimentClassifier` has no interface. The old plan named a `SentimentAnalyzerInterface`.
+    - **[Missing]** `Policies/` (see item 5). The routes are in `routes/social.php`, and the paths in `openapi/paths/social.json`.
+12. **Tests [Done]**: `tests/Feature/Social/MovieReviewsTest.php` and `tests/Feature/Review/ReviewReportTest.php`, plus the admin moderation tests (Admin 13). `MovieReviewsTest` should move to `tests/Feature/Review/` (Cross-cutting 2).
 
 ---
 
@@ -579,7 +564,7 @@ Brief objective 1 ("User profile") and objective 9 (Follow Users).
 
 ## Watchlist (`app/Watchlist/`)
 
-Brief objective 5: Personal Watchlist. Unchanged since the last check.
+Brief objective 5: Personal Watchlist. Watchlist rows now carry a `media_type`, so TV shows can be added too.
 
 1. **Add and remove movies [Done]**: `POST /api/watchlist` (returns 201 when new, 200 when it already exists) and `DELETE /api/watchlist/{watchlist}`. Frontend: real API (Watchlist, Home, Person).
 2. **View your watchlist [Done]**: `GET /api/watchlist` returns the items and your ratings by `tmdb_id`. Frontend: real API.
@@ -613,16 +598,16 @@ Brief objective 7: "Weather API – adapt movie suggestions to the current weath
    - Then delete `app/Policies/`.
 2. **[Refactor] Tests grouped by an old area name**
    - `tests/Feature/Social/*` covers the User, MovieList, MovieNight, Watchlist and Rating modules: `AccountRulesTest`, `ContentTest`, `ListItemsTest`, `MovieNightRulesTest`, `PrivacyTest`, `ProfileTest`, `RatingTest`, `SearchTest`, `WatchlistRulesTest`.
-   - The two new files were added there too.
+   - `MovieReviewsTest` and `TvShowsTest` were added there too. Review tests go to `tests/Feature/Review/`.
    - Split them into `tests/Feature/User/`, `tests/Feature/MovieList/`, `tests/Feature/MovieNight/`, `tests/Feature/Watchlist/` and `tests/Feature/Rating/` (or `Review/`), per `CLAUDE.md` › section 10.
 3. **[Refactor] FormRequests without `toDto()`**
-   - `RateMovieRequest::rating()` and `AddMovieListItemRequest::tmdbId()` return a single scalar instead of a request DTO.
+   - `RateMovieRequest`, `ShowRatingRequest`, `AddMovieListItemRequest`, `RemoveMovieListItemRequest`, `MyReviewRequest`, `RoomSocketRequest`, `ChatSocketRequest` and `UploadAvatarRequest` have no `toDto()`.
    - `CLAUDE.md` › section 4 says every FormRequest exposes `toDto()`. Either add `toDto()` with a small `*Data` class, or add an exception to `CLAUDE.md` for single-field requests. Pick one and apply it everywhere.
 4. **[Refactor] Modules reading other modules' tables directly**
    - `CLAUDE.md` › section 5 says to go through the owning module's service interface. Fix these as the owning modules gain the right methods:
      - `User\Repository\HomeRepository` queries `DiscussionRoom` and its members (Room 8).
      - `Room\Repository\RoomRepository` writes `notifications` (Room 6).
-     - `Watchlist\Repository\WatchlistRepository::ratingsByTmdbId()` and `User\Repository\ProfileRepository` (top 4, review counts) query `reviews`. Use `ReviewServiceInterface` once Review exists.
+     - `Watchlist\Repository\WatchlistRepository::ratingsByTmdbId()` and `User\Repository\ProfileRepository` (top 4, review counts) query `reviews`. Use `ReviewServiceInterface`, which now exists, and add the methods those modules need.
 5. **Decision: repositories that throw exceptions**
    - `CLAUDE.md` › section 5 says repositories never throw domain exceptions. Yet `MovieRepository` (`MovieNotFound`), `PersonRepository` (`PersonNotFound`) and `WeatherRepository` (`WeatherUnavailable`) translate third-party errors into module exceptions.
    - That's a reasonable pattern for repositories that wrap an external API. Either allow it explicitly in `CLAUDE.md`, or move the translation into the services.
@@ -634,13 +619,14 @@ Brief objective 7: "Weather API – adapt movie suggestions to the current weath
      - `/api/weather-mood` and `/api/movie-recommendations` call the AI without sign-in, and `/api/nearby-cinemas` spends the Google Places key without sign-in. Each is protected only by a rate limit; consider requiring `auth.jwt`.
      - Room messages can't be moderated (Room 9).
 7. **Frontend still on mock data, or calling removed endpoints:**
-   - Admin: all four pages are now on the real API (Admin 1 to 9). Still missing is the member-facing Report button on review cards (Admin 8).
-   - The movie page's community parts (reviews, average rating, showtimes; demo movies only).
+   - Admin: all four pages are on the real API (Admin 1 to 9). Still missing is the member-facing Report button on review cards (Admin 8, Review 9).
+   - The movie page's reviews and average rating are on the real API. Only showtimes are still mock data (demo movies only).
    - For You (every shelf except the weather row).
    - The Notifications page, which calls endpoints that no longer exist.
-   - Now on the real API: Rooms, Person, Cinemas, star ratings and "Add to list".
+   - Now on the real API: Rooms, Person, Cinemas, star ratings, "Add to list", reviews and the admin pages.
+   - Other pages still import mock files (`homeData.ts`, `listsData.ts`, `listDetailData.ts`, `nightsData.ts`, `nightDetailData.ts`, `roomsData.ts`, `settingsData.ts`, `watchlistData.ts`, `profileData.ts`, `personData.ts`, `discoverData.ts`, `movieData.ts`). Some are only fallbacks or demo data; check each before deleting.
 8. **Database leftovers**
    - `calendar_events` is unused (Calendar 3).
    - `notifications` is used only by Room read receipts (Notification 2, Room 6).
    - `activity_feed` is kept for Activity, and `reviews` is now shared by Rating and the future Review module (Rating 4).
-9. **Test status** (`php artisan test`, after `composer install`): all 355 tests pass on `Admin-Features`, including the new `tests/Feature/Admin/` suite. The social redirect test that used to fail because of the Google credentials in `.env` is fixed (Auth 12).
+9. **Test status**: not re-run for this update. The last recorded run was 355 passing tests on `Admin-Features`, before the Review, moderator and report work. The social redirect test that used to fail because of the Google credentials in `.env` is fixed (Auth 12).
