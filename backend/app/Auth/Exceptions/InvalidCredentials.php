@@ -2,11 +2,12 @@
 
 namespace App\Auth\Exceptions;
 
+use Illuminate\Contracts\Debug\ShouldntReport;
 use Illuminate\Http\JsonResponse;
 use RuntimeException;
 
 /** The email and password do not match an account. Rendered as a 401. */
-class InvalidCredentials extends RuntimeException
+class InvalidCredentials extends RuntimeException implements ShouldntReport
 {
     public function render(): JsonResponse
     {
