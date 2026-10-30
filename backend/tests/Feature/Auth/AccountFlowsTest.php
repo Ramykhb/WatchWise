@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Laravel\Socialite\Contracts\Provider;
@@ -276,6 +277,58 @@ class AccountFlowsTest extends TestCase
 
         $response->assertRedirect('https://accounts.example/auth');
         $this->assertNotNull($response->getCookie('oauth_state', false));
+    }
+
+    public function test_social_redirect_is_unavailable_without_real_credentials(): void
+    {
+        config(['services.github.client_id' => 'CHANGE_ME', 'services.github.client_secret' => 'test-client-secret']);
+
+        $this->getJson('/api/auth/social/github')
+            ->assertStatus(503)
+            ->assertJsonPath('message', 'Github sign-in is not configured. Add valid OAuth client credentials to the backend environment.');
+    }
+
+    public function test_discord_redirect_and_callback_sign_the_user_in(): void
+    {
+        config(['services.discord' => [
+            'client_id' => 'discord-id',
+            'client_secret' => 'discord-secret',
+            'redirect' => 'http://api.test/api/auth/social/discord/callback',
+        ]]);
+        Http::fake([
+            'discord.com/api/oauth2/token' => Http::response(['access_token' => 'discord-token']),
+            'discord.com/api/users/@me' => Http::response([
+                'id' => '42', 'username' => 'ada', 'global_name' => 'Ada', 'email' => 'ada@example.com', 'verified' => true, 'avatar' => 'abc',
+            ]),
+        ]);
+
+        $redirect = $this->get('/api/auth/social/discord');
+        $redirect->assertRedirectContains('https://discord.com/oauth2/authorize?client_id=discord-id');
+        $state = $redirect->getCookie('oauth_state', false)->getValue();
+
+        $this->withUnencryptedCookie('oauth_state', $state)
+            ->get("/api/auth/social/discord/callback?state={$state}&code=the-code")
+            ->assertRedirect('http://front.test/auth/callback?status=success');
+
+        $this->assertDatabaseHas('users', ['email' => 'ada@example.com', 'avatar' => 'https://cdn.discordapp.com/avatars/42/abc.png']);
+        $this->assertDatabaseHas('social_accounts', ['provider' => 'discord', 'provider_id' => '42']);
+    }
+
+    public function test_discord_callback_without_a_code_or_user_redirects_with_a_provider_error(): void
+    {
+        config(['services.discord' => ['client_id' => 'discord-id', 'client_secret' => 'discord-secret', 'redirect' => 'http://api.test/cb']]);
+        Http::fake([
+            'discord.com/api/oauth2/token' => Http::response(['access_token' => 'discord-token']),
+            'discord.com/api/users/@me' => Http::response(['username' => 'no-id']),
+        ]);
+        $failure = 'http://front.test/auth/callback?status=error&reason=provider_error';
+
+        $this->withUnencryptedCookie('oauth_state', 'abc')
+            ->get('/api/auth/social/discord/callback?state=abc')
+            ->assertRedirect($failure);
+        $this->withUnencryptedCookie('oauth_state', 'abc')
+            ->get('/api/auth/social/discord/callback?state=abc&code=the-code')
+            ->assertRedirect($failure);
     }
 
     public function test_registered_event_is_listened_to(): void

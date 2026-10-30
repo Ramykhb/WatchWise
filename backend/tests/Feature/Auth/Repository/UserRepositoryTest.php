@@ -41,6 +41,15 @@ class UserRepositoryTest extends TestCase
         $this->assertNotNull($user->fresh()->email_verified_at);
     }
 
+    public function test_clear_avatar_removes_the_photo(): void
+    {
+        $user = User::factory()->create(['avatar' => 'https://example.com/me.png']);
+
+        (new UserRepository)->clearAvatar($user);
+
+        $this->assertNull($user->fresh()->avatar);
+    }
+
     public function test_update_password_hashes(): void
     {
         $user = User::factory()->create();
