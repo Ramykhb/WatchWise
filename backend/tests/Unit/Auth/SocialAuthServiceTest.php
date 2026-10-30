@@ -11,6 +11,7 @@ use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
 use App\Auth\InterfaceRepository\SocialAccountRepositoryInterface;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\Services\SocialAuthService;
+use App\Auth\Support\DiscordOAuthClient;
 use App\Auth\Support\TokenPair;
 use App\Models\SocialAccount;
 use App\Models\User;
@@ -39,7 +40,7 @@ class SocialAuthServiceTest extends TestCase
         $this->accounts = Mockery::mock(SocialAccountRepositoryInterface::class);
         $this->refreshTokens = Mockery::mock(RefreshTokenRepositoryInterface::class);
         $this->tokens = Mockery::mock(TokenFactory::class);
-        $this->service = new SocialAuthService($this->users, $this->accounts, $this->refreshTokens, $this->tokens);
+        $this->service = new SocialAuthService($this->users, $this->accounts, $this->refreshTokens, $this->tokens, new DiscordOAuthClient);
     }
 
     private function socialUser(bool $emailVerified = true): SocialLoginData

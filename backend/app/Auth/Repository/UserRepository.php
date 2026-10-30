@@ -34,6 +34,11 @@ class UserRepository implements UserRepositoryInterface
         $user->setAttribute('last_active_at', $now)->syncOriginalAttribute('last_active_at');
     }
 
+    public function clearAvatar(User $user): void
+    {
+        $user->forceFill(['avatar' => null])->save();
+    }
+
     public function updatePassword(User $user, string $plainPassword): void
     {
         $user->password = $plainPassword; // 'hashed' cast

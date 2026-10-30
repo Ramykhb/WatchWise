@@ -6,16 +6,19 @@ use App\Auth\DTOs\Requests\SocialLoginData;
 use App\Auth\DTOs\Responses\AuthResponse;
 use App\Auth\Exceptions\AccountDisabled;
 use App\Auth\Exceptions\EmailRequired;
+use App\Auth\Exceptions\SocialLoginNotConfigured;
 use App\Auth\Exceptions\UnverifiedProviderEmail;
 use App\Auth\Factories\TokenFactory;
 use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
 use App\Auth\InterfaceRepository\SocialAccountRepositoryInterface;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\SocialAuthServiceInterface;
+use App\Auth\Support\DiscordOAuthClient;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Laravel\Socialite\Facades\Socialite;
 
 class SocialAuthService implements SocialAuthServiceInterface
 {
@@ -24,7 +27,28 @@ class SocialAuthService implements SocialAuthServiceInterface
         private readonly SocialAccountRepositoryInterface $socialAccounts,
         private readonly RefreshTokenRepositoryInterface $refreshTokens,
         private readonly TokenFactory $tokens,
+        private readonly DiscordOAuthClient $discord,
     ) {}
+
+    public function redirectUrl(string $provider, string $state): string
+    {
+        $this->assertConfigured($provider);
+
+        if ($provider === 'discord') {
+            return $this->discord->authorizeUrl($state);
+        }
+
+        return Socialite::driver($provider)->stateless()->with(['state' => $state])->redirect()->getTargetUrl();
+    }
+
+    public function providerUser(string $provider, ?string $code): SocialLoginData
+    {
+        if ($provider === 'discord') {
+            return $this->discord->user($code);
+        }
+
+        return SocialLoginData::fromSocialite($provider, Socialite::driver($provider)->stateless()->user());
+    }
 
     public function loginWithProvider(SocialLoginData $data, Request $request): AuthResponse
     {
@@ -39,6 +63,22 @@ class SocialAuthService implements SocialAuthServiceInterface
         }
 
         return AuthResponse::fromTokenPair($this->tokens->issue($user, $request));
+    }
+
+    /**
+     * @throws SocialLoginNotConfigured when the client id or secret is missing or still the `CHANGE_ME` placeholder
+     */
+    private function assertConfigured(string $provider): void
+    {
+        $credentials = config("services.{$provider}");
+
+        foreach (['client_id', 'client_secret'] as $key) {
+            $value = is_array($credentials) ? ($credentials[$key] ?? null) : null;
+
+            if (! is_string($value) || trim($value) === '' || str_contains(strtoupper($value), 'CHANGE_ME')) {
+                throw SocialLoginNotConfigured::forProvider($provider);
+            }
+        }
     }
 
     private function resolveUser(SocialLoginData $data): User
@@ -98,7 +138,7 @@ class SocialAuthService implements SocialAuthServiceInterface
     private function dropPlaceholderAvatar(User $user, SocialLoginData $data): void
     {
         if ($data->avatarIsPlaceholder && is_string($user->avatar) && str_contains($user->avatar, 'googleusercontent.com')) {
-            $user->forceFill(['avatar' => null])->save();
+            $this->users->clearAvatar($user);
         }
     }
 
