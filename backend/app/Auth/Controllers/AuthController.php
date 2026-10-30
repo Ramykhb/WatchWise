@@ -4,7 +4,6 @@ namespace App\Auth\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Auth\DTOs\Responses\UserResponse;
-use App\Auth\Exceptions\InvalidCredentials;
 use App\Auth\Exceptions\InvalidRefreshToken;
 use App\Auth\FormRequests\LoginRequest;
 use App\Auth\FormRequests\RegisterRequest;
@@ -32,15 +31,15 @@ class AuthController
         // TODO: add a captcha here (required after repeated failed attempts) so the per-email rate limit
         // in AppServiceProvider no longer lets a third party lock out an account owner. Do the same for
         // register and forgot-password.
-        try {
-            $auth = $this->auth->login($request->toDto(), $request);
-        } catch (InvalidCredentials) {
-            return response()->json(['message' => 'Invalid credentials.'], 401);
-        }
+        $auth = $this->auth->login($request->toDto(), $request);
 
         return $this->cookies->attach(response()->json($auth->body()), $auth);
     }
 
+    /**
+     * Keeps its catch, unlike login: a refresh that fails must also clear the auth cookies, which an
+     * exception's `render()` cannot do.
+     */
     public function refresh(Request $request): JsonResponse
     {
         $plain = $request->cookie(config('jwt.refresh_cookie'));

@@ -2,7 +2,6 @@
 
 namespace App\Auth\Controllers;
 
-use App\Auth\Exceptions\InvalidResetToken;
 use App\Auth\FormRequests\ForgotPasswordRequest;
 use App\Auth\FormRequests\ResetPasswordRequest;
 use App\Auth\InterfaceServices\PasswordResetServiceInterface;
@@ -21,11 +20,7 @@ class PasswordResetController
 
     public function reset(ResetPasswordRequest $request): JsonResponse
     {
-        try {
-            $this->passwordResets->reset($request->toDto());
-        } catch (InvalidResetToken) {
-            return response()->json(['message' => 'Invalid or expired reset token.'], 422);
-        }
+        $this->passwordResets->reset($request->toDto());
 
         return response()->json(['message' => 'Password has been reset.']);
     }

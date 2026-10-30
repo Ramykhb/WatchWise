@@ -20,6 +20,9 @@ interface UserRepositoryInterface
     /** Sets the password (hashed by the model cast). */
     public function updatePassword(User $user, string $plainPassword): void;
 
+    /** Removes the user's profile photo, so their initials are shown instead. */
+    public function clearAvatar(User $user): void;
+
     /** Stamps `last_active_at` with the current time without touching `updated_at`. */
     public function markActive(User $user): void;
 }

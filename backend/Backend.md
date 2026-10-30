@@ -175,7 +175,7 @@ Contracts in `app/Auth/InterfaceServices/`, implementations in `app/Auth/Service
 | `AuthService` | Register, login, refresh and logout. Throws `InvalidCredentials` or `InvalidRefreshToken` |
 | `PasswordResetService` | Sends the reset link (deferred until after the response) and resets the password. Revokes all refresh tokens on reset |
 | `EmailVerificationService` | Sends the signed verification link (60 minutes), resends it, and verifies a link |
-| `SocialAuthService` | Google/GitHub login. Refuses unverified provider emails and takes over unverified local accounts by resetting their password |
+| `SocialAuthService` | Builds the provider redirect URL, fetches the provider's user (Discord through `Support/DiscordOAuthClient`), and Google/GitHub/Discord login. Refuses unverified provider emails and takes over unverified local accounts by resetting their password |
 
 ## Repositories
 
@@ -209,7 +209,7 @@ All in `app/Auth/Controllers/`. They contain no database queries.
 | `AuthController.php` | Register, login, refresh, logout and `me`. Has the captcha TODO |
 | `EmailVerificationController.php` | Verifies the emailed link and resends it |
 | `PasswordResetController.php` | Forgot-password and reset-password |
-| `SocialAuthController.php` | Google and GitHub redirect and callback (state cookie check, redirects) |
+| `SocialAuthController.php` | Google, GitHub and Discord redirect and callback (state cookie check, redirects) |
 
 ## Middleware
 
@@ -271,7 +271,7 @@ Emails are sent directly, not queued, so no queue worker is needed. The work for
 
 In `app/Auth/Exceptions/`. Services throw them and controllers turn them into responses.
 
-`InvalidCredentials`, `InvalidRefreshToken`, `InvalidResetToken`, `UnverifiedProviderEmail`, `EmailRequired`, `AccountDisabled`.
+`InvalidCredentials` and `InvalidResetToken` render their own 401 and 422 responses, as does `SocialLoginNotConfigured` (503). `InvalidRefreshToken`, `UnverifiedProviderEmail`, `EmailRequired`, `AccountDisabled` and `SocialProviderFailed` are caught in the controllers that need to clear cookies or redirect.
 
 ## Authorization
 
