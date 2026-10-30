@@ -1,3 +1,7 @@
+# Commit Attribution
+
+Do not add Claude, Anthropic, any Claude model, or GitHub Copilot as a commit co-author. Never insert their `Co-Authored-By` trailers. Preserve legitimate human authors and co-authors.
+
 <laravel-boost-guidelines>
 === foundation rules ===
 
