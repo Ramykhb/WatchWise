@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\MovieRecommendation;
 
-use App\Groq\Exceptions\GroqUnavailable;
-use App\Groq\InterfaceServices\GroqStructuredOutputInterface;
+use App\Gemini\Exceptions\GeminiUnavailable;
+use App\Gemini\InterfaceServices\GeminiServiceInterface;
 use App\Movie\DTOs\Responses\MoviePageResponse;
 use App\Movie\DTOs\Responses\MovieResponse;
 use App\Movie\InterfaceServices\MovieServiceInterface;
@@ -24,15 +24,15 @@ class RecommendationTest extends TestCase
         $movie = new MovieResponse(42, 'Movie 42', 'Overview', '2020-01-01', 2020, 4.0, 10, [18], null, null);
         $movies = $this->mock(MovieServiceInterface::class);
         $movies->shouldReceive('discover')->andReturn(new MoviePageResponse(1, 1, 1, [$movie]));
-        $groq = $this->mock(GroqStructuredOutputInterface::class);
+        $gemini = $this->mock(GeminiServiceInterface::class);
 
-        return [$groq, $movies];
+        return [$gemini, $movies];
     }
 
-    public function test_it_returns_groq_selected_tmdb_movies(): void
+    public function test_it_returns_gemini_selected_tmdb_movies(): void
     {
-        [$groq] = $this->mockDependencies();
-        $groq->shouldReceive('askWithSchema')->once()->andReturn(['movies' => [['id' => 42, 'reason' => 'Fits the weather']]]);
+        [$gemini] = $this->mockDependencies();
+        $gemini->shouldReceive('ask')->once()->andReturn(['movies' => [['id' => 42, 'reason' => 'Fits the weather']]]);
 
         $this->getJson('/api/movie-recommendations')
             ->assertOk()
@@ -43,7 +43,7 @@ class RecommendationTest extends TestCase
 
     public function test_it_rejects_a_single_coordinate(): void
     {
-        [$groq] = $this->mockDependencies();
+        [$gemini] = $this->mockDependencies();
 
         $this->getJson('/api/movie-recommendations?latitude=33.8')
             ->assertUnprocessable()
@@ -53,12 +53,12 @@ class RecommendationTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors('latitude');
 
-        $groq->shouldNotReceive('askWithSchema');
+        $gemini->shouldNotReceive('ask');
     }
 
     public function test_it_returns_a_502_when_the_weather_fails(): void
     {
-        $groq = $this->mock(GroqStructuredOutputInterface::class);
+        $gemini = $this->mock(GeminiServiceInterface::class);
         $this->mock(MovieServiceInterface::class);
         $weather = $this->mock(WeatherServiceInterface::class);
         $weather->shouldReceive('current')->andThrow(new WeatherUnavailable('upstream error'));
@@ -66,24 +66,24 @@ class RecommendationTest extends TestCase
             ->assertStatus(502)
             ->assertExactJson(['error' => 'Could not get the weather']);
 
-        $groq->shouldNotReceive('askWithSchema');
+        $gemini->shouldNotReceive('ask');
     }
 
-    public function test_it_returns_a_502_without_leaking_the_groq_error(): void
+    public function test_it_returns_a_502_without_leaking_the_gemini_error(): void
     {
-        [$groq] = $this->mockDependencies();
-        $groq->shouldReceive('askWithSchema')->once()->andThrow(new GroqUnavailable('SECRET-GROQ-MARKER'));
+        [$gemini] = $this->mockDependencies();
+        $gemini->shouldReceive('ask')->once()->andThrow(new GeminiUnavailable('SECRET-GEMINI-MARKER'));
 
         $response = $this->getJson('/api/movie-recommendations');
 
         $response->assertStatus(502)->assertExactJson(['error' => 'Could not generate recommendations']);
-        $this->assertStringNotContainsString('SECRET-GROQ-MARKER', $response->getContent());
+        $this->assertStringNotContainsString('SECRET-GEMINI-MARKER', $response->getContent());
     }
 
     public function test_it_throttles_the_eleventh_request_in_a_minute(): void
     {
-        [$groq] = $this->mockDependencies();
-        $groq->shouldReceive('askWithSchema')->times(10)->andReturn(['movies' => []]);
+        [$gemini] = $this->mockDependencies();
+        $gemini->shouldReceive('ask')->times(10)->andReturn(['movies' => []]);
 
         for ($i = 0; $i < 10; $i++) {
             $this->getJson('/api/movie-recommendations')->assertOk();

@@ -32,6 +32,7 @@ Route::prefix('chat')->middleware('auth.jwt')->group(function () {
 
 Route::get('/weather', [WeatherController::class, 'show'])->middleware('throttle:weather');
 Route::post('/weather-mood', [WeatherController::class, 'mood'])->middleware('throttle:ai');
+Route::get('/watched-recommendations', [RecommendationController::class, 'watched'])->middleware(['auth.jwt', 'throttle:ai']);
 Route::get('/movie-recommendations', [RecommendationController::class, 'index'])->middleware('throttle:ai');
 Route::get('/nearby-cinemas', [NearbyCinemaController::class, 'index'])->middleware('throttle:30,1');
 

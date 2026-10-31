@@ -30,21 +30,28 @@ class GroqService implements GroqChatServiceInterface, GroqServiceInterface, Gro
     }
 
     /**
+     * @param  'default'|'watched'  $keyProfile
      * @param  array<string, mixed>  $schema
      * @return array<string, mixed>
      *
      * @throws GroqUnavailable
      */
-    public function askWithSchema(string $prompt, string $name, array $schema, int $maxCompletionTokens = 1024): array
+    public function askWithSchema(string $prompt, string $name, array $schema, int $maxCompletionTokens = 1024, string $keyProfile = 'default'): array
     {
-        [$key, $url, $model] = $this->configuration();
+        [$key, $url, $model] = $this->configuration($keyProfile);
 
         try {
             $response = Http::acceptJson()
                 ->asJson()
                 ->withToken($key)
-                ->connectTimeout(5)
+                ->connectTimeout($keyProfile === 'watched' ? 10 : 5)
                 ->timeout(30)
+                ->retry(
+                    $keyProfile === 'watched' ? 2 : 1,
+                    1000,
+                    fn (\Exception $error): bool => $error instanceof ConnectionException,
+                    throw: false,
+                )
                 ->post("{$url}/chat/completions", [
                     'model' => $model,
                     'messages' => [
@@ -170,9 +177,13 @@ class GroqService implements GroqChatServiceInterface, GroqServiceInterface, Gro
     }
 
     /** @return array{string, string, string} */
-    private function configuration(): array
+    private function configuration(string $keyProfile = 'default'): array
     {
-        $key = config('services.groq.key');
+        $key = match ($keyProfile) {
+            'default' => config('services.groq.key'),
+            'watched' => config('services.groq.watched_key'),
+            default => throw new GroqUnavailable('Unknown Groq key profile.'),
+        };
         $url = rtrim((string) config('services.groq.url'), '/');
         $model = config('services.groq.model');
 

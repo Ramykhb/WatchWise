@@ -79,6 +79,7 @@ return [
 
     'groq' => [
         'key' => env('GROQ_API_KEY'),
+        'watched_key' => env('GROQ_API_KEY_2'),
         'model' => env('GROQ_MODEL', 'openai/gpt-oss-20b'),
         'url' => env('GROQ_API_URL', 'https://api.groq.com/openai/v1'),
     ],
