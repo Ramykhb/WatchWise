@@ -5,6 +5,7 @@ namespace App\User\Services;
 use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
 use App\Auth\InterfaceServices\EmailVerificationServiceInterface;
 use App\Models\User;
+use App\Support\SocialPlaceholderPassword;
 use App\User\DTOs\Requests\ChangePasswordData;
 use App\User\DTOs\Requests\DeleteAccountData;
 use App\User\DTOs\Requests\UpdatePreferencesData;
@@ -64,8 +65,14 @@ class AccountService implements AccountServiceInterface
 
     public function changePassword(User $user, ChangePasswordData $data): void
     {
-        if (! Hash::check($data->currentPassword, $user->password)) {
-            throw IncorrectPassword::forCurrentPassword();
+        // Accounts created by social sign-in still hold the placeholder, so they set a first password freely.
+        if (! SocialPlaceholderPassword::isStoredFor($user)) {
+            if ($data->currentPassword === null) {
+                throw IncorrectPassword::forMissingCurrentPassword();
+            }
+            if (! Hash::check($data->currentPassword, $user->password)) {
+                throw IncorrectPassword::forCurrentPassword();
+            }
         }
 
         $this->accounts->updatePassword($user, $data->newPassword);

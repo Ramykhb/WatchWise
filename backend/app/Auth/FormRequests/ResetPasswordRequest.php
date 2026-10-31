@@ -3,6 +3,7 @@
 namespace App\Auth\FormRequests;
 
 use App\Auth\DTOs\Requests\ResetPasswordData;
+use App\Support\SocialPlaceholderPassword;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
 
@@ -18,7 +19,7 @@ class ResetPasswordRequest extends FormRequest
         return [
             'email' => ['required', 'string', 'email', 'max:255'],
             'token' => ['required', 'string'],
-            'password' => ['required', 'string', 'confirmed', Password::min(8)],
+            'password' => ['required', 'string', 'confirmed', Password::min(8), SocialPlaceholderPassword::rule()],
         ];
     }
 

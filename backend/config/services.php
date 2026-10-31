@@ -18,6 +18,10 @@ return [
         'image_url' => env('TMDB_IMAGE_URL', 'https://image.tmdb.org/t/p'),
     ],
 
+    'social_password' => [
+        'placeholder' => env('SOCIAL_PLACEHOLDER_PASSWORD'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

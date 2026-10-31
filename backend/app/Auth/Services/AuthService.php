@@ -10,6 +10,7 @@ use App\Auth\Factories\TokenFactory;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Models\User;
+use App\Support\SocialPlaceholderPassword;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -38,7 +39,11 @@ class AuthService implements AuthServiceInterface
     {
         $user = $this->users->findByEmail($data->email);
 
-        if (! $user || ! Hash::check($data->password, $user->password) || ! $user->is_active) {
+        // The shared social placeholder only marks accounts that never chose a password; it never signs anyone in.
+        if (SocialPlaceholderPassword::matches($data->password)
+            || ! $user
+            || ! Hash::check($data->password, $user->password)
+            || ! $user->is_active) {
             throw new InvalidCredentials;
         }
 

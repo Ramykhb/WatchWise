@@ -18,6 +18,11 @@ class IncorrectPassword extends RuntimeException
         return new self('current_password', 'Your current password is incorrect.');
     }
 
+    public static function forMissingCurrentPassword(): self
+    {
+        return new self('current_password', 'Enter your current password.');
+    }
+
     public static function forAccountDeletion(): self
     {
         return new self('password', 'That password is incorrect.');
