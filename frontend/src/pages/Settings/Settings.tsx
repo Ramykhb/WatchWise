@@ -111,6 +111,8 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
   const visibility = me.user.profile_visibility
   const privacy = me.preferences.privacy
   const connected = me.connected
+  // Social sign-ups have no password of their own yet, so there is no current one to ask for.
+  const hasPassword = me.has_password
   const integrations = me.preferences.integrations
 
   /** Saves a change; the API answers with the whole account, which refreshes the page and header. */
@@ -217,9 +219,9 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
     const nextPassword = String(data.get('next') ?? '')
     const confirm = String(data.get('confirm') ?? '')
     const next: PasswordErrors = {}
-    if (!current) next.current = 'Enter your current password.'
+    if (hasPassword && !current) next.current = 'Enter your current password.'
     if (!PASSWORD_PATTERN.test(nextPassword)) next.next = 'Use at least 8 characters, including a number.'
-    else if (nextPassword === current) next.next = 'Pick a password you have not used here.'
+    else if (hasPassword && nextPassword === current) next.next = 'Pick a password you have not used here.'
     if (confirm !== nextPassword) next.confirm = "Passwords don't match."
     setPasswordErrors(next)
     if (Object.keys(next).length > 0) {
@@ -228,9 +230,14 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
     }
     setPasswordNote('Saving…')
     try {
-      await api.put('/me/password', { current_password: current, password: nextPassword, password_confirmation: confirm })
+      await api.put('/me/password', {
+        ...(hasPassword ? { current_password: current } : {}),
+        password: nextPassword,
+        password_confirmation: confirm,
+      })
       form.reset()
-      setPasswordNote('Password updated. Other devices have been signed out.')
+      setPasswordNote(hasPassword ? 'Password updated. Other devices have been signed out.' : 'Password created. You can now also sign in with your email.')
+      if (!hasPassword) onChange({ ...me, has_password: true })
     } catch (error) {
       const errors = fieldErrors(error)
       setPasswordErrors({ current: errors.current_password, next: errors.password })
@@ -365,17 +372,30 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
             <section id="account" data-section className={styles.panel} aria-labelledby="password-title">
               <PanelHead
                 id="password-title"
-                title="Password"
-                text="Use at least 8 characters with a number. We'll sign you out of other devices after a change."
+                title={hasPassword ? 'Password' : 'Create a password'}
+                text={
+                  hasPassword
+                    ? "Use at least 8 characters with a number. We'll sign you out of other devices after a change."
+                    : "You signed up with a connected account, so you don't have a password yet. Create one to also sign in with your email."
+                }
               />
               <form className={styles.form} onSubmit={handlePassword} noValidate>
                 <div className={styles.row3}>
-                  <TextField label="Current password" name="current" type="password" placeholder="••••••••••" autoComplete="current-password" revealable error={passwordErrors.current} />
+                  <TextField
+                    label="Current password"
+                    name="current"
+                    type="password"
+                    placeholder={hasPassword ? '••••••••••' : 'Not needed yet'}
+                    autoComplete="current-password"
+                    revealable
+                    disabled={!hasPassword}
+                    error={passwordErrors.current}
+                  />
                   <TextField label="New password" name="next" type="password" placeholder="••••••••••••" autoComplete="new-password" revealable error={passwordErrors.next} />
                   <TextField label="Confirm new password" name="confirm" type="password" placeholder="••••••••••••" autoComplete="new-password" revealable error={passwordErrors.confirm} />
                 </div>
                 <div className={styles.actions}>
-                  <PillButton type="submit">Update password</PillButton>
+                  <PillButton type="submit">{hasPassword ? 'Update password' : 'Create password'}</PillButton>
                   <Link to="/forgot-password" className={styles.textLink}>
                     Forgot your password?
                   </Link>

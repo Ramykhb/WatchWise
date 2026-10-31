@@ -92,6 +92,8 @@ export type ApiMe = {
   }
   /** Linked providers → when they were connected. */
   connected: Partial<Record<'google' | 'github' | 'discord', string>>
+  /** False while a Google/GitHub/Discord sign-up hasn't chosen its own password (no current password to ask for). */
+  has_password: boolean
   counts: { unread_notifications: number; followers: number; following: number }
 }
 

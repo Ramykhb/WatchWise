@@ -19,7 +19,8 @@ class LoginRequest extends FormRequest
     {
         return [
             'email' => ['required', 'string', 'email'],
-            'password' => ['required', 'string'],
+            // bcrypt ignores everything after a NUL byte, so no real password contains one.
+            'password' => ['required', 'string', 'not_regex:/\x00/'],
         ];
     }
 

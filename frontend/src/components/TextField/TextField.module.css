@@ -33,6 +33,18 @@
   border-color: var(--accent-coral);
 }
 
+/* Greyed out and not typeable (e.g. "Current password" before a social account has one). */
+.disabled {
+  border-color: var(--border-subtle);
+  background: color-mix(in srgb, var(--border-subtle) 35%, var(--surface-white));
+  cursor: not-allowed;
+}
+
+.disabled .input {
+  color: var(--ink-400);
+  cursor: not-allowed;
+}
+
 .input {
   flex: 1;
   min-width: 0;

@@ -20,7 +20,7 @@ export default function TextField({ label, revealable = false, hint, error, type
       <label htmlFor={id} className={styles.label}>
         {label}
       </label>
-      <div className={[styles.control, error && styles.invalid].filter(Boolean).join(' ')}>
+      <div className={[styles.control, error && styles.invalid, inputProps.disabled && styles.disabled].filter(Boolean).join(' ')}>
         <input
           id={id}
           type={revealable && revealed ? 'text' : type}
@@ -29,7 +29,7 @@ export default function TextField({ label, revealable = false, hint, error, type
           aria-describedby={describedBy}
           {...inputProps}
         />
-        {revealable && (
+        {revealable && !inputProps.disabled && (
           <button
             type="button"
             className={styles.toggle}
