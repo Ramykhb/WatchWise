@@ -38,7 +38,6 @@ export const BECAUSE_YOU_LOVED = {
   movies: [MOVIES.stardust, MOVIES.deepBlue, MOVIES.lastLap, MOVIES.velvetHour, MOVIES.wildFern, MOVIES.paperMoon],
 }
 
-export const POPULAR = [MOVIES.neonTide, MOVIES.redSignal, MOVIES.paperMoon, MOVIES.stardust, MOVIES.velvetHour, MOVIES.lastLap]
 
 export const RELEASES = [
   { title: 'Velvet Hour II', meta: 'Romance · in cinemas', month: 'MAR', day: '14', gradient: G.velvetHour },

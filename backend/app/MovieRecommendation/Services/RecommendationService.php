@@ -2,8 +2,6 @@
 
 namespace App\MovieRecommendation\Services;
 
-use App\Gemini\Exceptions\GeminiUnavailable;
-use App\Gemini\InterfaceServices\GeminiServiceInterface;
 use App\Groq\Exceptions\GroqUnavailable;
 use App\Groq\InterfaceServices\GroqStructuredOutputInterface;
 use App\Models\User;
@@ -30,7 +28,6 @@ class RecommendationService implements RecommendationServiceInterface
 
     public function __construct(
         private readonly WeatherServiceInterface $weather,
-        private readonly GeminiServiceInterface $gemini,
         private readonly MovieServiceInterface $movies,
         private readonly WatchlistRepositoryInterface $watchlist,
         private readonly GroqStructuredOutputInterface $groq,
@@ -199,7 +196,7 @@ class RecommendationService implements RecommendationServiceInterface
             .'TMDB candidates: '.json_encode($candidateData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         try {
-            $selection = $this->gemini->ask($prompt.' Required JSON schema: '.json_encode([
+            $selection = $this->groq->askWithSchema($prompt, 'weather_movie_recommendations', [
                 'type' => 'object',
                 'properties' => [
                     'movies' => [
@@ -217,8 +214,8 @@ class RecommendationService implements RecommendationServiceInterface
                 ],
                 'required' => ['movies'],
                 'additionalProperties' => false,
-            ]));
-        } catch (GeminiUnavailable $e) {
+            ], keyProfile: 'default');
+        } catch (GroqUnavailable $e) {
             report($e);
 
             throw RecommendationUnavailable::generation();

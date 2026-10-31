@@ -2,11 +2,12 @@
 
 namespace App\Movie\Services;
 
+use App\Genre\DTOs\Responses\GenreResponse;
 use App\Movie\DTOs\Requests\MovieDiscoverQuery;
 use App\Movie\DTOs\Requests\MovieListQuery;
 use App\Movie\DTOs\Requests\MovieSearchQuery;
+use App\Movie\DTOs\Requests\MovieTrendingQuery;
 use App\Movie\DTOs\Responses\CastMemberResponse;
-use App\Genre\DTOs\Responses\GenreResponse;
 use App\Movie\DTOs\Responses\MovieDetailsResponse;
 use App\Movie\DTOs\Responses\MoviePageResponse;
 use App\Movie\DTOs\Responses\MovieResponse;
@@ -38,6 +39,14 @@ class MovieService implements MovieServiceInterface
     private const MERGED_MAX_PAGES = 10;
 
     public function __construct(private readonly MovieRepositoryInterface $movies) {}
+
+    public function trending(MovieTrendingQuery $query): MoviePageResponse
+    {
+        $payload = Cache::remember('tmdb.trending.week.'.$query->type, now()->addHour(),
+            fn (): array => $this->movies->trending($query));
+
+        return $this->toPage($payload, ['time_window' => 'week'], $query->type);
+    }
 
     public function list(MovieListQuery $query): MoviePageResponse
     {

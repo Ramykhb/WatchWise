@@ -2,8 +2,7 @@
 
 namespace Tests\Unit\MovieRecommendation;
 
-use App\Gemini\Exceptions\GeminiUnavailable;
-use App\Gemini\InterfaceServices\GeminiServiceInterface;
+use App\Groq\Exceptions\GroqUnavailable;
 use App\Groq\InterfaceServices\GroqStructuredOutputInterface;
 use App\Movie\DTOs\Responses\MoviePageResponse;
 use App\Movie\DTOs\Responses\MovieResponse;
@@ -25,7 +24,7 @@ class RecommendationServiceTest extends TestCase
 {
     private MockInterface $weather;
 
-    private MockInterface $gemini;
+    private MockInterface $groq;
 
     private MockInterface $movies;
 
@@ -36,9 +35,9 @@ class RecommendationServiceTest extends TestCase
         parent::setUp();
 
         $this->weather = Mockery::mock(WeatherServiceInterface::class);
-        $this->gemini = Mockery::mock(GeminiServiceInterface::class);
+        $this->groq = Mockery::mock(GroqStructuredOutputInterface::class);
         $this->movies = Mockery::mock(MovieServiceInterface::class);
-        $this->service = new RecommendationService($this->weather, $this->gemini, $this->movies, Mockery::mock(WatchlistRepositoryInterface::class), Mockery::mock(GroqStructuredOutputInterface::class));
+        $this->service = new RecommendationService($this->weather, $this->movies, Mockery::mock(WatchlistRepositoryInterface::class), $this->groq);
     }
 
     /**
@@ -88,11 +87,12 @@ class RecommendationServiceTest extends TestCase
     {
         $this->weatherReturns($this->current($code));
         $this->movies->shouldReceive('discover')->once()->andReturn($this->candidates());
-        $this->gemini->shouldReceive('ask')
+        $this->groq->shouldReceive('askWithSchema')
             ->once()
-            ->withArgs(fn (string $prompt) => str_contains($prompt, "12°C, {$description}, humidity 80%, wind 15 km/h.")
+            ->withArgs(fn (string $prompt, string $name, array $schema, int $maxCompletionTokens, string $keyProfile) => str_contains($prompt, "12°C, {$description}, humidity 80%, wind 15 km/h.")
                 && str_contains($prompt, 'Choose up to 10 movies')
-                && str_contains($prompt, 'Required JSON schema:'))
+                && $name === 'weather_movie_recommendations' && $keyProfile === 'default'
+                && $schema['properties']['movies']['items']['properties']['id']['type'] === 'integer')
             ->andReturn(['movies' => [['id' => 42, 'reason' => 'Fits']]]);
 
         $result = $this->service->forCurrentWeather(new RecommendationQuery);
@@ -107,7 +107,7 @@ class RecommendationServiceTest extends TestCase
             ->withArgs(fn (WeatherQuery $q) => $q->latitude === 33.5 && $q->longitude === 35.5)
             ->andReturn(new WeatherResponse(33.5, 35.5, false, $this->current(0)));
         $this->movies->shouldReceive('discover')->once()->andReturn($this->candidates());
-        $this->gemini->shouldReceive('ask')->once()->andReturn(['movies' => []]);
+        $this->groq->shouldReceive('askWithSchema')->once()->andReturn(['movies' => []]);
 
         $this->service->forCurrentWeather(new RecommendationQuery(33.5, 35.5));
     }
@@ -115,7 +115,7 @@ class RecommendationServiceTest extends TestCase
     public function test_it_maps_a_weather_failure(): void
     {
         $this->weather->shouldReceive('current')->once()->andThrow(new WeatherUnavailable);
-        $this->gemini->shouldNotReceive('ask');
+        $this->groq->shouldNotReceive('askWithSchema');
 
         $this->expectException(RecommendationUnavailable::class);
         $this->expectExceptionMessage('Could not get the weather');
@@ -126,7 +126,7 @@ class RecommendationServiceTest extends TestCase
     public function test_it_maps_missing_current_weather(): void
     {
         $this->weatherReturns(null);
-        $this->gemini->shouldNotReceive('ask');
+        $this->groq->shouldNotReceive('askWithSchema');
 
         $this->expectException(RecommendationUnavailable::class);
         $this->expectExceptionMessage('Could not get the weather');
@@ -137,7 +137,7 @@ class RecommendationServiceTest extends TestCase
     public function test_it_maps_incomplete_current_weather(): void
     {
         $this->weatherReturns(['temperature_2m' => 12]);
-        $this->gemini->shouldNotReceive('ask');
+        $this->groq->shouldNotReceive('askWithSchema');
 
         $this->expectException(RecommendationUnavailable::class);
         $this->expectExceptionMessage('Could not get the weather');
@@ -145,11 +145,11 @@ class RecommendationServiceTest extends TestCase
         $this->service->forCurrentWeather(new RecommendationQuery);
     }
 
-    public function test_it_maps_a_gemini_failure(): void
+    public function test_it_maps_a_groq_failure(): void
     {
         $this->weatherReturns($this->current(61));
         $this->movies->shouldReceive('discover')->once()->andReturn($this->candidates());
-        $this->gemini->shouldReceive('ask')->once()->andThrow(new GeminiUnavailable('HTTP 500'));
+        $this->groq->shouldReceive('askWithSchema')->once()->andThrow(new GroqUnavailable('HTTP 500'));
 
         $this->expectException(RecommendationUnavailable::class);
         $this->expectExceptionMessage('Could not generate recommendations');

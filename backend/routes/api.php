@@ -38,6 +38,7 @@ Route::get('/nearby-cinemas', [NearbyCinemaController::class, 'index'])->middlew
 
 Route::middleware('throttle:tmdb')->group(function () {
     Route::get('/movies', [MovieController::class, 'index']);
+    Route::get('/movies/trending', [MovieController::class, 'trending']);
     Route::get('/movies/search', [MovieController::class, 'search']);
     Route::get('/movies/discover', [MovieController::class, 'discover']);
     Route::get('/movies/{id}', [MovieController::class, 'show'])->whereNumber('id');

@@ -61,7 +61,7 @@
     "/api/movie-recommendations": {
       "get": {
         "summary": "Get movie recommendations for the current weather",
-        "description": "Fetches the current weather, retrieves popular TMDB candidates in weather-appropriate genres, then asks Gemini to select up to 10 candidates. Only verified TMDB movies are returned. Send latitude and longitude together, or neither to use the default location. Requires TMDB_API_KEY and GEMINI_API_KEY in .env. Counts against the AI limit of 10 requests per minute.",
+        "description": "Fetches the current weather, retrieves popular TMDB candidates in weather-appropriate genres, then asks Groq to select up to 10 candidates. Only verified TMDB movies are returned. Send latitude and longitude together, or neither to use the default location. Requires TMDB_API_KEY and GROQ_API_KEY in .env. Counts against the AI limit of 10 requests per minute.",
         "tags": ["Recommendations"],
         "parameters": [
           {"name": "latitude", "in": "query", "required": false, "description": "Required if longitude is sent.", "schema": {"type": "number", "minimum": -90, "maximum": 90}, "example": 33.8938},
@@ -69,19 +69,19 @@
         ],
         "responses": {
           "200": {
-            "description": "Weather-matched TMDB movies with Gemini's reason for each selection. Up to 10 movies may be returned.",
+            "description": "Weather-matched TMDB movies with Groq's reason for each selection. Up to 10 movies may be returned.",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecommendationResponse"}}}
           },
           "422": {"description": "Validation failed.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ValidationError"}}}},
           "429": {"description": "Too many requests.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}}}},
           "502": {
-            "description": "The weather, TMDB, or Gemini step failed.",
+            "description": "The weather, TMDB, or Groq step failed.",
             "content": {
               "application/json": {
                 "schema": {"$ref": "#/components/schemas/Error"},
                 "examples": {
                   "weather": {"summary": "Weather lookup failed", "value": {"error": "Could not get the weather"}},
-                  "gemini": {"summary": "Gemini failed", "value": {"error": "Could not generate recommendations"}}
+                  "groq": {"summary": "Groq failed", "value": {"error": "Could not generate recommendations"}}
                 }
               }
             }

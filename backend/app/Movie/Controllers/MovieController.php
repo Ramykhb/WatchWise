@@ -5,6 +5,7 @@ namespace App\Movie\Controllers;
 use App\Movie\FormRequests\MovieDiscoverRequest;
 use App\Movie\FormRequests\MovieListRequest;
 use App\Movie\FormRequests\MovieSearchRequest;
+use App\Movie\FormRequests\MovieTrendingRequest;
 use App\Movie\InterfaceServices\MovieServiceInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,6 +13,11 @@ use Illuminate\Http\Request;
 class MovieController
 {
     public function __construct(private readonly MovieServiceInterface $movies) {}
+
+    public function trending(MovieTrendingRequest $request): JsonResponse
+    {
+        return response()->json($this->movies->trending($request->toDto()));
+    }
 
     /**
      * Fetch one page of a TMDB movie list (popular, top rated, now playing, upcoming).
