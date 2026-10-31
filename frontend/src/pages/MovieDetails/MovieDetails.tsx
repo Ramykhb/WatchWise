@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
+import { useLenis } from 'lenis/react'
 import axios from 'axios'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import MovieTile from '../../components/MovieTile/MovieTile.tsx'
@@ -262,6 +263,24 @@ function MovieDetailsPage({ details }: { details: Details }) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const lenis = useLenis()
+
+  // Wait until the loaded movie has mounted before following a trailer link.
+  useEffect(() => {
+    if (location.hash !== '#trailer') return
+    const frame = requestAnimationFrame(() => {
+      const trailer = trailerRef.current
+      if (!trailer) return
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (lenis) {
+        lenis.resize()
+        lenis.scrollTo(trailer, { offset: -24, immediate: reducedMotion })
+      } else {
+        trailer.scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'start' })
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [location.hash, location.key, lenis])
   const signedIn = user !== null
   const [userRating, setUserRating] = useState(0)
   const [ratingLoaded, setRatingLoaded] = useState(false)
@@ -331,8 +350,11 @@ function MovieDetailsPage({ details }: { details: Details }) {
 
   const shownRating = hoverRating || userRating
 
-  const scrollTo = (ref: RefObject<HTMLElement | null>) =>
-    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const scrollTo = (ref: RefObject<HTMLElement | null>) => {
+    if (!ref.current) return
+    if (lenis) lenis.scrollTo(ref.current, { offset: -24 })
+    else ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   const handleShare = async () => {
     const url = window.location.href
@@ -572,7 +594,7 @@ function MovieDetailsPage({ details }: { details: Details }) {
               </ul>
             </section>
 
-            <section ref={trailerRef} className={styles.section} aria-labelledby="trailer-title">
+            <section id="trailer" ref={trailerRef} className={styles.section} aria-labelledby="trailer-title">
               <div className={styles.sectionHeader}>
                 <h2 id="trailer-title" className={styles.sectionTitle}>
                   Trailer

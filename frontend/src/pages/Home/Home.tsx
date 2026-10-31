@@ -388,10 +388,10 @@ export default function Home() {
                   </h2>
                   <p className={styles.pickMeta}>{pick.recommendationReason}</p>
                   <div className={styles.pickActions}>
-                    <button type="button" className={styles.trailer}>
+                    <Link to={`/movies/${pick.slug}#trailer`} className={styles.trailer}>
                       <img src={playIcon} width={14} height={14} alt="" />
                       Watch trailer
-                    </button>
+                    </Link>
                     <button
                       type="button"
                       className={styles.watchlist}
