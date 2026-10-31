@@ -5,9 +5,10 @@ namespace App\Movie\Repository;
 use App\Movie\DTOs\Requests\MovieDiscoverQuery;
 use App\Movie\DTOs\Requests\MovieListQuery;
 use App\Movie\DTOs\Requests\MovieSearchQuery;
+use App\Movie\DTOs\Requests\MovieTrendingQuery;
 use App\Movie\Exceptions\MovieNotFound;
-use App\Support\Exceptions\TmdbNotFound;
 use App\Movie\InterfaceRepository\MovieRepositoryInterface;
+use App\Support\Exceptions\TmdbNotFound;
 use App\Support\TmdbHttpClient;
 
 class MovieRepository implements MovieRepositoryInterface
@@ -37,6 +38,11 @@ class MovieRepository implements MovieRepositoryInterface
     ];
 
     public function __construct(private readonly TmdbHttpClient $client) {}
+
+    public function trending(MovieTrendingQuery $query): array
+    {
+        return $this->client->get('/trending/'.$query->type.'/week', timeout: 20, attempts: 2)->json();
+    }
 
     public function list(MovieListQuery $query): array
     {

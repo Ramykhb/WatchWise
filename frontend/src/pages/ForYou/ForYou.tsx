@@ -24,6 +24,7 @@ import usersIcon from "../../assets/foryou/icon-users.svg";
 import { useEntranceAnimation } from "../../hooks/useEntranceAnimation.ts";
 import { useAuth } from "../../contexts/useAuth.ts";
 import { api } from "../../lib/api.ts";
+import type { WatchlistResponse } from "../../lib/watchlist.ts";
 import { toTileMovie, type TmdbMovie } from "../Discover/discoverApi.ts";
 import {
   PROFILE,
@@ -87,7 +88,9 @@ const MOVIE_GENRES = new Map<number, string>([
   [80, "Crime"], [99, "Documentary"], [18, "Drama"], [10751, "Family"],
   [14, "Fantasy"], [36, "History"], [27, "Horror"], [10402, "Music"],
   [9648, "Mystery"], [10749, "Romance"], [878, "Sci-fi"], [53, "Thriller"],
-  [10752, "War"], [37, "Western"],
+  [10752, "War"], [37, "Western"], [10759, "Adventure"], [10765, "Sci-fi"],
+  [10768, "War & Politics"], [10762, "Kids"], [10764, "Reality"], [10763, "News"],
+  [10766, "Soap"], [10767, "Talk"],
 ]);
 
 function removeWeatherCache() {
@@ -203,7 +206,50 @@ const weatherPickTitle = (condition: string) => {
 
 export default function ForYou() {
   const pageRef = useRef<HTMLDivElement>(null);
-  const { firstName } = useAuth();
+  const { firstName, user } = useAuth();
+  const userId = user?.id;
+  const [watchedRetry, setWatchedRetry] = useState(0);
+  const [watchedPicks, setWatchedPicks] = useState<{
+    userId: number; source: TmdbMovie | null; movies: WeatherRecommendation[];
+    status: "loading" | "ready" | "error";
+  } | null>(null);
+
+  useEffect(() => {
+    if (userId === undefined) return;
+    const controller = new AbortController();
+    let requestTimeout: number | undefined;
+    const load = async () => {
+      try {
+        const history = await api.get<WatchlistResponse>("/watchlist", { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        if (!history.data.items.some((item) => item.status === "watched")) {
+          setWatchedPicks(null);
+          return;
+        }
+        setWatchedPicks({ userId, source: null, movies: [], status: "loading" });
+        await new Promise<void>((resolve) => {
+          requestTimeout = window.setTimeout(resolve, 1000);
+        });
+        if (controller.signal.aborted) return;
+        const { data } = await api.get<{ source: TmdbMovie | null; movies: WeatherRecommendation[] }>(
+          "/watched-recommendations", { signal: controller.signal },
+        );
+        if (!controller.signal.aborted) {
+          setWatchedPicks({ userId, source: data.source, movies: data.movies, status: "ready" });
+        }
+      } catch (error: unknown) {
+        if (!controller.signal.aborted) {
+          setWatchedPicks({ userId, source: null, movies: [], status: "error" });
+          console.error("Unable to load watched recommendations:", error);
+        }
+      }
+    };
+    void load();
+    return () => {
+      controller.abort();
+      window.clearTimeout(requestTimeout);
+    };
+  }, [userId, watchedRetry]);
   const [initialWeatherCache] = useState(readWeatherCache);
   const [initialRecommendationCache] = useState(() =>
     readRecommendationCache(initialWeatherCache?.weather.location),
@@ -629,6 +675,57 @@ export default function ForYou() {
                   ...toTileMovie(recommendation, MOVIE_GENRES),
                   recommendationReason: recommendation.reason,
                 })).map((movie) => <MovieTile key={movie.slug} movie={movie} />)}
+              </div>
+            )}
+          </section>
+        )}
+
+        {watchedPicks?.userId === userId && watchedPicks && (
+          <section className={styles.shelf} aria-labelledby="shelf-because">
+            <div className={styles.sectionHeader}>
+              <h2 id="shelf-because" className={styles.sectionTitle}>
+                Because you watched{watchedPicks.source ? ` ${watchedPicks.source.title}` : "…"}
+              </h2>
+              {watchedPicks.source && (
+                <Link
+                  to={`/movies/${watchedPicks.source.media_type === "tv" ? "tv-" : ""}${watchedPicks.source.id}`}
+                  className={styles.sectionAction}
+                >
+                  More →
+                </Link>
+              )}
+            </div>
+            <span className={styles.reason}>
+              <img src={filmIcon} width={14} height={14} alt="" />
+              Similar story, tone and visuals
+            </span>
+            {watchedPicks.status === "loading" ? (
+              <div className={styles.row} role="status" aria-label="Loading recommendations from your watched history" aria-busy="true">
+                {Array.from({ length: 6 }, (_, index) => (
+                  <div className={styles.skeletonMovie} key={index} aria-hidden="true">
+                    <span className={`${styles.movieSkeletonShimmer} ${styles.skeletonPoster}`} />
+                    <span className={`${styles.movieSkeletonShimmer} ${styles.skeletonMovieTitle}`} />
+                    <span className={`${styles.movieSkeletonShimmer} ${styles.skeletonMovieMeta}`} />
+                  </div>
+                ))}
+              </div>
+            ) : watchedPicks.status === "error" ? (
+              <div className={styles.recommendationState} role="status">
+                <p>Recommendations are temporarily unavailable. Please try again shortly.</p>
+                <button type="button" className={styles.retryLocation} onClick={() => setWatchedRetry((value) => value + 1)}>
+                  Try again
+                </button>
+              </div>
+            ) : watchedPicks.movies.length === 0 ? (
+              <p className={styles.recommendationState} role="status">No matching titles were found for your watched history.</p>
+            ) : (
+              <div className={styles.row}>
+                {watchedPicks.movies.map((recommendation) => (
+                  <MovieTile key={`${recommendation.media_type}-${recommendation.id}`} movie={{
+                    ...toTileMovie(recommendation, MOVIE_GENRES),
+                    recommendationReason: recommendation.reason,
+                  }} />
+                ))}
               </div>
             )}
           </section>

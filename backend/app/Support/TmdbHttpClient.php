@@ -19,11 +19,13 @@ class TmdbHttpClient
      * @throws TmdbNotFound when TMDB answers 404
      * @throws TmdbUnavailable
      */
-    public function get(string $path, array $query = []): Response
+    public function get(string $path, array $query = [], int $timeout = 10, int $attempts = 1): Response
     {
         try {
             return Http::acceptJson()
-                ->timeout(10)
+                ->connectTimeout(min($timeout, 10))
+                ->timeout($timeout)
+                ->retry($attempts, 1000, fn (\Exception $error): bool => $error instanceof ConnectionException, throw: false)
                 ->get(config('services.tmdb.url').$path, [
                     'api_key' => config('services.tmdb.key'),
                     'language' => 'en-US',

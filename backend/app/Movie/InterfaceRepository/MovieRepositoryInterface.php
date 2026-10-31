@@ -5,6 +5,7 @@ namespace App\Movie\InterfaceRepository;
 use App\Movie\DTOs\Requests\MovieDiscoverQuery;
 use App\Movie\DTOs\Requests\MovieListQuery;
 use App\Movie\DTOs\Requests\MovieSearchQuery;
+use App\Movie\DTOs\Requests\MovieTrendingQuery;
 use App\Movie\Exceptions\MovieNotFound;
 use App\Support\Exceptions\TmdbUnavailable;
 
@@ -14,6 +15,9 @@ use App\Support\Exceptions\TmdbUnavailable;
  */
 interface MovieRepositoryInterface
 {
+    /** @return array<string, mixed> */
+    public function trending(MovieTrendingQuery $query): array;
+
     /**
      * @return array<string, mixed>
      *

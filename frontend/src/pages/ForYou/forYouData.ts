@@ -60,21 +60,6 @@ export const WEATHER_MOOD = {
 
 export const SHELVES: Shelf[] = [
   {
-    id: "because",
-    title: "Because you watched Neon Tide",
-    reason: "Similar story, tone and visuals",
-    icon: "film",
-    more: "/movies/neon-tide",
-    movies: [
-      withMeta(MOVIES.stardust, "97% match · Fantasy"),
-      withMeta(MOVIES.deepBlue, "94% match · Thriller"),
-      withMeta(MOVIES.lastLap, "92% match · Drama"),
-      withMeta(MOVIES.wildFern, "90% match · Adventure"),
-      withMeta(MOVIES.velvetHour, "88% match · Romance"),
-      withMeta(MOVIES.paperMoon, "86% match · Comedy"),
-    ],
-  },
-  {
     id: "people",
     title: "More from Lena Okafor & Amara Mensah",
     reason: "Your favourite director and actor",

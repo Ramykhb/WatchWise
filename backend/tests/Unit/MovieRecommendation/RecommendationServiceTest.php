@@ -10,6 +10,7 @@ use App\Movie\InterfaceServices\MovieServiceInterface;
 use App\MovieRecommendation\DTOs\Requests\RecommendationQuery;
 use App\MovieRecommendation\Exceptions\RecommendationUnavailable;
 use App\MovieRecommendation\Services\RecommendationService;
+use App\Watchlist\InterfaceRepository\WatchlistRepositoryInterface;
 use App\Weather\DTOs\Requests\WeatherQuery;
 use App\Weather\DTOs\Responses\WeatherResponse;
 use App\Weather\Exceptions\WeatherUnavailable;
@@ -36,7 +37,7 @@ class RecommendationServiceTest extends TestCase
         $this->weather = Mockery::mock(WeatherServiceInterface::class);
         $this->groq = Mockery::mock(GroqStructuredOutputInterface::class);
         $this->movies = Mockery::mock(MovieServiceInterface::class);
-        $this->service = new RecommendationService($this->weather, $this->groq, $this->movies);
+        $this->service = new RecommendationService($this->weather, $this->movies, Mockery::mock(WatchlistRepositoryInterface::class), $this->groq);
     }
 
     /**
@@ -88,8 +89,9 @@ class RecommendationServiceTest extends TestCase
         $this->movies->shouldReceive('discover')->once()->andReturn($this->candidates());
         $this->groq->shouldReceive('askWithSchema')
             ->once()
-            ->withArgs(fn (string $prompt, string $name, array $schema) => str_contains($prompt, "12°C, {$description}, humidity 80%, wind 15 km/h.")
-                && str_contains($prompt, 'Choose up to 10 movies') && $name === 'weather_movie_recommendations'
+            ->withArgs(fn (string $prompt, string $name, array $schema, int $maxCompletionTokens, string $keyProfile) => str_contains($prompt, "12°C, {$description}, humidity 80%, wind 15 km/h.")
+                && str_contains($prompt, 'Choose up to 10 movies')
+                && $name === 'weather_movie_recommendations' && $keyProfile === 'default'
                 && $schema['properties']['movies']['items']['properties']['id']['type'] === 'integer')
             ->andReturn(['movies' => [['id' => 42, 'reason' => 'Fits']]]);
 

@@ -32,11 +32,13 @@ Route::prefix('chat')->middleware('auth.jwt')->group(function () {
 
 Route::get('/weather', [WeatherController::class, 'show'])->middleware('throttle:weather');
 Route::post('/weather-mood', [WeatherController::class, 'mood'])->middleware('throttle:ai');
+Route::get('/watched-recommendations', [RecommendationController::class, 'watched'])->middleware(['auth.jwt', 'throttle:ai']);
 Route::get('/movie-recommendations', [RecommendationController::class, 'index'])->middleware('throttle:ai');
 Route::get('/nearby-cinemas', [NearbyCinemaController::class, 'index'])->middleware('throttle:30,1');
 
 Route::middleware('throttle:tmdb')->group(function () {
     Route::get('/movies', [MovieController::class, 'index']);
+    Route::get('/movies/trending', [MovieController::class, 'trending']);
     Route::get('/movies/search', [MovieController::class, 'search']);
     Route::get('/movies/discover', [MovieController::class, 'discover']);
     Route::get('/movies/{id}', [MovieController::class, 'show'])->whereNumber('id');

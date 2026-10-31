@@ -1,5 +1,49 @@
 {
   "paths": {
+    "/api/movies/trending": {
+      "get": {
+        "summary": "Weekly trending movies or TV shows",
+        "description": "Returns TMDB weekly trending titles in their original rank order. Results are cached separately per media type for one hour. Requires TMDB_API_KEY.",
+        "tags": [
+          "Movies"
+        ],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "movie",
+                "tv"
+              ],
+              "default": "movie"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A ranked page of titles with time_window week.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoviePageBase"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid media type."
+          },
+          "429": {
+            "description": "Too many requests."
+          },
+          "502": {
+            "description": "TMDB is unavailable."
+          }
+        }
+      }
+    },
     "/api/movies": {
       "get": {
         "summary": "List movies (popular, top rated, now playing, upcoming)",

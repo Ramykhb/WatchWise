@@ -19,8 +19,9 @@ import calendarSmIcon from '../../assets/home/icon-calendar-sm.svg'
 import chatIcon from '../../assets/home/icon-chat.svg'
 import onlineDot from '../../assets/home/dot-online.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { BECAUSE_YOU_LOVED, POPULAR, RELEASES, TONIGHTS_PICK, gradientCss } from './homeData.ts'
+import { BECAUSE_YOU_LOVED, RELEASES, TONIGHTS_PICK, gradientCss } from './homeData.ts'
 import styles from './Home.module.css'
+import WeeklyTrending from './WeeklyTrending.tsx'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, useApi } from '../../lib/api.ts'
 import { look, shortName, timeAgo } from '../../lib/format.ts'
@@ -440,21 +441,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className={styles.section} aria-labelledby="home-popular">
-          <div className={styles.sectionHeader}>
-            <h2 id="home-popular" className={styles.sectionTitle}>
-              Popular this week
-            </h2>
-            <Link to="/discover" className={styles.sectionAction}>
-              View on Discover →
-            </Link>
-          </div>
-          <div className={styles.row}>
-            {POPULAR.map((movie) => (
-              <MovieTile key={movie.slug} movie={movie} />
-            ))}
-          </div>
-        </section>
+        <WeeklyTrending />
 
         <section className={styles.section} aria-labelledby="home-releases">
           <div className={styles.sectionHeader}>
