@@ -7,6 +7,8 @@ export type AuthContextValue = {
   user: AuthUser | null
   firstName: string
   loading: boolean
+  sessionError: string | null
+  retrySession: () => void
   setUser: (user: AuthUser | null) => void
   logout: () => Promise<void>
 }

@@ -23,6 +23,7 @@ const publicAuthEndpoints = [
 ]
 const guestRoutes = ['/', '/signin', '/signup', '/forgot-password', '/auth/callback']
 export const SESSION_EXPIRED_EVENT = 'watchwise:session-expired'
+export const SESSION_REQUEST_TIMEOUT = 10_000
 
 function shouldSkipRefresh(url?: string): boolean {
   if (!url) return false
@@ -50,7 +51,7 @@ function clearSessionAndRedirect(): Promise<void> {
   if (clearingSession) return clearingSession
 
   // Auth cookies are HttpOnly; only the backend can revoke and expire them.
-  clearingSession = api.post('/auth/logout')
+  clearingSession = api.post('/auth/logout', undefined, { timeout: SESSION_REQUEST_TIMEOUT })
     .catch(() => undefined)
     .then(() => {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
@@ -67,7 +68,7 @@ api.interceptors.response.use(undefined, async (error: AxiosError) => {
   const config = error.config as RetryableRequestConfig | undefined
   const status = error.response?.status
 
-  if (!config || ![401, 403].includes(status ?? 0) || shouldSkipRefresh(config.url)) {
+  if (!config || config.signal?.aborted || ![401, 403].includes(status ?? 0) || shouldSkipRefresh(config.url)) {
     return Promise.reject(error)
   }
 
@@ -87,11 +88,14 @@ api.interceptors.response.use(undefined, async (error: AxiosError) => {
   refreshing = true
 
   try {
-    await api.post('/auth/refresh')
+    await api.post('/auth/refresh', undefined, { timeout: SESSION_REQUEST_TIMEOUT })
   } catch (refreshError) {
     refreshing = false
     settleFailedRequests(refreshError)
-    await clearSessionAndRedirect()
+    // A slow or unavailable server does not mean the refresh token is invalid.
+    if (axios.isAxiosError(refreshError) && [401, 403].includes(refreshError.response?.status ?? 0)) {
+      await clearSessionAndRedirect()
+    }
     return Promise.reject(refreshError)
   }
 

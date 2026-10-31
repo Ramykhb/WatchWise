@@ -1,0 +1,38 @@
+.page {
+  min-height: 100vh;
+  padding: 38px clamp(20px, 6vw, 80px);
+}
+
+.content {
+  min-height: 65vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  text-align: center;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 5vw, 44px);
+  color: var(--ground-violet);
+}
+
+.message {
+  margin-top: 12px;
+  color: var(--ink-600);
+}
+
+.spinner {
+  color: var(--ground-violet);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; }
+}
