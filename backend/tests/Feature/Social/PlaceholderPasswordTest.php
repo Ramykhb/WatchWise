@@ -62,6 +62,33 @@ class PlaceholderPasswordTest extends SocialTestCase
         $this->postJson('/api/auth/login', ['email' => $user->email, 'password' => self::PLACEHOLDER])->assertUnauthorized();
     }
 
+    public function test_a_nul_byte_after_the_placeholder_does_not_sign_anyone_in(): void
+    {
+        $user = $this->socialSignUp('soc@example.com');
+
+        $this->postJson('/api/auth/login', ['email' => $user->email, 'password' => self::PLACEHOLDER."\0abc"])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('password');
+    }
+
+    public function test_an_account_on_the_placeholder_is_refused_whatever_is_typed(): void
+    {
+        // Even the exact stored password is refused: the account never chose it.
+        $user = User::factory()->create(['password' => self::PLACEHOLDER]);
+
+        $this->postJson('/api/auth/login', ['email' => $user->email, 'password' => self::PLACEHOLDER])->assertUnauthorized();
+        $this->postJson('/api/auth/login', ['email' => $user->email, 'password' => self::PLACEHOLDER.' '])->assertUnauthorized();
+    }
+
+    public function test_a_new_password_cannot_contain_a_nul_byte(): void
+    {
+        $user = $this->socialSignUp('soc@example.com');
+
+        $this->as($user)->putJson('/api/me/password', ['password' => "mine12345\0x", 'password_confirmation' => "mine12345\0x"])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('password');
+    }
+
     public function test_a_social_user_sets_a_first_password_without_the_current_one(): void
     {
         $user = $this->socialSignUp('soc@example.com');

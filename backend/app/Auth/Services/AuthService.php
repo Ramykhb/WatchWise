@@ -39,9 +39,10 @@ class AuthService implements AuthServiceInterface
     {
         $user = $this->users->findByEmail($data->email);
 
-        // The shared social placeholder only marks accounts that never chose a password; it never signs anyone in.
-        if (SocialPlaceholderPassword::matches($data->password)
-            || ! $user
+        // Accounts still on the shared social placeholder never chose a password, so password login is refused
+        // for them whatever is typed (bcrypt ignores anything after a NUL byte, so comparing the text is not enough).
+        if (! $user
+            || SocialPlaceholderPassword::isStoredFor($user)
             || ! Hash::check($data->password, $user->password)
             || ! $user->is_active) {
             throw new InvalidCredentials;

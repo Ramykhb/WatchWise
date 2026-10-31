@@ -49,11 +49,19 @@ final class SocialPlaceholderPassword
         return $value !== null && Hash::check($value, $user->password);
     }
 
-    /** Validation rule so nobody can choose the placeholder as their own password. */
+    /**
+     * Validation rule for a new password: not the placeholder, and no NUL byte (bcrypt stops reading
+     * there, so "placeholder\0anything" would hash like the placeholder).
+     */
     public static function rule(): Closure
     {
         return function (string $attribute, mixed $value, Closure $fail): void {
-            if (is_string($value) && self::matches($value)) {
+            if (! is_string($value)) {
+                return;
+            }
+            if (str_contains($value, "\0")) {
+                $fail("Passwords can't contain that character.");
+            } elseif (self::matches($value)) {
                 $fail('Pick a different password.');
             }
         };
