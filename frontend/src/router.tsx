@@ -15,6 +15,7 @@ import ListDetail from './pages/ListDetail/ListDetail.tsx'
 import Watchlist from './pages/Watchlist/Watchlist.tsx'
 import Profile from './pages/Profile/Profile.tsx'
 import Settings from './pages/Settings/Settings.tsx'
+import EditProfile from './pages/EditProfile/EditProfile.tsx'
 import Cinemas from './pages/Cinemas/Cinemas.tsx'
 import AdminLayout from './pages/Admin/AdminLayout.tsx'
 import AdminOverview from './pages/Admin/AdminOverview.tsx'
@@ -64,6 +65,7 @@ export const router = createBrowserRouter([
           { path: 'watchlist', element: <Navigate to="/lists/watchlist" replace /> },
           { path: 'profile', element: <Profile /> },
           { path: 'profile/:handle', element: <Profile /> },
+          { path: 'edit-profile', element: <EditProfile /> },
           { path: 'settings', element: <Settings /> },
           {
             path: 'admin',

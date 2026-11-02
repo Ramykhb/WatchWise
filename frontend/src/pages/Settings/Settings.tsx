@@ -1,21 +1,18 @@
-import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useLenis } from 'lenis/react'
 import AppNav from '../../components/AppNav/AppNav.tsx'
-import AvatarImage from '../../components/AvatarImage/AvatarImage.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
 import Toggle from '../../components/Toggle/Toggle.tsx'
 import type { SocialProvider } from '../../components/SocialButton/SocialButton.tsx'
-import userIcon from '../../assets/settings/icon-user.svg'
 import lockIcon from '../../assets/settings/icon-lock.svg'
 import shieldIcon from '../../assets/settings/icon-shield.svg'
 import linkIcon from '../../assets/settings/icon-link.svg'
 import plugIcon from '../../assets/settings/icon-plug.svg'
 import bellIcon from '../../assets/settings/icon-bell.svg'
 import trashIcon from '../../assets/settings/icon-trash.svg'
-import cameraIcon from '../../assets/settings/icon-camera.svg'
 import calendarIcon from '../../assets/home/icon-calendar.svg'
 import pinIcon from '../../assets/settings/icon-pin.svg'
 import bellVioletIcon from '../../assets/settings/icon-bell-violet.svg'
@@ -28,16 +25,13 @@ import { INTEGRATIONS, PRIVACY, VISIBILITY, type IntegrationKey, type Visibility
 import styles from './Settings.module.css'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, useApi } from '../../lib/api.ts'
-import { apiErrorMessage } from '../../lib/auth.ts'
-import { colorOf, initialsOf } from '../../lib/format.ts'
+import { apiErrorMessage, fieldErrors } from '../../lib/auth.ts'
 import type { ApiMe } from '../../lib/types.ts'
-import axios from 'axios'
 
-type Section = 'profile' | 'account' | 'privacy' | 'connected' | 'integrations'
+type Section = 'account' | 'privacy' | 'connected' | 'integrations'
 
-// Notifications (rendered after this list) has no panel in Figma; it links to the Notifications page.
+// The profile lives on its own Edit profile page; Notifications (after this list) links to its page.
 const MENU: { id: Section; label: string; icon: string }[] = [
-  { id: 'profile', label: 'Profile', icon: userIcon },
   { id: 'account', label: 'Account & password', icon: lockIcon },
   { id: 'privacy', label: 'Privacy & activity', icon: shieldIcon },
   { id: 'connected', label: 'Connected accounts', icon: linkIcon },
@@ -57,24 +51,14 @@ const INTEGRATION_ICONS: Record<IntegrationKey, string> = {
   digest: chatIcon,
 }
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const USERNAME_PATTERN = /^@?[a-z0-9_.]{3,20}$/i
 const PASSWORD_PATTERN = /^(?=.*\d).{8,}$/
 
-type ProfileErrors = Partial<Record<'name' | 'username' | 'email', string>>
 type PasswordErrors = Partial<Record<'current' | 'next' | 'confirm', string>>
 
 /** Menu icons are masks filled with the text colour, so they follow the active item. */
 const maskIcon = (icon: string) => ({ '--icon': `url("${icon}")` }) as CSSProperties
 
 const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000').replace(/\/$/, '')
-
-/** Field errors from a Laravel 422 response, e.g. { username: 'The username has already been taken.' }. */
-function fieldErrors(error: unknown): Record<string, string> {
-  if (!axios.isAxiosError(error)) return {}
-  const errors = (error.response?.data as { errors?: Record<string, string[]> } | undefined)?.errors ?? {}
-  return Object.fromEntries(Object.entries(errors).map(([key, messages]) => [key, messages[0]]))
-}
 
 /** Loads the account (GET /api/me) before showing the forms, so their fields start filled in. */
 export default function Settings() {
@@ -99,15 +83,11 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
   const navigate = useNavigate()
   const { setUser, logout } = useAuth()
 
-  const [active, setActive] = useState<Section>('profile')
-  const [profileErrors, setProfileErrors] = useState<ProfileErrors>({})
-  const [profileNote, setProfileNote] = useState('')
+  const [active, setActive] = useState<Section>('account')
   const [passwordErrors, setPasswordErrors] = useState<PasswordErrors>({})
   const [passwordNote, setPasswordNote] = useState('')
-  const [photoNote, setPhotoNote] = useState('')
   const [settingsNote, setSettingsNote] = useState('')
   const [locationNote, setLocationNote] = useState('')
-  const photo = me.user.avatar ?? undefined
   const visibility = me.user.profile_visibility
   const privacy = me.preferences.privacy
   const connected = me.connected
@@ -159,56 +139,6 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
     // Lenis owns the page scroll, so a native scrollIntoView would be overridden.
     if (lenis) lenis.scrollTo(panel, { offset: -24 })
     else panel.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-
-  const handlePhoto = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) return
-    const body = new FormData()
-    body.append('avatar', file)
-    setPhotoNote('Uploading…')
-    apply(api.post('/me/avatar', body))
-      .then(() => setPhotoNote('Photo updated.'))
-      .catch((error) => setPhotoNote(apiErrorMessage(error, "Couldn't upload that photo (images up to 2 MB).")))
-  }
-
-  const removePhoto = () => {
-    setPhotoNote('')
-    apply(api.delete('/me/avatar')).catch(() => setPhotoNote("Couldn't remove the photo."))
-  }
-
-  const handleProfile = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const data = new FormData(event.currentTarget)
-    const name = String(data.get('name') ?? '').trim()
-    const username = String(data.get('username') ?? '').trim()
-    const email = String(data.get('email') ?? '').trim()
-    const next: ProfileErrors = {}
-    if (name.length < 2) next.name = 'Tell us your name.'
-    if (!USERNAME_PATTERN.test(username)) next.username = '3–20 letters, numbers, dots or underscores.'
-    if (!EMAIL_PATTERN.test(email)) next.email = 'Enter a valid email address.'
-    setProfileErrors(next)
-    if (Object.keys(next).length > 0) {
-      setProfileNote('')
-      return
-    }
-    setProfileNote('Saving…')
-    try {
-      const saved = await apply(
-        api.patch('/me', {
-          name,
-          username,
-          email,
-          location: String(data.get('location') ?? '').trim() || null,
-          bio: String(data.get('bio') ?? '').trim() || null,
-        }),
-      )
-      setProfileNote(saved.user.email_verified_at ? 'Profile saved.' : 'Profile saved. Check your inbox to confirm your new email.')
-    } catch (error) {
-      setProfileErrors(fieldErrors(error))
-      setProfileNote(apiErrorMessage(error, "Couldn't save your profile."))
-    }
   }
 
   const handlePassword = async (event: FormEvent<HTMLFormElement>) => {
@@ -299,7 +229,7 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
       <main className={styles.main}>
         <header className={styles.header} data-enter data-enter-delay="0.05">
           <SplitHeadline className={styles.title} lines={[{ text: 'Settings' }]} />
-          <p className={styles.subtitle}>Manage your account, password, privacy and connected services.</p>
+          <p className={styles.subtitle}>Manage your password, privacy and connected services.</p>
         </header>
 
         <div className={styles.body}>
@@ -327,48 +257,6 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
           </nav>
 
           <div className={styles.panels} data-enter data-enter-delay="0.25">
-            <section id="profile" data-section className={styles.panel} aria-labelledby="profile-title">
-              <PanelHead id="profile-title" title="Profile" text="This is how other members see you." />
-              <form className={styles.form} onSubmit={handleProfile} noValidate>
-                <div className={styles.avatarRow}>
-                  <span className={styles.avatar} aria-hidden={!photo} style={{ background: colorOf(me.user.id) }}>
-                    <AvatarImage src={photo} alt="Your profile photo" fallback={initialsOf(me.user.name)} />
-                  </span>
-                  <div className={styles.avatarButtons}>
-                    <label className={styles.upload}>
-                      <input type="file" accept="image/*" className="sr-only" onChange={handlePhoto} />
-                      <img src={cameraIcon} width={16} height={16} alt="" />
-                      Upload photo
-                    </label>
-                    <PillButton variant="outline" disabled={!photo} onClick={removePhoto}>
-                      Remove
-                    </PillButton>
-                    <span className={styles.note} role="status">
-                      {photoNote}
-                    </span>
-                  </div>
-                </div>
-                <div className={styles.row}>
-                  <TextField label="Display name" name="name" defaultValue={me.user.name} autoComplete="name" error={profileErrors.name} />
-                  <TextField label="Username" name="username" defaultValue={`@${me.user.username}`} autoComplete="username" error={profileErrors.username} />
-                </div>
-                <div className={styles.row}>
-                  <TextField label="Email" name="email" type="email" defaultValue={me.user.email} autoComplete="email" error={profileErrors.email} />
-                  <TextField label="Location" name="location" defaultValue={me.user.location ?? ''} autoComplete="address-level2" />
-                </div>
-                <label className={styles.bio}>
-                  <span className={styles.bioLabel}>Bio</span>
-                  <textarea name="bio" className={styles.textarea} defaultValue={me.user.bio ?? ''} maxLength={160} rows={2} />
-                </label>
-                <div className={styles.actions}>
-                  <PillButton type="submit">Save profile</PillButton>
-                  <p className={styles.note} role="status">
-                    {profileNote}
-                  </p>
-                </div>
-              </form>
-            </section>
-
             <section id="account" data-section className={styles.panel} aria-labelledby="password-title">
               <PanelHead
                 id="password-title"

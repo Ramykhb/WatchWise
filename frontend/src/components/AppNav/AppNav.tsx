@@ -5,6 +5,7 @@ import AvatarImage from '../AvatarImage/AvatarImage.tsx'
 import FollowButton from '../FollowButton/FollowButton.tsx'
 import searchIcon from '../../assets/home/icon-search.svg'
 import bellIcon from '../../assets/home/icon-bell.svg'
+import gearIcon from '../../assets/settings/icon-gear.svg'
 import { useNotificationPolling, useUnreadCount } from '../../pages/Notifications/notificationsStore.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { isAdminRole, isModeratorRole } from '../../lib/adminApi.ts'
@@ -188,6 +189,13 @@ export default function AppNav() {
               {unread > 9 ? '9+' : unread}
             </span>
           )}
+        </NavLink>
+        <NavLink
+          to="/settings"
+          className={({ isActive }) => (isActive ? `${styles.iconButton} ${styles.iconButtonActive}` : styles.iconButton)}
+          aria-label="Settings"
+        >
+          <img src={gearIcon} width={20} height={20} alt="" />
         </NavLink>
         <Link
           to="/profile"
