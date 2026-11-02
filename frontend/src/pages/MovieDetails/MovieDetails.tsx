@@ -37,7 +37,7 @@ import { getMovieDetails, type Community, type MovieDetails as Details } from '.
 import { fetchMovieDetails, toDetails, type TmdbMovieDetails as ApiMovie } from './movieApi.ts'
 import AddToListDialog from './AddToListDialog.tsx'
 import MovieReviews from './MovieReviews.tsx'
-import { titleOf, tmdbIdOf } from '../../lib/movies.ts'
+import { filmKeyOf, titleOf, type FilmKey } from '../../lib/movies.ts'
 import { api } from '../../lib/api.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { useWatchlist } from '../../lib/watchlist.ts'
@@ -250,9 +250,8 @@ function MovieDetailsPage({ details }: { details: Details }) {
   // Lists, ratings and the watchlist know each title's type, so movies and TV shows can all be saved.
   const title = titleOf(movie)
   const canAddToList = title !== null
-  // The watchlist button still saves movies only (lib/watchlist.ts has no TV type yet), so it stays off on shows.
-  const watchlistTmdbId = tmdbIdOf(movie)
-  const canWatchlist = Number.isInteger(watchlistTmdbId) && watchlistTmdbId > 0
+  // The watchlist keys titles like lists do: 550 for a movie, "tv-1399" for a TV show.
+  const watchlistKey = title ? filmKeyOf(movie) : null
   const canRate = title !== null
   const ratingId = title?.tmdbId
   const ratingType = title?.mediaType
@@ -323,23 +322,33 @@ function MovieDetailsPage({ details }: { details: Details }) {
       })
   }
 
-  // "Add to watchlist" adds the film to the member's default Watchlist (GET/POST/DELETE /api/watchlist).
-  const watchlist = useWatchlist({ enabled: signedIn && canWatchlist })
-  const onWatchlist = canWatchlist && watchlist.has(watchlistTmdbId)
-  const toggleWatchlist = () => {
-    if (!canWatchlist) return
+  // "Add to watchlist" and "Mark as watched" save the title in the member's default Watchlist
+  // (GET/POST/DELETE /api/watchlist): queued to watch, or watched (its Watch history).
+  const watchlist = useWatchlist({ enabled: signedIn && watchlistKey !== null })
+  const onWatchlist = watchlistKey !== null && watchlist.has(watchlistKey)
+  const watched = watchlistKey !== null && watchlist.isWatched(watchlistKey)
+  // Busy until the watchlist has loaded (a change needs its rows) and while a change is saving.
+  const watchlistBusy = signedIn && watchlistKey !== null && ((!watchlist.loaded && !watchlist.failed) || watchlist.isPending(watchlistKey))
+  const [shareNote, setShareNote] = useState('')
+  const changeWatchlist = (change: (key: FilmKey) => Promise<boolean>) => {
+    if (watchlistKey === null) return
     if (!signedIn) {
       navigate('/signin', { state: { from: location } })
       return
     }
-    if (!watchlist.loaded) return
+    if (!watchlist.loaded) {
+      // A failed load is retried; a load still on its way just has to finish first.
+      if (watchlist.failed) {
+        watchlist.reload()
+        setShareNote("Couldn't load your watchlist. Please try again.")
+      }
+      return
+    }
     setShareNote('')
-    const request = onWatchlist ? watchlist.remove(watchlistTmdbId) : watchlist.add(watchlistTmdbId)
-    request.catch(() => setShareNote("Couldn't update your watchlist. Please try again."))
+    change(watchlistKey).catch(() => setShareNote("Couldn't update your watchlist. Please try again."))
   }
-  // TODO: save "Mark as watched" through the API.
-  const [watched, setWatched] = useState(false)
-  const [shareNote, setShareNote] = useState('')
+  const toggleWatchlist = () => changeWatchlist((key) => (onWatchlist ? watchlist.remove(key) : watchlist.add(key)))
+  const toggleWatched = () => changeWatchlist((key) => watchlist.setWatched(key, !watched))
   const [playing, setPlaying] = useState(false)
   // "Add to list" pop-up: 'open', 'closing' (exit animation) or closed.
   const [listDialog, setListDialog] = useState<'open' | 'closing' | null>(null)
@@ -490,24 +499,27 @@ function MovieDetailsPage({ details }: { details: Details }) {
                   type="button"
                   className={onWatchlist ? styles.actionOn : styles.actionOutline}
                   aria-pressed={onWatchlist}
-                  aria-disabled={!canWatchlist || undefined}
-                  aria-busy={(canWatchlist && watchlist.isPending(watchlistTmdbId)) || undefined}
-                  aria-describedby={canWatchlist ? undefined : watchlistHintId}
+                  aria-disabled={watchlistKey === null || undefined}
+                  aria-busy={watchlistBusy || undefined}
+                  aria-describedby={watchlistKey === null ? watchlistHintId : undefined}
                   onClick={toggleWatchlist}
                 >
                   <img src={onWatchlist ? checkIcon : plusIcon} width={16} height={16} alt="" />
                   {onWatchlist ? 'In watchlist' : 'Add to watchlist'}
                 </button>
-                {!canWatchlist && (
+                {watchlistKey === null && (
                   <span id={watchlistHintId} className={styles.actionHint}>
-                    TV shows can’t be added to the watchlist yet
+                    This title can’t be added to the watchlist
                   </span>
                 )}
                 <button
                   type="button"
                   className={watched ? styles.actionWatched : styles.actionOutline}
                   aria-pressed={watched}
-                  onClick={() => setWatched((value) => !value)}
+                  aria-disabled={watchlistKey === null || undefined}
+                  aria-busy={watchlistBusy || undefined}
+                  aria-describedby={watchlistKey === null ? watchlistHintId : undefined}
+                  onClick={toggleWatched}
                 >
                   <img src={eyeIcon} width={16} height={16} alt="" />
                   {watched ? 'Watched' : 'Mark as watched'}

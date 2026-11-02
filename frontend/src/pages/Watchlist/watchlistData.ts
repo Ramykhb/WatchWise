@@ -1,13 +1,13 @@
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import { timeAgo } from '../../lib/format.ts'
-import { movieFor } from '../../lib/movies.ts'
+import { itemKey, movieForKey, type FilmKey } from '../../lib/movies.ts'
 import type { ApiWatchItem } from '../../lib/types.ts'
 
 // Turns GET /api/watchlist into the queue, history and taste bars the Watchlist page draws.
 // `movieOf` gives each film's details (the page passes `useMovies`, which loads them from TMDB).
 // Availability (in cinemas / streaming) and exact runtimes are not shown yet.
 
-type MovieOf = (tmdbId: number) => Movie
+type MovieOf = (key: FilmKey) => Movie
 
 /** Until TMDB runtimes exist, a film counts as about two hours. */
 const DEFAULT_RUNTIME = 118
@@ -25,8 +25,8 @@ export type QueueItem = {
 
 export type HistoryEntry = { id: number; month: string; date: string; movie: Movie; rating: number }
 
-export const toQueueItem = (item: ApiWatchItem, movieOf: MovieOf = movieFor): QueueItem => {
-  const movie = movieOf(item.tmdb_id)
+export const toQueueItem = (item: ApiWatchItem, movieOf: MovieOf = movieForKey): QueueItem => {
+  const movie = movieOf(itemKey(item))
   return {
     id: item.id,
     movie,
@@ -39,7 +39,7 @@ export const toQueueItem = (item: ApiWatchItem, movieOf: MovieOf = movieFor): Qu
 }
 
 /** Watched films, newest first, with the user's rating from their reviews (0 = not rated). */
-export function toHistory(items: ApiWatchItem[], ratings: Record<string, number>, movieOf: MovieOf = movieFor): HistoryEntry[] {
+export function toHistory(items: ApiWatchItem[], ratings: Record<string, number>, movieOf: MovieOf = movieForKey): HistoryEntry[] {
   return items
     .filter((item) => item.status === 'watched' && item.watched_at)
     .sort((a, b) => b.watched_at!.localeCompare(a.watched_at!))
@@ -49,8 +49,9 @@ export function toHistory(items: ApiWatchItem[], ratings: Record<string, number>
         id: item.id,
         month: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase(),
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        movie: movieOf(item.tmdb_id),
-        rating: ratings[item.tmdb_id] ?? 0,
+        movie: movieOf(itemKey(item)),
+        // Ratings are keyed like titles: "550" for a movie, "tv-1399" for a show.
+        rating: ratings[itemKey(item)] ?? 0,
       }
     })
 }

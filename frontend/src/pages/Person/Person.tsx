@@ -99,7 +99,8 @@ function PersonPage({ person, collaboratorsLoading = false }: { person: PersonDa
   // The signed-in user's watchlist: "+" adds a film, the green tick removes it again.
   const { data: watchlistData, setData: setWatchlistData, reload: reloadWatchlist } = useApi<WatchlistResponse>('/watchlist')
   const watchItems = watchlistData?.items ?? []
-  const watchItemFor = (movie: Movie) => watchItems.find((item) => item.tmdb_id === tmdbIdOf(movie))
+  // Credits are movies, so a TV show with the same TMDB number isn't this film.
+  const watchItemFor = (movie: Movie) => watchItems.find((item) => item.tmdb_id === tmdbIdOf(movie) && item.media_type !== 'tv')
 
   const toggleWatchlist = (movie: Movie) => {
     const item = watchItemFor(movie)

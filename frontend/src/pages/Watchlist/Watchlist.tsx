@@ -16,6 +16,7 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { api, useApi } from '../../lib/api.ts'
 import { posterAt, useMovies } from '../../lib/movieDetails.ts'
+import { itemKey } from '../../lib/movies.ts'
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import type { ApiWatchItem } from '../../lib/types.ts'
 import { tasteOf, toHistory, toQueueItem, type HistoryEntry, type QueueItem } from './watchlistData.ts'
@@ -85,7 +86,7 @@ export default function Watchlist() {
   const [shareNote, setShareNote] = useState('')
 
   // Real titles, years, genres and posters from TMDB (the rows only store the film's id).
-  const movieOf = useMovies(items.map((item) => item.tmdb_id))
+  const movieOf = useMovies(items.map(itemKey))
   const history = toHistory(items, data?.ratings ?? {}, movieOf)
   const queue = items.filter((item) => item.status !== 'watched').map((item) => toQueueItem(item, movieOf))
   const toWatch = queue.length

@@ -297,6 +297,15 @@
   translate: none;
 }
 
+/* Watchlist buttons while your watchlist loads or a change is saving. */
+.actionOn[aria-busy='true'],
+.actionOutline[aria-busy='true'],
+.actionWatched[aria-busy='true'] {
+  cursor: progress;
+  opacity: 0.7;
+  translate: none;
+}
+
 .actionHint {
   font-size: 13px;
   color: var(--text-on-violet-muted);
