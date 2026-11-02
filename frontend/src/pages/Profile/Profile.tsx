@@ -161,7 +161,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                 </div>
                 <div className={styles.actions}>
                   {isMe ? (
-                    <Link to="/settings" className={styles.followBtn}>
+                    <Link to="/edit-profile" className={styles.followBtn}>
                       Edit profile
                     </Link>
                   ) : (

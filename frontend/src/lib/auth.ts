@@ -27,3 +27,10 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
   }
   return fallback
 }
+
+/** Field errors from a Laravel 422 response, e.g. { username: 'The username has already been taken.' }. */
+export function fieldErrors(error: unknown): Record<string, string> {
+  if (!axios.isAxiosError(error)) return {}
+  const errors = (error.response?.data as { errors?: Record<string, string[]> } | undefined)?.errors ?? {}
+  return Object.fromEntries(Object.entries(errors).map(([key, messages]) => [key, messages[0]]))
+}
