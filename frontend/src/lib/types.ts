@@ -100,6 +100,8 @@ export type ApiMe = {
 export type ApiWatchItem = {
   id: number
   tmdb_id: number
+  /** Missing on rows from before TV shows could be saved (those are movies). */
+  media_type?: 'movie' | 'tv'
   status: 'to_watch' | 'watching' | 'watched'
   watched_at: string | null
   created_at: string

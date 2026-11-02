@@ -13,6 +13,7 @@ import trashIcon from '../../assets/lists/icon-trash.svg'
 import plusIcon from '../../assets/lists/icon-plus.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { useApi } from '../../lib/api.ts'
+import { itemKey } from '../../lib/movies.ts'
 import type { ApiList } from '../../lib/types.ts'
 import { useWatchlist } from '../../lib/watchlist.ts'
 import { posterGradients } from '../Profile/profileData.ts'
@@ -39,13 +40,14 @@ const SKELETONS = [0, 1, 2]
  */
 function WatchlistCard() {
   const { loaded, queued } = useWatchlist()
-  const coverIds = queued.slice(0, 3).map((item) => item.tmdb_id)
+  const cover = queued.slice(0, 3)
+  const coverIds = cover.map(itemKey)
   const films = queued.length
 
   return (
     <li className={styles.card}>
       <Link to="/lists/watchlist" className={styles.cover} style={{ background: 'var(--surface-yellow-tint)' }} aria-label="Open your Watchlist">
-        <ListCover tmdbIds={coverIds} gradients={posterGradients(coverIds.length ? coverIds : [0])} />
+        <ListCover tmdbIds={coverIds} gradients={posterGradients(cover.length ? cover.map((item) => item.tmdb_id) : [0])} />
       </Link>
       <div className={styles.titleRow}>
         <Link to="/lists/watchlist" className={styles.cardTitle}>
