@@ -250,6 +250,34 @@ export default function ForYou() {
       window.clearTimeout(requestTimeout);
     };
   }, [userId, watchedRetry]);
+  const [peopleRetry, setPeopleRetry] = useState(0);
+  const [peoplePicks, setPeoplePicks] = useState<{
+    userId: number; director: { id: number; name: string; watched_count: number } | null;
+    actor: { id: number; name: string; watched_count: number } | null;
+    movies: WeatherRecommendation[]; status: "loading" | "ready" | "error";
+  } | null>(null);
+
+  useEffect(() => {
+    if (userId === undefined) return;
+    const controller = new AbortController();
+    const empty = { userId, director: null, actor: null, movies: [] };
+    const load = async () => {
+      setPeoplePicks({ ...empty, status: "loading" });
+      try {
+        const { data } = await api.get<Pick<NonNullable<typeof peoplePicks>, "director" | "actor" | "movies">>(
+          "/people-recommendations", { signal: controller.signal },
+        );
+        if (!controller.signal.aborted) setPeoplePicks({ ...data, userId, status: "ready" });
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setPeoplePicks({ ...empty, status: "error" });
+          console.error("Unable to load favourite people recommendations:", error);
+        }
+      }
+    };
+    void load();
+    return () => controller.abort();
+  }, [userId, peopleRetry]);
   const [initialWeatherCache] = useState(readWeatherCache);
   const [initialRecommendationCache] = useState(() =>
     readRecommendationCache(initialWeatherCache?.weather.location),
@@ -721,6 +749,55 @@ export default function ForYou() {
             ) : (
               <div className={styles.row}>
                 {watchedPicks.movies.map((recommendation) => (
+                  <MovieTile key={`${recommendation.media_type}-${recommendation.id}`} movie={{
+                    ...toTileMovie(recommendation, MOVIE_GENRES),
+                    recommendationReason: recommendation.reason,
+                  }} />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {peoplePicks?.userId === userId && peoplePicks && (peoplePicks.status !== "ready" || peoplePicks.director || peoplePicks.actor) && (
+          <section className={styles.shelf} aria-labelledby="shelf-people">
+            <div className={styles.sectionHeader}>
+              <h2 id="shelf-people" className={styles.sectionTitle}>
+                {peoplePicks.status === "loading" ? "More from your favourite people…"
+                  : `More from ${[peoplePicks.director?.name, peoplePicks.actor?.name].filter((name, index, names) => name && names.indexOf(name) === index).join(" & ") || "your favourite people"}`}
+              </h2>
+              {(peoplePicks.director || peoplePicks.actor) && (
+                <Link to={`/people/${(peoplePicks.director ?? peoplePicks.actor)!.id}`} className={styles.sectionAction}>
+                  More →
+                </Link>
+              )}
+            </div>
+            <span className={styles.reason}>
+              <img src={sparkleSmIcon} width={14} height={14} alt="" />
+              Your most-watched director and actor
+            </span>
+            {peoplePicks.status === "loading" ? (
+              <div className={styles.row} role="status" aria-label="Loading recommendations from your favourite people" aria-busy="true">
+                {Array.from({ length: 6 }, (_, index) => (
+                  <div className={styles.skeletonMovie} key={index} aria-hidden="true">
+                    <span className={`${styles.movieSkeletonShimmer} ${styles.skeletonPoster}`} />
+                    <span className={`${styles.movieSkeletonShimmer} ${styles.skeletonMovieTitle}`} />
+                    <span className={`${styles.movieSkeletonShimmer} ${styles.skeletonMovieMeta}`} />
+                  </div>
+                ))}
+              </div>
+            ) : peoplePicks.status === "error" ? (
+              <div className={styles.recommendationState} role="status">
+                <p>Recommendations are temporarily unavailable. Please try again shortly.</p>
+                <button type="button" className={styles.retryLocation} onClick={() => setPeopleRetry((value) => value + 1)}>
+                  Try again
+                </button>
+              </div>
+            ) : peoplePicks.movies.length === 0 ? (
+              <p className={styles.recommendationState} role="status">No unwatched films were found. Mark more titles as watched to discover your favourite people.</p>
+            ) : (
+              <div className={styles.row}>
+                {peoplePicks.movies.map((recommendation) => (
                   <MovieTile key={`${recommendation.media_type}-${recommendation.id}`} movie={{
                     ...toTileMovie(recommendation, MOVIE_GENRES),
                     recommendationReason: recommendation.reason,

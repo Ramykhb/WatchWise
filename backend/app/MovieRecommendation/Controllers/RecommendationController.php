@@ -5,6 +5,7 @@ namespace App\MovieRecommendation\Controllers;
 use App\Auth\CurrentUser\CurrentUser;
 use App\MovieRecommendation\FormRequests\RecommendationRequest;
 use App\MovieRecommendation\InterfaceServices\RecommendationServiceInterface;
+use App\MovieRecommendation\Services\PeopleRecommendationService;
 use Illuminate\Http\JsonResponse;
 
 class RecommendationController
@@ -14,6 +15,11 @@ class RecommendationController
     public function watched(CurrentUser $current): JsonResponse
     {
         return response()->json($this->recommendations->forWatched($current->user()));
+    }
+
+    public function people(CurrentUser $current, PeopleRecommendationService $people): JsonResponse
+    {
+        return response()->json($people->forUser($current->user()));
     }
 
     /**

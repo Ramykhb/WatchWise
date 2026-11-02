@@ -60,21 +60,6 @@ export const WEATHER_MOOD = {
 
 export const SHELVES: Shelf[] = [
   {
-    id: "people",
-    title: "More from Lena Okafor & Amara Mensah",
-    reason: "Your favourite director and actor",
-    icon: "sparkle",
-    more: "/people/lena-okafor",
-    movies: [
-      withMeta(MOVIES.lastLap, "92% match · 2025"),
-      withMeta(MOVIES.stardust, "89% match · 2025"),
-      withMeta(MOVIES.velvetHour, "87% match · 2026"),
-      withMeta(MOVIES.wildFern, "85% match · 2024"),
-      withMeta(MOVIES.redSignal, "83% match · 2026"),
-      withMeta(MOVIES.deepBlue, "81% match · 2025"),
-    ],
-  },
-  {
     id: "friends",
     title: "Loved by people you follow",
     reason: "Omar, Lina and 6 others rated these ★4.5+",

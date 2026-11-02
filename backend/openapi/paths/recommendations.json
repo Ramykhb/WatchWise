@@ -1,5 +1,33 @@
 {
   "paths": {
+    "/api/people-recommendations": {
+      "get": {
+        "summary": "Get six films from your most-watched actor and director",
+        "description": "Counts each person once per watched title using full TMDB cast and Director crew credits. Ties use the lowest TMDB person ID. Groq uses GROQ_API_KEY_2 to choose six released, unwatched films from those people’s verified movie credits (fewer only when fewer candidates exist). TV cast and Director crew credits contribute to counts; TV creators are not counted as directors. Returns director and actor objects with id, name and watched_count (nullable), plus movies with recommendation reasons. Empty history returns null people and no movies. Results are cached per user and watched-history fingerprint for one hour; TMDB credits for six hours.",
+        "tags": [
+          "Recommendations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Most-watched people and up to six verified TMDB movies."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "429": {
+            "description": "Too many requests."
+          },
+          "502": {
+            "description": "TMDB or Groq unavailable, or invalid AI selection."
+          }
+        }
+      }
+    },
     "/api/watched-recommendations": {
       "get": {
         "summary": "Get recommendations based on your watched history",
