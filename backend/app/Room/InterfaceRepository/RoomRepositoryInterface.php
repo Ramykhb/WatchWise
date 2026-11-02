@@ -51,6 +51,9 @@ interface RoomRepositoryInterface
     /** Removes the user's invitation, if they have one. */
     public function removeInvite(DiscussionRoom $room, int $userId): void;
 
+    /** Who invited the user to the room, while the invitation is pending (null without one, or if they left). */
+    public function inviterId(DiscussionRoom $room, int $userId): ?int;
+
     /**
      * @return list<int>
      */
@@ -123,6 +126,9 @@ interface RoomRepositoryInterface
      * @param  list<int>  $messageIds
      */
     public function deleteMessages(DiscussionRoom $room, array $messageIds): void;
+
+    /** Deletes the room; its messages, members and invitations go with it (foreign keys), its receipts here. */
+    public function delete(DiscussionRoom $room): void;
 
     /**
      * How many messages each room has that the user still has to read.

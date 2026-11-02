@@ -67,6 +67,20 @@ class RoomRepository implements RoomRepositoryInterface
         DB::table('room_invites')->where('room_id', $room->id)->where('user_id', $userId)->delete();
     }
 
+    public function delete(DiscussionRoom $room): void
+    {
+        // Receipts point at the room through their JSON, so the database can't cascade them.
+        $this->roomReceipts($room)->delete();
+        $room->delete();
+    }
+
+    public function inviterId(DiscussionRoom $room, int $userId): ?int
+    {
+        $inviterId = DB::table('room_invites')->where('room_id', $room->id)->where('user_id', $userId)->value('invited_by');
+
+        return $inviterId === null ? null : (int) $inviterId;
+    }
+
     public function inviteeIds(DiscussionRoom $room): array
     {
         return $room->invitees()->pluck('users.id')->map(fn ($id): int => (int) $id)->all();

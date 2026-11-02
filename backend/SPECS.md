@@ -34,7 +34,7 @@ Every feature also has a **Frontend** line: *real API*, *mock data* (page exists
 | MovieList | 8 | **[Done]**, lists hold movies and TV shows (+ activity hooks) |
 | MovieNight | 10 | **[Done]**, with 1 small fix |
 | MovieRecommendation | 6, 7 (weather) | **[Modify]**: weather only, not personalized |
-| Notification | not in brief | **[Optional]**: deleted. The table now also holds room read receipts. |
+| Notification | not in brief | **[Done]**: rebuilt as `app/Notification/`, live over Reverb, with follow requests and per-type settings. The table also holds room read receipts. |
 | Person | 2, 3 (actors / directors) | **[Done]** |
 | Rating | 4 (rate movies) | **[Done]**, movies and TV shows. **[Refactor]**: merge into Review, which now exists. |
 | Review | 4, 7 (sentiment) | **[Done]** on the movie page (write, view, average, sentiment, auto-moderation, helpful votes, reports). Profile reviews, activity hooks, the Report button and the module cleanup are still open. |
@@ -341,7 +341,7 @@ Brief objective 10: Movie Night Planner. Unchanged since the last check.
 8. **[Modify] `RsvpRequest::authorize()` returns `true`**
    - This is safe, because the service rejects users who weren't invited. `CLAUDE.md` › section 5 requires that case to be documented.
    - Either add a PHPDoc saying the service enforces it, or switch to `Gate::allows('view', $this->route('night'))` like `VoteRequest`.
-9. **[Optional]** Notify guests about invites, RSVPs and the final pick. This was removed with notifications (see Notification).
+9. **Notifications [Done]**: guests hear about invites and the host's changes (pick locked in, cancelled, reopened, moved); the host hears about answers and votes (see Notification).
 
 ---
 
@@ -373,16 +373,15 @@ Brief objective 6: Recommendation System. "Personalized movie recommendations ba
 
 ## Notification (`app/Notification/`, not required by the brief)
 
-1. **[Optional] The notifications API was deleted in PR #34**
-   - The `notifications` table, the `Notification` model and `app/Policies/NotificationPolicy.php` remain.
-   - The frontend still calls the removed endpoints (`pages/Notifications/notificationsStore.ts`: `GET /notifications`, `PATCH /notifications/{id}`, `POST /notifications/read-all`, `DELETE /notifications/{id}`), and `AppNav` links to the page.
-   - Decide one of:
-     - (a) Rebuild it as `app/Notification/`, triggered by follows, movie-night invites, RSVPs, votes, room invites and the final pick, with an optional real-time push over Reverb.
-     - (b) Remove the Notifications page and nav link from the frontend, and delete `NotificationPolicy`.
-2. **The table is now shared with Room**
-   - Room stores its read receipts as `notifications` rows of type `room_message`.
-   - `GET /api/me` already leaves them out of `counts.unread_notifications`, and a rebuilt feed would have to leave them out too.
-   - See Room 6 for moving them into a Room-owned table. That should happen before either choice above.
+1. **Rebuilt [Done]** (option (a) of the earlier plan)
+   - `GET /api/notifications`, `PATCH /api/notifications/{id}`, `POST /api/notifications/read-all`, `DELETE /api/notifications/{id}`, `POST /api/notifications/socket-auth`. `Backend.md` › Notification module describes it.
+   - Triggered by follows, follow requests and their acceptance, room invites and joins, new room messages (one notification per room), @mentions, movie-night invites, answers, votes and changes, and helpful review votes.
+   - Pushed live on the private Reverb channel `notifications.{id}`; the frontend shows a pop-up and updates the bell counter without polling.
+   - Follow requests: followers-only and private profiles accept followers (`POST/DELETE /api/me/follow-requests/{username}`). A pending request is a `follow_request` notification, so no table was added.
+   - Settings › Notifications has one switch per type, all on by default.
+2. **The table is shared with Room**
+   - Room stores its read receipts as `notifications` rows of type `room_message`. The feed, the bell count and "mark all read" leave them out, and the policy refuses to change them.
+   - Room 6 (moving receipts into a Room-owned table) is still possible later; nothing here depends on it.
 
 ---
 
@@ -591,10 +590,10 @@ Brief objective 7: "Weather API – adapt movie suggestions to the current weath
 ## Cross-cutting work
 
 1. **[Refactor] Global `app/Policies/` folder**
-   - `MessagePolicy`, `NotificationPolicy` and `ReviewPolicy` still live in a type-based folder, which `CLAUDE.md` › section 1 forbids.
+   - `MessagePolicy` and `ReviewPolicy` still live in a type-based folder, which `CLAUDE.md` › section 1 forbids.
    - Move `MessagePolicy` to `app/Room/Policies/` now (the Room module exists).
    - Move `ReviewPolicy` to `app/Review/Policies/` with the Review module.
-   - Move `NotificationPolicy` to `app/Notification/Policies/`, or delete it (see Notification).
+   - `NotificationPolicy` has moved to `app/Notification/Policies/`.
    - Then delete `app/Policies/`.
 2. **[Refactor] Tests grouped by an old area name**
    - `tests/Feature/Social/*` covers the User, MovieList, MovieNight, Watchlist and Rating modules: `AccountRulesTest`, `ContentTest`, `ListItemsTest`, `MovieNightRulesTest`, `PrivacyTest`, `ProfileTest`, `RatingTest`, `SearchTest`, `WatchlistRulesTest`.
@@ -622,11 +621,10 @@ Brief objective 7: "Weather API – adapt movie suggestions to the current weath
    - Admin: all four pages are on the real API (Admin 1 to 9). Still missing is the member-facing Report button on review cards (Admin 8, Review 9).
    - The movie page's reviews and average rating are on the real API. Only showtimes are still mock data (demo movies only).
    - For You (every shelf except the weather row).
-   - The Notifications page, which calls endpoints that no longer exist.
-   - Now on the real API: Rooms, Person, Cinemas, star ratings, "Add to list", reviews and the admin pages.
+   - Now on the real API: Rooms, Person, Cinemas, star ratings, "Add to list", reviews, the admin pages and Notifications (live).
    - Other pages still import mock files (`homeData.ts`, `listsData.ts`, `listDetailData.ts`, `nightsData.ts`, `nightDetailData.ts`, `roomsData.ts`, `settingsData.ts`, `watchlistData.ts`, `profileData.ts`, `personData.ts`, `discoverData.ts`, `movieData.ts`). Some are only fallbacks or demo data; check each before deleting.
 8. **Database leftovers**
    - `calendar_events` is unused (Calendar 3).
-   - `notifications` is used only by Room read receipts (Notification 2, Room 6).
+   - `notifications` holds the notifications and Room's read receipts (Notification 2, Room 6).
    - `activity_feed` is kept for Activity, and `reviews` is now shared by Rating and the future Review module (Rating 4).
 9. **Test status**: not re-run for this update. The last recorded run was 355 passing tests on `Admin-Features`, before the Review, moderator and report work. The social redirect test that used to fail because of the Google credentials in `.env` is fixed (Auth 12).

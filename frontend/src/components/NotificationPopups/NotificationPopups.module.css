@@ -1,0 +1,155 @@
+/* Cards that slide in at the top right, under the header, and slide back out when they go. */
+.stack {
+  position: fixed;
+  z-index: 60;
+  top: 92px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(380px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.popup,
+.popupLeaving {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 12px 14px 14px;
+  border-radius: 24px;
+  background: var(--surface-white);
+  box-shadow: var(--elevation-float);
+  pointer-events: auto;
+  animation: slide-in 0.35s var(--ease-out-back) both;
+}
+
+.popupLeaving {
+  animation: slide-out 0.22s ease-in both;
+}
+
+.avatar {
+  position: relative;
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink-900);
+}
+
+/* Small type badge on the actor's avatar, as on the Notifications page. */
+.badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid var(--surface-white);
+  border-radius: var(--radius-pill);
+}
+
+.badgeIcon {
+  width: 11px;
+  height: 11px;
+  background: var(--ink-900);
+  mask: var(--icon) center / contain no-repeat;
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sentence {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-600);
+}
+
+.sentence strong {
+  color: var(--ink-900);
+}
+
+.detail {
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-600);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action {
+  margin-top: 2px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ground-violet);
+}
+
+.content:hover .action,
+.content:focus-visible .action {
+  text-decoration: underline;
+}
+
+.content:focus-visible {
+  border-radius: 8px;
+  outline: 3px solid var(--accent-yellow);
+  outline-offset: 4px;
+}
+
+.close {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background-color 0.2s ease-out;
+}
+
+.close:hover {
+  background: rgb(22 18 43 / 0.08);
+}
+
+.close:focus-visible {
+  outline: 3px solid var(--accent-yellow);
+  outline-offset: 2px;
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    translate: 24px 0;
+  }
+}
+
+@keyframes slide-out {
+  to {
+    opacity: 0;
+    translate: 24px 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .stack {
+    top: 76px;
+    right: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popup,
+  .popupLeaving {
+    animation: none;
+  }
+}

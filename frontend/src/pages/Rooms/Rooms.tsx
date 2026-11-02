@@ -2,7 +2,9 @@ import LoadingState, { LoadingIndicator } from '../../components/LoadingState/Lo
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
+import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
+import Toast from '../../components/Toast/Toast.tsx'
 import plusIcon from '../../assets/rooms/icon-plus.svg'
 import searchIcon from '../../assets/listdetail/icon-search.svg'
 import dotSmIcon from '../../assets/rooms/dot-sm.svg'
@@ -18,6 +20,7 @@ import globeIcon from '../../assets/lists/icon-globe.svg'
 import lockIcon from '../../assets/lists/icon-lock.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
+import { isAdminRole } from '../../lib/adminApi.ts'
 import { api, useApi } from '../../lib/api.ts'
 import { apiErrorMessage } from '../../lib/auth.ts'
 import { PICKABLE_MOVIES, tmdbIdOf } from '../../lib/movies.ts'
@@ -38,6 +41,7 @@ import {
   toRoomMember,
   withNewMessage,
   type Member,
+  type Room,
   type RoomKind,
   type RoomScope,
   type RoomSection,
@@ -99,6 +103,9 @@ export default function Rooms() {
   const [inviteFrom, setInviteFrom] = useState<'panel' | 'menu' | null>(null)
   const [muted, setMuted] = useState<string[]>([])
   const [menuNote, setMenuNote] = useState('')
+  // The room waiting for "Delete room?"; `open` turns false first so the dialog can animate out.
+  const [deleting, setDeleting] = useState<{ room: Room; open: boolean } | null>(null)
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(null)
 
   const room = rooms.find((r) => r.id === roomId) ?? rooms[0]
 
@@ -301,6 +308,21 @@ export default function Rooms() {
     } catch (error) {
       setChatError(apiErrorMessage(error, "Couldn't join the room."))
     }
+  }
+
+  // The room's creator and admins can delete it (DELETE /api/rooms/{id}); the server checks the same rule.
+  const canDelete = !!room && !!user && (room.host?.id === user.id || isAdminRole(user.role))
+
+  const deleteRoom = async () => {
+    if (!deleting) return
+    const { room: target } = deleting
+    // A failure throws here, so the dialog stays open and shows its error.
+    await api.delete(`/rooms/${target.id}`)
+    setDeleting({ room: target, open: false })
+    setRoomsData((current) => ({ rooms: current.rooms.filter((r) => String(r.id) !== target.id) }))
+    setMenuNote('')
+    setToast({ id: Date.now(), message: `“${target.name}” deleted` })
+    navigate('/rooms', { replace: true })
   }
 
   const declineInvite = async () => {
@@ -697,6 +719,20 @@ export default function Rooms() {
                       Copy room link
                     </button>
                   </li>
+                  {canDelete && (
+                    <li>
+                      <button
+                        type="button"
+                        className={styles.menuDanger}
+                        onClick={() => {
+                          setShowMenu(false)
+                          setDeleting({ room, open: true })
+                        }}
+                      >
+                        Delete room
+                      </button>
+                    </li>
+                  )}
                 </ul>
               )}
               {inviteFrom === 'menu' && <InvitePicker people={invitable} loading={following.loading} onInvite={invite} />}
@@ -904,6 +940,32 @@ export default function Rooms() {
         </>
         )}
       </main>
+
+      {deleting && (
+        <ConfirmDialog
+          key={deleting.room.id}
+          open={deleting.open}
+          title={`Delete “${deleting.room.name}”?`}
+          message={
+            <>
+              <p>
+                This removes the room and all its messages for everyone in it.
+                {deleting.room.members.length > 1 && ' Its members will get a notification that it was deleted.'}
+              </p>
+              <p>This can’t be undone.</p>
+            </>
+          }
+          confirmLabel="Delete room"
+          busyLabel="Deleting…"
+          tone="danger"
+          errorMessage={`Couldn’t delete “${deleting.room.name}”. Check your connection and try again.`}
+          onConfirm={deleteRoom}
+          onCancel={() => setDeleting({ ...deleting, open: false })}
+          onClosed={() => setDeleting(null)}
+        />
+      )}
+
+      {toast && <Toast key={toast.id} message={toast.message} onDone={() => setToast(null)} />}
     </div>
   )
 }

@@ -216,7 +216,7 @@ export default function MovieReviews({ tmdbId, mediaType, me, stars, onStarsSave
   const ownReview = pendingReview ?? (mine ? { ...toCard(mine, true), rating: stars || mine.rating } : null)
 
   return (
-    <section className={styles.reviews} aria-labelledby="reviews-title" aria-busy={(!page && !failed) || undefined}>
+    <section id="reviews" className={styles.reviews} aria-labelledby="reviews-title" aria-busy={(!page && !failed) || undefined}>
       <div className={styles.sectionHeader}>
         <h2 id="reviews-title" className={styles.sectionTitle}>
           Reviews

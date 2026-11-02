@@ -8,7 +8,7 @@ use App\Models\DiscussionRoom;
 /**
  * Anyone signed in can read a public room and join it. A private room is seen only by its members and the
  * people they invited; an invitation lets you read it and join. Only members post, and a message waits for
- * every member to read it, so the people who are just looking never hold one up.
+ * every member to read it, so the people who are just looking never hold one up. The creator and admins delete it.
  */
 class DiscussionRoomPolicy
 {
@@ -48,6 +48,13 @@ class DiscussionRoomPolicy
     public function decline(CurrentUser $current, DiscussionRoom $room): bool
     {
         return $current->isAuthenticated() && $this->isInvited($current, $room);
+    }
+
+    /** The member who created the room, or an admin, can delete it. */
+    public function delete(CurrentUser $current, DiscussionRoom $room): bool
+    {
+        return $current->isAuthenticated()
+            && ($current->isAdmin() || ($room->created_by !== null && $current->id() === (int) $room->created_by));
     }
 
     private function isMember(CurrentUser $current, DiscussionRoom $room): bool

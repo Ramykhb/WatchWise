@@ -22,7 +22,7 @@ class RoomMessagingTest extends SocialTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Event::fake([RoomMessageSent::class, RoomMessagesRead::class, RoomsChanged::class]);
+        Event::fake([RoomMessageSent::class, RoomMessagesRead::class, RoomsChanged::class, ...self::NOTIFICATION_EVENTS]);
     }
 
     /**
@@ -439,15 +439,18 @@ class RoomMessagingTest extends SocialTestCase
         $this->assertNotContains($maya->id, DB::table('room_members')->pluck('user_id')->all());
     }
 
-    public function test_messages_waiting_to_be_read_are_not_counted_as_notifications(): void
+    public function test_messages_waiting_to_be_read_count_once_per_room_as_notifications(): void
     {
         [$lina, $omar] = User::factory()->count(2)->create()->all();
-        $this->send($lina, $this->room($lina, [$omar]));
+        $room = $this->room($lina, [$omar]);
+        $this->send($lina, $room);
+        $this->send($lina, $room);
         Notification::create(['user_id' => $omar->id, 'type' => 'follow', 'data' => ['user_id' => $lina->id]]);
 
+        // Two read receipts, but the bell only counts the room's "new messages" notification and the follow.
         $this->as($omar)->getJson('/api/me')
             ->assertOk()
-            ->assertJsonPath('counts.unread_notifications', 1);
+            ->assertJsonPath('counts.unread_notifications', 2);
     }
 
     public function test_home_counts_room_members(): void

@@ -18,7 +18,7 @@ class RoomMembershipTest extends SocialTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Event::fake([RoomMessageSent::class, RoomMessagesRead::class, RoomsChanged::class]);
+        Event::fake([RoomMessageSent::class, RoomMessagesRead::class, RoomsChanged::class, ...self::NOTIFICATION_EVENTS]);
     }
 
     /**

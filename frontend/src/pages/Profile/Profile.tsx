@@ -62,15 +62,36 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
   const [tab, setTab] = useState<Tab>('activity')
   const [peopleTab, setPeopleTab] = useState<PeopleTab>('followers')
   const [shareNote, setShareNote] = useState('')
-  // Ids the signed-in user follows; buttons change at once and are saved through the follows API.
+  // Ids the signed-in user follows, and those whose follow request waits for an answer; buttons change at once
+  // and are saved through the follows API, which says whether following became a request.
   const [following, setFollowing] = useState<number[]>(profile.myFollowing)
+  const [requested, setRequested] = useState<number[]>(profile.isRequested ? [profile.id] : [])
   const isFollowing = following.includes(profile.id)
+  const isRequested = requested.includes(profile.id)
   const toggleFollow = (member: Pick<Member, 'id' | 'handle'>) => {
-    const was = following.includes(member.id)
-    const flip = (list: number[]) => (list.includes(member.id) ? list.filter((id) => id !== member.id) : [...list, member.id])
-    setFollowing(flip)
-    const request = saveFollow(member.handle, !was)
-    request.catch(() => setFollowing(flip))
+    const without = (list: number[]) => list.filter((id) => id !== member.id)
+    const before = { following, requested }
+    const undo = () => {
+      setFollowing(before.following)
+      setRequested(before.requested)
+    }
+    // Following them, or waiting for them: unfollow, or withdraw the request.
+    if (following.includes(member.id) || requested.includes(member.id)) {
+      setFollowing(without)
+      setRequested(without)
+      saveFollow(member.handle, false).catch(undo)
+      return
+    }
+    // Only this profile's visibility is known up front; anyone else's answer corrects the guess.
+    const asks = member.id === profile.id && profile.needsApproval
+    if (asks) setRequested((list) => [...list, member.id])
+    else setFollowing((list) => [...list, member.id])
+    saveFollow(member.handle, true)
+      .then((result) => {
+        setFollowing((list) => (result.following ? [...without(list), member.id] : without(list)))
+        setRequested((list) => (result.requested ? [...without(list), member.id] : without(list)))
+      })
+      .catch(undo)
   }
   // The follower count moves with the main Follow button.
   const followers = profile.followers + (isFollowing === profile.isFollowing ? 0 : isFollowing ? 1 : -1)
@@ -158,12 +179,12 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                     <>
                       <button
                         type="button"
-                        className={isFollowing ? styles.followBtn : styles.followBtnOff}
-                        aria-pressed={isFollowing}
+                        className={isFollowing || isRequested ? styles.followBtn : styles.followBtnOff}
+                        aria-pressed={isFollowing || isRequested}
                         onClick={() => toggleFollow(profile)}
                       >
                         {isFollowing && <img src={checkIcon} width={16} height={16} alt="" />}
-                        {isFollowing ? 'Following' : 'Follow'}
+                        {isFollowing ? 'Following' : isRequested ? 'Requested' : 'Follow'}
                       </button>
                       <Link to="/movie-nights" className={styles.inviteBtn}>
                         <img src={calendarIcon} width={16} height={16} alt="" />
@@ -285,6 +306,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                       person={person}
                       isMe={person.id === user?.id}
                       isFollowing={following.includes(person.id)}
+                      isRequested={requested.includes(person.id)}
                       onToggle={() => toggleFollow(person)}
                     />
                   ))}
@@ -430,7 +452,19 @@ function ListPreview({ list }: { list: ProfileList }) {
   )
 }
 
-function PersonRow({ person, isMe, isFollowing, onToggle }: { person: Member; isMe: boolean; isFollowing: boolean; onToggle: () => void }) {
+function PersonRow({
+  person,
+  isMe,
+  isFollowing,
+  isRequested,
+  onToggle,
+}: {
+  person: Member
+  isMe: boolean
+  isFollowing: boolean
+  isRequested: boolean
+  onToggle: () => void
+}) {
   const name = (
     <span className={styles.personText}>
       <span className={styles.personName}>
@@ -450,8 +484,8 @@ function PersonRow({ person, isMe, isFollowing, onToggle }: { person: Member; is
         {name}
       </Link>
       {!isMe && (
-        <PillButton variant={isFollowing ? 'outline' : 'solid'} pressed={isFollowing} onClick={onToggle}>
-          {isFollowing ? 'Unfollow' : 'Follow'}
+        <PillButton variant={isFollowing || isRequested ? 'outline' : 'solid'} pressed={isFollowing || isRequested} onClick={onToggle}>
+          {isFollowing ? 'Unfollow' : isRequested ? 'Requested' : 'Follow'}
         </PillButton>
       )}
     </li>

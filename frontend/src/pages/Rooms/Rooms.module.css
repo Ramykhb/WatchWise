@@ -556,6 +556,11 @@
   background: var(--ground-cream);
 }
 
+/* "Delete room": coral, like the other destructive actions. */
+.menu .menuDanger {
+  color: var(--accent-coral);
+}
+
 .menuNote {
   padding: 8px 24px;
   background: var(--surface-mint-tint);

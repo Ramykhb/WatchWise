@@ -45,6 +45,13 @@ interface MovieNightRepositoryInterface
      */
     public function invitedUserIds(MovieNight $night): array;
 
+    /**
+     * Guests who haven't declined (going, maybe or not answered yet).
+     *
+     * @return list<int>
+     */
+    public function attendingGuestIds(MovieNight $night): array;
+
     public function addInvite(MovieNight $night, int $userId): void;
 
     public function findInvite(MovieNight $night, int $userId): ?MovieNightInvite;

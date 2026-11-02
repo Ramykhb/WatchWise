@@ -45,10 +45,11 @@ interface MovieReviewRepositoryInterface
      */
     public function saveReport(Review $review, User $reporter, string $reason): bool;
 
-    /** Marks the review as helpful for the member; doing it twice is harmless. */
-    public function vote(Review $review, User $user): void;
+    /** Marks the review as helpful for the member; doing it twice is harmless. Returns whether the vote is new. */
+    public function vote(Review $review, User $user): bool;
 
-    public function unvote(Review $review, User $user): void;
+    /** Returns whether there was a vote to take back. */
+    public function unvote(Review $review, User $user): bool;
 
     public function votesCount(Review $review): int;
 }

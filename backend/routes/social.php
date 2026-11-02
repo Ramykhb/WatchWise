@@ -2,6 +2,8 @@
 
 use App\MovieList\Controllers\MovieListController;
 use App\MovieNight\Controllers\MovieNightController;
+use App\Notification\Controllers\NotificationController;
+use App\Notification\Controllers\NotificationSocketController;
 use App\Rating\Controllers\RatingController;
 use App\Review\Controllers\MovieReviewController;
 use App\Room\Controllers\RoomController;
@@ -23,6 +25,8 @@ Route::middleware('auth.jwt')->group(function () {
         Route::post('avatar', 'uploadAvatar');
         Route::delete('avatar', 'deleteAvatar');
         Route::delete('social/{provider}', 'disconnectSocial')->where('provider', 'google|github|discord');
+        Route::post('follow-requests/{user:username}/accept', 'acceptFollowRequest');
+        Route::delete('follow-requests/{user:username}', 'declineFollowRequest');
     });
 
     Route::get('users', [UserController::class, 'index']);
@@ -62,6 +66,7 @@ Route::middleware('auth.jwt')->group(function () {
     Route::post('rooms', [RoomController::class, 'store']);
     Route::post('rooms/socket-auth', [RoomSocketController::class, 'store'])->middleware('throttle:room-socket');
     Route::prefix('rooms/{room}')->whereNumber('room')->controller(RoomController::class)->group(function () {
+        Route::delete('/', 'destroy');
         Route::post('join', 'join');
         Route::post('invites', 'invite')->middleware('throttle:room-invites');
         Route::delete('invite', 'decline');
@@ -69,4 +74,10 @@ Route::middleware('auth.jwt')->group(function () {
         Route::post('messages', 'send')->middleware('throttle:room-messages');
         Route::post('read', 'read')->middleware('throttle:room-reads');
     });
+
+    Route::get('notifications', [NotificationController::class, 'index']);
+    Route::post('notifications/read-all', [NotificationController::class, 'readAll']);
+    Route::post('notifications/socket-auth', [NotificationSocketController::class, 'store'])->middleware('throttle:notification-socket');
+    Route::patch('notifications/{notification}', [NotificationController::class, 'update'])->whereNumber('notification');
+    Route::delete('notifications/{notification}', [NotificationController::class, 'destroy'])->whereNumber('notification');
 });
