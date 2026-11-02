@@ -9,6 +9,7 @@ use App\Movie\DTOs\Requests\MovieTrendingQuery;
 use App\Movie\Exceptions\MovieNotFound;
 use App\Movie\InterfaceRepository\MovieRepositoryInterface;
 use App\Support\Exceptions\TmdbNotFound;
+use App\Support\MediaType;
 use App\Support\TmdbHttpClient;
 
 class MovieRepository implements MovieRepositoryInterface
@@ -115,5 +116,24 @@ class MovieRepository implements MovieRepositoryInterface
         } catch (TmdbNotFound) {
             throw new MovieNotFound($id);
         }
+    }
+
+    public function credits(array $titles): array
+    {
+        $paths = [];
+        foreach ($titles as $title) {
+            $paths[MediaType::key($title['media_type'], $title['id'])] = "/{$title['media_type']}/{$title['id']}/credits";
+        }
+        $credits = [];
+        foreach ($this->client->getPool($paths) as $key => $response) {
+            if (! $response->notFound()) {
+                $credits[$key] = [
+                    'cast' => $response->json('cast', []),
+                    'crew' => $response->json('crew', []),
+                ];
+            }
+        }
+
+        return $credits;
     }
 }

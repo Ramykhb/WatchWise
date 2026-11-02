@@ -5,9 +5,11 @@ namespace App\Support;
 use App\Support\Exceptions\TmdbNotFound;
 use App\Support\Exceptions\TmdbUnavailable;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Throwable;
 
 class TmdbHttpClient
 {
@@ -41,5 +43,43 @@ class TmdbHttpClient
         } catch (ConnectionException $exception) {
             throw TmdbUnavailable::fromFailure($path, $exception);
         }
+    }
+
+    /**
+     * Fetch independent paths with at most five HTTP requests in flight.
+     * 404 responses are returned so the owning repository can skip removed titles.
+     *
+     * @param  array<string, string>  $paths
+     * @return array<string, Response>
+     *
+     * @throws TmdbUnavailable
+     */
+    public function getPool(array $paths): array
+    {
+        $responses = Http::pool(function (Pool $pool) use ($paths): void {
+            foreach ($paths as $key => $path) {
+                $pool->as((string) $key)->acceptJson()->connectTimeout(5)->timeout(10)
+                    ->get(config('services.tmdb.url').$path, [
+                        'api_key' => config('services.tmdb.key'),
+                        'language' => 'en-US',
+                    ]);
+            }
+        }, concurrency: 5);
+
+        foreach ($responses as $key => $response) {
+            if ($response instanceof Throwable) {
+                throw TmdbUnavailable::fromFailure($paths[$key], $response);
+            }
+            if ($response->notFound()) {
+                continue;
+            }
+            try {
+                $response->throw();
+            } catch (RequestException $exception) {
+                throw TmdbUnavailable::fromFailure($paths[$key], $exception);
+            }
+        }
+
+        return $responses;
     }
 }

@@ -6,8 +6,7 @@ use App\Groq\Exceptions\GroqUnavailable;
 use App\Groq\InterfaceServices\GroqStructuredOutputInterface;
 use App\Models\User;
 use App\Movie\DTOs\Responses\MovieResponse;
-use App\Movie\Exceptions\MovieNotFound;
-use App\Movie\InterfaceRepository\MovieRepositoryInterface;
+use App\Movie\InterfaceServices\MovieServiceInterface;
 use App\MovieRecommendation\DTOs\Responses\RecommendationResponse;
 use App\MovieRecommendation\Exceptions\RecommendationUnavailable;
 use App\Person\Exceptions\PersonNotFound;
@@ -21,7 +20,7 @@ class PeopleRecommendationService
 {
     public function __construct(
         private readonly WatchlistRepositoryInterface $watchlist,
-        private readonly MovieRepositoryInterface $movies,
+        private readonly MovieServiceInterface $movies,
         private readonly PersonRepositoryInterface $people,
         private readonly GroqStructuredOutputInterface $groq,
     ) {}
@@ -42,17 +41,11 @@ class PeopleRecommendationService
     private function generate(Collection $watched): array
     {
         $counts = ['actor' => [], 'director' => []];
-        foreach ($watched as $entry) {
-            try {
-                // Raw credits include the entire cast, rather than only the details page's top actors.
-                $title = Cache::remember('recommendations.people.credits.'.$entry->media_type.'.'.$entry->tmdb_id,
-                    now()->addHours(6), fn (): array => $this->movies->find($entry->tmdb_id, $entry->media_type));
-            } catch (MovieNotFound) {
-                continue;
-            }
+        $titles = $watched->map(fn ($entry): array => ['id' => $entry->tmdb_id, 'media_type' => $entry->media_type])->all();
+        foreach ($this->movies->credits($titles) as $titleCredits) {
             $credits = [
-                'actor' => $title['credits']['cast'] ?? [],
-                'director' => array_filter($title['credits']['crew'] ?? [], fn (array $person): bool => ($person['job'] ?? null) === 'Director'),
+                'actor' => $titleCredits['cast'] ?? [],
+                'director' => array_filter($titleCredits['crew'] ?? [], fn (array $person): bool => ($person['job'] ?? null) === 'Director'),
             ];
             foreach ($credits as $role => $people) {
                 foreach (collect($people)->unique('id') as $person) {

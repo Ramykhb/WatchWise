@@ -63,4 +63,15 @@ interface MovieRepositoryInterface
      * @throws TmdbUnavailable
      */
     public function find(int $id, string $type = 'movie'): array;
+
+    /**
+     * Full cast and crew for multiple movies/TV shows, keyed by MediaType::key().
+     * Removed titles are omitted.
+     *
+     * @param  list<array{id: int, media_type: string}>  $titles
+     * @return array<string, array{cast: array, crew: array}>
+     *
+     * @throws TmdbUnavailable
+     */
+    public function credits(array $titles): array;
 }

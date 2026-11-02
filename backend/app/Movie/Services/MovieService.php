@@ -15,6 +15,7 @@ use App\Movie\DTOs\Responses\PersonResponse;
 use App\Movie\DTOs\Responses\TrailerResponse;
 use App\Movie\InterfaceRepository\MovieRepositoryInterface;
 use App\Movie\InterfaceServices\MovieServiceInterface;
+use App\Support\MediaType;
 use Closure;
 use Illuminate\Support\Facades\Cache;
 
@@ -88,11 +89,44 @@ class MovieService implements MovieServiceInterface
         };
     }
 
+    public function credits(array $titles): array
+    {
+        $titles = collect($titles)->keyBy(fn (array $title): string => MediaType::key($title['media_type'], $title['id']));
+        $detailsKeys = $titles->map(fn (array $title): string => $this->detailsCacheKey($title['id'], $title['media_type']));
+        $creditsKeys = $titles->map(fn (array $title, string $key): string => 'tmdb.credits.'.$key);
+        $cached = Cache::many([...$detailsKeys->values()->all(), ...$creditsKeys->values()->all()]);
+        $credits = [];
+        $missing = [];
+        foreach ($titles as $key => $title) {
+            // Movie details already cache the full cast; do not use the truncated display DTO.
+            $payload = $cached[$detailsKeys[$key]]['credits'] ?? $cached[$creditsKeys[$key]] ?? null;
+            if (is_array($payload)) {
+                $credits[$key] = $payload;
+            } else {
+                $missing[] = $title;
+            }
+        }
+        // Cache progress between batches, and keep both payload size and concurrency bounded.
+        foreach (array_chunk($missing, 5) as $batch) {
+            foreach ($this->movies->credits($batch) as $key => $payload) {
+                Cache::put($creditsKeys[$key], $payload, now()->addHours(self::DETAILS_CACHE_HOURS));
+                $credits[$key] = $payload;
+            }
+        }
+
+        return $credits;
+    }
+
+    private function detailsCacheKey(int $id, string $type): string
+    {
+        return self::DETAILS_CACHE_PREFIX.($type === 'tv' ? 'tv.' : '').$id;
+    }
+
     public function find(int $id, string $type = 'movie'): MovieDetailsResponse
     {
         // A movie's details rarely change, so repeat visits don't spend the TMDB quota.
         // Only successful answers are cached: MovieNotFound and TmdbUnavailable pass straight through.
-        $movie = Cache::remember(self::DETAILS_CACHE_PREFIX.($type === 'tv' ? 'tv.' : '').$id, now()->addHours(self::DETAILS_CACHE_HOURS), fn () => $this->movies->find($id, $type));
+        $movie = Cache::remember($this->detailsCacheKey($id, $type), now()->addHours(self::DETAILS_CACHE_HOURS), fn () => $this->movies->find($id, $type));
 
         // TMDB's recommendations match far better than its "similar" list, which is only the fallback.
         $related = ($movie['recommendations']['results'] ?? []) ?: ($movie['similar']['results'] ?? []);

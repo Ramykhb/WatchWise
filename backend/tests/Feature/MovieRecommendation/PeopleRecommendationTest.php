@@ -5,13 +5,13 @@ namespace Tests\Feature\MovieRecommendation;
 use App\Groq\Exceptions\GroqUnavailable;
 use App\Groq\InterfaceServices\GroqStructuredOutputInterface;
 use App\Models\User;
-use App\Movie\InterfaceRepository\MovieRepositoryInterface;
+use App\Movie\InterfaceServices\MovieServiceInterface;
 use App\Person\InterfaceRepository\PersonRepositoryInterface;
 use Tests\Feature\Social\SocialTestCase;
 
 class PeopleRecommendationTest extends SocialTestCase
 {
-    private function prepareHistory(bool $largeFilmography = false): mixed
+    private function prepareHistory(bool $largeFilmography = false, int $creditsCalls = 1): mixed
     {
         $user = User::factory()->create();
         $this->as($user);
@@ -22,13 +22,19 @@ class PeopleRecommendationTest extends SocialTestCase
         $other = User::factory()->create();
         $this->as($other)->postJson('/api/watchlist', ['tmdb_id' => 999, 'status' => 'watched'])->assertCreated();
         $this->as($user);
-        $movies = $this->mock(MovieRepositoryInterface::class);
-        foreach ([42, 43] as $id) {
-            $movies->shouldReceive('find')->once()->with($id, 'movie')->andReturn(['credits' => [
-                'cast' => [['id' => 10, 'name' => 'Top Actor'], ['id' => 10, 'name' => 'Top Actor'], ['id' => $id, 'name' => 'Other Actor']],
-                'crew' => [['id' => 20, 'name' => 'Top Director', 'job' => 'Director'], ['id' => 30, 'name' => 'Writer', 'job' => 'Writer']],
-            ]]);
-        }
+        $movies = $this->mock(MovieServiceInterface::class);
+        $movies->shouldReceive('credits')->times($creditsCalls)->withArgs(function (array $titles): bool {
+            $this->assertEqualsCanonicalizing([
+                ['id' => 42, 'media_type' => 'movie'], ['id' => 43, 'media_type' => 'movie'],
+            ], $titles);
+
+            return true;
+        })->andReturn([
+            '42' => ['cast' => [['id' => 10, 'name' => 'Top Actor'], ['id' => 10, 'name' => 'Top Actor'], ['id' => 42, 'name' => 'Other Actor']],
+                'crew' => [['id' => 20, 'name' => 'Top Director', 'job' => 'Director'], ['id' => 30, 'name' => 'Writer', 'job' => 'Writer']]],
+            '43' => ['cast' => [['id' => 10, 'name' => 'Top Actor'], ['id' => 43, 'name' => 'Other Actor']],
+                'crew' => [['id' => 20, 'name' => 'Top Director', 'job' => 'Director']]],
+        ]);
         $film = fn (int $id): array => ['id' => $id, 'title' => "Film {$id}", 'release_date' => '2020-01-01', 'vote_count' => 100, 'vote_average' => 8, 'genre_ids' => [18], 'poster_path' => '/poster.jpg', 'overview' => $largeFilmography ? str_repeat('Long overview. ', 1000) : 'Drama.'];
         $people = $this->mock(PersonRepositoryInterface::class);
         $people->shouldReceive('find')->once()->with(20)->andReturn(['movie_credits' => ['crew' => [
@@ -47,7 +53,7 @@ class PeopleRecommendationTest extends SocialTestCase
     public function test_empty_history_does_not_call_providers(): void
     {
         $this->as(User::factory()->create());
-        $this->mock(MovieRepositoryInterface::class)->shouldNotReceive('find');
+        $this->mock(MovieServiceInterface::class)->shouldNotReceive('credits');
         $this->mock(GroqStructuredOutputInterface::class)->shouldNotReceive('askWithSchema');
         $this->getJson('/api/people-recommendations')->assertOk()->assertExactJson(['director' => null, 'actor' => null, 'movies' => []]);
     }
@@ -111,7 +117,7 @@ class PeopleRecommendationTest extends SocialTestCase
 
     public function test_groq_errors_are_safe_and_retryable(): void
     {
-        $groq = $this->prepareHistory();
+        $groq = $this->prepareHistory(creditsCalls: 2);
         $groq->shouldReceive('askWithSchema')->twice()->andThrow(new GroqUnavailable('SECRET'));
         foreach (range(1, 2) as $_) {
             $this->getJson('/api/people-recommendations')->assertStatus(502)->assertExactJson(['error' => 'Could not generate recommendations']);
