@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class DiscussionRoom extends Model
 {
-    protected $fillable = ['tmdb_id', 'name', 'created_by', 'spoilers', 'is_private'];
+    protected $fillable = ['tmdb_id', 'media_type', 'name', 'created_by', 'spoilers', 'is_private'];
 
     public const UPDATED_AT = null;
 

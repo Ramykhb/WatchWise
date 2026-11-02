@@ -128,6 +128,8 @@ export type ApiRoom = {
   id: number
   name: string
   tmdb_id: number
+  /** Whether `tmdb_id` is a movie or a TV show (rooms made before this are movies). */
+  media_type?: 'movie' | 'tv'
   spoilers: boolean
   /** Private rooms are seen only by their members and the people they invite; public ones by everyone. */
   is_private: boolean

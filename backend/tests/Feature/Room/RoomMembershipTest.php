@@ -81,6 +81,48 @@ class RoomMembershipTest extends SocialTestCase
             && $this->channelNames($event) === ['private-rooms.public']);
     }
 
+    public function test_a_room_can_be_about_a_tv_show(): void
+    {
+        $maya = User::factory()->create();
+
+        $this->as($maya)->postJson('/api/rooms', ['name' => 'Heisenberg theories', 'tmdb_id' => 1396, 'media_type' => 'tv'])
+            ->assertCreated()
+            ->assertJsonPath('room.tmdb_id', 1396)
+            ->assertJsonPath('room.media_type', 'tv');
+    }
+
+    public function test_a_room_without_a_type_is_about_a_movie(): void
+    {
+        $maya = User::factory()->create();
+
+        $this->as($maya)->postJson('/api/rooms', ['name' => 'Oscars 2026 picks', 'tmdb_id' => 1007])
+            ->assertCreated()
+            ->assertJsonPath('room.media_type', 'movie');
+    }
+
+    public function test_a_movie_room_and_a_show_room_with_the_same_id_stay_apart(): void
+    {
+        $maya = User::factory()->create();
+
+        $this->as($maya)->postJson('/api/rooms', ['name' => 'The movie', 'tmdb_id' => 1399])->assertCreated();
+        $this->as($maya)->postJson('/api/rooms', ['name' => 'The show', 'tmdb_id' => 1399, 'media_type' => 'tv'])->assertCreated();
+
+        $this->assertSame('movie', DiscussionRoom::where('name', 'The movie')->value('media_type'));
+        $this->assertSame('tv', DiscussionRoom::where('name', 'The show')->value('media_type'));
+        $this->as($maya)->getJson('/api/rooms')
+            ->assertJsonFragment(['name' => 'The movie', 'media_type' => 'movie'])
+            ->assertJsonFragment(['name' => 'The show', 'media_type' => 'tv']);
+    }
+
+    public function test_a_room_type_must_be_movie_or_tv(): void
+    {
+        $maya = User::factory()->create();
+
+        $this->as($maya)->postJson('/api/rooms', ['name' => 'Nope', 'tmdb_id' => 1, 'media_type' => 'game'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('media_type');
+    }
+
     public function test_an_outsider_gets_403_from_a_private_room_and_never_sees_it_listed(): void
     {
         [$lina, $outsider] = User::factory()->count(2)->create()->all();

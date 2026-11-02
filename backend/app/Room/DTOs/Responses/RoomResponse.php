@@ -26,6 +26,7 @@ final readonly class RoomResponse implements JsonSerializable
             'id' => $room->id,
             'name' => $room->name,
             'tmdb_id' => $room->tmdb_id,
+            'media_type' => $room->media_type,
             'spoilers' => $room->spoilers,
             'is_private' => $room->is_private,
             'host' => $room->creator ? (new MemberResource($room->creator))->resolve() : null,

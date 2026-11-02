@@ -104,6 +104,32 @@
   color: var(--ink-600);
 }
 
+/* The movie / TV show search reuses Create list's (ListDialog.module.css); it only gets smaller to fit this column. */
+.createForm .titleSearch {
+  padding: 10px 14px;
+  border-radius: 12px;
+}
+
+.createForm .titleSearch input {
+  font-size: 14px;
+}
+
+/* Title above "year · genres", so long titles fit the narrow column. */
+.resultText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.resultText span {
+  overflow: hidden;
+  margin-left: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Public / Private when creating, All rooms / My rooms in the list (same look as the list dialog's). */
 .segmented {
   display: flex;
@@ -281,6 +307,7 @@
   flex-shrink: 0;
   width: 44px;
   height: 44px;
+  overflow: hidden;
   border-radius: 14px;
 }
 
@@ -440,6 +467,7 @@
   flex-shrink: 0;
   width: 40px;
   height: 56px;
+  overflow: hidden;
   border-radius: 8px;
 }
 
@@ -829,15 +857,40 @@
 
 .moviePoster {
   flex-shrink: 0;
-  width: 56px;
-  height: 80px;
-  border-radius: 10px;
+  width: 76px;
+  height: 114px;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px -8px rgb(10 5 30 / 0.55);
+}
+
+.movieRow .movieTitle {
+  overflow-wrap: anywhere;
 }
 
 .movieText {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 4px;
+  min-width: 0;
+}
+
+/* "Movie" / "TV show" above the title. */
+.movieKind {
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: rgb(255 255 255 / 0.12);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-on-violet-muted);
+}
+
+.scoreSource {
+  font-weight: 500;
+  color: var(--text-on-violet-muted);
 }
 
 .movieTitle {
