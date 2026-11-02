@@ -1,3 +1,4 @@
+import LoadingState from '../../components/LoadingState/LoadingState.tsx'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import StatCard from '../../components/StatCard/StatCard.tsx'
@@ -211,7 +212,7 @@ export default function AdminOverview() {
       </header>
 
       {!stats ? (
-        <p className={styles.lead} role={error ? 'alert' : 'status'}>
+        <div className={styles.lead} role={error ? 'alert' : undefined}>
           {error ? (
             <>
               {apiErrorMessage(error, 'Unable to load the overview.')}{' '}
@@ -220,9 +221,9 @@ export default function AdminOverview() {
               </button>
             </>
           ) : (
-            'Loading the overview…'
+            <LoadingState label="Loading the overview…" />
           )}
-        </p>
+        </div>
       ) : (
         <div aria-busy={loading} className={styles.page}>
           <div className={styles.stats}>

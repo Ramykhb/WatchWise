@@ -1,3 +1,4 @@
+import LoadingState from '../../components/LoadingState/LoadingState.tsx'
 import { useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
@@ -193,14 +194,15 @@ export default function MovieNights() {
         </div>
 
         <div className={styles.body}>
-          <div className={styles.column} data-enter data-enter-delay="0.2">
+          <div className={styles.column} aria-busy={!store.loaded} data-enter data-enter-delay="0.2">
             {created && (
               <p className={styles.created} role="status">
                 {created}
               </p>
             )}
 
-            {tab !== 'past' && (invitations.length > 0 || tab === 'invitations') && (
+            {!store.loaded && <LoadingState label="Loading movie nights…" />}
+            {store.loaded && tab !== 'past' && (invitations.length > 0 || tab === 'invitations') && (
               <section className={styles.invites} aria-labelledby="invites-title">
                 <div className={styles.invitesHead}>
                   <h2 id="invites-title" className={styles.invitesTitle}>
@@ -252,7 +254,7 @@ export default function MovieNights() {
               </section>
             )}
 
-            {tab !== 'invitations' && (
+            {store.loaded && tab !== 'invitations' && (
               <section aria-labelledby="nights-title" className={styles.nights}>
                 <h2 id="nights-title" className={styles.sectionTitle}>
                   {tab === 'past' ? 'Past nights' : 'Coming up'}

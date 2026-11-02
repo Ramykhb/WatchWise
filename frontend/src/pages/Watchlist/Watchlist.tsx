@@ -1,3 +1,4 @@
+import LoadingState from '../../components/LoadingState/LoadingState.tsx'
 import { useRef, useState } from 'react'
 import { Link } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
@@ -190,7 +191,8 @@ export default function Watchlist() {
         </div>
 
         <div className={styles.body}>
-          <section className={styles.queue} aria-label={tabs.find((t) => t.id === tab)!.label} data-enter data-enter-delay="0.25">
+          <section className={styles.queue} aria-busy={loading && !data} aria-label={tabs.find((t) => t.id === tab)!.label} data-enter data-enter-delay="0.25">
+            {loading && !data && <LoadingState label="Loading your watchlist…" />}
             {tab === 'watchlist' && (
               <>
                 {/* TODO: availability filters (in cinemas / streaming / coming soon) once TMDB data is connected. */}
@@ -284,7 +286,7 @@ export default function Watchlist() {
               </ul>
             )}
 
-            {tab === 'history' && (
+            {tab === 'history' && data && (
               <div className={styles.historyFull}>
                 <HistoryList entries={history} />
               </div>
@@ -301,7 +303,7 @@ export default function Watchlist() {
                   See all
                 </button>
               </div>
-              {history.length > 0 ? <HistoryList entries={history.slice(0, 5)} /> : <p className={styles.added}>Films you mark as watched show up here.</p>}
+              {loading && !data ? <LoadingState label="Loading watch history…" compact /> : history.length > 0 ? <HistoryList entries={history.slice(0, 5)} /> : <p className={styles.added}>Films you mark as watched show up here.</p>}
             </section>
 
             {taste.length > 0 && (

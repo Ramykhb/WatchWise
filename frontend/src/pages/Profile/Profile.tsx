@@ -1,3 +1,4 @@
+import { PageLoading, LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
@@ -45,20 +46,9 @@ export default function Profile() {
   const { data, error } = useApi<ApiProfile>(`/users/${encodeURIComponent(handle ?? user?.username ?? '')}`)
   if (isStatus(error, 404)) return <Placeholder title="Profile not found" notFound />
   if (error) return <Placeholder title="Couldn't load this profile" />
-  if (!data) return <ProfileLoading />
+  if (!data) return <PageLoading label="Loading profile…" layout="profile" />
   // Keyed by user so tabs and follow state reset when moving between profiles.
   return <ProfilePage key={data.user.id} profile={toProfile(data)} />
-}
-
-function ProfileLoading() {
-  return (
-    <div className={styles.page}>
-      <AppNav />
-      <p className={styles.empty} role="status">
-        Loading profile…
-      </p>
-    </div>
-  )
 }
 
 function ProfilePage({ profile }: { profile: ProfileData }) {
@@ -302,7 +292,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                 </ul>
                 {people.length < peopleTotal && !fullLists[peopleTab] && (
                   <button type="button" className={styles.viewAll} onClick={showAll} disabled={loadingAll}>
-                    {loadingAll ? 'Loading…' : `View all ${peopleTotal.toLocaleString('en-US')} →`}
+                    {loadingAll ? <LoadingIndicator label="Loading…" /> : `View all ${peopleTotal.toLocaleString('en-US')} →`}
                   </button>
                 )}
               </section>

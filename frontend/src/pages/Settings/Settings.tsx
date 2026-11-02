@@ -1,3 +1,5 @@
+import LoadError from '../../components/LoadingState/LoadError.tsx'
+import { PageLoading } from '../../components/LoadingState/LoadingState.tsx'
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useLenis } from 'lenis/react'
@@ -62,17 +64,9 @@ const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000')
 
 /** Loads the account (GET /api/me) before showing the forms, so their fields start filled in. */
 export default function Settings() {
-  const { data, setData } = useApi<ApiMe>('/me')
-  if (!data) {
-    return (
-      <div className={styles.page}>
-        <AppNav />
-        <p className={styles.subtitle} role="status">
-          Loading your settings…
-        </p>
-      </div>
-    )
-  }
+  const { data, setData, error, loading, reload } = useApi<ApiMe>('/me')
+  if (error && !loading) return <LoadError label="Couldn’t load your settings." onRetry={reload} />
+  if (!data) return <PageLoading label="Loading your settings…" layout="settings" />
   return <SettingsPage key={data.user.id} me={data} onChange={setData} />
 }
 

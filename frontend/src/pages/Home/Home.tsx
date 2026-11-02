@@ -1,3 +1,4 @@
+import { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, Sun, type LucideIcon } from 'lucide-react'
@@ -315,7 +316,7 @@ export default function Home() {
           : condition
   const WeatherIcon = condition ? WEATHER_ICONS[condition] ?? Cloud : Cloud
   const weatherSummary = (locationStatus === 'checking' || locationStatus === 'requesting' || weatherLoading) && !currentWeather
-    ? 'Checking current weather…'
+    ? <LoadingIndicator label="Checking current weather…" />
     : weatherError && !currentWeather
       ? 'Weather is temporarily unavailable.'
       : `${Math.round(currentWeather?.current.temperature_2m ?? 0)}° · ${conditionText ?? 'Current conditions'} in ${currentWeather?.location.is_default ? 'Beirut' : 'your area'}`

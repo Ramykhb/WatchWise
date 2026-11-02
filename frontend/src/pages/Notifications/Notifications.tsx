@@ -1,3 +1,4 @@
+import LoadingState from '../../components/LoadingState/LoadingState.tsx'
 import { useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
@@ -14,7 +15,7 @@ import sparkleIcon from '../../assets/foryou/icon-sparkle-sm.svg'
 import eyeIcon from '../../assets/profile/icon-eye.svg'
 import xIcon from '../../assets/listmodal/icon-x-sm.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { dismiss, markAllRead, markRead, setActorFollowing, useNotifications, type AppNotification, type NotificationKind } from './notificationsStore.ts'
+import { loadNotifications, dismiss, markAllRead, markRead, setActorFollowing, useNotifications, type AppNotification, type NotificationKind } from './notificationsStore.ts'
 import { api, useApi } from '../../lib/api.ts'
 import { setFollowing } from '../../lib/follow.ts'
 import type { ApiMe } from '../../lib/types.ts'
@@ -54,7 +55,7 @@ export default function Notifications() {
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
 
-  const { items, loaded } = useNotifications()
+  const { items, loaded, failed } = useNotifications()
   const [tab, setTab] = useState<Tab>('all')
   // The switches are saved with the account preferences (GET/PATCH /api/me).
   const me = useApi<ApiMe>('/me')
@@ -95,7 +96,7 @@ export default function Notifications() {
           <div className={styles.titleBlock}>
             <SplitHeadline className={styles.title} lines={[{ text: 'Notifications' }]} />
             <p className={styles.lead} aria-live="polite">
-              {unread > 0 ? `You have ${unread} unread notification${unread > 1 ? 's' : ''}.` : "You're all caught up."}
+              {!loaded ? 'Checking your notifications…' : failed ? 'Notifications are temporarily unavailable.' : unread > 0 ? `You have ${unread} unread notification${unread > 1 ? 's' : ''}.` : "You're all caught up."}
             </p>
           </div>
           <PillButton variant="outline" disabled={unread === 0} onClick={markAllRead}>
@@ -115,7 +116,8 @@ export default function Notifications() {
         </div>
 
         <div className={styles.body}>
-          <section className={styles.feed} aria-label="Notifications" data-enter data-enter-delay="0.2">
+          <section className={styles.feed} aria-busy={!loaded} aria-label="Notifications" data-enter data-enter-delay="0.2">
+            {!loaded && <LoadingState label="Loading notifications…" />}
             {groups.map(({ group, list }) => (
               <div key={group} className={styles.group}>
                 <h2 className={styles.groupTitle}>{group}</h2>
@@ -131,7 +133,13 @@ export default function Notifications() {
                 </ul>
               </div>
             ))}
-            {groups.length === 0 && loaded && (
+            {failed && (
+              <div className={styles.empty} role="alert">
+                <p>Couldn’t load notifications.</p>
+                <PillButton variant="outline" onClick={() => void loadNotifications()}>Try again</PillButton>
+              </div>
+            )}
+            {groups.length === 0 && loaded && !failed && (
               <p className={styles.empty}>{tab === 'unread' ? 'No unread notifications. Nice.' : 'Nothing here yet.'}</p>
             )}
           </section>
@@ -140,14 +148,20 @@ export default function Notifications() {
             <h2 id="prefs-title" className={styles.sideTitle}>
               Notify me about
             </h2>
-            <ul className={styles.prefs}>
-              {PREFERENCES.map((p) => (
-                <li key={p.id}>
-                  <span id={`pref-${p.id}`}>{p.title}</span>
-                  <Toggle checked={prefs?.[p.id] ?? false} labelledBy={`pref-${p.id}`} onChange={(on) => setPref(p.id, on)} />
-                </li>
-              ))}
-            </ul>
+            {!prefs && (me.loading || !me.error) ? (
+              <LoadingState label="Loading preferences…" />
+            ) : me.error ? (
+              <p role="alert">Couldn’t load preferences. <button type="button" onClick={me.reload}>Try again</button></p>
+            ) : (
+              <ul className={styles.prefs}>
+                {PREFERENCES.map((p) => (
+                  <li key={p.id}>
+                    <span id={`pref-${p.id}`}>{p.title}</span>
+                    <Toggle checked={prefs?.[p.id] ?? false} labelledBy={`pref-${p.id}`} onChange={(on) => setPref(p.id, on)} />
+                  </li>
+                ))}
+              </ul>
+            )}
             <Link to="/settings" className={styles.settingsLink}>
               All notification settings →
             </Link>

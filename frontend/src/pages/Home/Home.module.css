@@ -673,3 +673,7 @@
     align-items: flex-start;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .pickSkeleton { animation: none; }
+}

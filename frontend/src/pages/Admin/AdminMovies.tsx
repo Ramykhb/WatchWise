@@ -1,3 +1,4 @@
+import LoadingState from '../../components/LoadingState/LoadingState.tsx'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import AdminPagination from '../../components/AdminPagination/AdminPagination.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
@@ -305,7 +306,7 @@ export default function AdminMovies() {
                           </button>
                         </>
                       ) : (
-                        'Loading movies…'
+                        <LoadingState label="Loading movies…" />
                       )}
                     </td>
                   </tr>

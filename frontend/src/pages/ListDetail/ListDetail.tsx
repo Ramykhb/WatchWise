@@ -1,3 +1,4 @@
+import { PageLoading } from '../../components/LoadingState/LoadingState.tsx'
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { useLenis } from 'lenis/react'
@@ -65,7 +66,7 @@ export default function ListDetail() {
   // Private lists of other members answer 403; treat them like missing ones.
   if (isStatus(error, 404) || isStatus(error, 403) || Number.isNaN(listIdFrom(slug))) return <Placeholder title="List not found" notFound />
   if (error) return <Placeholder title="Couldn't load this list" />
-  if (!data) return null
+  if (!data) return <PageLoading label="Loading this list…" />
   // Keyed by the list and its films, so local state (order, search) resets when moving between lists
   // and when a fresh copy arrives after an edit (the first render may use the copy from an earlier visit).
   const films = (data.list.items ?? []).map(itemKey).join(',')

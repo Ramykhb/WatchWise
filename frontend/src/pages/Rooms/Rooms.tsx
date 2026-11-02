@@ -1,3 +1,4 @@
+import LoadingState, { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
@@ -529,8 +530,8 @@ export default function Rooms() {
               </li>
             ))}
             {loadingRooms && (
-              <li className={styles.noRooms} role="status">
-                Loading rooms…
+              <li className={styles.noRooms}>
+                <LoadingIndicator label="Loading rooms…" />
               </li>
             )}
             {!loadingRooms && rooms.length === 0 && (
@@ -562,9 +563,7 @@ export default function Rooms() {
 
             <div className={styles.messages}>
               {loadingRooms ? (
-                <p className={styles.system}>
-                  <span>Loading rooms…</span>
-                </p>
+                <LoadingState label="Loading rooms…" />
               ) : (
                 <div className={styles.emptyChat}>
                   <p className={styles.emptyChatTitle}>Start the first conversation</p>
@@ -714,7 +713,7 @@ export default function Rooms() {
               <p className={styles.system}>
                 <span>
                   {!loaded
-                    ? 'Loading messages…'
+                    ? <LoadingIndicator label="Loading messages…" />
                     : !room.joined
                       ? 'No new messages right now.'
                       : canInvite && people.length === 1
@@ -928,7 +927,7 @@ function InvitePicker({ people, loading, onInvite }: { people: Member[]; loading
           ))}
         </ul>
       ) : (
-        <p className={styles.inviteEmpty}>{loading ? 'Loading…' : 'Everyone you follow is already here. Follow more people to invite them.'}</p>
+        <p className={styles.inviteEmpty}>{loading ? <LoadingIndicator label="Loading…" /> : 'Everyone you follow is already here. Follow more people to invite them.'}</p>
       )}
     </div>
   )

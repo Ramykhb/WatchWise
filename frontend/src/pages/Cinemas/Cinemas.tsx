@@ -1,3 +1,4 @@
+import LoadingState, { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ExternalLink, Navigation, X } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
@@ -238,7 +239,7 @@ export default function Cinemas() {
           </div>
           <p className={styles.note} role="status">
             {loadingCinemas
-              ? 'Searching for nearby cinemas…'
+              ? <LoadingIndicator label="Searching for nearby cinemas…" />
               : cinemaSearchNote || `${nearbyCinemas.length} nearby cinemas shown on the map.`}
           </p>
           {!loadingCinemas && !cinemaSearchNote && (
@@ -273,7 +274,7 @@ export default function Cinemas() {
             {nearbyCinemas.length === 0 && (
               <li className={styles.empty}>
                 {loadingCinemas
-                  ? 'Finding cinemas near you…'
+                  ? <LoadingState label="Finding cinemas near you…" />
                   : cinemaSearchNote
                     ? 'Cinema results could not be loaded. Use my location to try again.'
                     : 'No cinemas found near your location.'}

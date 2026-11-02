@@ -1,3 +1,4 @@
+import LoadingState, { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
@@ -215,7 +216,7 @@ export default function MovieReviews({ tmdbId, mediaType, me, stars, onStarsSave
   const ownReview = pendingReview ?? (mine ? { ...toCard(mine, true), rating: stars || mine.rating } : null)
 
   return (
-    <section className={styles.reviews} aria-labelledby="reviews-title" aria-busy={!page || undefined}>
+    <section className={styles.reviews} aria-labelledby="reviews-title" aria-busy={(!page && !failed) || undefined}>
       <div className={styles.sectionHeader}>
         <h2 id="reviews-title" className={styles.sectionTitle}>
           Reviews
@@ -233,10 +234,11 @@ export default function MovieReviews({ tmdbId, mediaType, me, stars, onStarsSave
         </label>
       </div>
 
+      {!page && !failed && <LoadingState label="Loading reviews…" />}
       {failed && !page && (
         <p className={styles.muted} role="alert">
           Couldn’t load reviews.{' '}
-          <button type="button" className={styles.reviewsRetry} onClick={() => setRetries((n) => n + 1)}>
+          <button type="button" className={styles.reviewsRetry} onClick={() => { setFailed(false); setRetries((n) => n + 1) }}>
             Try again
           </button>
         </p>
@@ -376,7 +378,7 @@ export default function MovieReviews({ tmdbId, mediaType, me, stars, onStarsSave
 
       {page?.has_more && (
         <PillButton variant="outline" className={styles.loadMore} onClick={() => void loadMore()} disabled={more.loading}>
-          {more.loading ? 'Loading…' : 'Load more reviews'}
+          {more.loading ? <LoadingIndicator label="Loading…" /> : 'Load more reviews'}
         </PillButton>
       )}
       <ConfirmDialog

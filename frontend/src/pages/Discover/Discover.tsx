@@ -1,3 +1,4 @@
+import LoadingState from '../../components/LoadingState/LoadingState.tsx'
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import axios from 'axios'
 import { Link, useSearchParams } from 'react-router'
@@ -602,7 +603,7 @@ export default function Discover() {
                   </button>
                 </p>
               ) : !listsQuery.data ? (
-                <p className={styles.empty}>Loading lists…</p>
+                <LoadingState label="Loading lists…" layout="cards" />
               ) : lists.length === 0 ? (
                 <p className={styles.empty}>{submittedQuery ? `No public lists match “${submittedQuery}”.` : 'No public lists yet.'}</p>
               ) : (
@@ -737,7 +738,7 @@ function PeopleResults({ loading, failed, people, query, onRetry }: PeopleResult
       </p>
     )
   }
-  if (loading) return <p className={styles.empty}>Searching people…</p>
+  if (loading) return <LoadingState label="Searching people…" />
   if (people.length === 0) return <p className={styles.empty}>{query ? `No one matches “${query}”.` : 'No members yet.'}</p>
 
   return (

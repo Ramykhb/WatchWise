@@ -28,13 +28,13 @@ export type AppNotification = {
   read: boolean
 }
 
-type State = { items: AppNotification[]; loaded: boolean }
+type State = { items: AppNotification[]; loaded: boolean; failed: boolean }
 
-let state: State = { items: [], loaded: false }
+let state: State = { items: [], loaded: false, failed: false }
 const listeners = new Set<() => void>()
 
 function emit(items: AppNotification[]) {
-  state = { items, loaded: true }
+  state = { items, loaded: true, failed: false }
   listeners.forEach((listener) => listener())
 }
 
@@ -64,11 +64,19 @@ let generation = 0
 
 export async function loadNotifications() {
   const started = generation
+  if (state.failed) {
+    state = { ...state, loaded: false, failed: false }
+    listeners.forEach((listener) => listener())
+  }
   try {
     const response = await api.get<{ notifications: ApiNotification[] }>('/notifications')
     if (started === generation) emit(response.data.notifications.map(toItem))
   } catch {
-    // Keep what is on screen; the next poll tries again.
+    // Keep existing data visible, but settle the initial loader on failure.
+    if (started === generation && !state.loaded) {
+      state = { ...state, loaded: true, failed: true }
+      listeners.forEach((listener) => listener())
+    }
   }
 }
 
@@ -76,7 +84,7 @@ export async function loadNotifications() {
 export function clearNotifications() {
   generation++
   lastLoad = 0
-  state = { items: [], loaded: false }
+  state = { items: [], loaded: false, failed: false }
   listeners.forEach((listener) => listener())
 }
 

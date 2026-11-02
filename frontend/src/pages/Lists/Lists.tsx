@@ -1,3 +1,4 @@
+import { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import { useRef, useState } from 'react'
 import { Link, Outlet } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
@@ -56,7 +57,7 @@ function WatchlistCard() {
       </div>
       <p className={styles.description}>Films you want to watch, added from movie pages and Tonight’s pick on Home.</p>
       <div className={styles.footer}>
-        <span className={styles.count}>{loaded ? `${films} ${films === 1 ? 'film' : 'films'} to watch` : 'Loading…'}</span>
+        <span className={styles.count}>{loaded ? `${films} ${films === 1 ? 'film' : 'films'} to watch` : <LoadingIndicator label="Loading…" />}</span>
       </div>
     </li>
   )

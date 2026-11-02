@@ -1,3 +1,4 @@
+import LoadingState from '../../components/LoadingState/LoadingState.tsx'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import AdminPagination from '../../components/AdminPagination/AdminPagination.tsx'
@@ -293,7 +294,7 @@ export default function AdminUsers() {
                         </button>
                       </>
                     ) : (
-                      'Loading users…'
+                      <LoadingState label="Loading users…" />
                     )}
                   </td>
                 </tr>

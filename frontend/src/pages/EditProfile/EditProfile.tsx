@@ -1,3 +1,5 @@
+import LoadError from '../../components/LoadingState/LoadError.tsx'
+import { PageLoading } from '../../components/LoadingState/LoadingState.tsx'
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
@@ -33,17 +35,9 @@ const fieldsOf = (user: ApiMe['user']): Fields => ({
 
 /** Loads the account (GET /api/me) before showing the form, so its fields start filled in. */
 export default function EditProfile() {
-  const { data, setData } = useApi<ApiMe>('/me')
-  if (!data) {
-    return (
-      <div className={settingsStyles.page}>
-        <AppNav />
-        <p className={settingsStyles.subtitle} role="status">
-          Loading your profile…
-        </p>
-      </div>
-    )
-  }
+  const { data, setData, error, loading, reload } = useApi<ApiMe>('/me')
+  if (error && !loading) return <LoadError label="Couldn’t load your profile." onRetry={reload} />
+  if (!data) return <PageLoading label="Loading your profile…" layout="settings" />
   return <EditProfilePage key={data.user.id} me={data} onChange={setData} />
 }
 
