@@ -105,6 +105,7 @@ function EditProfilePage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) =>
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (saving) return
     const name = fields.name.trim()
     const username = fields.username.trim()
     const email = fields.email.trim()
@@ -205,10 +206,11 @@ function EditProfilePage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) =>
                   <p className={styles.groupText}>Shown on your profile, in reviews and in rooms.</p>
                 </div>
                 <div className={settingsStyles.row}>
-                  <TextField label="Display name" name="name" value={fields.name} onChange={update('name')} autoComplete="name" error={errors.name} />
+                  <TextField label="Display name" name="name" value={fields.name} onChange={update('name')} autoComplete="name" error={errors.name} disabled={saving} />
                   <TextField
                     label="Username"
                     name="username"
+                    disabled={saving}
                     value={fields.username}
                     onChange={update('username')}
                     autoComplete="username"
@@ -219,6 +221,7 @@ function EditProfilePage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) =>
                 <TextField
                   label="Location"
                   name="location"
+                  disabled={saving}
                   value={fields.location}
                   onChange={update('location')}
                   placeholder="City, country"
@@ -236,6 +239,7 @@ function EditProfilePage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) =>
                   <textarea
                     id="profile-bio"
                     name="bio"
+                    disabled={saving}
                     aria-describedby="profile-bio-count"
                     className={settingsStyles.textarea}
                     value={fields.bio}
@@ -254,7 +258,7 @@ function EditProfilePage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) =>
                   </h2>
                   <p className={styles.groupText}>Only you can see this. Changing it sends a confirmation link to the new address.</p>
                 </div>
-                <TextField label="Email" name="email" type="email" value={fields.email} onChange={update('email')} autoComplete="email" error={errors.email} />
+                <TextField label="Email" name="email" type="email" value={fields.email} onChange={update('email')} autoComplete="email" error={errors.email} disabled={saving} />
               </div>
 
               <div className={styles.saveBar}>
