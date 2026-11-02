@@ -4,7 +4,7 @@ namespace App\MovieRecommendation\DTOs\Responses;
 
 use JsonSerializable;
 
-/** The TMDB movies selected by AI, with the reason for each selection. */
+/** Recommended TMDB titles and the context behind each selection. */
 final readonly class RecommendationResponse implements JsonSerializable
 {
     /**

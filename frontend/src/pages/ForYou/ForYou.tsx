@@ -20,7 +20,7 @@ import sparkleIcon from "../../assets/foryou/icon-sparkle.svg";
 import filmIcon from "../../assets/foryou/icon-film.svg";
 import rainSmIcon from "../../assets/foryou/icon-rain-sm.svg";
 import sparkleSmIcon from "../../assets/foryou/icon-sparkle-sm.svg";
-import usersIcon from "../../assets/foryou/icon-users.svg";
+import FollowingRecommendations from "./FollowingRecommendations.tsx";
 import { useEntranceAnimation } from "../../hooks/useEntranceAnimation.ts";
 import { useAuth } from "../../contexts/useAuth.ts";
 import { api } from "../../lib/api.ts";
@@ -28,19 +28,10 @@ import type { WatchlistResponse } from "../../lib/watchlist.ts";
 import { toTileMovie, type TmdbMovie } from "../Discover/discoverApi.ts";
 import {
   PROFILE,
-  SHELVES,
   TASTE,
   WEATHER_MOOD,
-  type Shelf,
 } from "./forYouData.ts";
 import styles from "./ForYou.module.css";
-
-const SHELF_ICONS: Record<Shelf["icon"], string> = {
-  film: filmIcon,
-  rain: rainSmIcon,
-  sparkle: sparkleSmIcon,
-  users: usersIcon,
-};
 
 type WeatherResponse = {
   location: {
@@ -307,7 +298,6 @@ export default function ForYou() {
 
   // TODO: persist in the user's settings once the API exists.
   const [adaptToWeather, setAdaptToWeather] = useState(true);
-  const shelves = SHELVES;
 
   const fetchWeatherRecommendations = useCallback(async (latitude: number, longitude: number) => {
     setRecommendationsLoading(true);
@@ -678,7 +668,7 @@ export default function ForYou() {
               <Link to="/discover" className={styles.sectionAction}>More →</Link>
             </div>
             <span className={styles.reason}>
-              <img src={SHELF_ICONS.rain} width={14} height={14} alt="" />
+              <img src={rainSmIcon} width={14} height={14} alt="" />
               {current
                 ? `TMDB movies selected for ${condition.toLowerCase()} weather · ${Math.round(current.temperature_2m)}° near ${visibleWeather?.location.is_default ? "Beirut" : "you"}`
                 : "Matching real TMDB movies to your current weather"}
@@ -808,36 +798,10 @@ export default function ForYou() {
           </section>
         )}
 
-        {shelves.map((shelf) => (
-          <section
-            key={shelf.id}
-            className={styles.shelf}
-            aria-labelledby={`shelf-${shelf.id}`}
-          >
-            <div className={styles.sectionHeader}>
-              <h2 id={`shelf-${shelf.id}`} className={styles.sectionTitle}>
-                {shelf.title}
-              </h2>
-              <Link to={shelf.more} className={styles.sectionAction}>
-                More →
-              </Link>
-            </div>
-            <span className={styles.reason}>
-              <img
-                src={SHELF_ICONS[shelf.icon]}
-                width={14}
-                height={14}
-                alt=""
-              />
-              {shelf.reason}
-            </span>
-            <div className={styles.row}>
-              {shelf.movies.map((movie) => (
-                <MovieTile key={movie.slug} movie={movie} />
-              ))}
-            </div>
-          </section>
-        ))}
+        {userId !== undefined && (
+          <FollowingRecommendations key={userId} userId={userId} genres={MOVIE_GENRES} />
+        )}
+
       </main>
     </div>
   );

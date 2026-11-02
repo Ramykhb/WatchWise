@@ -1,22 +1,4 @@
-import type { Movie } from "../../components/MovieTile/MovieTile.tsx";
-import { MOVIES } from "../Home/homeData.ts";
-
-// Static demo shelves from the Figma "For You — Recommendations" frame.
-
 export type TasteChip = { label: string; color: string; to: string };
-
-export type Shelf = {
-  id: string;
-  title: string;
-  reason: string;
-  icon: "film" | "rain" | "sparkle" | "users";
-  more: string;
-  /** Shown only while "Adapt suggestions to weather" is on. */
-  weather?: boolean;
-  movies: Movie[];
-};
-
-const withMeta = (movie: Movie, meta: string): Movie => ({ ...movie, meta });
 
 export const PROFILE = {
   name: "Maya",
@@ -57,21 +39,3 @@ export const WEATHER_MOOD = {
   moodText:
     "Rainy evenings → slower, atmospheric picks. Sunny weekends → feel-good & adventure.",
 };
-
-export const SHELVES: Shelf[] = [
-  {
-    id: "friends",
-    title: "Loved by people you follow",
-    reason: "Omar, Lina and 6 others rated these ★4.5+",
-    icon: "users",
-    more: "/discover",
-    movies: [
-      withMeta(MOVIES.paperMoon, "8 friends · Comedy"),
-      withMeta(MOVIES.redSignal, "7 friends · Action"),
-      withMeta(MOVIES.neonTide, "6 friends · Sci-fi"),
-      withMeta(MOVIES.velvetHour, "5 friends · Romance"),
-      withMeta(MOVIES.wildFern, "4 friends · Adventure"),
-      withMeta(MOVIES.stardust, "3 friends · Fantasy"),
-    ],
-  },
-];
