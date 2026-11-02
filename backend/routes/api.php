@@ -35,6 +35,7 @@ Route::post('/weather-mood', [WeatherController::class, 'mood'])->middleware('th
 Route::get('/watched-recommendations', [RecommendationController::class, 'watched'])->middleware(['auth.jwt', 'throttle:ai']);
 Route::get('/people-recommendations', [RecommendationController::class, 'people'])->middleware(['auth.jwt', 'throttle:ai']);
 Route::get('/following-recommendations', [RecommendationController::class, 'following'])->middleware(['auth.jwt', 'throttle:60,1']);
+Route::get('/taste-profile', [RecommendationController::class, 'taste'])->middleware(['auth.jwt', 'throttle:60,1']);
 Route::get('/movie-recommendations', [RecommendationController::class, 'index'])->middleware('throttle:ai');
 Route::get('/nearby-cinemas', [NearbyCinemaController::class, 'index'])->middleware('throttle:30,1');
 

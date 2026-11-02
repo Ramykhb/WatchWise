@@ -46,6 +46,18 @@ import styles from './Discover.module.css'
 /** URL params for a search: `?q=` and, for people or lists, `&type=`. */
 const searchParamsFor = (q: string, type: SearchType) => ({ ...(q ? { q } : {}), ...(type !== 'movies' ? { type } : {}) })
 
+/** Genre links browse TMDB genres, rather than searching for titles containing the genre name. */
+function tasteGenreFilters(params: URLSearchParams): Pick<Filters, 'genreId' | 'genreName' | 'mediaType'> {
+  const rawId = params.get('genre') ?? ''
+  const id = /^\d+$/.test(rawId) ? Number(rawId) : 0
+  const media = params.get('media')
+  return {
+    genreId: Number.isSafeInteger(id) && id > 0 ? id : undefined,
+    genreName: params.get('genre_name') || (id ? `Genre ${id}` : undefined),
+    mediaType: media === 'movie' || media === 'tv' ? media : 'all',
+  }
+}
+
 /** The latest response, tagged with the request it answers so stale ones are easy to spot. */
 type Result = { key: string; data: MoviePage | null; failed: boolean }
 
@@ -82,12 +94,21 @@ export default function Discover() {
   const lists = (listsQuery.data?.lists ?? []).map(toPublicList)
 
   // Draft = what the panel shows; applied = what the results use (committed by "Apply filters").
-  const [draft, setDraft] = useState<Filters>(DEFAULT_FILTERS)
-  const [applied, setApplied] = useState<Filters>(DEFAULT_FILTERS)
+  const [draft, setDraft] = useState<Filters>(() => ({ ...DEFAULT_FILTERS, ...tasteGenreFilters(searchParams) }))
+  const [applied, setApplied] = useState<Filters>(() => ({ ...DEFAULT_FILTERS, ...tasteGenreFilters(searchParams) }))
 
   const [sort, setSort] = useState(SORTS[0])
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [page, setPage] = useState(1)
+
+  const genreLinkKey = JSON.stringify([searchParams.get('genre'), searchParams.get('genre_name'), searchParams.get('media')])
+  const [lastGenreLink, setLastGenreLink] = useState(genreLinkKey)
+  if (lastGenreLink !== genreLinkKey) {
+    setLastGenreLink(genreLinkKey)
+    setPage(1)
+    setDraft((current) => ({ ...current, ...tasteGenreFilters(searchParams) }))
+    setApplied((current) => ({ ...current, ...tasteGenreFilters(searchParams) }))
+  }
 
   // Genre names for the tiles. Loaded on the side: the movies never wait for them.
   const [genres, setGenres] = useState<Map<number, string>>(() => new Map())
@@ -152,6 +173,8 @@ export default function Discover() {
     setDraft((f) => ({
       ...f,
       mediaType,
+      genreId: undefined,
+      genreName: undefined,
       // Drop genres TV doesn't have when only TV shows are wanted.
       genres: mediaType === 'tv' ? f.genres.filter((genre) => genre in TV_GENRE_IDS) : f.genres,
     }))
@@ -192,10 +215,14 @@ export default function Discover() {
       ? [
           {
             label: MEDIA_FILTERS.find((m) => m.id === applied.mediaType)!.label,
-            remove: () => applyFilters({ ...applied, mediaType: 'all' }),
+            remove: () => applyFilters({ ...applied, mediaType: 'all', genreId: undefined, genreName: undefined }),
           },
         ]
       : []),
+    ...(applied.genreId ? [{
+      label: applied.genreName ?? `Genre ${applied.genreId}`,
+      remove: () => applyFilters({ ...applied, genreId: undefined, genreName: undefined }),
+    }] : []),
     ...applied.genres.map((genre) => ({
       label: genre,
       remove: () => applyFilters({ ...applied, genres: applied.genres.filter((g) => g !== genre) }),
@@ -532,7 +559,7 @@ export default function Discover() {
                 <button
                   type="button"
                   className={styles.textButtonSm}
-                  onClick={() => applyFilters({ ...applied, mediaType: 'all', genres: [], runtime: null })}
+                  onClick={() => applyFilters({ ...applied, mediaType: 'all', genres: [], genreId: undefined, genreName: undefined, runtime: null })}
                 >
                   Clear all
                 </button>

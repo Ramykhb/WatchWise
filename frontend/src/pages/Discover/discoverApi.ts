@@ -128,8 +128,8 @@ export async function fetchMovies({ query, filters, sort, page, signal }: MovieQ
   const tvCantMatch = filters.genres.some((label) => !(label in TV_GENRE_IDS))
   const type = filters.mediaType === 'all' && tvCantMatch ? 'movie' : filters.mediaType
 
-  const movieGenres = idsFor(filters.genres, GENRE_IDS)
-  const tvGenres = idsFor(filters.genres, TV_GENRE_IDS)
+  const movieGenres = [...idsFor(filters.genres, GENRE_IDS), ...(filters.genreId ? [filters.genreId] : [])]
+  const tvGenres = [...idsFor(filters.genres, TV_GENRE_IDS), ...(filters.genreId ? [filters.genreId] : [])]
 
   const { data } = await api.get<MoviePage>('/movies/discover', {
     params: {

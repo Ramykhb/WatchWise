@@ -12,6 +12,25 @@ use Tests\TestCase;
 
 class MovieCreditsTest extends TestCase
 {
+    public function test_metadata_reuses_details_then_fetches_missing_titles_with_credits_in_one_pool(): void
+    {
+        $payload = ['genres' => [['id' => 18, 'name' => 'Drama']], 'credits' => $this->credits()];
+        Cache::put('tmdb.movie.42', $payload, 3600);
+        Http::fake(['https://api.themoviedb.org/3/tv/42*' => Http::response($payload)]);
+        Http::preventStrayRequests();
+        $service = app(MovieServiceInterface::class);
+        $titles = [['id' => 42, 'media_type' => 'movie'], ['id' => 42, 'media_type' => 'tv']];
+
+        $metadata = $service->metadata($titles);
+        $this->assertSame($payload, $metadata['42']);
+        $this->assertSame($payload, $metadata['tv-42']);
+        $this->assertSame($metadata, $service->metadata($titles));
+        $this->assertCount(20, $service->credits($titles)['tv-42']['cast']);
+        Http::assertSentCount(1);
+        Http::assertSent(fn (Request $request): bool => $request['append_to_response'] === 'credits');
+        $this->assertNull(Cache::get('tmdb.movie.tv.42'));
+    }
+
     private function credits(): array
     {
         return ['cast' => array_map(fn (int $id): array => ['id' => $id, 'name' => "Actor {$id}"], range(1, 20)),

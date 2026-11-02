@@ -29,6 +29,9 @@ export const MEDIA_FILTERS: { id: MediaFilter; label: string }[] = [
 ]
 
 export type Filters = {
+  /** A genre chip opened from a taste profile; supports every TMDB genre. */
+  genreId?: number
+  genreName?: string
   mediaType: MediaFilter
   genres: string[]
   years: [number, number]

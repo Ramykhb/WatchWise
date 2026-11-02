@@ -94,12 +94,13 @@ class MovieService implements MovieServiceInterface
         $titles = collect($titles)->keyBy(fn (array $title): string => MediaType::key($title['media_type'], $title['id']));
         $detailsKeys = $titles->map(fn (array $title): string => $this->detailsCacheKey($title['id'], $title['media_type']));
         $creditsKeys = $titles->map(fn (array $title, string $key): string => 'tmdb.credits.'.$key);
-        $cached = Cache::many([...$detailsKeys->values()->all(), ...$creditsKeys->values()->all()]);
+        $metadataKeys = $titles->map(fn (array $title, string $key): string => 'tmdb.metadata.'.$key);
+        $cached = Cache::many([...$detailsKeys->values()->all(), ...$creditsKeys->values()->all(), ...$metadataKeys->values()->all()]);
         $credits = [];
         $missing = [];
         foreach ($titles as $key => $title) {
             // Movie details already cache the full cast; do not use the truncated display DTO.
-            $payload = $cached[$detailsKeys[$key]]['credits'] ?? $cached[$creditsKeys[$key]] ?? null;
+            $payload = $cached[$detailsKeys[$key]]['credits'] ?? $cached[$metadataKeys[$key]]['credits'] ?? $cached[$creditsKeys[$key]] ?? null;
             if (is_array($payload)) {
                 $credits[$key] = $payload;
             } else {
@@ -115,6 +116,32 @@ class MovieService implements MovieServiceInterface
         }
 
         return $credits;
+    }
+
+    public function metadata(array $titles): array
+    {
+        $titles = collect($titles)->keyBy(fn (array $title): string => MediaType::key($title['media_type'], $title['id']));
+        $detailsKeys = $titles->map(fn (array $title): string => $this->detailsCacheKey($title['id'], $title['media_type']));
+        $metadataKeys = $titles->map(fn (array $title, string $key): string => 'tmdb.metadata.'.$key);
+        $cached = Cache::many([...$detailsKeys->values()->all(), ...$metadataKeys->values()->all()]);
+        $metadata = [];
+        $missing = [];
+        foreach ($titles as $key => $title) {
+            $payload = $cached[$detailsKeys[$key]] ?? $cached[$metadataKeys[$key]] ?? null;
+            if (is_array($payload) && isset($payload['genres'], $payload['credits'])) {
+                $metadata[$key] = ['genres' => $payload['genres'], 'credits' => $payload['credits']];
+            } else {
+                $missing[] = $title;
+            }
+        }
+        foreach (array_chunk($missing, 5) as $batch) {
+            foreach ($this->movies->metadata($batch) as $key => $payload) {
+                Cache::put($metadataKeys[$key], $payload, now()->addHours(self::DETAILS_CACHE_HOURS));
+                $metadata[$key] = $payload;
+            }
+        }
+
+        return $metadata;
     }
 
     private function detailsCacheKey(int $id, string $type): string

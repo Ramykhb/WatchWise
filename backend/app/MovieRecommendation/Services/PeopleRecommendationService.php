@@ -9,6 +9,7 @@ use App\Movie\DTOs\Responses\MovieResponse;
 use App\Movie\InterfaceServices\MovieServiceInterface;
 use App\MovieRecommendation\DTOs\Responses\RecommendationResponse;
 use App\MovieRecommendation\Exceptions\RecommendationUnavailable;
+use App\MovieRecommendation\Support\WatchedPeople;
 use App\Person\Exceptions\PersonNotFound;
 use App\Person\InterfaceRepository\PersonRepositoryInterface;
 use App\Support\MediaType;
@@ -40,25 +41,8 @@ class PeopleRecommendationService
 
     private function generate(Collection $watched): array
     {
-        $counts = ['actor' => [], 'director' => []];
         $titles = $watched->map(fn ($entry): array => ['id' => $entry->tmdb_id, 'media_type' => $entry->media_type])->all();
-        foreach ($this->movies->credits($titles) as $titleCredits) {
-            $credits = [
-                'actor' => $titleCredits['cast'] ?? [],
-                'director' => array_filter($titleCredits['crew'] ?? [], fn (array $person): bool => ($person['job'] ?? null) === 'Director'),
-            ];
-            foreach ($credits as $role => $people) {
-                foreach (collect($people)->unique('id') as $person) {
-                    $counts[$role][$person['id']] ??= ['id' => $person['id'], 'name' => $person['name'], 'watched_count' => 0];
-                    $counts[$role][$person['id']]['watched_count']++;
-                }
-            }
-        }
-        $top = fn (string $role): ?array => collect($counts[$role])->sort(function (array $a, array $b): int {
-            return ($b['watched_count'] <=> $a['watched_count']) ?: ($a['id'] <=> $b['id']);
-        })->first();
-        $director = $top('director');
-        $actor = $top('actor');
+        ['director' => $director, 'actor' => $actor] = WatchedPeople::leaders($this->movies->credits($titles));
         $watchedKeys = $watched->mapWithKeys(fn ($entry): array => [MediaType::key($entry->media_type, $entry->tmdb_id) => true]);
         $candidates = collect();
         $creditsByRole = [];

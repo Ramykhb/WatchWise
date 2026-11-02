@@ -54,14 +54,15 @@ class TmdbHttpClient
      *
      * @throws TmdbUnavailable
      */
-    public function getPool(array $paths): array
+    public function getPool(array $paths, array $query = []): array
     {
-        $responses = Http::pool(function (Pool $pool) use ($paths): void {
+        $responses = Http::pool(function (Pool $pool) use ($paths, $query): void {
             foreach ($paths as $key => $path) {
                 $pool->as((string) $key)->acceptJson()->connectTimeout(5)->timeout(10)
                     ->get(config('services.tmdb.url').$path, [
                         'api_key' => config('services.tmdb.key'),
                         'language' => 'en-US',
+                        ...$query,
                     ]);
             }
         }, concurrency: 5);

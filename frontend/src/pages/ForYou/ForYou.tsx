@@ -21,14 +21,13 @@ import filmIcon from "../../assets/foryou/icon-film.svg";
 import rainSmIcon from "../../assets/foryou/icon-rain-sm.svg";
 import sparkleSmIcon from "../../assets/foryou/icon-sparkle-sm.svg";
 import FollowingRecommendations from "./FollowingRecommendations.tsx";
+import TasteProfile from "./TasteProfile.tsx";
 import { useEntranceAnimation } from "../../hooks/useEntranceAnimation.ts";
 import { useAuth } from "../../contexts/useAuth.ts";
 import { api } from "../../lib/api.ts";
 import type { WatchlistResponse } from "../../lib/watchlist.ts";
 import { toTileMovie, type TmdbMovie } from "../Discover/discoverApi.ts";
 import {
-  PROFILE,
-  TASTE,
   WEATHER_MOOD,
 } from "./forYouData.ts";
 import styles from "./ForYou.module.css";
@@ -560,20 +559,9 @@ export default function ForYou() {
                 { text: "you,", accentEnd: `${firstName}.` },
               ]}
             />
-            <p className={styles.lead}>{PROFILE.summary}</p>
-            <ul className={styles.taste} aria-label="Your taste">
-              {TASTE.map((chip) => (
-                <li key={chip.label}>
-                  <Link
-                    to={chip.to}
-                    className={styles.tasteChip}
-                    style={{ background: chip.color }}
-                  >
-                    {chip.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            {userId !== undefined && (
+              <TasteProfile key={userId} userId={userId} weatherEnabled={adaptToWeather} />
+            )}
           </div>
 
           <aside

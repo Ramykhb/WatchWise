@@ -1,5 +1,33 @@
 {
   "paths": {
+    "/api/taste-profile": {
+      "get": {
+        "summary": "Get your watched-history taste profile",
+        "description": "Returns watched_movies, watched_tv, five_star_ratings and active following_count for the authenticated user, plus the top three watched genres and most-watched actor/director. Genre percentages are each genre’s share of all genre occurrences across available watched-title metadata; a title can have multiple genres. Genre objects include id, name, watched_count, percentage and media_type (movie/tv/all) for Discover links. Actor/director objects include numeric TMDB id, name and watched_count, or null when unavailable. Counts are recomputed for every request. TMDB metadata uses six-hour caches shared with movie details/credits, and missing titles are fetched in batches with five concurrent requests. Removed TMDB titles remain in watched counts but supply no genre or people metadata. Empty history returns empty genres and null people. Does not require Groq.",
+        "tags": [
+          "Recommendations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Real taste statistics and linked genres/people; no demo fallback."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "429": {
+            "description": "Too many requests (60 per minute)."
+          },
+          "502": {
+            "description": "TMDB is temporarily unavailable; retry the request."
+          }
+        }
+      }
+    },
     "/api/following-recommendations": {
       "get": {
         "summary": "Get titles loved by people you follow",

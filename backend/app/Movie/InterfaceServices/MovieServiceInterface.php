@@ -43,4 +43,13 @@ interface MovieServiceInterface
      * @throws TmdbUnavailable
      */
     public function credits(array $titles): array;
+
+    /**
+     * Genre objects and complete credits for watched movies/TV shows, keyed by MediaType::key().
+     * Removed titles are omitted.
+     *
+     * @param  list<array{id: int, media_type: string}>  $titles
+     * @return array<string, array{genres: array, credits: array}>
+     */
+    public function metadata(array $titles): array;
 }

@@ -3,11 +3,15 @@
 namespace App\MovieRecommendation\Providers;
 
 use App\MovieRecommendation\InterfaceRepository\FollowingRecommendationRepositoryInterface;
+use App\MovieRecommendation\InterfaceRepository\TasteProfileRepositoryInterface;
 use App\MovieRecommendation\InterfaceServices\FollowingRecommendationServiceInterface;
 use App\MovieRecommendation\InterfaceServices\RecommendationServiceInterface;
+use App\MovieRecommendation\InterfaceServices\TasteProfileServiceInterface;
 use App\MovieRecommendation\Repository\FollowingRecommendationRepository;
+use App\MovieRecommendation\Repository\TasteProfileRepository;
 use App\MovieRecommendation\Services\FollowingRecommendationService;
 use App\MovieRecommendation\Services\RecommendationService;
+use App\MovieRecommendation\Services\TasteProfileService;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -22,5 +26,7 @@ class MovieRecommendationModuleServiceProvider extends ServiceProvider
         RecommendationServiceInterface::class => RecommendationService::class,
         FollowingRecommendationServiceInterface::class => FollowingRecommendationService::class,
         FollowingRecommendationRepositoryInterface::class => FollowingRecommendationRepository::class,
+        TasteProfileRepositoryInterface::class => TasteProfileRepository::class,
+        TasteProfileServiceInterface::class => TasteProfileService::class,
     ];
 }

@@ -6,6 +6,7 @@ use App\Auth\CurrentUser\CurrentUser;
 use App\MovieRecommendation\FormRequests\RecommendationRequest;
 use App\MovieRecommendation\InterfaceServices\FollowingRecommendationServiceInterface;
 use App\MovieRecommendation\InterfaceServices\RecommendationServiceInterface;
+use App\MovieRecommendation\InterfaceServices\TasteProfileServiceInterface;
 use App\MovieRecommendation\Services\PeopleRecommendationService;
 use Illuminate\Http\JsonResponse;
 
@@ -26,6 +27,11 @@ class RecommendationController
     public function following(CurrentUser $current, FollowingRecommendationServiceInterface $following): JsonResponse
     {
         return response()->json($following->forUser($current->user()));
+    }
+
+    public function taste(CurrentUser $current, TasteProfileServiceInterface $taste): JsonResponse
+    {
+        return response()->json($taste->forUser($current->user()));
     }
 
     /**

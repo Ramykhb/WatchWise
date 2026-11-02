@@ -136,4 +136,23 @@ class MovieRepository implements MovieRepositoryInterface
 
         return $credits;
     }
+
+    public function metadata(array $titles): array
+    {
+        $paths = [];
+        foreach ($titles as $title) {
+            $paths[MediaType::key($title['media_type'], $title['id'])] = "/{$title['media_type']}/{$title['id']}";
+        }
+        $metadata = [];
+        foreach ($this->client->getPool($paths, ['append_to_response' => 'credits']) as $key => $response) {
+            if (! $response->notFound()) {
+                $metadata[$key] = [
+                    'genres' => $response->json('genres', []),
+                    'credits' => $response->json('credits', ['cast' => [], 'crew' => []]),
+                ];
+            }
+        }
+
+        return $metadata;
+    }
 }
