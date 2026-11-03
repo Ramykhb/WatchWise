@@ -14,12 +14,26 @@ class NotificationRepository implements NotificationRepositoryInterface
 {
     public function feed(int $userId, int $limit): Collection
     {
-        return Notification::where('user_id', $userId)
+        $history = Notification::where('user_id', $userId)
             ->whereIn('type', Notification::FEED_TYPES)
+            ->where('type', '!=', Notification::FOLLOW_REQUEST)
             ->latest('created_at')
             ->latest('id')
             ->limit($limit)
             ->get();
+
+        return $history->merge(Notification::where('user_id', $userId)
+            ->where('type', Notification::FOLLOW_REQUEST)->get())
+            ->sortByDesc(fn (Notification $notification): array => [$notification->created_at->getTimestamp(), $notification->id])
+            ->values();
+    }
+
+    public function createFollowRequest(int $requesterId, int $targetId): Notification
+    {
+        return Notification::firstOrCreate(
+            ['user_id' => $targetId, 'pending_follow_requester_id' => $requesterId],
+            ['type' => Notification::FOLLOW_REQUEST, 'data' => ['actor_id' => $requesterId]],
+        );
     }
 
     public function create(int $userId, string $type, array $data): Notification

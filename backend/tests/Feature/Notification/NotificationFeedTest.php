@@ -10,6 +10,21 @@ use Tests\Feature\Social\SocialTestCase;
 
 class NotificationFeedTest extends SocialTestCase
 {
+    public function test_pending_follow_requests_remain_actionable_beyond_the_history_limit(): void
+    {
+        [$me, $requester, $follower] = User::factory()->count(3)->create()->all();
+        $request = Notification::create(['user_id' => $me->id, 'type' => Notification::FOLLOW_REQUEST, 'pending_follow_requester_id' => $requester->id, 'data' => ['actor_id' => $requester->id]]);
+        for ($i = 0; $i < 101; $i++) {
+            $this->followedBy($me, $follower);
+        }
+
+        $feed = $this->as($me)->getJson('/api/notifications')->assertOk()->assertJsonCount(101, 'notifications');
+
+        $this->assertContains($request->id, array_column($feed->json('notifications'), 'id'));
+        $this->as($me)->postJson("/api/me/follow-requests/{$requester->username}/accept")->assertOk();
+        $this->assertTrue($me->isFollowedBy($requester->id));
+    }
+
     private function followedBy(User $owner, User $follower): Notification
     {
         return Notification::create(['user_id' => $owner->id, 'type' => Notification::FOLLOW, 'data' => ['actor_id' => $follower->id]]);

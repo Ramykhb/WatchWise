@@ -10,7 +10,7 @@ use App\Notification\InterfaceServices\NotificationFeedServiceInterface;
 
 class NotificationFeedService implements NotificationFeedServiceInterface
 {
-    /** The page groups these by day; older ones are still stored but no longer listed. */
+    /** Limits ordinary history; pending follow requests remain visible until answered. */
     private const FEED_LIMIT = 100;
 
     public function __construct(

@@ -502,7 +502,7 @@ app/Notification/
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/notifications` | Your newest 100 notifications |
+| `GET /api/notifications` | Your newest 100 history notifications plus all pending follow requests |
 | `PATCH /api/notifications/{notification}` | Mark one read or unread (`read`) |
 | `POST /api/notifications/read-all` | Mark them all read (never touches room read receipts) |
 | `DELETE /api/notifications/{notification}` | Dismiss one; dismissing a follow request declines it |
@@ -525,9 +525,9 @@ app/Notification/
 
 - Other modules call `NotificationServiceInterface` after their change is saved. Nobody is notified about their own action, and the Notification module never calls back into them.
 - `data` stores ids and the words of the moment (`actor_id`, room or night title, a quote). `NotificationResponse::fromModel()` turns a row into the sentence the page shows (**actor** `text` **target**, `detail`, `film`, `to`, `action`). A row whose actor deleted their account, or that lacks the fields its sentence needs (older rows), is left out. Film titles are looked up by the browser from `film` (`tmdb_id`, `media_type`).
-- **Follow requests:** following a followers-only or private profile (`ProfilePrivacy::needsFollowApproval()`) stores a `follow_request` row instead of a follow. That row is the pending request. Accepting creates the follow and turns the row into `follow` (so the owner can follow back). Declining, dismissing it, or the requester unfollowing deletes it. `POST /users/{username}/follow` answers `{following, requested, followers}`, and the profile and search responses carry `is_requested`.
+- **Follow requests:** following a followers-only or private profile (`ProfilePrivacy::needsFollowApproval()`) stores a `follow_request` row instead of a follow. That row is the pending request. A nullable requester foreign key and a unique recipient/requester pair prevent concurrent duplicates; the migration consolidates existing duplicates. Pending requests stay in the feed beyond its 100-item history limit. Accepting creates the follow and turns the row into `follow` (so the owner can follow back). Declining, dismissing it, or the requester unfollowing deletes it. `POST /users/{username}/follow` answers `{following, requested, followers}`, and the profile and search responses carry `is_requested`.
 - **Settings:** `settings.notifications` in `user_preferences` has one switch per type (`Notification::OPTIONAL_TYPES`, all on by default). A switched-off type is never stored or pushed. Follow requests have no switch.
-- **Live:** each new or updated notification is pushed to `notifications.{user id}` as `notification.pushed` (`{notification, silent}`). `silent` is set for the room's "new messages" update when the same message also mentioned you, and for an accepted request. Reads, dismissals and withdrawn requests send `notifications.changed`, and the other tabs reload. A failed push is only logged: the bell catches up on its next load, and polls every minute while the socket is down.
+- **Live:** each new or updated notification is pushed to `notifications.{user id}` as `notification.pushed` (`{notification, silent}`). `silent` is set for the room's "new messages" update when the same message also mentioned you, and for an accepted request. Reads, dismissals and withdrawn requests send `notifications.changed`, and the other tabs reload. A failed push is only logged: the bell catches up on its next load, and polls every minute until its private channel subscribes successfully, and resumes polling on connection or subscription errors.
 - Data lookups compare the JSON in PHP (`NotificationRepository::matching()`), so they behave the same on MySQL, PostgreSQL and SQLite.
 - Tests: `tests/Feature/Notification/` (feed, follow requests, every trigger, settings and the socket channel). `tests/TestCase.php` fakes the two events, so no test reaches a socket server; a test that fakes its own events has to list `NOTIFICATION_EVENTS` again.
 

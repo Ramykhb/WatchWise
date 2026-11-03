@@ -6,11 +6,69 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Notification\Events\NotificationPushed;
 use App\Notification\Events\NotificationsChanged;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Event;
 use Tests\Feature\Social\SocialTestCase;
 
 class FollowRequestTest extends SocialTestCase
 {
+    public function test_migration_preserves_one_legacy_request_per_pair_and_enables_withdrawal(): void
+    {
+        $migration = require database_path('migrations/2026_11_03_084313_add_pending_follow_requester_to_notifications.php');
+        $migration->down();
+        [$requester, $owner] = User::factory()->count(2)->create()->all();
+        for ($i = 0; $i < 2; $i++) {
+            Notification::create(['user_id' => $owner->id, 'type' => Notification::FOLLOW_REQUEST, 'data' => ['actor_id' => $requester->id]]);
+        }
+
+        $migration->up();
+
+        $this->assertDatabaseCount('notifications', 1);
+        $this->assertDatabaseHas('notifications', ['user_id' => $owner->id, 'pending_follow_requester_id' => $requester->id]);
+        $this->as($requester)->deleteJson("/api/users/{$owner->username}/follow")->assertOk();
+        $this->assertDatabaseCount('notifications', 0);
+    }
+
+    public function test_storage_rejects_duplicate_pending_requests_for_the_same_pair(): void
+    {
+        [$requester, $owner] = User::factory()->count(2)->create()->all();
+        $attributes = ['user_id' => $owner->id, 'type' => Notification::FOLLOW_REQUEST, 'pending_follow_requester_id' => $requester->id, 'data' => ['actor_id' => $requester->id]];
+        Notification::create($attributes);
+
+        $this->expectException(UniqueConstraintViolationException::class);
+
+        Notification::create($attributes);
+    }
+
+    public function test_accepting_releases_the_unique_pending_request_key_for_a_later_request(): void
+    {
+        $requester = User::factory()->create();
+        $owner = User::factory()->create(['profile_visibility' => 'followers']);
+        $this->as($requester)->postJson("/api/users/{$owner->username}/follow")->assertOk();
+        $this->as($owner)->postJson("/api/me/follow-requests/{$requester->username}/accept")->assertOk();
+        $this->as($requester)->deleteJson("/api/users/{$owner->username}/follow")->assertOk();
+
+        $this->as($requester)->postJson("/api/users/{$owner->username}/follow")->assertOk()->assertJsonPath('requested', true);
+
+        $this->assertDatabaseHas('notifications', ['user_id' => $owner->id, 'type' => Notification::FOLLOW_REQUEST, 'pending_follow_requester_id' => $requester->id]);
+        $this->assertSame(1, Notification::where('pending_follow_requester_id', $requester->id)->count());
+        $this->assertFalse($owner->isFollowedBy($requester->id));
+    }
+
+    public function test_withdrawing_removes_all_legacy_duplicates(): void
+    {
+        $requester = User::factory()->create();
+        $owner = User::factory()->private()->create();
+        for ($i = 0; $i < 2; $i++) {
+            Notification::create(['user_id' => $owner->id, 'type' => Notification::FOLLOW_REQUEST, 'data' => ['actor_id' => $requester->id]]);
+        }
+
+        $this->as($requester)->deleteJson("/api/users/{$owner->username}/follow")->assertOk()->assertJsonPath('requested', false);
+
+        $this->assertDatabaseMissing('notifications', ['type' => Notification::FOLLOW_REQUEST]);
+        $this->as($owner)->postJson("/api/me/follow-requests/{$requester->username}/accept")->assertNotFound();
+    }
+
     public function test_following_a_public_profile_is_instant_and_tells_them_live(): void
     {
         [$me, $lina] = User::factory()->count(2)->create()->all();

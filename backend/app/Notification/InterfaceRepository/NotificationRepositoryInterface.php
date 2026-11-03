@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Collection;
 interface NotificationRepositoryInterface
 {
     /**
-     * @return Collection<int, Notification> the user's newest feed notifications first (never room read receipts)
+     * @return Collection<int, Notification> the user's newest history plus every pending follow request, newest first (never room read receipts)
      */
     public function feed(int $userId, int $limit): Collection;
 
@@ -17,6 +17,9 @@ interface NotificationRepositoryInterface
      * @param  array<string, mixed>  $data
      */
     public function create(int $userId, string $type, array $data): Notification;
+
+    /** Atomically returns the existing or newly created pending request for this pair. */
+    public function createFollowRequest(int $requesterId, int $targetId): Notification;
 
     /**
      * @param  array<string, mixed>  $attributes  any of type, data, read_at, created_at

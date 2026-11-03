@@ -138,7 +138,7 @@ class RoomService implements RoomServiceInterface
         $memberIds = null;
         $untracked = [];
         foreach ($messages as $message) {
-            if (! $receipts->has($message->id)) {
+            if (! $message->read_tracking_started && ! $receipts->has($message->id)) {
                 $memberIds ??= $this->rooms->memberIds($room);
                 $untracked[$message->id] = array_values(array_diff($memberIds, [$message->user_id]));
                 $this->rooms->createReceipts($message, $untracked[$message->id]);

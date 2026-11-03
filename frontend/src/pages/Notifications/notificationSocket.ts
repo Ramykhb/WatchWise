@@ -45,10 +45,15 @@ export async function openNotificationSocket(userId: number, handlers: Handlers)
     }),
   })
 
-  const stopWatching = echo.connector.onConnectionChange((status) => handlers.onConnected(status === 'connected'))
+  // A connected transport may still fail private-channel authorization. Keep polling until subscribed.
+  const stopWatching = echo.connector.onConnectionChange(() => handlers.onConnected(false))
   const name = `notifications.${userId}`
   echo.private(name)
-    .subscribed(handlers.onReady)
+    .subscribed(() => {
+      handlers.onConnected(true)
+      handlers.onReady()
+    })
+    .error(() => handlers.onConnected(false))
     .listen('.notification.pushed', handlers.onPushed)
     .listen('.notifications.changed', handlers.onChanged)
 

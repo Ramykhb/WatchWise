@@ -32,8 +32,10 @@ class NotificationService implements NotificationServiceInterface
 
     public function requestFollow(User $requester, User $target): void
     {
-        if ($this->followRequest($requester, $target) === null) {
-            $this->live->push($this->notifications->create($target->id, Notification::FOLLOW_REQUEST, ['actor_id' => $requester->id]));
+        $request = $this->notifications->createFollowRequest($requester->id, $target->id);
+
+        if ($request->wasRecentlyCreated) {
+            $this->live->push($request);
         }
     }
 
@@ -49,13 +51,13 @@ class NotificationService implements NotificationServiceInterface
 
     public function removeFollowRequest(User $requester, User $target): bool
     {
-        $request = $this->followRequest($requester, $target);
+        $requests = $this->notifications->matching([$target->id], [Notification::FOLLOW_REQUEST], ['actor_id' => $requester->id]);
 
-        if ($request === null) {
+        if ($requests->isEmpty()) {
             return false;
         }
 
-        $this->notifications->delete([$request->id]);
+        $this->notifications->delete($requests->modelKeys());
         $this->live->changed($target->id);
 
         return true;
@@ -72,7 +74,7 @@ class NotificationService implements NotificationServiceInterface
                 $this->notifications->delete([$request->id]);
                 $this->live->changed($target->id);
             } else {
-                $this->live->push($this->notifications->update($request, ['type' => Notification::FOLLOW, 'read_at' => $request->read_at ?? now()]), silent: true);
+                $this->live->push($this->notifications->update($request, ['type' => Notification::FOLLOW, 'pending_follow_requester_id' => null, 'read_at' => $request->read_at ?? now()]), silent: true);
             }
         }
 
