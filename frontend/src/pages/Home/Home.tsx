@@ -4,7 +4,6 @@ import { Link } from 'react-router'
 import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, Sun, type LucideIcon } from 'lucide-react'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
-import MovieTile from '../../components/MovieTile/MovieTile.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import bgCoralBlob from '../../assets/home/bg-coral-blob.svg'
@@ -15,12 +14,11 @@ import sparkleIcon from '../../assets/home/icon-sparkle.svg'
 import playIcon from '../../assets/home/icon-play.svg'
 import plusIcon from '../../assets/home/icon-plus.svg'
 import checkIcon from '../../assets/watchlist/icon-check-sm.svg'
-import calendarIcon from '../../assets/home/icon-calendar.svg'
 import calendarSmIcon from '../../assets/home/icon-calendar-sm.svg'
 import chatIcon from '../../assets/home/icon-chat.svg'
 import onlineDot from '../../assets/home/dot-online.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { BECAUSE_YOU_LOVED, RELEASES, TONIGHTS_PICK, gradientCss } from './homeData.ts'
+import { gradientCss } from './homeData.ts'
 import styles from './Home.module.css'
 import WeeklyTrending from './WeeklyTrending.tsx'
 import { useAuth } from '../../contexts/useAuth.ts'
@@ -368,7 +366,7 @@ export default function Home() {
 
           <article
             className={styles.pick}
-            style={{ background: gradientCss((pick ?? TONIGHTS_PICK.movie).gradient) }}
+            style={{ background: gradientCss(pick?.gradient ?? ['#ccbfff', '#8c66d9', '#331a66']) }}
             aria-busy={pickLoading}
             data-enter
             data-enter-delay="0.3"
@@ -382,7 +380,7 @@ export default function Home() {
                 <div className={styles.pickInfo}>
                   <span className={styles.chipYellow}>
                     <img src={sparkleIcon} width={14} height={14} alt="" />
-                    Tonight&apos;s pick · {currentWeather ? `a ${conditionText?.toLowerCase()}-weather pick` : TONIGHTS_PICK.reason}
+                    Tonight&apos;s pick · {currentWeather ? `a ${conditionText?.toLowerCase()}-weather pick` : 'a weather-inspired pick'}
                   </span>
                   <h2 className={styles.pickTitle}>
                     <Link to={`/movies/${pick.slug}`} className={styles.pickLink}>{pick.title}</Link>
@@ -419,58 +417,7 @@ export default function Home() {
           </article>
         </section>
 
-        <section className={styles.section} aria-labelledby="home-because">
-          <div className={styles.sectionHeader}>
-            <h2 id="home-because" className={styles.sectionTitle}>
-              {BECAUSE_YOU_LOVED.title}
-            </h2>
-            <Link to="/for-you" className={styles.sectionAction}>
-              See all →
-            </Link>
-          </div>
-          <ul className={styles.reasons}>
-            {BECAUSE_YOU_LOVED.reasons.map((reason) => (
-              <li key={reason} className={styles.chipWhite}>
-                {reason}
-              </li>
-            ))}
-          </ul>
-          <div className={styles.row}>
-            {BECAUSE_YOU_LOVED.movies.map((movie) => (
-              <MovieTile key={movie.slug} movie={movie} />
-            ))}
-          </div>
-        </section>
-
         <WeeklyTrending />
-
-        <section className={styles.section} aria-labelledby="home-releases">
-          <div className={styles.sectionHeader}>
-            <h2 id="home-releases" className={styles.sectionTitle}>
-              Coming soon
-            </h2>
-            <Link to="/releases" className={styles.sectionAction}>
-              All releases →
-            </Link>
-          </div>
-          <div className={styles.releases}>
-            {RELEASES.map((release) => (
-              <div key={release.title} className={styles.release}>
-                <div className={styles.date} style={{ background: gradientCss(release.gradient) }}>
-                  <span className={styles.month}>{release.month}</span>
-                  <span className={styles.day}>{release.day}</span>
-                </div>
-                <div className={styles.releaseText}>
-                  <p className={styles.releaseTitle}>{release.title}</p>
-                  <p className={styles.releaseMeta}>{release.meta}</p>
-                </div>
-                <button type="button" className={styles.calendar} aria-label={`Add ${release.title} to calendar`}>
-                  <img src={calendarIcon} width={20} height={20} alt="" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
 
         <div className={styles.social}>
           <section className={styles.activity} aria-labelledby="home-activity">

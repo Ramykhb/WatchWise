@@ -20,9 +20,13 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, useApi } from '../../lib/api.ts'
 import { apiErrorMessage } from '../../lib/auth.ts'
-import { PICKABLE_MOVIES, tmdbIdOf } from '../../lib/movies.ts'
+import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
+import { isLoading, rememberMovie, useMovies } from '../../lib/movieDetails.ts'
+import { titleOf } from '../../lib/movies.ts'
 import type { ApiMember, ApiMessage, ApiRoom } from '../../lib/types.ts'
-import { gradientCss } from '../Home/homeData.ts'
+import { Thumb, useTitleSearch } from '../Lists/ListDialog.tsx'
+import listStyles from '../Lists/ListDialog.module.css'
+import xSmIcon from '../../assets/listmodal/icon-x-sm.svg'
 import { applyRead, hasExpired, mergeMessages, syncWithServer, waitingFor, withoutExpired } from './roomHistory.ts'
 import type { RoomSocket, RoomSocketStatus } from './roomSocket.ts'
 import {
@@ -38,6 +42,7 @@ import {
   toRoomMember,
   withNewMessage,
   type Member,
+  type Room,
   type RoomKind,
   type RoomScope,
   type RoomSection,
@@ -90,6 +95,11 @@ export default function Rooms() {
   const [creating, setCreating] = useState(false)
   const [newPrivate, setNewPrivate] = useState(false)
   const [createError, setCreateError] = useState('')
+  // "Create a room": search TMDB movies and TV shows (the same search as Create list) and pick one.
+  const [titleQuery, setTitleQuery] = useState('')
+  const [pickedTitle, setPickedTitle] = useState<Movie | null>(null)
+  const titleSearch = useTitleSearch(titleQuery)
+  const titleResults = titleSearch.results
   const [draft, setDraft] = useState('')
   // Sending, joining, declining or inviting failed.
   const [chatError, setChatError] = useState('')
@@ -101,6 +111,12 @@ export default function Rooms() {
   const [menuNote, setMenuNote] = useState('')
 
   const room = rooms.find((r) => r.id === roomId) ?? rooms[0]
+
+  // Rooms save only their title's id; load its real poster, year, genres and TMDB rating.
+  const movieOf = useMovies(rooms.map((r) => r.filmKey))
+  const filmOf = (r: Room) => movieOf(r.filmKey, r.movie)
+  const film = room ? filmOf(room) : null
+  const isShow = film ? titleOf(film)?.mediaType === 'tv' : false
 
   const viewerId = user?.id
   const openRoomId = room?.id
@@ -360,22 +376,37 @@ export default function Rooms() {
     const data = new FormData(event.currentTarget)
     const name = String(data.get('name') ?? '').trim()
     if (name.length < 3) return
-    const movie = PICKABLE_MOVIES.find((m) => m.slug === data.get('movie')) ?? PICKABLE_MOVIES[0]
+    const title = pickedTitle ? titleOf(pickedTitle) : null
+    if (!title) {
+      setCreateError('Pick the movie or TV show the room is about.')
+      return
+    }
     setCreateError('')
     try {
       const response = await api.post<{ room: { id: number } }>('/rooms', {
         name,
-        tmdb_id: tmdbIdOf(movie),
+        tmdb_id: title.tmdbId,
+        media_type: title.mediaType,
         spoilers: data.get('spoilers') === 'on',
         is_private: newPrivate,
       })
       setCreating(false)
       setNewPrivate(false)
+      setPickedTitle(null)
+      setTitleQuery('')
       reloadRooms()
       navigate(`/rooms/${response.data.room.id}`, { replace: true })
     } catch (error) {
       setCreateError(apiErrorMessage(error, "Couldn't create the room."))
     }
+  }
+
+  const pickTitle = (movie: Movie) => {
+    // The search already has its poster and details, so the new room shows them without loading.
+    rememberMovie(movie)
+    setPickedTitle(movie)
+    setTitleQuery('')
+    setCreateError('')
   }
 
   const copyLink = async () => {
@@ -415,13 +446,81 @@ export default function Rooms() {
           {creating && (
             <form className={styles.createForm} onSubmit={handleCreate}>
               <input name="name" className={styles.createInput} placeholder="Room name" aria-label="Room name" required minLength={3} autoFocus />
-              <select name="movie" className={styles.createInput} aria-label="Movie" defaultValue="neon-tide">
-                {PICKABLE_MOVIES.map((m) => (
-                  <option key={m.slug} value={m.slug}>
-                    {m.title}
-                  </option>
-                ))}
-              </select>
+              {/* The same search, results and picked chip as Create list (ListDialog), with one title per room. */}
+              {pickedTitle ? (
+                <ul className={listStyles.picked} aria-label="The room's movie or TV show">
+                  <li className={listStyles.pickedFilm}>
+                    <Thumb movie={pickedTitle} className={listStyles.pickedThumb} />
+                    {pickedTitle.title}
+                    <button
+                      type="button"
+                      className={listStyles.unpick}
+                      aria-label={`Remove ${pickedTitle.title}`}
+                      onClick={() => setPickedTitle(null)}
+                    >
+                      <img src={xSmIcon} width={12} height={12} alt="" />
+                    </button>
+                  </li>
+                </ul>
+              ) : (
+                <div className={listStyles.searchWrap}>
+                  <label className={`${listStyles.search} ${styles.titleSearch}`}>
+                    <img src={searchIcon} width={16} height={16} alt="" />
+                    <input
+                      type="search"
+                      value={titleQuery}
+                      onChange={(event) => setTitleQuery(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          // Enter picks the top result instead of submitting the form; never an older query's.
+                          event.preventDefault()
+                          if (!titleSearch.searching && titleResults[0]) pickTitle(titleResults[0])
+                        } else if (event.key === 'Escape' && titleQuery) {
+                          event.stopPropagation()
+                          setTitleQuery('')
+                        }
+                      }}
+                      placeholder="Search a movie or TV show…"
+                      aria-label="Search the movie or TV show the room is about"
+                      aria-controls="room-title-results"
+                      autoComplete="off"
+                    />
+                  </label>
+                  {titleQuery.trim() && (
+                    <ul id="room-title-results" className={listStyles.results} aria-label="Search results" aria-busy={titleSearch.searching} data-lenis-prevent>
+                      {titleSearch.searching && (
+                        <li className={listStyles.searching} role="status">
+                          <span className="sr-only">Searching…</span>
+                        </li>
+                      )}
+                      {/* Placeholder rows while the first answer loads; later searches keep the last answer, dimmed. */}
+                      {titleSearch.searching &&
+                        titleResults.length === 0 &&
+                        [0, 1, 2].map((row) => (
+                          <li key={`skeleton-${row}`} className={listStyles.skeleton} aria-hidden="true">
+                            <span className={listStyles.skeletonThumb} />
+                            <span className={listStyles.skeletonLine} />
+                          </li>
+                        ))}
+                      {titleSearch.failed && <li className={listStyles.noResults}>Couldn't search right now. Try again in a moment.</li>}
+                      {!titleSearch.searching && !titleSearch.failed && titleResults.length === 0 && (
+                        <li className={listStyles.noResults}>No films match “{titleQuery.trim()}”.</li>
+                      )}
+                      {titleResults.map((movie) => (
+                        <li key={movie.slug}>
+                          <button type="button" className={listStyles.result} onClick={() => pickTitle(movie)}>
+                            <Thumb movie={movie} className={listStyles.resultThumb} />
+                            <span className={styles.resultText}>
+                              <span className={listStyles.resultTitle}>{movie.title}</span>
+                              <span className={listStyles.resultMeta}>{movie.meta}</span>
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
               <div className={styles.segmented} role="radiogroup" aria-label="Who can see the room">
                 <button
                   type="button"
@@ -500,7 +599,7 @@ export default function Rooms() {
                         aria-current={r.id === room?.id ? 'true' : undefined}
                         onClick={() => openRoom(r.id)}
                       >
-                        <span className={styles.roomThumb} style={{ background: gradientCss(r.movie.gradient) }} aria-hidden="true" />
+                        <Thumb movie={filmOf(r)} className={styles.roomThumb} />
                         <span className={styles.roomText}>
                           <span className={styles.roomName}>
                             {r.isPrivate && <img className={styles.roomLock} src={lockIcon} width={12} height={12} alt="" />}
@@ -599,8 +698,8 @@ export default function Rooms() {
               <div className={styles.movieRow}>
                 <span className={`${styles.moviePoster} ${styles.thumbPlaceholder}`} aria-hidden="true" />
                 <div className={styles.movieText}>
-                  <p className={styles.movieTitle}>No movie yet</p>
-                  <p className={styles.movieMeta}>Each room is about one film. You pick it when you create the room.</p>
+                  <p className={styles.movieTitle}>No title yet</p>
+                  <p className={styles.movieMeta}>Each room is about one movie or TV show. You pick it when you create the room.</p>
                 </div>
               </div>
               <PillButton variant="accent" to="/discover">
@@ -636,7 +735,7 @@ export default function Rooms() {
         <>
         <section className={styles.chat} aria-labelledby="room-title" data-enter data-enter-delay="0.15">
           <header className={styles.chatHead}>
-            <span className={styles.chatThumb} style={{ background: gradientCss(room.movie.gradient) }} aria-hidden="true" />
+            {film && <Thumb movie={film} className={styles.chatThumb} />}
             <div className={styles.chatTitle}>
               <h2 id="room-title">{room.name}</h2>
               <p className={styles.live}>
@@ -824,22 +923,35 @@ export default function Rooms() {
         </section>
 
         <aside className={styles.info} aria-label="Room info" data-enter data-enter-delay="0.25">
-          <section className={styles.movie}>
-            <div className={styles.movieRow}>
-              <span className={styles.moviePoster} style={{ background: gradientCss(room.movie.gradient) }} aria-hidden="true" />
-              <div className={styles.movieText}>
-                <p className={styles.movieTitle}>{room.movie.title}</p>
-                <p className={styles.movieMeta}>{room.movie.meta}</p>
-                <p className={styles.movieScore}>
-                  <img src={starIcon} width={14} height={14} alt="" />
-                  {room.movie.score}
-                </p>
+          {film && (
+            <section className={styles.movie} aria-label={isShow ? 'The TV show' : 'The movie'}>
+              <div className={styles.movieRow}>
+                <Thumb movie={film} className={styles.moviePoster} size="w185" />
+                <div className={styles.movieText}>
+                  <span className={styles.movieKind}>{isShow ? 'TV show' : 'Movie'}</span>
+                  <p className={styles.movieTitle}>{film.title}</p>
+                  {film.meta && <p className={styles.movieMeta}>{film.meta}</p>}
+                  {!isLoading(film) && (
+                    <p className={styles.movieScore}>
+                      <img src={starIcon} width={14} height={14} alt="" />
+                      {film.score === '–' ? (
+                        'No ratings yet'
+                      ) : (
+                        <>
+                          {film.score}
+                          {/* The API exposes TMDB's rating on the app's five-star scale. */}
+                          <span className={styles.scoreSource}>/5 · TMDB</span>
+                        </>
+                      )}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-            <PillButton variant="accent" to={`/movies/${room.movie.slug}`}>
-              Open movie page
-            </PillButton>
-          </section>
+              <PillButton variant="accent" to={`/movies/${film.slug}`}>
+                {isShow ? 'Open show page' : 'Open movie page'}
+              </PillButton>
+            </section>
+          )}
 
           <section className={styles.rules} aria-labelledby="rules-title">
             <h3 id="rules-title" className={styles.cardTitle}>

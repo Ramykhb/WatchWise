@@ -28,7 +28,7 @@ use Illuminate\Support\Facades\DB;
 class RoomService implements RoomServiceInterface
 {
     /** How long a message is shown to everyone who can see its room; after that only to the members who have yet to read it. */
-    //change to 24, 2 is for testing
+    // change to 24, 2 is for testing
     private const MESSAGE_LIFETIME_HOURS = 24;
 
     public function __construct(private readonly RoomRepositoryInterface $rooms) {}
@@ -52,6 +52,7 @@ class RoomService implements RoomServiceInterface
             $room = $this->rooms->create([
                 'name' => $data->name,
                 'tmdb_id' => $data->tmdbId,
+                'media_type' => $data->mediaType,
                 'created_by' => $creator->id,
                 'spoilers' => $data->spoilers,
                 'is_private' => $data->isPrivate,
@@ -238,7 +239,7 @@ class RoomService implements RoomServiceInterface
     /** Messages sent after this moment are still within their lifetime. */
     private function lifetimeCutoff(): CarbonInterface
     {
-        //change to subHours in real, currently testing
+        // change to subHours in real, currently testing
         return now()->subHours(self::MESSAGE_LIFETIME_HOURS);
     }
 

@@ -4,8 +4,10 @@ namespace App\Room\FormRequests;
 
 use App\Models\DiscussionRoom;
 use App\Room\DTOs\Requests\CreateRoomData;
+use App\Support\MediaType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class StoreRoomRequest extends FormRequest
 {
@@ -22,6 +24,7 @@ class StoreRoomRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'min:3', 'max:80'],
             'tmdb_id' => ['required', 'integer', 'min:1'],
+            'media_type' => ['sometimes', Rule::in(MediaType::ALL)],
             'spoilers' => ['sometimes', 'boolean'],
             'is_private' => ['sometimes', 'boolean'],
         ];

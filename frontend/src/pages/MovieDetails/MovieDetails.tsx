@@ -33,7 +33,7 @@ import chatIcon from '../../assets/home/icon-chat.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { loadGenres } from '../Discover/discoverApi.ts'
-import { getMovieDetails, type Community, type MovieDetails as Details } from './movieData.ts'
+import { type Community, type MovieDetails as Details } from './movieData.ts'
 import { fetchMovieDetails, toDetails, type TmdbMovieDetails as ApiMovie } from './movieApi.ts'
 import AddToListDialog from './AddToListDialog.tsx'
 import MovieReviews from './MovieReviews.tsx'
@@ -87,15 +87,7 @@ function downloadIcs(slug: string, title: string, premiere: Premiere) {
 
 export default function MovieDetails() {
   const { slug = '' } = useParams()
-  // TMDB movies have numeric ids (/movies/438631) and TV shows "tv-" ids (/movies/tv-1399); the design's mock movies have names (/movies/neon-tide).
-  return /^(tv-)?\d+$/.test(slug) ?<TmdbMovieDetails id={slug} /> : <MockMovieDetails slug={slug} />
-}
-
-function MockMovieDetails({ slug }: { slug: string }) {
-  const details = getMovieDetails(slug)
-  if (!details) return <Placeholder title="Movie not found" notFound />
-  // Keyed by slug so local state (rating, watchlist, review draft) resets when moving between movies.
-  return <MovieDetailsPage key={details.movie.slug} details={details} />
+  return /^(tv-)?\d+$/.test(slug) ? <TmdbMovieDetails id={slug} /> : <Placeholder title="Movie not found" notFound />
 }
 
 function TmdbMovieDetails({ id }: { id: string }) {
@@ -244,8 +236,7 @@ function MovieDetailsPage({ details }: { details: Details }) {
   const calendarRef = useRef<HTMLElement>(null)
   useEntranceAnimation(pageRef)
 
-  // WatchWise's own data (reviews, premiere, showtimes, room). Only the design's mock movies have it;
-  // TMDB movies don't, so those sections are hidden rather than filled with sample data.
+  // Optional application sections stay hidden until their data is available.
   const { movie, community } = details
   // Lists, ratings and the watchlist know each title's type, so movies and TV shows can all be saved.
   const title = titleOf(movie)

@@ -38,6 +38,7 @@
                                 "properties": {
                                     "name": { "type": "string", "minLength": 3, "maxLength": 80 },
                                     "tmdb_id": { "type": "integer", "minimum": 1 },
+                                    "media_type": { "type": "string", "enum": ["movie", "tv"], "default": "movie", "description": "Whether `tmdb_id` is a movie or a TV show." },
                                     "spoilers": { "type": "boolean" },
                                     "is_private": { "type": "boolean", "default": false }
                                 }
@@ -290,6 +291,7 @@
                     "id": { "type": "integer" },
                     "name": { "type": "string" },
                     "tmdb_id": { "type": "integer" },
+                    "media_type": { "type": "string", "enum": ["movie", "tv"] },
                     "spoilers": { "type": "boolean" },
                     "is_private": { "type": "boolean" },
                     "host": { "allOf": [{ "$ref": "#/components/schemas/RoomMember" }], "nullable": true },

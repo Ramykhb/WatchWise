@@ -1,6 +1,6 @@
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import { look, shortName } from '../../lib/format.ts'
-import { movieFor } from '../../lib/movies.ts'
+import { itemKey, movieForKey, type FilmKey } from '../../lib/movies.ts'
 import type { ApiMember, ApiMessage, ApiRoom } from '../../lib/types.ts'
 import { hasExpired } from './roomHistory.ts'
 
@@ -16,6 +16,9 @@ export type Message =
 export type Room = {
   id: string
   name: string
+  /** The room's movie or show: 550, or "tv-1399" for a show; its real details load with `useMovies`. */
+  filmKey: FilmKey
+  /** Placeholder shown until those details load. */
   movie: Movie
   /** The host and everyone who joined; a message waits until all of them have read it. */
   members: Member[]
@@ -73,10 +76,12 @@ export const rulesFor = (spoilers: boolean) => [
 export function toRoom(room: ApiRoom, now: number): Room {
   // The newest message's 24 hours can run out while the list is open; with nothing waiting for you, it's gone.
   const last = room.last_message && (room.unread > 0 || !hasExpired(room.last_message, now)) ? room.last_message : null
+  const filmKey = itemKey(room)
   return {
     id: String(room.id),
     name: room.name,
-    movie: movieFor(room.tmdb_id),
+    filmKey,
+    movie: movieForKey(filmKey),
     members: room.members.map(toRoomMember),
     host: room.host ? toRoomMember(room.host) : null,
     spoilers: room.spoilers,

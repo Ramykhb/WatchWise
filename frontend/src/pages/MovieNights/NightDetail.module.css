@@ -307,6 +307,7 @@
 }
 
 .thumb {
+  overflow: hidden;
   flex-shrink: 0;
   width: 64px;
   height: 92px;
