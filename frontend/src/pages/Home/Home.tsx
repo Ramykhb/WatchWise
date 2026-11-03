@@ -14,11 +14,12 @@ import sparkleIcon from '../../assets/home/icon-sparkle.svg'
 import playIcon from '../../assets/home/icon-play.svg'
 import plusIcon from '../../assets/home/icon-plus.svg'
 import checkIcon from '../../assets/watchlist/icon-check-sm.svg'
+import calendarIcon from '../../assets/home/icon-calendar.svg'
 import calendarSmIcon from '../../assets/home/icon-calendar-sm.svg'
 import chatIcon from '../../assets/home/icon-chat.svg'
 import onlineDot from '../../assets/home/dot-online.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { gradientCss } from './homeData.ts'
+import { RELEASE_GRADIENTS, gradientCss } from './homeData.ts'
 import styles from './Home.module.css'
 import WeeklyTrending from './WeeklyTrending.tsx'
 import { useAuth } from '../../contexts/useAuth.ts'
@@ -28,7 +29,7 @@ import { movieFor, tmdbIdOf } from '../../lib/movies.ts'
 import { useWatchlist } from '../../lib/watchlist.ts'
 import type { ApiActivity, ApiHome } from '../../lib/types.ts'
 import { formatWhen, localDateTime } from '../MovieNights/nightsData.ts'
-import { toTileMovie, type TmdbMovie } from '../Discover/discoverApi.ts'
+import { loadGenres, toTileMovie, type MoviePage, type TmdbMovie } from '../Discover/discoverApi.ts'
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 
 type WeatherResponse = {
@@ -419,6 +420,8 @@ export default function Home() {
 
         <WeeklyTrending />
 
+        <ComingSoon />
+
         <div className={styles.social}>
           <section className={styles.activity} aria-labelledby="home-activity">
             <h2 id="home-activity" className={styles.cardTitle}>
@@ -517,5 +520,121 @@ export default function Home() {
         </div>
       </main>
     </div>
+  )
+}
+
+const DAY = 86_400_000
+const RELATIVE_TIME = new Intl.RelativeTimeFormat('en-US', { numeric: 'auto' })
+
+/** "tomorrow", "in 9 days", "in 3 weeks" or "in 2 months". */
+function releasesIn(days: number) {
+  if (days < 14) return RELATIVE_TIME.format(days, 'day')
+  if (days < 60) return RELATIVE_TIME.format(Math.round(days / 7), 'week')
+  return RELATIVE_TIME.format(Math.round(days / 30), 'month')
+}
+
+/**
+ * The three most anticipated films from the upcoming list (it comes most popular first), soonest first.
+ * Days count in the viewer's time zone, so a film that is already out here is skipped.
+ */
+function upcomingReleases(movies: TmdbMovie[], genres: Map<number, string>) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return movies
+    .flatMap((movie) => {
+      if (!movie.release_date) return []
+      const date = new Date(`${movie.release_date}T00:00:00`)
+      const days = Math.round((date.getTime() - today.getTime()) / DAY)
+      if (days < 1) return []
+      const genre = movie.genre_ids.map((id) => genres.get(id)).find(Boolean)
+      return [{
+        id: movie.id,
+        title: movie.title,
+        posterUrl: movie.poster_url,
+        days,
+        month: date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+        day: date.toLocaleDateString('en-US', { day: '2-digit' }),
+        meta: [genre, releasesIn(days)].filter(Boolean).join(' · '),
+      }]
+    })
+    .slice(0, 3)
+    .sort((a, b) => a.days - b.days)
+}
+
+/** Coming soon: the next big releases from TMDB, each linking to its movie page. */
+function ComingSoon() {
+  const { data, error, loading, reload } = useApi<MoviePage>('/movies?list=upcoming')
+  // Genre names for the meta line. Loaded on the side: the releases never wait for them.
+  const [genres, setGenres] = useState<Map<number, string>>(() => new Map())
+
+  useEffect(() => {
+    let active = true
+    loadGenres()
+      .then((map) => active && setGenres(map))
+      // Without the names, a release just says when it comes out.
+      .catch((error: unknown) => console.error('Unable to load genre names:', error))
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const releases = data && upcomingReleases(data.movies, genres)
+
+  return (
+    <section className={styles.section} aria-labelledby="home-releases">
+      <div className={styles.sectionHeader}>
+        <h2 id="home-releases" className={styles.sectionTitle}>
+          Coming soon
+        </h2>
+        <Link to="/releases" className={styles.sectionAction}>
+          All releases →
+        </Link>
+      </div>
+      {error && !loading ? (
+        <p className={styles.releasesState} role="status">
+          Upcoming releases are temporarily unavailable.{' '}
+          <button type="button" onClick={reload}>Try again</button>
+        </p>
+      ) : releases?.length === 0 ? (
+        <p className={styles.releasesState} role="status">No upcoming releases right now.</p>
+      ) : (
+        <div className={styles.releases} aria-busy={!releases}>
+          {releases ? releases.map((release, index) => {
+            const gradient = gradientCss(RELEASE_GRADIENTS[index % RELEASE_GRADIENTS.length])
+            return (
+              <div key={release.id} className={styles.release}>
+                <div
+                  className={release.posterUrl ? `${styles.date} ${styles.datePoster}` : styles.date}
+                  style={{
+                    // The gradient sits under the poster, so it shows if the poster fails to load.
+                    background: release.posterUrl ? `center / cover no-repeat url("${release.posterUrl}"), ${gradient}` : gradient,
+                  }}
+                >
+                  <span className={styles.month}>{release.month}</span>
+                  <span className={styles.day}>{release.day}</span>
+                </div>
+                <div className={styles.releaseText}>
+                  <p className={styles.releaseTitle}>
+                    <Link to={`/movies/${release.id}`} className={styles.releaseLink}>{release.title}</Link>
+                  </p>
+                  <p className={styles.releaseMeta}>{release.meta}</p>
+                </div>
+                <button type="button" className={styles.calendar} aria-label={`Add ${release.title} to calendar`}>
+                  <img src={calendarIcon} width={20} height={20} alt="" />
+                </button>
+              </div>
+            )
+          }) : Array.from({ length: 3 }, (_, index) => (
+            <div key={index} className={styles.release} aria-hidden="true">
+              <span className={`${styles.date} ${styles.releaseSkeleton}`} />
+              <span className={styles.releaseText}>
+                <span className={`${styles.releaseSkeleton} ${styles.releaseSkeletonTitle}`} />
+                <span className={`${styles.releaseSkeleton} ${styles.releaseSkeletonMeta}`} />
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }

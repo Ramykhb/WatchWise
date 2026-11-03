@@ -51,7 +51,10 @@ class MovieService implements MovieServiceInterface
 
     public function list(MovieListQuery $query): MoviePageResponse
     {
-        return $this->toPage($this->movies->list($query), ['list' => $query->list]);
+        $payload = Cache::remember('tmdb.list.'.$query->list.'.'.$query->page, now()->addHour(),
+            fn (): array => $this->movies->list($query));
+
+        return $this->toPage($payload, ['list' => $query->list]);
     }
 
     public function search(MovieSearchQuery $query): MoviePageResponse

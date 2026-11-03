@@ -341,7 +341,7 @@ app/Support/            Shared by both: TmdbHttpClient (adds the API key, timeou
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/movies?list=&page=` | A page of `popular` (default), `top_rated`, `now_playing` or `upcoming` movies |
+| `GET /api/movies?list=&page=` | A page of `popular` (default), `top_rated`, `now_playing` or `upcoming` movies. `upcoming` holds films whose first release date is today in UTC or later, most popular first; Home filters out films already released on the viewer's local date |
 | `GET /api/movies/search?q=&page=&year=` | Search movies by title. `q` is required (max 100 characters) |
 | `GET /api/movies/discover` | Filtered browsing: `genres`, `year_from`, `year_to`, `min_rating` (0 to 5), `runtime_min`, `runtime_max`, `language`, `sort` (`popularity`, `rating`, `release_date`, `title`), `page` |
 | `GET /api/movies/{id}` | One movie with genres, US certification, runtime, original language, directors, top 12 cast, a YouTube trailer, budget, box office and 10 recommended movies (fetched in one TMDB call). Unknown ids return 404 |
@@ -349,6 +349,7 @@ app/Support/            Shared by both: TmdbHttpClient (adds the API key, timeou
 
 - All five are public. They share the `tmdb` rate limit: 60 requests per minute per IP (see [Rate limits](#rate-limits)), so one client cannot use up the TMDB quota.
 - Movie details are cached for 6 hours per movie (`tmdb.movie.{id}`); unknown movies and TMDB failures are not cached.
+- List pages are cached for an hour (`tmdb.list.{list}.{page}`); TMDB failures are not cached.
 - Movie lists are paginated with `page` from 1 to 500 and 20 movies per page. Responses include `page`, `total_pages` (capped at 500, TMDB's limit) and `total_results`. Genres are a short fixed list, so they are not paginated.
 - Ratings are converted from TMDB's 0 to 10 scale to 0 to 5. Adult content is always excluded.
 - Setup: set `TMDB_API_KEY` in `.env`. `TMDB_URL` and `TMDB_IMAGE_URL` have working defaults in `config/services.php`.
