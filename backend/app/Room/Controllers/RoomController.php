@@ -46,6 +46,16 @@ class RoomController
         return response()->json(['room' => $this->rooms->invite($room, $request->toDto(), $current->user())]);
     }
 
+    /** DELETE /api/rooms/{room} — the room's creator or an admin deletes it, with all its messages. */
+    public function destroy(DiscussionRoom $room, CurrentUser $current): JsonResponse
+    {
+        Gate::authorize('delete', $room);
+
+        $this->rooms->delete($room, $current->user());
+
+        return response()->json(['message' => 'Room deleted.']);
+    }
+
     /** DELETE /api/rooms/{room}/invite — turn down your invitation to a private room. */
     public function decline(DiscussionRoom $room, CurrentUser $current): JsonResponse
     {

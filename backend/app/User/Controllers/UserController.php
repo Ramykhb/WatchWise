@@ -116,7 +116,7 @@ class UserController
         return response()->json(['users' => MemberResource::collection($this->profiles->following($user, $current))]);
     }
 
-    /** POST /api/users/{username}/follow */
+    /** POST /api/users/{username}/follow — followers-only and private profiles get a follow request instead. */
     public function follow(User $user, CurrentUser $current): JsonResponse
     {
         Gate::authorize('follow', $user);
@@ -124,9 +124,25 @@ class UserController
         return response()->json($this->profiles->follow($current->user(), $user));
     }
 
-    /** DELETE /api/users/{username}/follow */
+    /** DELETE /api/users/{username}/follow — also withdraws a pending follow request. */
     public function unfollow(User $user, CurrentUser $current): JsonResponse
     {
         return response()->json($this->profiles->unfollow($current->user(), $user));
+    }
+
+    /** POST /api/me/follow-requests/{username}/accept — let them follow your followers-only or private profile. */
+    public function acceptFollowRequest(User $user, CurrentUser $current): JsonResponse
+    {
+        $this->profiles->acceptFollowRequest($current->user(), $user);
+
+        return response()->json(['message' => 'Follow request accepted.']);
+    }
+
+    /** DELETE /api/me/follow-requests/{username} */
+    public function declineFollowRequest(User $user, CurrentUser $current): JsonResponse
+    {
+        $this->profiles->declineFollowRequest($current->user(), $user);
+
+        return response()->json(['message' => 'Follow request declined.']);
     }
 }

@@ -255,18 +255,18 @@ function MovieDetailsPage({ details }: { details: Details }) {
   const location = useLocation()
   const lenis = useLenis()
 
-  // Wait until the loaded movie has mounted before following a trailer link.
+  // Wait until the loaded movie has mounted before following a trailer link (or a notification's link to the reviews).
   useEffect(() => {
-    if (location.hash !== '#trailer') return
+    if (location.hash !== '#trailer' && location.hash !== '#reviews') return
     const frame = requestAnimationFrame(() => {
-      const trailer = trailerRef.current
-      if (!trailer) return
+      const section = location.hash === '#trailer' ? trailerRef.current : document.getElementById('reviews')
+      if (!section) return
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       if (lenis) {
         lenis.resize()
-        lenis.scrollTo(trailer, { offset: -24, immediate: reducedMotion })
+        lenis.scrollTo(section, { offset: -24, immediate: reducedMotion })
       } else {
-        trailer.scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'start' })
+        section.scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'start' })
       }
     })
     return () => cancelAnimationFrame(frame)

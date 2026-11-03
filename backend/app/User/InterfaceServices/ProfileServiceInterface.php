@@ -8,6 +8,7 @@ use App\User\DTOs\Requests\UserSearchQuery;
 use App\User\DTOs\Responses\FollowResponse;
 use App\User\DTOs\Responses\ProfileResponse;
 use App\User\DTOs\Responses\UserSearchResponse;
+use App\User\Exceptions\FollowRequestNotFound;
 use App\User\Exceptions\ProfileSectionHidden;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -36,8 +37,22 @@ interface ProfileServiceInterface
      */
     public function following(User $user, CurrentUser $viewer): Collection;
 
-    /** Follows the user; a no-op when already following. */
+    /**
+     * Follows a public profile at once; a followers-only or private one gets a follow request to accept.
+     * A no-op when already following or already asked.
+     */
     public function follow(User $follower, User $target): FollowResponse;
 
+    /** Unfollows, or withdraws a pending follow request. */
     public function unfollow(User $follower, User $target): FollowResponse;
+
+    /**
+     * `$me` accepts `$requester` as a follower.
+     *
+     * @throws FollowRequestNotFound
+     */
+    public function acceptFollowRequest(User $me, User $requester): void;
+
+    /** `$me` declines `$requester`'s follow request; nothing happens when there is none. */
+    public function declineFollowRequest(User $me, User $requester): void;
 }

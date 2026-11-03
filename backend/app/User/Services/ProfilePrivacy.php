@@ -42,4 +42,10 @@ class ProfilePrivacy
     {
         return $this->isPrivileged($owner, $viewer);
     }
+
+    /** Followers-only and private profiles choose their followers: following them sends a request. */
+    public function needsFollowApproval(User $owner): bool
+    {
+        return $owner->profile_visibility !== 'public';
+    }
 }

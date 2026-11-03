@@ -24,6 +24,7 @@ What each module does. Paths are relative to `backend/`. The backend is split in
 - [Wiring](#wiring)
 - [Tests](#tests)
 - [Genre and Movie modules](#genre-and-movie-modules)
+- [Notification module](#notification-module)
 - [Admin module](#admin-module)
 - [Gemini module](#gemini-module)
 - [Groq module](#groq-module)
@@ -289,7 +290,7 @@ Most policies stay in `app/Policies/` because each belongs to the entity it prot
 | `MovieListPolicy`, `MovieListItemPolicy` (`app/MovieList/Policies/`) | Private lists are visible to their owner only |
 | `MovieNightPolicy` (`app/MovieNight/Policies/`) | Organizer and invitees can view a night; only the organizer can change it |
 | `MessagePolicy` | Authenticated users can read and post in discussion rooms; author edits, author or admin deletes |
-| `NotificationPolicy` | Access to notifications |
+| `NotificationPolicy` (`app/Notification/Policies/`) | Members see and change only their own feed notifications, never room read receipts |
 | `UserPolicy` (`app/User/Policies/`) | Private profiles are visible to the owner and admins |
 
 ## Wiring
@@ -387,6 +388,7 @@ app/MovieNight/
 - The routes did not change (`/api/lists` and `/api/movie-nights`, in `routes/social.php`).
 - The form requests run the policy check in `authorize()`, so a forbidden request is rejected before validation, as before.
 - `GET /api/lists` with an unknown `scope` now fails validation (422 with an `errors` object) instead of returning the message "Unknown scope.".
+- A public list whose owner's profile is followers-only or private is for that owner's followers only: `scope=public` leaves it out for everyone else, and `GET /api/lists/{list}` answers 403 (`MovieListPolicy::view`; the owner and admins always see it). `scope=following` already only lists people you follow.
 - Tests: `tests/Feature/Social/ContentTest.php` and `tests/Feature/Social/MovieNightRulesTest.php`.
 
 ## Watchlist module
@@ -460,6 +462,7 @@ app/Room/
 | `POST /api/rooms` | Create a public or private (`is_private`) room; the creator becomes its first member |
 | `POST /api/rooms/{room}/join` | Join a public room, or accept the invitation to a private one |
 | `POST /api/rooms/{room}/invites` | A member of a private room invites people by username |
+| `DELETE /api/rooms/{room}` | Delete the room (its creator or an admin), with its messages, members and invitations |
 | `DELETE /api/rooms/{room}/invite` | Decline your invitation to a private room |
 | `GET /api/rooms/{room}/messages` | The messages you can still see, each with `read_by` (author first) and `unread_by` |
 | `POST /api/rooms/{room}/messages` | Send a message (members only) |
@@ -474,8 +477,59 @@ app/Room/
 - A message is deleted, with its rows, once its 24 hours are up and nobody still has to read it: by `POST /read` when the last of those members reads it late (say after 30 hours), or by `rooms:prune-messages` when everyone read it in time. That command is scheduled every minute in `routes/console.php`, so run `php artisan schedule:work` next to `php artisan serve` locally (a cron entry calling `schedule:run` on a server). Opening a room also cleans up its own expired messages.
 - Every message is pushed as `message.sent` on `room.{id}` to whoever has the room open; their browser confirms with `POST /read`, which pushes `messages.read` (the reader, the ids, and `deleted_ids` for the messages it deleted). A failed push is only logged: the message stays stored, so members get it when they open the room.
 - The browser keeps no copy: the Rooms page shows what `GET /messages` returns plus what the socket pushes, and takes a message off the screen once its 24 hours are up unless it still waits for that member. One the member reads after that stays on screen until they leave the room. Copies saved by the earlier localStorage version are deleted when the app loads.
-- `room_message` rows are read receipts, not notifications for the bell: `/api/me` leaves them out of `counts.unread_notifications`, and a future notifications feed must too.
+- Only the room's creator (`created_by`) or an admin can delete it (`DiscussionRoomPolicy::delete`; the Rooms page shows "Delete room" in the room menu to them, with a confirm dialog). The foreign keys delete its messages, members and invitations; `RoomRepository::delete()` removes its read receipts, which the database can't cascade. Every list that showed the room gets `rooms.changed`, and its members and invitees get a `room_deleted` notification.
+- `room_message` rows are read receipts, not notifications for the bell: `/api/me` and the [Notification module](#notification-module) leave them out. Invitations, messages, @mentions and reads also go to that module (see there).
 - Tests: `tests/Feature/Room/RoomMessagingTest.php`, `tests/Feature/Room/RoomMembershipTest.php` (the permission matrix is in `tests/Feature/Auth/PolicyTest.php`).
+
+## Notification module
+
+`app/Notification/` is the header bell, the Notifications page and the pop-ups, pushed live over Reverb. It needed no database change: notifications are rows of the existing `notifications` table (`type`, `data` JSON, `read_at`), which it shares with the Room module's read receipts (`room_message`, never shown).
+
+```
+app/Notification/
+  Controllers/          NotificationController (feed, read/unread, read all, dismiss), NotificationSocketController (socket channel auth)
+  FormRequests/         UpdateNotificationRequest, NotificationSocketRequest
+  DTOs/Requests/        UpdateNotificationData
+  DTOs/Responses/       NotificationResponse (one notification and its sentence), NotificationFeedResponse
+  InterfaceServices/    NotificationServiceInterface (what other modules call), NotificationFeedServiceInterface (the page)
+  Services/             NotificationService, NotificationFeedService, NotificationPresenter (actors and follow state in one go), LiveNotifications (pushes)
+  InterfaceRepository/  NotificationRepositoryInterface
+  Repository/           NotificationRepository (the only code touching the table for notifications)
+  Events/               NotificationPushed (`notification.pushed`), NotificationsChanged (`notifications.changed`)
+  Policies/             NotificationPolicy (moved from app/Policies/)
+  Providers/            NotificationModuleServiceProvider (bindings and the notification-socket limiter)
+```
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/notifications` | Your newest 100 history notifications plus all pending follow requests |
+| `PATCH /api/notifications/{notification}` | Mark one read or unread (`read`) |
+| `POST /api/notifications/read-all` | Mark them all read (never touches room read receipts) |
+| `DELETE /api/notifications/{notification}` | Dismiss one; dismissing a follow request declines it |
+| `POST /api/notifications/socket-auth` | Authorize `private-notifications.{your id}` on Reverb |
+| `POST /api/me/follow-requests/{username}/accept`, `DELETE /api/me/follow-requests/{username}` | Accept or decline a follow request (User module) |
+
+| Type | Who gets it, when | Sent from |
+| --- | --- | --- |
+| `follow` | Someone followed your public profile, or you accepted their request | `ProfileService` |
+| `follow_request` | Someone asked to follow your followers-only or private profile | `ProfileService` |
+| `follow_accepted` | The person you asked accepted | `ProfileService` |
+| `room_invite` / `room_joined` | You were invited to a private room / someone you invited joined | `RoomService` |
+| `room_deleted` | A room you were a member of or invited to was deleted (the notifications that opened it are removed) | `RoomService` |
+| `new_messages` | New messages in a room you're a member of: one per room, counting up until you read the room | `RoomService` |
+| `mention` | A message names your @username in a room you can see | `RoomService` |
+| `night_invite` | The host invited you | `MovieNightService` |
+| `night_rsvp` / `night_vote` | (host) A guest answered / voted; a later answer or vote replaces an unread one | `MovieNightService` |
+| `night_update` | (guests who haven't declined) The host locked in the pick, cancelled, reopened voting or changed the time | `MovieNightService` |
+| `review_helpful` | Someone marked your review helpful (taking it back removes it) | `MovieReviewService` |
+
+- Other modules call `NotificationServiceInterface` after their change is saved. Nobody is notified about their own action, and the Notification module never calls back into them.
+- `data` stores ids and the words of the moment (`actor_id`, room or night title, a quote). `NotificationResponse::fromModel()` turns a row into the sentence the page shows (**actor** `text` **target**, `detail`, `film`, `to`, `action`). A row whose actor deleted their account, or that lacks the fields its sentence needs (older rows), is left out. Film titles are looked up by the browser from `film` (`tmdb_id`, `media_type`).
+- **Follow requests:** following a followers-only or private profile (`ProfilePrivacy::needsFollowApproval()`) stores a `follow_request` row instead of a follow. That row is the pending request. A nullable requester foreign key and a unique recipient/requester pair prevent concurrent duplicates; the migration consolidates existing duplicates. Pending requests stay in the feed beyond its 100-item history limit. Accepting creates the follow and turns the row into `follow` (so the owner can follow back). Declining, dismissing it, or the requester unfollowing deletes it. `POST /users/{username}/follow` answers `{following, requested, followers}`, and the profile and search responses carry `is_requested`.
+- **Settings:** `settings.notifications` in `user_preferences` has one switch per type (`Notification::OPTIONAL_TYPES`, all on by default). A switched-off type is never stored or pushed. Follow requests have no switch.
+- **Live:** each new or updated notification is pushed to `notifications.{user id}` as `notification.pushed` (`{notification, silent}`). `silent` is set for the room's "new messages" update when the same message also mentioned you, and for an accepted request. Reads, dismissals and withdrawn requests send `notifications.changed`, and the other tabs reload. A failed push is only logged: the bell catches up on its next load, and polls every minute until its private channel subscribes successfully, and resumes polling on connection or subscription errors.
+- Data lookups compare the JSON in PHP (`NotificationRepository::matching()`), so they behave the same on MySQL, PostgreSQL and SQLite.
+- Tests: `tests/Feature/Notification/` (feed, follow requests, every trigger, settings and the socket channel). `tests/TestCase.php` fakes the two events, so no test reaches a socket server; a test that fakes its own events has to list `NOTIFICATION_EVENTS` again.
 
 ## Admin module
 
@@ -528,7 +582,7 @@ An admin cannot demote, deactivate or delete themselves (`CannotModerateSelf`). 
 
 `app/Http/` and `app/Services/` no longer exist. The base `Controller` class is gone too (controllers are plain classes), and so is everything that only lived in those two folders:
 
-- the notifications API (`/api/notifications`) and the `Notifier` that created notifications when someone followed, invited, voted or mentioned another user;
+- the notifications API (`/api/notifications`) and the `Notifier` that created notifications when someone followed, invited, voted or mentioned another user, since rebuilt as the [Notification module](#notification-module);
 - the old discussion rooms API (`/api/rooms`), since rebuilt as the [Room module](#room-module);
 - the activity feed (`ActivityFeedService`), so `/api/home` no longer returns `activity` and `/api/users/{username}` no longer returns `activity` or the `reviews` list (the `counts.reviews` number is still there).
 

@@ -24,21 +24,25 @@ import githubIcon from '../../assets/auth/icon-github.svg'
 import discordIcon from '../../assets/auth/icon-discord.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { INTEGRATIONS, PRIVACY, VISIBILITY, type IntegrationKey, type Visibility } from './settingsData.ts'
+import { FOLLOW_REQUEST_NOTE, NOTIFICATION_GROUPS } from '../Notifications/notificationKinds.ts'
 import styles from './Settings.module.css'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, useApi } from '../../lib/api.ts'
 import { apiErrorMessage, fieldErrors } from '../../lib/auth.ts'
 import type { ApiMe } from '../../lib/types.ts'
 
-type Section = 'account' | 'privacy' | 'connected' | 'integrations'
+type Section = 'account' | 'privacy' | 'connected' | 'integrations' | 'notifications'
 
-// The profile lives on its own Edit profile page; Notifications (after this list) links to its page.
+// The profile lives on its own Edit profile page.
 const MENU: { id: Section; label: string; icon: string }[] = [
   { id: 'account', label: 'Account & password', icon: lockIcon },
   { id: 'privacy', label: 'Privacy & activity', icon: shieldIcon },
   { id: 'connected', label: 'Connected accounts', icon: linkIcon },
   { id: 'integrations', label: 'Integrations', icon: plugIcon },
+  { id: 'notifications', label: 'Notifications', icon: bellIcon },
 ]
+
+const isSection = (id: string): id is Section => MENU.some((item) => item.id === id)
 
 const PROVIDERS: { id: SocialProvider; label: string; icon: string }[] = [
   { id: 'google', label: 'Google', icon: googleIcon },
@@ -81,6 +85,8 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
   const [passwordErrors, setPasswordErrors] = useState<PasswordErrors>({})
   const [passwordNote, setPasswordNote] = useState('')
   const [settingsNote, setSettingsNote] = useState('')
+  // The panel whose change the note is about.
+  const [notePanel, setNotePanel] = useState<'privacy' | 'notifications'>('privacy')
   const [locationNote, setLocationNote] = useState('')
   const visibility = me.user.profile_visibility
   const privacy = me.preferences.privacy
@@ -88,6 +94,7 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
   // Social sign-ups have no password of their own yet, so there is no current one to ask for.
   const hasPassword = me.has_password
   const integrations = me.preferences.integrations
+  const notifications = me.preferences.notifications
 
   /** Saves a change; the API answers with the whole account, which refreshes the page and header. */
   const apply = async (request: Promise<{ data: ApiMe }>) => {
@@ -96,8 +103,9 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
     setUser(response.data.user)
     return response.data
   }
-  const saveSettings = (body: Partial<Record<'privacy' | 'integrations', Record<string, boolean>>>) => {
+  const saveSettings = (body: Partial<Record<'privacy' | 'integrations' | 'notifications', Record<string, boolean>>>) => {
     setSettingsNote('')
+    setNotePanel(body.notifications ? 'notifications' : 'privacy')
     onChange({ ...me, preferences: { ...me.preferences, ...Object.fromEntries(Object.entries(body).map(([k, v]) => [k, { ...me.preferences[k as 'privacy'], ...v }])) } })
     apply(api.patch('/me/preferences', body)).catch(() => {
       onChange(me)
@@ -117,7 +125,7 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
     pageRef.current?.querySelectorAll('[data-section]').forEach((el) => observer.observe(el))
     // The last panel never reaches the middle of the screen, so the bottom of the page selects it.
     const onScroll = () => {
-      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) setActive('integrations')
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) setActive('notifications')
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => {
@@ -134,6 +142,21 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
     if (lenis) lenis.scrollTo(panel, { offset: -24 })
     else panel.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
+
+  // Links such as the Notifications page's "All notification settings" open a section (/settings#notifications).
+  useEffect(() => {
+    const section = window.location.hash.slice(1)
+    if (!lenis || !isSection(section)) return
+    const frame = requestAnimationFrame(() => {
+      const panel = document.getElementById(section)
+      if (!panel) return
+      // The page has only just grown from its loading state, so Lenis measures it again first.
+      lenis.resize()
+      lenis.scrollTo(panel, { offset: -24 })
+      setActive(section)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [lenis])
 
   const handlePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -171,7 +194,10 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
 
   const toggleProvider = (provider: SocialProvider) => {
     if (connected[provider]) {
-      apply(api.delete(`/me/social/${provider}`)).catch(() => setSettingsNote(`Couldn't disconnect ${provider}.`))
+      apply(api.delete(`/me/social/${provider}`)).catch(() => {
+        setNotePanel('privacy')
+        setSettingsNote(`Couldn't disconnect ${provider}.`)
+      })
       return
     }
     // Linking goes through the provider's sign-in; an account with the same verified email is linked.
@@ -200,6 +226,7 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
 
   const setVisibility = (value: Visibility) => {
     setSettingsNote('')
+    setNotePanel('privacy')
     apply(api.patch('/me', { profile_visibility: value })).catch(() => setSettingsNote("Couldn't change who can see your profile."))
   }
 
@@ -223,7 +250,7 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
       <main className={styles.main}>
         <header className={styles.header} data-enter data-enter-delay="0.05">
           <SplitHeadline className={styles.title} lines={[{ text: 'Settings' }]} />
-          <p className={styles.subtitle}>Manage your password, privacy and connected services.</p>
+          <p className={styles.subtitle}>Manage your password, privacy, connected services and notifications.</p>
         </header>
 
         <div className={styles.body}>
@@ -240,10 +267,6 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
                 {item.label}
               </button>
             ))}
-            <Link to="/notifications" className={styles.menuItem}>
-              <span className={styles.menuIcon} style={maskIcon(bellIcon)} aria-hidden="true" />
-              Notifications
-            </Link>
             <button type="button" className={`${styles.menuItem} ${styles.danger}`} onClick={handleDelete}>
               <img src={trashIcon} width={20} height={20} alt="" />
               Delete account
@@ -322,7 +345,7 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
                 ))}
               </ul>
               <p className={styles.note} role="status">
-                {settingsNote}
+                {notePanel === 'privacy' ? settingsNote : ''}
               </p>
             </section>
 
@@ -374,6 +397,45 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
                   </li>
                 ))}
               </ul>
+            </section>
+
+            <section id="notifications" data-section className={styles.panel} aria-labelledby="notifications-title">
+              <PanelHead
+                id="notifications-title"
+                title="Notifications"
+                text="Choose what you hear about, in the bell and as pop-ups. Everything is on until you switch it off."
+              />
+              {NOTIFICATION_GROUPS.map((group) => (
+                <div key={group.title} className={styles.rowGroup}>
+                  <h3 className={styles.rowGroupTitle}>{group.title}</h3>
+                  <ul className={styles.rows}>
+                    {group.items.map((item) => (
+                      <li key={item.id} className={styles.settingRow}>
+                        <span className={styles.rowText}>
+                          <span id={`notify-${item.id}`} className={styles.rowTitle}>
+                            {item.title}
+                          </span>
+                          <span className={styles.rowDesc}>{item.text}</span>
+                        </span>
+                        <Toggle
+                          checked={notifications[item.id]}
+                          labelledBy={`notify-${item.id}`}
+                          onChange={(on) => saveSettings({ notifications: { [item.id]: on } })}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              <p className={styles.rowDesc}>{FOLLOW_REQUEST_NOTE}</p>
+              <div className={styles.actions}>
+                <Link to="/notifications" className={styles.textLink}>
+                  See your notifications →
+                </Link>
+                <p className={styles.note} role="status">
+                  {notePanel === 'notifications' ? settingsNote : ''}
+                </p>
+              </div>
             </section>
           </div>
         </div>

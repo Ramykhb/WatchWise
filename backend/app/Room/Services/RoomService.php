@@ -6,6 +6,7 @@ use App\Models\DiscussionRoom;
 use App\Models\Message;
 use App\Models\Notification;
 use App\Models\User;
+use App\Notification\InterfaceServices\NotificationServiceInterface;
 use App\Room\DTOs\Requests\CreateRoomData;
 use App\Room\DTOs\Requests\InviteToRoomData;
 use App\Room\DTOs\Requests\ReadRoomMessagesData;
@@ -31,7 +32,10 @@ class RoomService implements RoomServiceInterface
     // change to 24, 2 is for testing
     private const MESSAGE_LIFETIME_HOURS = 24;
 
-    public function __construct(private readonly RoomRepositoryInterface $rooms) {}
+    public function __construct(
+        private readonly RoomRepositoryInterface $rooms,
+        private readonly NotificationServiceInterface $notifications,
+    ) {}
 
     public function list(User $viewer): RoomListResponse
     {
@@ -72,12 +76,17 @@ class RoomService implements RoomServiceInterface
 
     public function join(DiscussionRoom $room, User $user): RoomResponse
     {
+        $inviterId = $this->rooms->inviterId($room, $user->id);
+
         DB::transaction(function () use ($room, $user): void {
             $this->rooms->addMember($room, $user->id);
             $this->rooms->removeInvite($room, $user->id);
         });
 
         $this->broadcast(new RoomsChanged($room->id, $this->listChannels($room)));
+        if ($inviterId !== null) {
+            $this->notifications->roomInviteAccepted($room, $user, $inviterId);
+        }
 
         return $this->present($room, $user);
     }
@@ -90,6 +99,7 @@ class RoomService implements RoomServiceInterface
         if ($invitees->isNotEmpty()) {
             $this->rooms->addInvites($room, $invitees->modelKeys(), $inviter->id);
             $this->broadcast(new RoomsChanged($room->id, $this->listChannels($room)));
+            $this->notifications->roomInvited($room, $inviter, $invitees->modelKeys());
         }
 
         return $this->present($room, $inviter);
@@ -101,6 +111,20 @@ class RoomService implements RoomServiceInterface
 
         // The decliner is no longer an invitee, but their own list (other tabs) has to drop the room too.
         $this->broadcast(new RoomsChanged($room->id, $this->listChannels($room, [$user->id])));
+        $this->notifications->roomInviteDeclined($room, $user);
+    }
+
+    public function delete(DiscussionRoom $room, User $deleter): void
+    {
+        // Worked out first: the members and invitations are deleted with the room.
+        $listChannels = $this->listChannels($room, [$deleter->id]);
+        $audience = array_values(array_unique([...$this->rooms->memberIds($room), ...$this->rooms->inviteeIds($room)]));
+
+        DB::transaction(fn () => $this->rooms->delete($room));
+
+        // Every list that showed the room loads again without it.
+        $this->broadcast(new RoomsChanged($room->id, $listChannels));
+        $this->notifications->roomDeleted($room, $deleter, $audience);
     }
 
     public function messages(DiscussionRoom $room, User $viewer): RoomMessagesResponse
@@ -115,7 +139,7 @@ class RoomService implements RoomServiceInterface
         $memberIds = null;
         $untracked = [];
         foreach ($messages as $message) {
-            if (! $receipts->has($message->id)) {
+            if (! $message->read_tracking_started && ! $receipts->has($message->id)) {
                 $memberIds ??= $this->rooms->memberIds($room);
                 $untracked[$message->id] = array_values(array_diff($memberIds, [$message->user_id]));
                 $this->rooms->createReceipts($message, $untracked[$message->id]);
@@ -157,6 +181,7 @@ class RoomService implements RoomServiceInterface
 
         $response = new RoomMessageResponse($message, [$sender], $this->users($this->rooms->usersByIds($recipientIds), $recipientIds));
         $this->broadcast(new RoomMessageSent($response, $this->listChannels($room)));
+        $this->notifications->roomMessageSent($room, $message, $recipientIds, $this->mentionedIds($room, $data->content, $sender));
 
         return $response;
     }
@@ -164,6 +189,8 @@ class RoomService implements RoomServiceInterface
     public function read(DiscussionRoom $room, ReadRoomMessagesData $data, User $reader): ReadReceiptsResponse
     {
         $readIds = $this->rooms->markRead($room, $reader->id, $data->messageIds);
+        // They are looking at the room, so its "new messages" and mentions are read too.
+        $this->notifications->roomRead($room, $reader);
 
         if ($readIds === []) {
             return new ReadReceiptsResponse([], []);
@@ -260,6 +287,29 @@ class RoomService implements RoomServiceInterface
             $viewer->id,
             $this->rooms->unreadCount($room, $viewer->id),
         );
+    }
+
+    /**
+     * The people a message names with @username who can see its room: anyone for a public room, the members and
+     * invitees of a private one. The sender doesn't mention themselves.
+     *
+     * @return list<int>
+     */
+    private function mentionedIds(DiscussionRoom $room, string $content, User $sender): array
+    {
+        preg_match_all('/(?<![a-z0-9_.@])@([a-z0-9_.]{3,20})/i', $content, $matches);
+        // A handle at the end of a sentence keeps its full stop out.
+        $usernames = array_values(array_unique(array_map(fn (string $name): string => strtolower(rtrim($name, '.')), $matches[1])));
+
+        if ($usernames === []) {
+            return [];
+        }
+
+        $mentioned = $this->rooms->usersByUsername($usernames, [$sender->id])->modelKeys();
+
+        return $room->is_private
+            ? array_values(array_intersect($mentioned, [...$this->rooms->memberIds($room), ...$this->rooms->inviteeIds($room)]))
+            : $mentioned;
     }
 
     /**

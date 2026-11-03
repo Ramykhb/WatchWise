@@ -5,7 +5,16 @@
 export type ApiMember = { id: number; username: string; name: string; avatar: string | null }
 
 /** A person in search results (GET /api/users?q=), with the signed-in user's follow state. */
-export type ApiSearchUser = ApiMember & { followers: number; is_following: boolean; follows_you: boolean }
+export type ApiSearchUser = ApiMember & {
+  followers: number
+  is_following: boolean
+  /** Your follow request is waiting for this followers-only or private profile to answer. */
+  is_requested: boolean
+  follows_you: boolean
+}
+
+/** POST / DELETE /api/users/{username}/follow: following a followers-only or private profile sends a request. */
+export type ApiFollowState = { following: boolean; requested: boolean; followers: number }
 
 export type ApiUserSearch = { total: number; users: ApiSearchUser[] }
 
@@ -53,6 +62,8 @@ export type ApiProfile = {
   user: ApiMember & { bio: string | null; location: string | null; profile_visibility: string; member_since: string | null }
   is_me: boolean
   is_following: boolean
+  /** Your follow request is waiting for this followers-only or private profile to answer. */
+  is_requested: boolean
   follows_you: boolean
   /** null for a restricted profile; a section the owner hid has a null count. */
   counts: { followers: number; following: number | null; reviews: number | null; lists: number | null; films: number | null } | null
@@ -88,7 +99,8 @@ export type ApiMe = {
     favorite_genres: string[]
     privacy: Record<'ratings' | 'reviews' | 'lists' | 'watchlist' | 'history' | 'following', boolean>
     integrations: Record<'calendar' | 'location' | 'weather' | 'digest', boolean>
-    notifications: Record<'nights' | 'mentions' | 'social' | 'releases', boolean>
+    /** One switch per notification type, all on by default. Follow requests have none: they always arrive. */
+    notifications: Record<Exclude<ApiNotification['kind'], 'follow_request'>, boolean>
   }
   /** Linked providers → when they were connected. */
   connected: Partial<Record<'google' | 'github' | 'discord', string>>
@@ -107,15 +119,35 @@ export type ApiWatchItem = {
   created_at: string
 }
 
+/**
+ * One notification (GET /api/notifications, or pushed live on `notifications.{id}`), shown as
+ * "**actor** text **target**" with `detail` (a quote) and `film` (its title is looked up) underneath.
+ */
 export type ApiNotification = {
   id: number
-  kind: 'invite' | 'vote' | 'mention' | 'follow' | 'like' | 'list' | 'release' | 'watchlist'
-  actor: ApiMember | null
+  kind:
+    | 'follow'
+    | 'follow_request'
+    | 'follow_accepted'
+    | 'room_invite'
+    | 'room_joined'
+    | 'room_deleted'
+    | 'new_messages'
+    | 'mention'
+    | 'night_invite'
+    | 'night_rsvp'
+    | 'night_vote'
+    | 'night_update'
+    | 'review_helpful'
+  actor: ApiMember
   /** Whether you already follow the actor (drives "Follow back"). */
   actor_followed: boolean
+  /** Whether you asked to follow the actor and they haven't answered. */
+  actor_requested: boolean
   text: string
   target: string | null
   detail: string | null
+  film: { tmdb_id: number; media_type: 'movie' | 'tv' } | null
   to: string
   action: string
   read: boolean

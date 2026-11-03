@@ -60,6 +60,21 @@
                 }
             }
         },
+        "/api/rooms/{room}": {
+            "parameters": [{ "name": "room", "in": "path", "required": true, "schema": { "type": "integer" } }],
+            "delete": {
+                "summary": "Delete a room",
+                "description": "Only the member who created the room, or an admin. Its messages, members and invitations are deleted with it, and so are the notifications that open it. Every Rooms list that showed it gets `rooms.changed`, and its members and invitees get a `room_deleted` notification (not the person who deleted it).",
+                "tags": ["Rooms"],
+                "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+                "responses": {
+                    "200": { "description": "Room deleted.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Message" } } } },
+                    "401": { "description": "Not signed in." },
+                    "403": { "description": "You are not the room's creator or an admin." },
+                    "404": { "description": "Unknown room." }
+                }
+            }
+        },
         "/api/rooms/{room}/join": {
             "parameters": [{ "name": "room", "in": "path", "required": true, "schema": { "type": "integer" } }],
             "post": {

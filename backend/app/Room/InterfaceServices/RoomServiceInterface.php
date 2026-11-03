@@ -42,6 +42,9 @@ interface RoomServiceInterface
     /** Turns down the user's invitation to a private room. */
     public function decline(DiscussionRoom $room, User $user): void;
 
+    /** Deletes the room with its messages, members and invitations; its members and invitees are told who did it. */
+    public function delete(DiscussionRoom $room, User $deleter): void;
+
     /** The stored messages the viewer can still see, with who has read each one. */
     public function messages(DiscussionRoom $room, User $viewer): RoomMessagesResponse;
 

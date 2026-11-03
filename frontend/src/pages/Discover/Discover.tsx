@@ -756,7 +756,7 @@ function PeopleResults({ loading, failed, people, query, onRetry }: PeopleResult
               {person.follows_you && ' · Follows you'}
             </span>
           </Link>
-          <FollowButton username={person.username} following={person.is_following} followsYou={person.follows_you} />
+          <FollowButton username={person.username} following={person.is_following} requested={person.is_requested} followsYou={person.follows_you} />
         </li>
       ))}
     </ul>

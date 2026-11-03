@@ -7,13 +7,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Message extends Model
 {
-    protected $fillable = ['room_id', 'user_id', 'content'];
+    protected $fillable = ['room_id', 'user_id', 'content', 'read_tracking_started'];
 
     public const UPDATED_AT = null;
 
     protected function casts(): array
     {
-        return ['created_at' => 'datetime'];
+        return ['created_at' => 'datetime', 'read_tracking_started' => 'boolean'];
     }
 
     public function room(): BelongsTo

@@ -5,6 +5,7 @@ namespace App\Review\Services;
 use App\Models\Review;
 use App\Models\User;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
+use App\Notification\InterfaceServices\NotificationServiceInterface;
 use App\Review\DTOs\Requests\MovieReviewQuery;
 use App\Review\DTOs\Requests\ReportReviewData;
 use App\Review\DTOs\Requests\SaveReviewData;
@@ -24,6 +25,7 @@ class MovieReviewService implements MovieReviewServiceInterface
         private readonly SentimentClassifier $sentiment,
         private readonly MovieCatalogServiceInterface $catalog,
         private readonly ReviewModerationServiceInterface $moderation,
+        private readonly NotificationServiceInterface $notifications,
     ) {}
 
     public function forTitle(MovieReviewQuery $query, User $viewer): array
@@ -76,7 +78,9 @@ class MovieReviewService implements MovieReviewServiceInterface
     {
         // Taking back your own vote is always allowed: it only removes your vote.
         if (! $helpful) {
-            $this->reviews->unvote($review, $user);
+            if ($this->reviews->unvote($review, $user)) {
+                $this->notifications->reviewUnmarkedHelpful($review, $user);
+            }
 
             return $this->reviews->votesCount($review);
         }
@@ -94,7 +98,9 @@ class MovieReviewService implements MovieReviewServiceInterface
             throw ValidationException::withMessages(['review' => 'This review can’t be voted on.']);
         }
 
-        $this->reviews->vote($review, $user);
+        if ($this->reviews->vote($review, $user)) {
+            $this->notifications->reviewMarkedHelpful($review, $user);
+        }
 
         return $this->reviews->votesCount($review);
     }

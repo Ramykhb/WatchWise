@@ -22,7 +22,7 @@ class RoomMessagingTest extends SocialTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Event::fake([RoomMessageSent::class, RoomMessagesRead::class, RoomsChanged::class]);
+        Event::fake([RoomMessageSent::class, RoomMessagesRead::class, RoomsChanged::class, ...self::NOTIFICATION_EVENTS]);
     }
 
     /**
@@ -246,6 +246,41 @@ class RoomMessagingTest extends SocialTestCase
         $this->assertSame(0, $this->receipts($id)->count());
     }
 
+    public function test_legacy_messages_are_backfilled_once_and_survive_pruning_until_their_recipients_read_them(): void
+    {
+        [$host, $reader, $newcomer] = User::factory()->count(3)->create()->all();
+        $room = $this->room($host, [$reader]);
+        $message = Message::create(['room_id' => $room->id, 'user_id' => $host->id, 'content' => 'Legacy message']);
+        $this->backdate($message->id, now()->subDays(2));
+
+        $this->artisan('rooms:prune-messages')->assertSuccessful();
+        $this->assertModelExists($message);
+        $this->as($reader)->getJson("/api/rooms/{$room->id}/messages")->assertOk()->assertJsonCount(1, 'messages');
+        $this->as($newcomer)->postJson("/api/rooms/{$room->id}/join")->assertOk();
+        $this->as($reader)->getJson("/api/rooms/{$room->id}/messages")->assertOk()->assertJsonCount(1, 'messages.0.unread_by');
+
+        $this->as($reader)->postJson("/api/rooms/{$room->id}/read", ['message_ids' => [$message->id]])->assertOk();
+
+        $this->assertModelMissing($message);
+    }
+
+    public function test_migration_preserves_tracking_for_existing_messages_with_receipts(): void
+    {
+        $migration = require database_path('migrations/2026_11_03_084313_add_read_tracking_started_to_messages.php');
+        $migration->down();
+        [$host, $reader] = User::factory()->count(2)->create()->all();
+        $room = $this->room($host, [$reader]);
+        $message = Message::create(['room_id' => $room->id, 'user_id' => $host->id, 'content' => 'Already read']);
+        Notification::create(['user_id' => $reader->id, 'type' => Notification::ROOM_MESSAGE, 'data' => ['room_id' => $room->id, 'message_id' => $message->id], 'read_at' => now()]);
+        $this->backdate($message->id, now()->subDays(2));
+
+        $migration->up();
+        $this->artisan('rooms:prune-messages')->assertSuccessful();
+
+        $this->assertModelMissing($message);
+        $this->assertSame(0, $this->receipts($message->id)->count());
+    }
+
     public function test_posting_without_joining_returns_403_and_does_not_make_you_a_member(): void
     {
         [$host, $visitor] = User::factory()->count(2)->create()->all();
@@ -439,15 +474,18 @@ class RoomMessagingTest extends SocialTestCase
         $this->assertNotContains($maya->id, DB::table('room_members')->pluck('user_id')->all());
     }
 
-    public function test_messages_waiting_to_be_read_are_not_counted_as_notifications(): void
+    public function test_messages_waiting_to_be_read_count_once_per_room_as_notifications(): void
     {
         [$lina, $omar] = User::factory()->count(2)->create()->all();
-        $this->send($lina, $this->room($lina, [$omar]));
+        $room = $this->room($lina, [$omar]);
+        $this->send($lina, $room);
+        $this->send($lina, $room);
         Notification::create(['user_id' => $omar->id, 'type' => 'follow', 'data' => ['user_id' => $lina->id]]);
 
+        // Two read receipts, but the bell only counts the room's "new messages" notification and the follow.
         $this->as($omar)->getJson('/api/me')
             ->assertOk()
-            ->assertJsonPath('counts.unread_notifications', 1);
+            ->assertJsonPath('counts.unread_notifications', 2);
     }
 
     public function test_home_counts_room_members(): void

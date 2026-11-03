@@ -67,6 +67,20 @@ class RoomRepository implements RoomRepositoryInterface
         DB::table('room_invites')->where('room_id', $room->id)->where('user_id', $userId)->delete();
     }
 
+    public function delete(DiscussionRoom $room): void
+    {
+        // Receipts point at the room through their JSON, so the database can't cascade them.
+        $this->roomReceipts($room)->delete();
+        $room->delete();
+    }
+
+    public function inviterId(DiscussionRoom $room, int $userId): ?int
+    {
+        $inviterId = DB::table('room_invites')->where('room_id', $room->id)->where('user_id', $userId)->value('invited_by');
+
+        return $inviterId === null ? null : (int) $inviterId;
+    }
+
     public function inviteeIds(DiscussionRoom $room): array
     {
         return $room->invitees()->pluck('users.id')->map(fn ($id): int => (int) $id)->all();
@@ -89,19 +103,22 @@ class RoomRepository implements RoomRepositoryInterface
 
     public function createReceipts(Message $message, array $userIds): void
     {
-        if ($userIds === []) {
-            return;
-        }
+        DB::transaction(function () use ($message, $userIds): void {
+            if ($userIds !== []) {
+                $data = json_encode(['room_id' => $message->room_id, 'message_id' => $message->id]);
+                $now = now();
 
-        $data = json_encode(['room_id' => $message->room_id, 'message_id' => $message->id]);
-        $now = now();
+                Notification::insert(array_map(fn (int $userId): array => [
+                    'user_id' => $userId,
+                    'type' => Notification::ROOM_MESSAGE,
+                    'data' => $data,
+                    'created_at' => $now,
+                ], $userIds));
+            }
 
-        Notification::insert(array_map(fn (int $userId): array => [
-            'user_id' => $userId,
-            'type' => Notification::ROOM_MESSAGE,
-            'data' => $data,
-            'created_at' => $now,
-        ], $userIds));
+            // Even an empty audience was deliberately tracked; later members must not become recipients.
+            $message->forceFill(['read_tracking_started' => true])->save();
+        });
     }
 
     public function storedMessages(DiscussionRoom $room): Collection
@@ -157,6 +174,7 @@ class RoomRepository implements RoomRepositoryInterface
 
         Message::query()
             ->select('id')
+            ->where('read_tracking_started', true)
             ->where('created_at', '<=', $sentBy)
             ->whereNotExists(fn (QueryBuilder $receipts) => $this->unreadReceipts($receipts, 'messages.id'))
             ->chunkById(500, function (Collection $messages) use (&$deleted): void {

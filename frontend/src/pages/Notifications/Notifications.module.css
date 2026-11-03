@@ -308,6 +308,20 @@
   letter-spacing: -0.02em;
 }
 
+.prefGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.prefGroupTitle {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
 .prefs {
   margin: 0;
   padding: 0;
@@ -323,6 +337,12 @@
   border-top: 1.5px solid var(--border-subtle);
   font-weight: 700;
   font-size: 14px;
+}
+
+.prefNote {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-400);
 }
 
 .settingsLink {

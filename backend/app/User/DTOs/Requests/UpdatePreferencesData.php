@@ -2,6 +2,8 @@
 
 namespace App\User\DTOs\Requests;
 
+use App\Models\Notification;
+
 final readonly class UpdatePreferencesData
 {
     /** @var list<string> */
@@ -10,8 +12,12 @@ final readonly class UpdatePreferencesData
     /** @var list<string> */
     public const INTEGRATION_KEYS = ['calendar', 'location', 'weather', 'digest'];
 
-    /** @var list<string> */
-    public const NOTIFY_KEYS = ['nights', 'mentions', 'social', 'releases'];
+    /**
+     * One switch per notification type a member can turn off (Settings › Notifications), all on by default.
+     *
+     * @var list<string>
+     */
+    public const NOTIFY_KEYS = Notification::OPTIONAL_TYPES;
 
     /**
      * A null group or genre list was not sent and is left alone.
