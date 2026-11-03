@@ -47,10 +47,10 @@
     "/api/movies": {
       "get": {
         "summary": "List movies (popular, top rated, now playing, upcoming)",
-        "description": "Returns one page of a TMDB movie list. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
+        "description": "Returns one page of a TMDB movie list. Each page is cached for one hour. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
         "tags": ["Movies"],
         "parameters": [
-          {"name": "list", "in": "query", "required": false, "description": "Which list to fetch.", "schema": {"type": "string", "enum": ["popular", "top_rated", "now_playing", "upcoming"], "default": "popular"}},
+          {"name": "list", "in": "query", "required": false, "description": "Which list to fetch. upcoming holds films whose first release date is after today, most popular first (TMDB's own upcoming list counts a release in any country, so most of it is already out).", "schema": {"type": "string", "enum": ["popular", "top_rated", "now_playing", "upcoming"], "default": "popular"}},
           {"name": "page", "in": "query", "required": false, "description": "Page number.", "schema": {"type": "integer", "minimum": 1, "maximum": 500, "default": 1}}
         ],
         "responses": {

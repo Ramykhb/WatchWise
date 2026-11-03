@@ -319,6 +319,7 @@
 }
 
 .release {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -327,25 +328,43 @@
   background: var(--surface-white);
 }
 
+/* Poster-shaped (2:3), with the date along the bottom. */
 .date {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   width: 72px;
-  height: 80px;
+  height: 108px;
+  padding-bottom: 10px;
+  overflow: hidden;
   border-radius: 20px;
   font-weight: 700;
   color: var(--ground-cream);
 }
 
+.datePoster {
+  text-shadow: 0 1px 2px rgb(22 18 43 / 50%);
+}
+
+/* Darkens the bottom of the poster so the date stays readable. */
+.datePoster::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgb(22 18 43 / 90%), rgb(22 18 43 / 55%) 45%, rgb(22 18 43 / 0%) 80%);
+}
+
 .month {
+  position: relative;
   font-size: 12px;
   letter-spacing: 0.1em;
 }
 
 .day {
+  position: relative;
   font-family: var(--font-display);
   font-size: 30px;
   line-height: 1.2;
@@ -374,7 +393,10 @@
   color: var(--ink-600);
 }
 
+/* Sits above the title's card-wide link, so it stays its own button. */
 .calendar {
+  position: relative;
+  z-index: 1;
   display: grid;
   flex-shrink: 0;
   place-items: center;
@@ -388,6 +410,52 @@
 
 .calendar:hover {
   background: var(--accent-yellow);
+}
+
+/* The title's link covers the whole card, so the poster opens the film too. */
+.releaseLink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 28px;
+}
+
+.releaseLink:hover {
+  text-decoration: underline;
+}
+
+.releasesState {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
+.releasesState button {
+  padding: 8px 14px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-pill);
+  color: var(--ground-violet);
+  cursor: pointer;
+}
+
+.releaseSkeleton {
+  background: linear-gradient(100deg, #e6dff0 30%, #f4edf8 50%, #e6dff0 70%);
+  background-size: 250% 100%;
+  animation: releaseShimmer 1.5s ease-in-out infinite;
+}
+
+.releaseSkeletonTitle,
+.releaseSkeletonMeta {
+  display: block;
+  border-radius: 8px;
+}
+
+.releaseSkeletonTitle { width: 80%; height: 18px; }
+.releaseSkeletonMeta { width: 50%; height: 13px; }
+
+@keyframes releaseShimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
 }
 
 /* ---------- Social row ---------- */
@@ -675,5 +743,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pickSkeleton { animation: none; }
+  .pickSkeleton,
+  .releaseSkeleton { animation: none; }
 }

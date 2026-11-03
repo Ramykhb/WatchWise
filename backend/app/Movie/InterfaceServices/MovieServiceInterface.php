@@ -16,7 +16,7 @@ interface MovieServiceInterface
     /** Weekly trending titles in TMDB rank order. @throws TmdbUnavailable */
     public function trending(MovieTrendingQuery $query): MoviePageResponse;
 
-    /** @throws TmdbUnavailable */
+    /** One page of a TMDB list, cached for an hour. @throws TmdbUnavailable */
     public function list(MovieListQuery $query): MoviePageResponse;
 
     /** @throws TmdbUnavailable */

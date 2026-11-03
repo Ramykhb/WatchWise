@@ -39,11 +39,8 @@ export const BECAUSE_YOU_LOVED = {
 }
 
 
-export const RELEASES = [
-  { title: 'Velvet Hour II', meta: 'Romance · in cinemas', month: 'MAR', day: '14', gradient: G.velvetHour },
-  { title: 'Red Signal: Zero', meta: 'Action · streaming', month: 'APR', day: '02', gradient: G.redSignal },
-  { title: 'Wild Fern Returns', meta: 'Adventure · in cinemas', month: 'APR', day: '19', gradient: G.wildFern },
-]
+/** "Coming soon" date tiles take these in turn. */
+export const RELEASE_GRADIENTS: Gradient[] = [G.velvetHour, G.redSignal, G.wildFern]
 
 export type Activity = {
   initials: string
