@@ -22,10 +22,13 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, isStatus, useApi } from '../../lib/api.ts'
-import { PICKABLE_MOVIES, movieFor, tmdbIdOf } from '../../lib/movies.ts'
+import { tmdbIdOf } from '../../lib/movies.ts'
 import type { ApiMember, ApiNight } from '../../lib/types.ts'
 import { dateTile, formatWhen, toGuest, toNight, type Night } from './nightsData.ts'
 import { apiRsvp, toNightDetail, type NightDetail, type Rsvp } from './nightDetailData.ts'
+import MovieSearch from '../../components/MovieSearch/MovieSearch.tsx'
+import { useMovies } from '../../lib/movieDetails.ts'
+import { Thumb } from '../Lists/ListDialog.tsx'
 import styles from './NightDetail.module.css'
 
 const RSVP_OPTIONS: { id: Exclude<Rsvp, 'pending'>; label: string; icon?: string }[] = [
@@ -102,7 +105,8 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
   const leaders = detail.winner
     ? candidates.filter((c) => c.tmdbId === detail.winner)
     : candidates.filter((c) => topVotes > 0 && c.voters.length === topVotes)
-  const winner = leaders[0] ? movieFor(leaders[0].tmdbId) : undefined
+  const movieOf = useMovies(candidates.map((candidate) => candidate.tmdbId))
+  const winner = leaders[0] ? movieOf(leaders[0].tmdbId) : undefined
   const voted = candidates.reduce((sum, c) => sum + c.voters.length, 0)
 
   const guests = detail.guests
@@ -126,7 +130,6 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
 
   // The host can invite more of the people they follow.
   const following = useApi<{ users: ApiMember[] }>(`/users/${user?.username ?? ''}/following`)
-  const suggestable = PICKABLE_MOVIES.filter((m) => !candidates.some((c) => c.tmdbId === tmdbIdOf(m)))
   const invitable = detail.isHost
     ? (following.data?.users ?? []).filter((m) => !guests.some((g) => g.guest.id === m.id)).map((m) => toGuest(m, user?.id))
     : []
@@ -236,28 +239,16 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                   {voted} of {count('going') + count('maybe')} guests have voted · one vote each
                 </p>
               </div>
-              {!closed && suggestable.length > 0 && (
+              {!closed && (
                 <div className={styles.popWrap}>
                   <PillButton pressed={suggesting} onClick={() => setSuggesting((v) => !v)}>
                     + Suggest a movie
                   </PillButton>
                   {suggesting && (
-                    <ul className={styles.popover}>
-                      {suggestable.map((movie) => (
-                        <li key={movie.slug}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              vote(tmdbIdOf(movie))
-                              setSuggesting(false)
-                            }}
-                          >
-                            <span className={styles.popThumb} style={{ background: gradientCss(movie.gradient) }} aria-hidden="true" />
-                            {movie.title}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
+                    <MovieSearch excluded={candidates.map((candidate) => candidate.tmdbId)} onPick={(movie) => {
+                      vote(tmdbIdOf(movie))
+                      setSuggesting(false)
+                    }} />
                   )}
                 </div>
               )}
@@ -265,13 +256,13 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
 
             <ul className={styles.candidates}>
               {candidates.map((candidate) => {
-                const movie = movieFor(candidate.tmdbId)
+                const movie = movieOf(candidate.tmdbId)
                 const leading = leaders.includes(candidate)
                 const mine = myVote === candidate.tmdbId
                 const width = topVotes > 0 ? (candidate.voters.length / topVotes) * 80 : 0
                 return (
                   <li key={candidate.tmdbId} className={leading ? styles.candidateLeading : styles.candidate}>
-                    <span className={styles.thumb} style={{ background: gradientCss(movie.gradient) }} aria-hidden="true" />
+                    <Thumb movie={movie} className={styles.thumb} />
                     <div className={styles.candidateInfo}>
                       <div className={styles.candidateTitle}>
                         <span>{movie.title}</span>

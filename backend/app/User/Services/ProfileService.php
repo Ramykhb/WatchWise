@@ -5,10 +5,12 @@ namespace App\User\Services;
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\User;
 use App\MovieList\Resources\MovieListResource;
+use App\Notification\InterfaceServices\NotificationServiceInterface;
 use App\User\DTOs\Requests\UserSearchQuery;
 use App\User\DTOs\Responses\FollowResponse;
 use App\User\DTOs\Responses\ProfileResponse;
 use App\User\DTOs\Responses\UserSearchResponse;
+use App\User\Exceptions\FollowRequestNotFound;
 use App\User\Exceptions\ProfileSectionHidden;
 use App\User\InterfaceRepository\ProfileRepositoryInterface;
 use App\User\InterfaceServices\ProfileServiceInterface;
@@ -20,6 +22,7 @@ class ProfileService implements ProfileServiceInterface
     public function __construct(
         private readonly ProfileRepositoryInterface $profiles,
         private readonly ProfilePrivacy $privacy,
+        private readonly NotificationServiceInterface $notifications,
     ) {}
 
     public function search(UserSearchQuery $query, CurrentUser $viewer): UserSearchResponse
@@ -30,8 +33,9 @@ class ProfileService implements ProfileServiceInterface
         $me = $viewer->user();
         $following = $this->profiles->followedAmong($me, $users->pluck('id'));
         $followers = $this->profiles->followersAmong($me, $users->pluck('id'));
+        $requested = $this->notifications->followRequestedAmong($me, $users->modelKeys());
 
-        return new UserSearchResponse($total, $users->map(function (User $user) use ($viewer, $following, $followers) {
+        return new UserSearchResponse($total, $users->map(function (User $user) use ($viewer, $following, $followers, $requested) {
             $member = (new MemberResource($user))->resolve();
             // Match profile(): restricted profiles expose the name and handle, but not the avatar.
             if (! $this->privacy->canView($user, $viewer)) {
@@ -42,6 +46,7 @@ class ProfileService implements ProfileServiceInterface
                 ...$member,
                 'followers' => $user->followers_count,
                 'is_following' => in_array($user->id, $following, true),
+                'is_requested' => in_array($user->id, $requested, true),
                 'follows_you' => in_array($user->id, $followers, true),
             ];
         })->values()->all());
@@ -52,9 +57,12 @@ class ProfileService implements ProfileServiceInterface
         $this->profiles->loadPreferences($user);
         $isMe = $viewer->id() === $user->id;
         $me = $viewer->user();
+        $isFollowing = ! $isMe && $user->isFollowedBy($viewer->id());
         $relation = [
             'is_me' => $isMe,
-            'is_following' => ! $isMe && $user->isFollowedBy($viewer->id()),
+            'is_following' => $isFollowing,
+            // Waiting for a followers-only or private profile to accept.
+            'is_requested' => ! $isMe && ! $isFollowing && $me !== null && $this->notifications->hasRequestedFollow($me, $user),
             'follows_you' => ! $isMe && $me !== null && $me->isFollowedBy($user->id),
             'my_following' => $me !== null ? $this->profiles->followingIds($me) : [],
         ];
@@ -128,16 +136,46 @@ class ProfileService implements ProfileServiceInterface
 
     public function follow(User $follower, User $target): FollowResponse
     {
-        $this->profiles->follow($follower, $target);
+        if ($target->isFollowedBy($follower->id)) {
+            return new FollowResponse(true, false, $this->profiles->followersCount($target));
+        }
 
-        return new FollowResponse(true, $this->profiles->followersCount($target));
+        if ($this->privacy->needsFollowApproval($target)) {
+            $this->notifications->requestFollow($follower, $target);
+
+            return new FollowResponse(false, true, $this->profiles->followersCount($target));
+        }
+
+        if ($this->profiles->follow($follower, $target)) {
+            // A request sent while the profile was still followers-only or private is answered by this.
+            $this->notifications->removeFollowRequest($follower, $target);
+            $this->notifications->followed($follower, $target);
+        }
+
+        return new FollowResponse(true, false, $this->profiles->followersCount($target));
     }
 
     public function unfollow(User $follower, User $target): FollowResponse
     {
         $this->profiles->unfollow($follower, $target);
+        $this->notifications->removeFollowRequest($follower, $target);
 
-        return new FollowResponse(false, $this->profiles->followersCount($target));
+        return new FollowResponse(false, false, $this->profiles->followersCount($target));
+    }
+
+    public function acceptFollowRequest(User $me, User $requester): void
+    {
+        if (! $this->notifications->hasRequestedFollow($requester, $me)) {
+            throw new FollowRequestNotFound;
+        }
+
+        $this->profiles->follow($requester, $me);
+        $this->notifications->acceptFollowRequest($requester, $me);
+    }
+
+    public function declineFollowRequest(User $me, User $requester): void
+    {
+        $this->notifications->removeFollowRequest($requester, $me);
     }
 
     /**

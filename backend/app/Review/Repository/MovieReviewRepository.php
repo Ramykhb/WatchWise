@@ -134,14 +134,14 @@ class MovieReviewRepository implements MovieReviewRepositoryInterface
         return $report->wasRecentlyCreated;
     }
 
-    public function vote(Review $review, User $user): void
+    public function vote(Review $review, User $user): bool
     {
-        ReviewVote::insertOrIgnore(['review_id' => $review->id, 'user_id' => $user->id, 'created_at' => now()]);
+        return ReviewVote::insertOrIgnore(['review_id' => $review->id, 'user_id' => $user->id, 'created_at' => now()]) > 0;
     }
 
-    public function unvote(Review $review, User $user): void
+    public function unvote(Review $review, User $user): bool
     {
-        $review->votes()->where('user_id', $user->id)->delete();
+        return $review->votes()->where('user_id', $user->id)->delete() > 0;
     }
 
     public function votesCount(Review $review): int

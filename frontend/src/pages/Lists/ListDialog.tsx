@@ -34,6 +34,46 @@ const searchCache = new Map<string, Movie[]>()
 
 type SearchResult = { query: string; movies: Movie[]; failed: boolean }
 
+/**
+ * Searches TMDB movies and TV shows once typing pauses; a newer query cancels the older one. While a new
+ * search runs, `results` keeps the last answer so the list can dim instead of going blank. Also used by
+ * the Rooms page's "Create a room" form.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- shared with Rooms; the dialog stays the default export
+export function useTitleSearch(query: string, mediaType: 'movie' | 'tv' | 'all' = 'all') {
+  const normalized = query.trim().toLowerCase()
+  const key = normalized ? `${mediaType}:${normalized}` : ''
+  const [found, setFound] = useState<SearchResult>({ query: '', movies: [], failed: false })
+  const answered = key ? searchCache.get(key) : undefined
+  const failed = found.query === key && found.failed
+  const searching = key !== '' && !answered && !failed
+
+  useEffect(() => {
+    if (!key || searchCache.has(key)) return
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      Promise.all([
+        api.get<MoviePage>('/movies/search', { params: { q: normalized, type: mediaType }, signal: controller.signal }),
+        loadGenres().catch(() => NO_GENRES),
+      ])
+        .then(([{ data }, genres]) => {
+          const movies = data.movies.map((movie) => toTileMovie(movie, genres))
+          searchCache.set(key, movies)
+          setFound({ query: key, movies, failed: false })
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setFound({ query: key, movies: [], failed: true })
+        })
+    }, SEARCH_DELAY_MS)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [key, normalized, mediaType])
+
+  return { results: answered ?? (key ? found.movies : []), searching, failed }
+}
+
 type ListDialogProps = { mode: 'create' | 'edit' }
 
 /** "Create a list" / "Edit list" dialog over the Lists page (Figma "Modal — Create / Edit List"). */
@@ -75,41 +115,11 @@ function Dialog({ existing }: { existing?: ApiList }) {
   const [saving, setSaving] = useState(false)
   const [closing, setClosing] = useState(false)
 
-  const [found, setFound] = useState<SearchResult>({ query: '', movies: [], failed: false })
-
   const q = query.trim()
-  const key = q.toLowerCase()
-  const answered = key ? searchCache.get(key) : undefined
-  const failed = found.query === key && found.failed
-  const searching = key !== '' && !answered && !failed
-  // While a new search runs, the last answer stays on screen (dimmed) instead of the list going blank.
-  const results = (answered ?? (key ? found.movies : []))
-    .filter((movie) => !picked.some((p) => p.slug === movie.slug))
-    .slice(0, MAX_RESULTS)
-
-  // Searches TMDB movies and TV shows once typing pauses; a newer query cancels the older one.
-  useEffect(() => {
-    if (!key || searchCache.has(key)) return
-    const controller = new AbortController()
-    const timer = window.setTimeout(() => {
-      Promise.all([
-        api.get<MoviePage>('/movies/search', { params: { q: key, type: 'all' }, signal: controller.signal }),
-        loadGenres().catch(() => NO_GENRES),
-      ])
-        .then(([{ data }, genres]) => {
-          const movies = data.movies.map((movie) => toTileMovie(movie, genres))
-          searchCache.set(key, movies)
-          setFound({ query: key, movies, failed: false })
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) setFound({ query: key, movies: [], failed: true })
-        })
-    }, SEARCH_DELAY_MS)
-    return () => {
-      window.clearTimeout(timer)
-      controller.abort()
-    }
-  }, [key])
+  // Searches TMDB movies and TV shows; while a new search runs, the last answer stays on screen (dimmed).
+  const search = useTitleSearch(query)
+  const { searching, failed } = search
+  const results = search.results.filter((movie) => !picked.some((p) => p.slug === movie.slug)).slice(0, MAX_RESULTS)
 
   const close = (to = '/lists') => {
     if (closing) return
@@ -340,8 +350,8 @@ function Dialog({ existing }: { existing?: ApiList }) {
   )
 }
 
-/** A small poster; it shimmers while the film loads, and shows the gradient when TMDB has none. */
-function Thumb({ movie, className }: { movie: Movie; className: string }) {
+/** A small poster; it shimmers while the film loads, and shows the gradient when TMDB has none. Also used by Rooms. */
+export function Thumb({ movie, className, size = 'w92' }: { movie: Movie; className: string; size?: 'w92' | 'w185' }) {
   return (
     <span
       className={isLoading(movie) ? `${className} ${styles.thumbLoading}` : className}
@@ -350,7 +360,7 @@ function Thumb({ movie, className }: { movie: Movie; className: string }) {
       {movie.posterUrl && (
         <img
           className={styles.thumbImg}
-          src={posterAt(movie.posterUrl, 'w92')}
+          src={posterAt(movie.posterUrl, size)}
           alt=""
           loading="lazy"
           onError={(event) => {

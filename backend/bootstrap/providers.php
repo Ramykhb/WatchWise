@@ -10,6 +10,7 @@ use App\Movie\Providers\MovieModuleServiceProvider;
 use App\MovieList\Providers\MovieListModuleServiceProvider;
 use App\MovieNight\Providers\MovieNightModuleServiceProvider;
 use App\MovieRecommendation\Providers\MovieRecommendationModuleServiceProvider;
+use App\Notification\Providers\NotificationModuleServiceProvider;
 use App\Person\Providers\PersonModuleServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\AuthorizationServiceProvider;
@@ -31,6 +32,7 @@ return [
     PersonModuleServiceProvider::class,
     MovieListModuleServiceProvider::class,
     MovieNightModuleServiceProvider::class,
+    NotificationModuleServiceProvider::class,
     RatingModuleServiceProvider::class,
     ReviewModuleServiceProvider::class,
     RoomModuleServiceProvider::class,

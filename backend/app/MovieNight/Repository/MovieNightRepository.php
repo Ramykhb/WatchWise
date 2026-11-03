@@ -54,6 +54,11 @@ class MovieNightRepository implements MovieNightRepositoryInterface
         return $night->invites()->pluck('user_id')->all();
     }
 
+    public function attendingGuestIds(MovieNight $night): array
+    {
+        return $night->invites()->where('status', '!=', 'declined')->pluck('user_id')->map(fn ($id): int => (int) $id)->all();
+    }
+
     public function addInvite(MovieNight $night, int $userId): void
     {
         $night->invites()->create(['user_id' => $userId]);

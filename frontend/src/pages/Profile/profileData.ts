@@ -31,6 +31,10 @@ export type Profile = Member & {
   bio: string
   isMe: boolean
   isFollowing: boolean
+  /** Your follow request is waiting for their answer. */
+  isRequested: boolean
+  /** Followers-only and private profiles accept followers: following them sends a request. */
+  needsApproval: boolean
   followsYou: boolean
   /** Private (or followers-only) profile the viewer can't open: only the header is shown. */
   restricted: boolean
@@ -105,6 +109,8 @@ export function toProfile(data: ApiProfile): Profile {
     bio: data.user.bio ?? '',
     isMe: data.is_me,
     isFollowing: data.is_following,
+    isRequested: data.is_requested,
+    needsApproval: data.user.profile_visibility !== 'public',
     followsYou: data.follows_you,
     restricted: data.restricted,
     followers: data.counts?.followers ?? 0,

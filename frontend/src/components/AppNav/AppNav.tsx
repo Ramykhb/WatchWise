@@ -6,7 +6,7 @@ import FollowButton from '../FollowButton/FollowButton.tsx'
 import searchIcon from '../../assets/home/icon-search.svg'
 import bellIcon from '../../assets/home/icon-bell.svg'
 import gearIcon from '../../assets/settings/icon-gear.svg'
-import { useNotificationPolling, useUnreadCount } from '../../pages/Notifications/notificationsStore.ts'
+import { useUnreadCount } from '../../pages/Notifications/notificationsStore.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { isAdminRole, isModeratorRole } from '../../lib/adminApi.ts'
 import { api } from '../../lib/api.ts'
@@ -44,7 +44,7 @@ export default function AppNav() {
   // People matching the query, tagged with the query they answer so stale results are ignored.
   const [people, setPeople] = useState<{ q: string; data: ApiUserSearch } | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
-  useNotificationPolling()
+  // Kept live by the notifications socket (RootLayout).
   const unread = useUnreadCount()
 
   const q = query.trim()
@@ -158,9 +158,10 @@ export default function AppNav() {
                       </span>
                     </Link>
                     <FollowButton
-                      key={`${person.id}-${person.is_following}`}
+                      key={`${person.id}-${person.is_following}-${person.is_requested}`}
                       username={person.username}
                       following={person.is_following}
+                      requested={person.is_requested}
                       followsYou={person.follows_you}
                     />
                   </li>

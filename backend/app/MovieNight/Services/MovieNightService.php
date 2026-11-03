@@ -16,11 +16,15 @@ use App\MovieNight\Exceptions\NotInvitedToMovieNight;
 use App\MovieNight\Exceptions\VotingClosed;
 use App\MovieNight\InterfaceRepository\MovieNightRepositoryInterface;
 use App\MovieNight\InterfaceServices\MovieNightServiceInterface;
+use App\Notification\InterfaceServices\NotificationServiceInterface;
 use Illuminate\Support\Facades\DB;
 
 class MovieNightService implements MovieNightServiceInterface
 {
-    public function __construct(private readonly MovieNightRepositoryInterface $nights) {}
+    public function __construct(
+        private readonly MovieNightRepositoryInterface $nights,
+        private readonly NotificationServiceInterface $notifications,
+    ) {}
 
     public function overview(User $viewer): MovieNightOverviewResponse
     {
@@ -87,6 +91,10 @@ class MovieNightService implements MovieNightServiceInterface
 
         if ($invite->status !== $data->status) {
             $this->nights->updateInviteStatus($invite, $data->status);
+
+            if ($data->status !== 'pending') {
+                $this->notifications->nightAnswered($night, $guest, $data->status);
+            }
         }
 
         return $this->present($night, $guest->id);
@@ -106,13 +114,20 @@ class MovieNightService implements MovieNightServiceInterface
         }
 
         DB::transaction(fn () => $this->nights->replaceVote($night, $data->tmdbId, $voter->id));
+        $this->notifications->nightVoted($night, $voter, $data->tmdbId);
 
         return $this->present($night, $voter->id);
     }
 
     public function update(MovieNight $night, UpdateMovieNightData $data, User $organizer): MovieNightResponse
     {
+        $before = ['status' => $night->status, 'scheduled_at' => $night->scheduled_at?->toJSON()];
         $this->nights->update($night, $data->attributes);
+
+        $change = $this->changeGuestsHearAbout($before, $night);
+        if ($change !== null) {
+            $this->notifications->nightChanged($night, $change, $this->nights->attendingGuestIds($night));
+        }
 
         return $this->present($night, $organizer->id);
     }
@@ -125,8 +140,31 @@ class MovieNightService implements MovieNightServiceInterface
      */
     private function inviteUsers(MovieNight $night, array $usernames, User $organizer, array $alreadyInvited = []): void
     {
-        $this->nights->findUsersByUsername($usernames, $organizer->id, $alreadyInvited)
+        $guests = $this->nights->findUsersByUsername($usernames, $organizer->id, $alreadyInvited)
             ->each(fn (User $guest) => $this->nights->addInvite($night, $guest->id));
+
+        if ($guests->isNotEmpty()) {
+            $this->notifications->nightInvited($night, $organizer, $guests->modelKeys());
+        }
+    }
+
+    /**
+     * What the guests are told after the host's edit: the pick was locked in (confirmed), the night was cancelled,
+     * voting reopened, or the time moved. Other edits (notes, place, link) don't notify anyone.
+     *
+     * @param  array{status: string, scheduled_at: string|null}  $before
+     */
+    private function changeGuestsHearAbout(array $before, MovieNight $night): ?string
+    {
+        if ($night->status !== $before['status']) {
+            return match ($night->status) {
+                'confirmed' => 'confirmed',
+                'cancelled' => 'cancelled',
+                default => 'reopened',
+            };
+        }
+
+        return $night->scheduled_at?->toJSON() !== $before['scheduled_at'] ? 'rescheduled' : null;
     }
 
     private function present(MovieNight $night, int $viewerId): MovieNightResponse

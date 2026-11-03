@@ -61,6 +61,19 @@ class PolicyTest extends TestCase
         $this->assertFalse($this->can($this->current($other), 'update', $list));
     }
 
+    public function test_public_lists_of_private_profiles_are_for_followers(): void
+    {
+        $owner = User::factory()->private()->create();
+        $follower = User::factory()->create();
+        $other = User::factory()->create();
+        $follower->following()->attach($owner->id);
+        $list = new MovieList(['user_id' => $owner->id, 'is_public' => true]);
+
+        $this->assertTrue($this->can($this->current($follower), 'view', $list));
+        $this->assertFalse($this->can($this->current($other), 'view', $list));
+        $this->assertFalse($this->can(new GuestUser, 'view', $list));
+    }
+
     public function test_private_profile_visibility(): void
     {
         $owner = User::factory()->private()->create();
@@ -142,6 +155,14 @@ class PolicyTest extends TestCase
         $this->assertTrue($this->can($this->current($member), 'post', $private));
         $this->assertTrue($this->can($this->current($member), 'invite', $private));
         $this->assertFalse($this->can($this->current($member), 'decline', $private));
+
+        // The creator (the member here) and admins delete a room; nobody else does.
+        $admin = User::factory()->admin()->create();
+        $this->assertTrue($this->can($this->current($member), 'delete', $private));
+        $this->assertTrue($this->can($this->current($admin), 'delete', $private));
+        $this->assertFalse($this->can($this->current($invitee), 'delete', $private));
+        $this->assertFalse($this->can($this->current($outsider), 'delete', $public));
+        $this->assertFalse($this->can(new GuestUser, 'delete', $public));
     }
 
     public function test_gate_defaults_to_the_current_user_binding(): void

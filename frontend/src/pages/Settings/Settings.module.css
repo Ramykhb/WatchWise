@@ -303,6 +303,21 @@
   list-style: none;
 }
 
+/* ---------- Notifications ---------- */
+.rowGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rowGroupTitle {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
 .settingRow {
   display: flex;
   align-items: center;

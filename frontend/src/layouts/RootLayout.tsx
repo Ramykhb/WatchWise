@@ -4,10 +4,14 @@ import { ReactLenis, useLenis, type LenisRef } from 'lenis/react'
 import { gsap, ScrollTrigger } from '../lib/gsap.ts'
 import { useAuth } from '../contexts/useAuth.ts'
 import ChatbotWidget from '../components/ChatbotWidget/ChatbotWidget.tsx'
+import NotificationPopups from '../components/NotificationPopups/NotificationPopups.tsx'
+import { useLiveNotifications } from '../pages/Notifications/notificationsStore.ts'
 
 export default function RootLayout() {
   const lenisRef = useRef<LenisRef>(null)
   const { user } = useAuth()
+  // One notifications socket for the whole session; the header's bell and the pop-ups read its store.
+  useLiveNotifications(user?.id)
 
   // Drive Lenis from GSAP's ticker so smooth scrolling and GSAP animations share one frame loop.
   useEffect(() => {
@@ -23,6 +27,7 @@ export default function RootLayout() {
     <ReactLenis root ref={lenisRef} options={{ autoRaf: false, lerp: 0.1 }}>
       <Outlet />
       {user && <ChatbotWidget key={user.id} userId={user.id} />}
+      {user && <NotificationPopups />}
       <ScrollRestoration />
     </ReactLenis>
   )

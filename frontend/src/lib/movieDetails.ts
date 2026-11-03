@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Movie } from '../components/MovieTile/MovieTile.tsx'
 import { genreLabel, toTileMovie, type TmdbMovie } from '../pages/Discover/discoverApi.ts'
 import { api } from './api.ts'
-import { filmKeyOf, isDemoId, movieForKey, type FilmKey } from './movies.ts'
+import { filmKeyOf, movieForKey, type FilmKey } from './movies.ts'
 
 // Titles saved by TMDB id (a list's movies and shows, …) only come back from the API as ids. This loads
 // their title, year and poster from GET /api/movies/{id} (?type=tv for shows), once per title, and keeps
@@ -10,7 +10,8 @@ import { filmKeyOf, isDemoId, movieForKey, type FilmKey } from './movies.ts'
 
 type TmdbMovieDetails = TmdbMovie & { genres: { id: number; name: string }[] }
 
-const STORAGE_KEY = 'watchwise.movies'
+// Ignore caches created when numeric IDs could resolve to fictional demo titles.
+const STORAGE_KEY = 'watchwise.movies.v2'
 const STORAGE_DAYS = 7
 /** Keeps the stored films well under the browser's storage limit. */
 const STORAGE_MAX = 400
@@ -28,9 +29,6 @@ function readStored(): [string, Movie][] {
     return []
   }
 }
-
-/** Demo movies (1001–1008) are known locally and never loaded. */
-const isDemo = (key: FilmKey) => typeof key === 'number' && isDemoId(key)
 
 /** "tv-1399" back to a key the API understands (a plain number for movies). */
 const toKey = (part: string): FilmKey => (part.startsWith('tv-') ? part : Number(part))
@@ -120,7 +118,7 @@ export const posterAt = (url: string | undefined, size: 'w92' | 'w185' | 'w342')
 /**
  * Loads the real details of these titles (movie ids, or "tv-1399" for shows) and returns a lookup: a
  * known title, "Loading…" while it loads, otherwise `fallback` (or the key's placeholder when TMDB can't
- * be reached). Demo ids need no request. With `load` false nothing is requested yet (e.g. a card still
+ * be reached). With `load` false nothing is requested yet (e.g. a card still
  * off screen); its titles show as loading.
  */
 export function useMovies(keys: FilmKey[], load = true) {
@@ -133,7 +131,7 @@ export function useMovies(keys: FilmKey[], load = true) {
     let active = true
     for (const part of new Set(joined.split(',').filter(Boolean))) {
       const key = toKey(part)
-      if (isDemo(key) || known.has(part)) continue
+      if (known.has(part)) continue
       loadMovie(key)
         .then((movie) => active && setLoaded((current) => new Map(current).set(part, movie)))
         .catch(() => active && setFailed((current) => new Set(current).add(part)))
@@ -147,7 +145,7 @@ export function useMovies(keys: FilmKey[], load = true) {
     const id = String(key)
     const movie = loaded.get(id) ?? known.get(id)
     if (movie) return movie
-    if (keys.some((wanted) => String(wanted) === id) && !isDemo(key) && !failed.has(id)) return loading(key)
+    if (keys.some((wanted) => String(wanted) === id) && !failed.has(id)) return loading(key)
     return fallback ?? movieForKey(key)
   }
 }

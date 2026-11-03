@@ -19,6 +19,7 @@
         { "name": "Recommendations" },
         { "name": "Social" },
         { "name": "Rooms" },
+        { "name": "Notifications" },
         { "name": "Admin" }
     ],
     "paths": {},

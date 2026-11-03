@@ -1,10 +1,14 @@
 <?php
 
-namespace App\Policies;
+namespace App\Notification\Policies;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\Notification;
 
+/**
+ * Members see and change only their own feed notifications. Room read receipts share the table but are never
+ * touched through the notifications API.
+ */
 class NotificationPolicy
 {
     public function viewAny(CurrentUser $current): bool
@@ -29,6 +33,8 @@ class NotificationPolicy
 
     private function owns(CurrentUser $current, Notification $notification): bool
     {
-        return $current->isAuthenticated() && $current->id() === $notification->user_id;
+        return $current->isAuthenticated()
+            && $current->id() === $notification->user_id
+            && in_array($notification->type, Notification::FEED_TYPES, true);
     }
 }

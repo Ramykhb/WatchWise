@@ -21,3 +21,8 @@ Broadcast::connection('reverb')->channel('rooms.public', fn (User $user): bool =
 Broadcast::connection('reverb')->channel('rooms.user.{userId}',
     fn (User $user, string $userId): bool => (string) $user->id === $userId
 );
+
+// Each member's own notifications: new ones (`notification.pushed`) and changes to the list (`notifications.changed`).
+Broadcast::connection('reverb')->channel('notifications.{userId}',
+    fn (User $user, string $userId): bool => (string) $user->id === $userId
+);

@@ -52,6 +52,30 @@ class ContentTest extends SocialTestCase
         $this->as($me)->getJson('/api/lists?scope=public')->assertJsonCount(2, 'lists');
     }
 
+    public function test_public_lists_of_private_and_followers_only_profiles_are_for_their_followers(): void
+    {
+        $follower = User::factory()->create();
+        $stranger = User::factory()->create();
+        $admin = User::factory()->admin()->create();
+        $open = User::factory()->create();
+        $private = User::factory()->private()->create();
+        $followersOnly = User::factory()->create(['profile_visibility' => 'followers']);
+        foreach ([$open, $private, $followersOnly] as $owner) {
+            MovieList::create(['user_id' => $owner->id, 'title' => "{$owner->profile_visibility} picks", 'is_public' => true]);
+        }
+        $follower->following()->attach([$private->id, $followersOnly->id]);
+        $privateList = MovieList::where('user_id', $private->id)->sole();
+
+        $this->as($stranger)->getJson('/api/lists?scope=public')->assertJsonCount(1, 'lists')->assertJsonPath('lists.0.title', 'public picks');
+        $this->as($follower)->getJson('/api/lists?scope=public')->assertJsonCount(3, 'lists');
+        $this->as($follower)->getJson('/api/lists?scope=following')->assertJsonCount(2, 'lists');
+
+        $this->as($stranger)->getJson("/api/lists/{$privateList->id}")->assertForbidden();
+        $this->as($follower)->getJson("/api/lists/{$privateList->id}")->assertOk();
+        $this->as($private)->getJson("/api/lists/{$privateList->id}")->assertOk();
+        $this->as($admin)->getJson("/api/lists/{$privateList->id}")->assertOk();
+    }
+
     public function test_watchlist_flow(): void
     {
         $user = User::factory()->create();

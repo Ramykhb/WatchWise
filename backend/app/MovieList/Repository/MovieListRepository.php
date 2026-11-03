@@ -25,7 +25,11 @@ class MovieListRepository implements MovieListRepositoryInterface
             ]))
             ->when($query->q !== '', fn ($builder) => $builder->whereRaw("title LIKE ? ESCAPE '!'", [LikePattern::contains($query->q)]))
             ->when($scope === 'mine', fn ($builder) => $builder->where('user_id', $viewer->id))
-            ->when($scope === 'public', fn ($builder) => $builder->where('is_public', true)->where('user_id', '!=', $viewer->id))
+            ->when($scope === 'public', fn ($builder) => $builder->where('is_public', true)->where('user_id', '!=', $viewer->id)
+                // Followers-only and private profiles share their public lists with their followers only.
+                ->whereHas('user', fn ($owner) => $owner->where(fn ($visible) => $visible
+                    ->where('profile_visibility', 'public')
+                    ->orWhereHas('followers', fn ($followers) => $followers->whereKey($viewer->id)))))
             // Public lists by people the user follows.
             ->when($scope === 'following', fn ($builder) => $builder->where('is_public', true)
                 ->whereIn('user_id', $viewer->following()->select('users.id')))

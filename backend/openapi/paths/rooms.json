@@ -38,6 +38,7 @@
                                 "properties": {
                                     "name": { "type": "string", "minLength": 3, "maxLength": 80 },
                                     "tmdb_id": { "type": "integer", "minimum": 1 },
+                                    "media_type": { "type": "string", "enum": ["movie", "tv"], "default": "movie", "description": "Whether `tmdb_id` is a movie or a TV show." },
                                     "spoilers": { "type": "boolean" },
                                     "is_private": { "type": "boolean", "default": false }
                                 }
@@ -56,6 +57,21 @@
                     },
                     "401": { "description": "Not signed in." },
                     "422": { "description": "Invalid input.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } } }
+                }
+            }
+        },
+        "/api/rooms/{room}": {
+            "parameters": [{ "name": "room", "in": "path", "required": true, "schema": { "type": "integer" } }],
+            "delete": {
+                "summary": "Delete a room",
+                "description": "Only the member who created the room, or an admin. Its messages, members and invitations are deleted with it, and so are the notifications that open it. Every Rooms list that showed it gets `rooms.changed`, and its members and invitees get a `room_deleted` notification (not the person who deleted it).",
+                "tags": ["Rooms"],
+                "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+                "responses": {
+                    "200": { "description": "Room deleted.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Message" } } } },
+                    "401": { "description": "Not signed in." },
+                    "403": { "description": "You are not the room's creator or an admin." },
+                    "404": { "description": "Unknown room." }
                 }
             }
         },
@@ -290,6 +306,7 @@
                     "id": { "type": "integer" },
                     "name": { "type": "string" },
                     "tmdb_id": { "type": "integer" },
+                    "media_type": { "type": "string", "enum": ["movie", "tv"] },
                     "spoilers": { "type": "boolean" },
                     "is_private": { "type": "boolean" },
                     "host": { "allOf": [{ "$ref": "#/components/schemas/RoomMember" }], "nullable": true },
