@@ -291,6 +291,91 @@
   list-style: none;
 }
 
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 28px 36px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 28px;
+  background: var(--surface-white);
+  text-align: center;
+}
+
+.emptyArt {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 200px;
+  height: 128px;
+  margin-bottom: 24px;
+}
+
+.emptyFilm,
+.emptyCalendar,
+.emptyPeople {
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+}
+
+.emptyFilm {
+  z-index: 1;
+  width: 104px;
+  height: 112px;
+  background: var(--surface-violet-tint);
+  color: var(--ground-violet);
+  rotate: -8deg;
+}
+
+.emptyCalendar,
+.emptyPeople {
+  position: absolute;
+  width: 54px;
+  height: 54px;
+  color: var(--ink-900);
+}
+
+.emptyCalendar {
+  top: 0;
+  right: 10px;
+  background: var(--accent-yellow);
+  rotate: 12deg;
+}
+
+.emptyPeople {
+  bottom: 0;
+  left: 4px;
+  background: var(--accent-mint);
+  rotate: -12deg;
+}
+
+.emptyTitle {
+  max-width: 400px;
+  font-family: var(--font-display);
+  font-size: clamp(26px, 3vw, 32px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: var(--ink-900);
+}
+
+.emptyText {
+  max-width: 390px;
+  margin: 12px 0 24px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--ink-600);
+}
+
+.emptyHint {
+  margin-top: 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-600);
+}
+
 .card {
   display: flex;
   flex-direction: column;

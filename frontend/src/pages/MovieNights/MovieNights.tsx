@@ -1,6 +1,7 @@
 import LoadingState from '../../components/LoadingState/LoadingState.tsx'
 import { useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { Link } from 'react-router'
+import { ArrowRight, CalendarDays, Clapperboard, Users } from 'lucide-react'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
@@ -48,6 +49,7 @@ type FormErrors = Partial<Record<'title' | 'date' | 'time' | 'friends' | 'films'
 
 export default function MovieNights() {
   const pageRef = useRef<HTMLDivElement>(null)
+  const planFormRef = useRef<HTMLFormElement>(null)
   useEntranceAnimation(pageRef)
 
   const { user } = useAuth()
@@ -72,6 +74,16 @@ export default function MovieNights() {
   const [errors, setErrors] = useState<FormErrors>({})
   const [created, setCreated] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const startPlanning = () => {
+    setTab('upcoming')
+    const titleInput = planFormRef.current?.querySelector<HTMLInputElement>('input[name="title"]')
+    titleInput?.focus({ preventScroll: true })
+    titleInput?.scrollIntoView({
+      block: 'center',
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+    })
+  }
 
   const friendMatches = friendQuery.trim()
     ? people.filter(
@@ -257,15 +269,34 @@ export default function MovieNights() {
                 <h2 id="nights-title" className={styles.sectionTitle}>
                   {tab === 'past' ? 'Past nights' : 'Coming up'}
                 </h2>
-                <ul className={styles.grid}>
-                  {(tab === 'past' ? past : upcoming).map((night) => (
-                    <li key={night.slug}>
-                      <NightCard night={night} />
-                    </li>
-                  ))}
-                </ul>
-                {store.loaded && (tab === 'past' ? past : upcoming).length === 0 && (
-                  <p className={styles.invitesEmpty}>{tab === 'past' ? 'No past movie nights yet.' : 'Nothing planned yet — plan one on the right.'}</p>
+                {(tab === 'past' ? past : upcoming).length > 0 ? (
+                  <ul className={styles.grid}>
+                    {(tab === 'past' ? past : upcoming).map((night) => (
+                      <li key={night.slug}>
+                        <NightCard night={night} />
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className={styles.empty}>
+                    <div className={styles.emptyArt} aria-hidden="true">
+                      <span className={styles.emptyCalendar}><CalendarDays size={24} strokeWidth={1.7} /></span>
+                      <span className={styles.emptyFilm}><Clapperboard size={48} strokeWidth={1.5} /></span>
+                      <span className={styles.emptyPeople}><Users size={24} strokeWidth={1.7} /></span>
+                    </div>
+                    <h3 className={styles.emptyTitle}>
+                      {tab === 'past' ? 'Good nights become great memories' : 'Make a night of it'}
+                    </h3>
+                    <p className={styles.emptyText}>
+                      {tab === 'past'
+                        ? 'Your past movie nights will live here. Plan your first one and give everyone something to look back on.'
+                        : 'A great film is even better with your people. Pick a date, invite friends, and let everyone vote on what to watch.'}
+                    </p>
+                    <PillButton onClick={startPlanning}>
+                      Plan a movie night <ArrowRight size={16} aria-hidden="true" />
+                    </PillButton>
+                    <p className={styles.emptyHint}>On the couch or online. You bring the popcorn.</p>
+                  </div>
                 )}
               </section>
             )}
@@ -279,7 +310,7 @@ export default function MovieNights() {
               <p className={styles.planText}>Pick a time, invite friends, add a few candidates.</p>
             </div>
 
-            <form className={styles.form} onSubmit={handleCreate} noValidate>
+            <form ref={planFormRef} className={styles.form} onSubmit={handleCreate} noValidate>
               <TextField label="Title" name="title" placeholder="Friday Frights" error={errors.title} />
               <div className={styles.row}>
                 <TextField label="Date" name="date" type="date" error={errors.date} />
