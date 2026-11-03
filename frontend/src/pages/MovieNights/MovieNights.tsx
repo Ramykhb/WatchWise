@@ -17,21 +17,21 @@ import homeIcon from '../../assets/nights/icon-home.svg'
 import videoIcon from '../../assets/nights/icon-video.svg'
 import searchIcon from '../../assets/home/icon-search.svg'
 import xIcon from '../../assets/listmodal/icon-x-sm.svg'
-import plusIcon from '../../assets/nights/icon-plus.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { useApi } from '../../lib/api.ts'
 import { apiErrorMessage } from '../../lib/auth.ts'
-import { PICKABLE_MOVIES, tmdbIdOf } from '../../lib/movies.ts'
+import { tmdbIdOf } from '../../lib/movies.ts'
 import type { ApiMember } from '../../lib/types.ts'
 import { dateTile, formatWhen, toGuest, toNight, type Guest, type Night } from './nightsData.ts'
 import { answerInvitation, createNight, useNights } from './nightsStore.ts'
+import MovieSearch from '../../components/MovieSearch/MovieSearch.tsx'
+import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
+import { Thumb } from '../Lists/ListDialog.tsx'
 import styles from './MovieNights.module.css'
 
 type Tab = 'upcoming' | 'invitations' | 'past'
-
-const movieBySlug = (slug: string) => PICKABLE_MOVIES.find((m) => m.slug === slug)
 
 const STATUS_CLASS = { voting: styles.statusVoting, picked: styles.statusPicked, shortlisting: styles.statusShortlist }
 
@@ -68,8 +68,7 @@ export default function MovieNights() {
   const [online, setOnline] = useState(false)
   const [friends, setFriends] = useState<Guest[]>([])
   const [friendQuery, setFriendQuery] = useState('')
-  const [films, setFilms] = useState<string[]>([])
-  const [pickingFilm, setPickingFilm] = useState(false)
+  const [films, setFilms] = useState<Movie[]>([])
   const [errors, setErrors] = useState<FormErrors>({})
   const [created, setCreated] = useState('')
   const [saving, setSaving] = useState(false)
@@ -81,7 +80,6 @@ export default function MovieNights() {
           `${f.name} ${f.handle}`.toLowerCase().includes(friendQuery.trim().replace(/^@/, '').toLowerCase()),
       )
     : []
-  const filmChoices = PICKABLE_MOVIES.filter((m) => !films.includes(m.slug))
 
   const addFriend = (friend: Guest) => {
     setFriends((list) => [...list, friend])
@@ -119,7 +117,7 @@ export default function MovieNights() {
         location: online ? null : where || null,
         meeting_link: link,
         invitees: friends.map((f) => f.handle),
-        tmdb_ids: films.map((slug) => tmdbIdOf(movieBySlug(slug)!)),
+        tmdb_ids: films.map(tmdbIdOf),
       })
       setCreated(`“${title}” is planned — invites sent to ${friends.length} friend${friends.length > 1 ? 's' : ''}.`)
       form.reset()
@@ -376,56 +374,24 @@ export default function MovieNights() {
               <div className={styles.group}>
                 <span className={styles.label}>Starting shortlist</span>
                 <ul className={styles.chips}>
-                  {films.map((slug) => {
-                    const movie = movieBySlug(slug)
-                    if (!movie) return null
+                  {films.map((movie) => {
                     return (
-                      <li key={slug} className={styles.film}>
-                        <span className={styles.filmThumb} style={{ background: gradientCss(movie.gradient) }} aria-hidden="true" />
+                      <li key={movie.slug} className={styles.film}>
+                        <Thumb movie={movie} className={styles.filmThumb} />
                         {movie.title}
                         <button
                           type="button"
                           className={styles.remove}
                           aria-label={`Remove ${movie.title}`}
-                          onClick={() => setFilms((list) => list.filter((s) => s !== slug))}
+                          onClick={() => setFilms((list) => list.filter((item) => item.slug !== movie.slug))}
                         >
                           <img src={xIcon} width={12} height={12} alt="" />
                         </button>
                       </li>
                     )
                   })}
-                  {filmChoices.length > 0 && (
-                    <li className={styles.addWrap}>
-                      <button
-                        type="button"
-                        className={styles.add}
-                        aria-expanded={pickingFilm}
-                        onClick={() => setPickingFilm((v) => !v)}
-                      >
-                        <img src={plusIcon} width={14} height={14} alt="" />
-                        Add
-                      </button>
-                      {pickingFilm && (
-                        <ul className={styles.suggestions}>
-                          {filmChoices.map((movie) => (
-                            <li key={movie.slug}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setFilms((list) => [...list, movie.slug])
-                                  setPickingFilm(false)
-                                }}
-                              >
-                                <span className={styles.filmThumb} style={{ background: gradientCss(movie.gradient) }} aria-hidden="true" />
-                                {movie.title}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </li>
-                  )}
                 </ul>
+                <MovieSearch excluded={films.map(tmdbIdOf)} onPick={(movie) => setFilms((list) => [...list, movie])} />
                 {errors.films && <p className={styles.error}>{errors.films}</p>}
               </div>
 

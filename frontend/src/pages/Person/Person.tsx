@@ -16,7 +16,7 @@ import { tmdbIdOf } from '../../lib/movies.ts'
 import type { ApiWatchItem } from '../../lib/types.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { toCollaborators, toPerson, type ApiCollaborators, type ApiPerson } from './personApi.ts'
-import { getPerson, type Person as PersonData } from './personData.ts'
+import { type Person as PersonData } from './personData.ts'
 import styles from './Person.module.css'
 
 /** GET /api/watchlist (the same shape the Watchlist page reads). */
@@ -30,12 +30,7 @@ const LONG_BIO = 420
 
 export default function Person() {
   const { slug } = useParams()
-  // TMDB people have numeric ids (/people/8767); the design's demo people have names (/people/lena-okafor).
-  if (slug && /^\d+$/.test(slug)) return <TmdbPerson key={slug} id={slug} />
-  const person = getPerson(slug)
-  if (!person) return <Placeholder title="Person not found" notFound />
-  // Keyed by slug so the watchlist toggles reset when moving between people.
-  return <PersonPage key={person.slug} person={person} />
+  return slug && /^\d+$/.test(slug) ? <TmdbPerson key={slug} id={slug} /> : <Placeholder title="Person not found" notFound />
 }
 
 /** A real person from GET /api/people/{id}. */
@@ -242,7 +237,7 @@ function PersonPage({ person, collaboratorsLoading = false }: { person: PersonDa
             )}
           </section>
 
-          {/* TMDB people show "Personal details"; the design's demo people show collaborators and awards. */}
+          {/* Display personal details when supplied by TMDB. */}
           {hasSide && (
             <aside className={styles.side}>
               {details.length > 0 && (

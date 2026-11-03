@@ -40,8 +40,9 @@ type SearchResult = { query: string; movies: Movie[]; failed: boolean }
  * the Rooms page's "Create a room" form.
  */
 // eslint-disable-next-line react-refresh/only-export-components -- shared with Rooms; the dialog stays the default export
-export function useTitleSearch(query: string) {
-  const key = query.trim().toLowerCase()
+export function useTitleSearch(query: string, mediaType: 'movie' | 'tv' | 'all' = 'all') {
+  const normalized = query.trim().toLowerCase()
+  const key = normalized ? `${mediaType}:${normalized}` : ''
   const [found, setFound] = useState<SearchResult>({ query: '', movies: [], failed: false })
   const answered = key ? searchCache.get(key) : undefined
   const failed = found.query === key && found.failed
@@ -52,7 +53,7 @@ export function useTitleSearch(query: string) {
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
       Promise.all([
-        api.get<MoviePage>('/movies/search', { params: { q: key, type: 'all' }, signal: controller.signal }),
+        api.get<MoviePage>('/movies/search', { params: { q: normalized, type: mediaType }, signal: controller.signal }),
         loadGenres().catch(() => NO_GENRES),
       ])
         .then(([{ data }, genres]) => {
@@ -68,7 +69,7 @@ export function useTitleSearch(query: string) {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [key])
+  }, [key, normalized, mediaType])
 
   return { results: answered ?? (key ? found.movies : []), searching, failed }
 }

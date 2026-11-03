@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -15,10 +14,6 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::firstOrCreate(['email' => 'test@example.com'], User::factory()->raw(['name' => 'Test User', 'username' => 'testuser']));
-
-        $this->call(DemoSocialSeeder::class);
+        // Application data comes from registered members and TMDB, not demo records.
     }
 }

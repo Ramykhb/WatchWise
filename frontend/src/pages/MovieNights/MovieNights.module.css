@@ -628,6 +628,7 @@
 }
 
 .filmThumb {
+  overflow: hidden;
   flex-shrink: 0;
   width: 24px;
   height: 34px;

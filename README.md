@@ -149,7 +149,7 @@ WatchWise/
 │   │   ├── Models/          # Eloquent models and relationships
 │   │   └── …/               # Movie, Person, Review, Room, User, and other modules
 │   ├── config/              # Services, authentication, storage, and Reverb
-│   ├── database/            # Migrations, factories, and demo seeders
+│   ├── database/            # Migrations, factories, and seeders
 │   ├── routes/              # API endpoints and scheduled commands
 │   ├── tests/               # Feature and unit tests
 │   └── .env.example
@@ -238,16 +238,9 @@ php artisan schedule:work
 
 The scheduler runs room-message cleanup every minute. On a deployed server, use a scheduler/cron process and manage Reverb as a persistent service.
 
-### 4. Optional demo data and staff access
+### 4. Staff access
 
-On a local demo database:
-
-```bash
-cd backend
-php artisan db:seed
-```
-
-The seeders create interconnected members, lists, watchlists, reviews, movie nights, rooms, and notification records. Sign in with `maya@watchwise.test` and password `watchwise1`. These are development demo credentials; demo film IDs also include the application's fictional sample catalog.
+Default database seeding does not create sample users, titles, or community activity. Register your own account and use TMDB search to add real titles.
 
 To explore staff tools, register an account and assign its role through Tinker in your local database:
 
@@ -330,9 +323,9 @@ GitHub Actions runs the [frontend TypeScript/build checks](.github/workflows/fro
 ## Current boundaries
 
 - Terms, privacy policy, community, releases, full credits, and full video-gallery routes still use placeholder screens. Core movie details include credits and available trailers.
-- The notification screen, shared frontend store, preferences, model, and demo records exist, but `/api/notifications` read/update/dismiss routes are not currently registered in the backend.
+- The notification screen, shared frontend store, preferences, and model exist, but `/api/notifications` read/update/dismiss routes are not currently registered in the backend.
 - Google Calendar support opens a prefilled event link; it does not synchronize calendars in the background. Saved integration/digest preferences do not by themselves implement delivery jobs.
-- External catalog, AI, email, map, OAuth, and socket functionality depends on valid provider configuration. Seeded fictional titles remain available for demonstration.
+- External catalog, AI, email, map, OAuth, and socket functionality depends on valid provider configuration.
 
 ## Contributing
 

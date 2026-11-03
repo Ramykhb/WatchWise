@@ -22,7 +22,7 @@ import { api, useApi } from '../../lib/api.ts'
 import { apiErrorMessage } from '../../lib/auth.ts'
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import { isLoading, rememberMovie, useMovies } from '../../lib/movieDetails.ts'
-import { isDemoId, titleOf } from '../../lib/movies.ts'
+import { titleOf } from '../../lib/movies.ts'
 import type { ApiMember, ApiMessage, ApiRoom } from '../../lib/types.ts'
 import { Thumb, useTitleSearch } from '../Lists/ListDialog.tsx'
 import listStyles from '../Lists/ListDialog.module.css'
@@ -939,8 +939,8 @@ export default function Rooms() {
                       ) : (
                         <>
                           {film.score}
-                          {/* The API's rating is TMDB's score out of 5 (the app's star scale); demo titles aren't from TMDB. */}
-                          <span className={styles.scoreSource}>/5{isDemoId(titleOf(film)?.tmdbId ?? 0) ? '' : ' · TMDB'}</span>
+                          {/* The API exposes TMDB's rating on the app's five-star scale. */}
+                          <span className={styles.scoreSource}>/5 · TMDB</span>
                         </>
                       )}
                     </p>
