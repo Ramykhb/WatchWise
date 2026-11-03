@@ -1,5 +1,5 @@
 import LoadingState, { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog.tsx'
@@ -11,7 +11,6 @@ import dotSmIcon from '../../assets/rooms/dot-sm.svg'
 import dotIcon from '../../assets/home/dot-online.svg'
 import dotsIcon from '../../assets/rooms/icon-dots.svg'
 import smileIcon from '../../assets/rooms/icon-smile.svg'
-import clipIcon from '../../assets/rooms/icon-clip.svg'
 import sendIcon from '../../assets/rooms/icon-send.svg'
 import starIcon from '../../assets/cinemas/icon-star.svg'
 import shieldIcon from '../../assets/rooms/icon-shield.svg'
@@ -385,13 +384,6 @@ export default function Rooms() {
     void send(draft)
   }
 
-  const handleFile = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    // TODO: upload attachments through the API; for now only the file name is shared.
-    if (file) void send(`📎 ${file.name}`)
-    event.target.value = ''
-  }
-
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
@@ -702,9 +694,6 @@ export default function Rooms() {
                   <img src={smileIcon} width={20} height={20} alt="" />
                 </span>
                 <input className={styles.input} placeholder="Create a room to start chatting…" disabled tabIndex={-1} />
-                <span className={styles.iconBtn}>
-                  <img src={clipIcon} width={20} height={20} alt="" />
-                </span>
               </div>
               <button type="button" className={styles.send} disabled tabIndex={-1}>
                 <img src={sendIcon} width={22} height={22} alt="" />
@@ -945,10 +934,6 @@ export default function Rooms() {
                 aria-label={`Message ${room.name}`}
                 maxLength={500}
               />
-              <label className={styles.iconBtn} aria-label="Attach a file">
-                <input type="file" className="sr-only" onChange={handleFile} />
-                <img src={clipIcon} width={20} height={20} alt="" />
-              </label>
             </div>
             <button type="submit" className={styles.send} aria-label="Send message" disabled={!draft.trim()}>
               <img src={sendIcon} width={22} height={22} alt="" />
