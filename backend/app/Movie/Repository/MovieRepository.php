@@ -55,17 +55,19 @@ class MovieRepository implements MovieRepositoryInterface
     }
 
     /**
-     * Films whose first release is still ahead, the most anticipated first.
+     * Films releasing from today in UTC, the most anticipated first.
      *
      * TMDB's own /movie/upcoming counts a release in any country, so most of that list is already out somewhere.
      * Home's "Coming soon" shows this list, so it gets the same longer timeout and retry as trending.
+     * Include today in UTC because it can still be tomorrow for viewers west of UTC;
+     * the frontend excludes films already released in the viewer's local date.
      *
      * @return array<string, mixed>
      */
     private function upcoming(int $page): array
     {
         return $this->client->get('/discover/movie', [
-            'primary_release_date.gte' => today()->addDay()->toDateString(),
+            'primary_release_date.gte' => today()->toDateString(),
             'sort_by' => 'popularity.desc',
             'page' => $page,
             'include_adult' => 'false',

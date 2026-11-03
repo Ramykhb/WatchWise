@@ -340,7 +340,7 @@ app/Support/            Shared by both: TmdbHttpClient (adds the API key, timeou
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/movies?list=&page=` | A page of `popular` (default), `top_rated`, `now_playing` or `upcoming` movies. `upcoming` holds films whose first release date is after today, most popular first |
+| `GET /api/movies?list=&page=` | A page of `popular` (default), `top_rated`, `now_playing` or `upcoming` movies. `upcoming` holds films whose first release date is today in UTC or later, most popular first; Home filters out films already released on the viewer's local date |
 | `GET /api/movies/search?q=&page=&year=` | Search movies by title. `q` is required (max 100 characters) |
 | `GET /api/movies/discover` | Filtered browsing: `genres`, `year_from`, `year_to`, `min_rating` (0 to 5), `runtime_min`, `runtime_max`, `language`, `sort` (`popularity`, `rating`, `release_date`, `title`), `page` |
 | `GET /api/movies/{id}` | One movie with genres, US certification, runtime, original language, directors, top 12 cast, a YouTube trailer, budget, box office and 10 recommended movies (fetched in one TMDB call). Unknown ids return 404 |

@@ -46,7 +46,7 @@ class MoviesTest extends TestCase
             && $request['page'] === 1);
     }
 
-    public function test_upcoming_returns_films_first_released_after_today_most_anticipated_first(): void
+    public function test_upcoming_includes_utc_today_for_viewers_whose_local_tomorrow_is_utc_today(): void
     {
         config(['services.tmdb.key' => 'test-key']);
         Http::preventStrayRequests();
@@ -59,7 +59,7 @@ class MoviesTest extends TestCase
                     'id' => 1084242,
                     'title' => 'Dune: Part Three',
                     'overview' => 'The saga concludes.',
-                    'release_date' => '2026-12-15',
+                    'release_date' => '2026-11-04',
                     'vote_average' => 0,
                     'vote_count' => 0,
                     'genre_ids' => [878, 12],
@@ -68,13 +68,14 @@ class MoviesTest extends TestCase
                 ]],
             ]),
         ]);
-        $this->travelTo('2026-11-03 23:30:00');
+        // It is still November 3 in Los Angeles, so November 4 is an upcoming release there.
+        $this->travelTo('2026-11-04 01:00:00');
 
         $this->getJson('/api/movies?list=upcoming&page=2')
             ->assertOk()
             ->assertJsonPath('list', 'upcoming')
             ->assertJsonPath('movies.0.title', 'Dune: Part Three')
-            ->assertJsonPath('movies.0.release_date', '2026-12-15');
+            ->assertJsonPath('movies.0.release_date', '2026-11-04');
 
         Http::assertSent(fn ($request) => $request['primary_release_date.gte'] === '2026-11-04'
             && $request['sort_by'] === 'popularity.desc'
