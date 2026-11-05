@@ -1,6 +1,7 @@
 import LoadingState from '../../components/LoadingState/LoadingState.tsx'
 import { useRef, useState } from 'react'
 import { Link } from 'react-router'
+import { BookmarkPlus, Compass, Sparkles } from 'lucide-react'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
@@ -84,7 +85,6 @@ export default function Watchlist() {
   const items = data?.items ?? []
   const [tab, setTab] = useState<Tab>('watchlist')
   const [sort, setSort] = useState<SortKey>('recent')
-  const [shareNote, setShareNote] = useState('')
 
   // Real titles, years, genres and posters from TMDB (the rows only store the film's id).
   const movieOf = useMovies(items.map(itemKey))
@@ -111,20 +111,6 @@ export default function Watchlist() {
   const remove = (id: number) => {
     setData((current) => ({ ...current, items: current.items.filter((i) => i.id !== id) }))
     api.delete(`/watchlist/${id}`).catch(reload)
-  }
-
-  const handleShare = async () => {
-    const url = window.location.href
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: 'My WatchWise watchlist', url })
-        return
-      }
-      await navigator.clipboard.writeText(url)
-      setShareNote('Link copied')
-    } catch {
-      setShareNote('')
-    }
   }
 
   const showHistory = () => {
@@ -162,12 +148,6 @@ export default function Watchlist() {
             </ul>
           </div>
           <div className={styles.actions}>
-            <span className={styles.shareNote} role="status">
-              {shareNote}
-            </span>
-            <PillButton variant="outline" onClick={handleShare}>
-              Share watchlist
-            </PillButton>
             <ButtonPrimary label="Find something to watch" to="/for-you" />
           </div>
         </header>
@@ -196,7 +176,7 @@ export default function Watchlist() {
             {tab === 'watchlist' && (
               <>
                 {/* TODO: availability filters (in cinemas / streaming / coming soon) once TMDB data is connected. */}
-                <div className={styles.toolbar}>
+                {shown.length > 0 && <div className={styles.toolbar}>
                   <span />
                   <label className={styles.sort}>
                     <span className="sr-only">Sort watchlist</span>
@@ -209,10 +189,28 @@ export default function Watchlist() {
                     </select>
                     <img src={chevDownIcon} width={14} height={14} alt="" />
                   </label>
-                </div>
+                </div>}
 
                 {shown.length === 0 && !loading && (
-                  <p className={styles.empty}>Your watchlist is empty — find something on Discover or For You.</p>
+                  <div className={styles.emptyWatchlist}>
+                    <span className={styles.emptyIllustration} aria-hidden="true">
+                      <BookmarkPlus size={36} strokeWidth={1.5} />
+                    </span>
+                    <h2 className={styles.emptyTitle}>Good stories deserve a spot.</h2>
+                    <p className={styles.emptyDescription}>
+                      Save movies and shows you want to watch. Your next movie night starts here.
+                    </p>
+                    <div className={styles.emptyActions}>
+                      <PillButton to="/discover">
+                        <Compass size={17} aria-hidden="true" />
+                        Explore Discover
+                      </PillButton>
+                      <PillButton to="/for-you" variant="outline">
+                        <Sparkles size={17} aria-hidden="true" />
+                        Picks for you
+                      </PillButton>
+                    </div>
+                  </div>
                 )}
 
                 <ul className={styles.items}>

@@ -22,12 +22,13 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { RELEASE_GRADIENTS, gradientCss } from './homeData.ts'
 import styles from './Home.module.css'
 import WeeklyTrending from './WeeklyTrending.tsx'
+import FollowingActivity from './FollowingActivity.tsx'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, useApi } from '../../lib/api.ts'
-import { look, shortName, timeAgo } from '../../lib/format.ts'
+import { look } from '../../lib/format.ts'
 import { movieFor, tmdbIdOf } from '../../lib/movies.ts'
 import { useWatchlist } from '../../lib/watchlist.ts'
-import type { ApiActivity, ApiHome } from '../../lib/types.ts'
+import type { ApiHome } from '../../lib/types.ts'
 import { formatWhen, localDateTime } from '../MovieNights/nightsData.ts'
 import { loadGenres, toTileMovie, type MoviePage, type TmdbMovie } from '../Discover/discoverApi.ts'
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
@@ -125,21 +126,6 @@ const WEATHER_ICONS: Record<string, LucideIcon> = {
   Thunderstorm: CloudLightning,
 }
 
-/** One line of "From people you follow": who, what, which film and where it links. */
-function describe(item: ApiActivity) {
-  const movie = movieFor(item.kind === 'list' ? (item.list.posters[0] ?? 0) : (item.tmdb_id ?? 0))
-  switch (item.kind) {
-    case 'rated':
-      return { movie, action: 'rated', target: movie.title, suffix: '★'.repeat(item.rating), to: `/movies/${movie.slug}` }
-    case 'reviewed':
-      return { movie, action: 'reviewed', target: movie.title, suffix: `— “${item.review.content.slice(0, 60)}${item.review.content.length > 60 ? '…' : ''}”`, to: `/movies/${movie.slug}` }
-    case 'list':
-      return { movie, action: 'updated the public list', target: `“${item.list.title}”`, suffix: '', to: `/lists/${item.list.id}` }
-    case 'watchlist':
-      return { movie, action: 'added', target: movie.title, suffix: 'to their watchlist', to: `/movies/${movie.slug}` }
-  }
-}
-
 // Kept short: "Good afternoon," is too wide for the two-line 84px headline.
 function greeting(hour = new Date().getHours()) {
   if (hour < 12) return 'Good morning,'
@@ -153,7 +139,7 @@ export default function Home() {
   const watchlist = useWatchlist()
   useEntranceAnimation(pageRef)
   const { firstName } = useAuth()
-  const home = useApi<ApiHome>('/home').data
+  const { data: home, loading: homeLoading, error: homeError, reload: reloadHome } = useApi<ApiHome>('/home')
   const activity = home?.activity ?? []
   const [initialWeatherCache] = useState(readWeatherCache)
   const [initialRecommendationCache] = useState(() => readRecommendationCache(initialWeatherCache?.weather.location))
@@ -423,35 +409,7 @@ export default function Home() {
         <ComingSoon />
 
         <div className={styles.social}>
-          <section className={styles.activity} aria-labelledby="home-activity">
-            <h2 id="home-activity" className={styles.cardTitle}>
-              From people you follow
-            </h2>
-            {activity.map((item) => {
-              const line = describe(item)
-              const face = look(item.user)
-              return (
-                <Link key={item.id} to={line.to} className={styles.activityItem}>
-                  <span className={styles.avatar} style={{ background: face.color }}>
-                    {face.initials}
-                  </span>
-                  <span className={styles.activityText}>
-                    <span className={styles.activityLine}>
-                      <strong>{shortName(item.user.name)}</strong> {line.action} <strong>{line.target}</strong>
-                      {line.suffix && ` ${line.suffix}`}
-                    </span>
-                    <span className={styles.activityTime}>{timeAgo(item.created_at)}</span>
-                  </span>
-                  <span className={styles.thumb} style={{ background: gradientCss(line.movie.gradient) }} />
-                </Link>
-              )
-            })}
-            {home && activity.length === 0 && (
-              <p className={styles.activityTime}>
-                Nothing yet — <Link to="/discover">follow people</Link> to see what they watch, rate and list.
-              </p>
-            )}
-          </section>
+          <FollowingActivity activity={activity} loading={homeLoading} error={homeError} reload={reloadHome} />
 
           <div className={styles.side}>
             <section className={styles.rooms} aria-labelledby="home-rooms">

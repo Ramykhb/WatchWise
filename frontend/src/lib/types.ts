@@ -214,9 +214,20 @@ export type ApiNight = {
   candidates: { tmdb_id: number; added_by: ApiMember | null; voters: ApiMember[] }[]
 }
 
+export type ApiHomeActivity = {
+  id: string
+  user: ApiMember
+  tmdb_id: number | null
+  media_type: 'movie' | 'tv'
+  created_at: string
+} & (
+  | { kind: 'rated' | 'reviewed'; rating: number | null; excerpt: string | null; has_spoilers: boolean }
+  | { kind: 'list'; list: { id: number; title: string } }
+  | { kind: 'watchlist' | 'watched' }
+)
+
 export type ApiHome = {
-  /** Not included by the current /api/home response. */
-  activity?: ApiActivity[]
+  activity: ApiHomeActivity[]
   rooms: { id: number; name: string; members: number }[]
   next_night: {
     id: number

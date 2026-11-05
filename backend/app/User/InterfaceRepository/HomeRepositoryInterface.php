@@ -10,6 +10,13 @@ use Illuminate\Database\Eloquent\Collection;
 interface HomeRepositoryInterface
 {
     /**
+     * Current, shared activity by followed members, bounded per source.
+     *
+     * @return array{reviews: Collection, lists: Collection, watchlist: Collection}
+     */
+    public function recentActivity(User $viewer, int $limit): array;
+
+    /**
      * The rooms with the most recent message, newest first: public rooms and the private ones the user is in.
      *
      * @return Collection<int, DiscussionRoom>
