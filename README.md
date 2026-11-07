@@ -229,6 +229,18 @@ npm run dev
 
 Open `http://localhost:5173` (or the URL printed by Vite). If the port changes, update the configured frontend URL and OAuth settings accordingly.
 
+During `npm run dev`, API and social-login requests use Vite's `/api` proxy. `VITE_BACKEND_URL` selects the upstream backend, including a deployed Render backend, while browser cookies remain on `localhost`. Vite removes the cookie `Secure` attribute only for loopback development requests; the upstream HTTPS connection and production builds retain their normal security settings. This avoids relying on third-party cookies in Safari and Chrome. Restart Vite after changing `frontend/.env`.
+
+When using a deployed backend with the local frontend, set `FRONTEND_URL=http://localhost:5173` on the backend and configure these callback URLs both in the backend environment and in each provider's OAuth application:
+
+```env
+GOOGLE_REDIRECT_URI=http://localhost:5173/api/auth/social/google/callback
+GITHUB_REDIRECT_URI=http://localhost:5173/api/auth/social/github/callback
+DISCORD_REDIRECT_URI=http://localhost:5173/api/auth/social/discord/callback
+```
+
+The OAuth callback must return through the local proxy, where the browser's state and authentication cookies live. Redeploy the backend after updating its variables. A deployed frontend instead needs callback URLs and an API proxy or same-site domains appropriate to that deployment.
+
 **Scheduler:**
 
 ```bash
