@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import MovieTile from '../../components/MovieTile/MovieTile.tsx'
-import PillButton from '../../components/PillButton/PillButton.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { api, useApi } from '../../lib/api.ts'
-import { loadGenres, toTileMovie, type MoviePage, type TmdbMovie } from '../Discover/discoverApi.ts'
+import { useApi } from '../../lib/api.ts'
+import { loadGenres, toTileMovie, type MoviePage } from '../Discover/discoverApi.ts'
 import { ResultsSkeleton } from '../Discover/Discover.tsx'
 import discoverStyles from '../Discover/Discover.module.css'
 import { upcomingReleases } from '../Home/homeData.ts'
@@ -13,16 +12,12 @@ import homeStyles from '../Home/Home.module.css'
 import settingsStyles from '../Settings/Settings.module.css'
 import { upcomingReleaseParams } from './releasesApi.ts'
 
-/** "All releases →" from Home: popular upcoming films, grouped by month, with more on demand. */
+/** "All releases →" from Home: one page of popular upcoming films, grouped by month. */
 export default function Releases() {
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
   const [releaseParams] = useState(() => upcomingReleaseParams())
   const { data, error, loading, reload } = useApi<MoviePage>(`/movies?${new URLSearchParams(releaseParams)}`)
-  // Pages loaded after the first one with "Show more releases".
-  const [more, setMore] = useState<{ movies: TmdbMovie[]; page: number }>({ movies: [], page: 1 })
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [moreFailed, setMoreFailed] = useState(false)
   // Genre names for the meta line. Loaded on the side: the releases never wait for them.
   const [genres, setGenres] = useState<Map<number, string>>(() => new Map())
 
@@ -37,11 +32,9 @@ export default function Releases() {
     }
   }, [])
 
-  // TMDB can list a film on two pages; keep it once.
-  const movies = data ? [...data.movies, ...more.movies].filter((movie, index, list) => list.findIndex((other) => other.id === movie.id) === index) : []
+  const movies = data?.movies ?? []
   const byId = new Map(movies.map((movie) => [movie.id, movie]))
   const releases = data ? upcomingReleases(movies, genres, Infinity) : null
-  const hasMore = data ? more.page < data.total_pages : false
 
   const months: { label: string; releases: NonNullable<typeof releases> }[] = []
   for (const release of releases ?? []) {
@@ -49,19 +42,6 @@ export default function Releases() {
     const last = months.at(-1)
     if (last?.label === label) last.releases.push(release)
     else months.push({ label, releases: [release] })
-  }
-
-  const loadMore = async () => {
-    setLoadingMore(true)
-    setMoreFailed(false)
-    try {
-      const { data: next } = await api.get<MoviePage>('/movies', { params: { ...releaseParams, page: more.page + 1 } })
-      setMore((current) => ({ movies: [...current.movies, ...next.movies], page: next.page }))
-    } catch {
-      setMoreFailed(true)
-    } finally {
-      setLoadingMore(false)
-    }
   }
 
   return (
@@ -83,7 +63,7 @@ export default function Releases() {
           </p>
         ) : !releases ? (
           <ResultsSkeleton view="grid" />
-        ) : releases.length === 0 && !hasMore ? (
+        ) : releases.length === 0 ? (
           <p className={homeStyles.releasesState} role="status">
             No upcoming releases right now.
           </p>
@@ -107,19 +87,6 @@ export default function Releases() {
               </div>
             </section>
           ))
-        )}
-
-        {releases && hasMore && (
-          <div className={homeStyles.sectionHeader}>
-            <PillButton variant="outline" onClick={() => void loadMore()} disabled={loadingMore}>
-              {loadingMore ? 'Loading…' : 'Show more releases'}
-            </PillButton>
-            {moreFailed && (
-              <p className={homeStyles.releasesState} role="alert">
-                Couldn’t load more releases. Try again.
-              </p>
-            )}
-          </div>
         )}
       </main>
     </div>
