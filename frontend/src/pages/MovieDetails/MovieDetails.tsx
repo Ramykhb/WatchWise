@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { useLenis } from 'lenis/react'
 import axios from 'axios'
@@ -55,13 +55,223 @@ const PINS = [
 
 type Premiere = Community['premiere']
 
-function googleCalendarUrl(title: string, premiere: Premiere) {
-  const params = new URLSearchParams({
-    action: 'TEMPLATE',
-    text: `${title} — ${premiere.title}`,
-    dates: `${premiere.start}/${premiere.end}`,
-  })
+/** `start` and `end` are UTC times like "20261107T183000Z". */
+function googleCalendarUrl(text: string, start: string, end: string) {
+  const params = new URLSearchParams({ action: 'TEMPLATE', text, dates: `${start}/${end}` })
   return `https://calendar.google.com/calendar/render?${params}`
+}
+
+/** How long the calendar event lasts when TMDB has no runtime for the title. */
+const DEFAULT_EVENT_MINUTES = 120
+
+const toCalendarTime = (date: Date) => date.toISOString().replace(/[-:]|\.\d{3}/g, '')
+const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate())
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+
+/**
+ * "Add to calendar": pick when you'll watch, then Google Calendar opens with an event from that time until
+ * the title's runtime later (one episode for a TV show).
+ */
+function AddToCalendar({ title, runtimeMinutes, runtime, isShow }: { title: string; runtimeMinutes: number | null; runtime: string; isShow: boolean }) {
+  const [open, setOpen] = useState(false)
+  const [today, setToday] = useState(() => startOfDay(new Date()))
+  // The month on show (its first day), the picked day, and the time as typed.
+  const [month, setMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1))
+  const [day, setDay] = useState<Date | null>(null)
+  const [hour, setHour] = useState('8')
+  const [minute, setMinute] = useState('00')
+  const [period, setPeriod] = useState<'AM' | 'PM'>('PM')
+  const [error, setError] = useState('')
+  const pickerRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLFormElement>(null)
+  const lenis = useLenis()
+
+  const hourNumber = Number(hour)
+  const minuteNumber = Number(minute)
+  const validTime = hour !== '' && minute !== '' && hourNumber >= 1 && hourNumber <= 12 && minuteNumber <= 59
+  const start =
+    day && validTime ? new Date(day.getFullYear(), day.getMonth(), day.getDate(), (hourNumber % 12) + (period === 'PM' ? 12 : 0), minuteNumber) : null
+  const minutes = runtimeMinutes ?? DEFAULT_EVENT_MINUTES
+  const end = start ? new Date(start.getTime() + minutes * 60_000) : null
+  const length = runtimeMinutes ? (isShow ? `one episode, ${runtime}` : runtime) : 'about 2 hours, as the runtime isn’t known'
+
+  const onFirstMonth = month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth()
+  const blanks = month.getDay()
+  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()
+  const days = Array.from({ length: daysInMonth }, (_, index) => new Date(month.getFullYear(), month.getMonth(), index + 1))
+  const changeMonth = (by: number) => setMonth(new Date(month.getFullYear(), month.getMonth() + by, 1))
+
+  // The picker is tall: bring all of it into view when it opens low on the screen.
+  useEffect(() => {
+    if (!open || !popoverRef.current) return
+    const below = popoverRef.current.getBoundingClientRect().bottom + 16 - window.innerHeight
+    if (below <= 0) return
+    if (lenis) lenis.scrollTo(window.scrollY + below)
+    else window.scrollBy({ top: below, behavior: 'smooth' })
+  }, [open, lenis])
+
+  // Close on a click outside the picker.
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (!pickerRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [open])
+
+  const toggle = () => {
+    const now = startOfDay(new Date())
+    setToday(now)
+    setMonth(new Date((day ?? now).getFullYear(), (day ?? now).getMonth(), 1))
+    setError('')
+    setOpen((value) => !value)
+  }
+
+  const close = () => {
+    setOpen(false)
+    buttonRef.current?.focus()
+  }
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!day) {
+      setError('Pick a day.')
+      return
+    }
+    if (!start || !end) {
+      setError('Enter a time like 8:30.')
+      return
+    }
+    if (start < new Date()) {
+      setError('Pick a time that hasn’t passed.')
+      return
+    }
+    window.open(googleCalendarUrl(`Watch ${title}`, toCalendarTime(start), toCalendarTime(end)), '_blank', 'noopener,noreferrer')
+    setDay(null)
+    close()
+  }
+
+  return (
+    <div
+      ref={pickerRef}
+      className={styles.calendarPicker}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && open) {
+          event.stopPropagation()
+          close()
+        }
+      }}
+    >
+      <button ref={buttonRef} type="button" className={styles.actionOutline} aria-haspopup="dialog" aria-expanded={open} onClick={toggle}>
+        <img src={calendarIcon} width={16} height={16} alt="" />
+        Add to calendar
+      </button>
+      {open && (
+        <form ref={popoverRef} className={styles.calendarPopover} role="dialog" aria-label={`Add ${title} to your calendar`} onSubmit={handleSubmit} noValidate>
+          <p className={styles.calendarPopoverTitle}>When will you watch it?</p>
+
+          <div className={styles.monthHead}>
+            <button type="button" className={styles.monthNav} aria-label="Previous month" disabled={onFirstMonth} onClick={() => changeMonth(-1)}>
+              ‹
+            </button>
+            <p className={styles.monthName} aria-live="polite">
+              {month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </p>
+            <button type="button" className={styles.monthNav} aria-label="Next month" onClick={() => changeMonth(1)}>
+              ›
+            </button>
+          </div>
+
+          <div className={styles.monthGrid}>
+            {WEEKDAYS.map((weekday) => (
+              <span key={weekday} className={styles.weekday} aria-hidden="true">
+                {weekday}
+              </span>
+            ))}
+            {blanks > 0 && <span style={{ gridColumn: `span ${blanks}` }} aria-hidden="true" />}
+            {days.map((date) => {
+              const isToday = date.getTime() === today.getTime()
+              const isPicked = date.getTime() === day?.getTime()
+              return (
+                <button
+                  key={date.getTime()}
+                  type="button"
+                  className={isToday ? `${styles.dayButton} ${styles.dayToday}` : styles.dayButton}
+                  aria-label={date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  aria-pressed={isPicked}
+                  disabled={date < today}
+                  autoFocus={isPicked || (!day && isToday)}
+                  onClick={() => {
+                    setDay(date)
+                    setError('')
+                  }}
+                >
+                  {date.getDate()}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className={styles.timeRow} role="group" aria-label="Time">
+            <span className={styles.timeLabel}>Time</span>
+            <input
+              className={styles.timeInput}
+              value={hour}
+              inputMode="numeric"
+              maxLength={2}
+              aria-label="Hour"
+              onChange={(event) => {
+                setHour(event.target.value.replace(/\D/g, ''))
+                setError('')
+              }}
+            />
+            <span aria-hidden="true">:</span>
+            <input
+              className={styles.timeInput}
+              value={minute}
+              inputMode="numeric"
+              maxLength={2}
+              aria-label="Minutes"
+              onChange={(event) => {
+                setMinute(event.target.value.replace(/\D/g, ''))
+                setError('')
+              }}
+              onBlur={() => minute && setMinute(minute.padStart(2, '0'))}
+            />
+            <div className={styles.periods}>
+              {(['AM', 'PM'] as const).map((option) => (
+                <button key={option} type="button" className={styles.period} aria-pressed={period === option} onClick={() => setPeriod(option)}>
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error ? (
+            <p className={styles.calendarError} role="alert">
+              {error}
+            </p>
+          ) : (
+            start &&
+            end && (
+              <p className={styles.calendarHint}>
+                {start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })},{' '}
+                {start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} to {end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} ({length})
+              </p>
+            )
+          )}
+          <div className={styles.calendarPopoverActions}>
+            <PillButton type="submit">Add to Google Calendar</PillButton>
+            <PillButton variant="outline" onClick={close}>
+              Cancel
+            </PillButton>
+          </div>
+        </form>
+      )}
+    </div>
+  )
 }
 
 function downloadIcs(slug: string, title: string, premiere: Premiere) {
@@ -515,6 +725,7 @@ function MovieDetailsPage({ details }: { details: Details }) {
                   <img src={eyeIcon} width={16} height={16} alt="" />
                   {watched ? 'Watched' : 'Mark as watched'}
                 </button>
+                <AddToCalendar title={movie.title} runtimeMinutes={details.runtimeMinutes ?? null} runtime={details.runtime} isShow={movie.mediaType === 'tv'} />
                 {/* aria-disabled (not disabled) keeps it focusable, so keyboard and screen-reader users reach the reason. */}
                 <button
                   type="button"
@@ -687,7 +898,7 @@ function MovieDetailsPage({ details }: { details: Details }) {
                     </div>
                   </div>
                   <div className={styles.calendarButtons}>
-                    <PillButton href={googleCalendarUrl(movie.title, community.premiere)}>Google Calendar</PillButton>
+                    <PillButton href={googleCalendarUrl(`${movie.title} — ${community.premiere.title}`, community.premiere.start, community.premiere.end)}>Google Calendar</PillButton>
                     <PillButton variant="outline" onClick={() => downloadIcs(movie.slug, movie.title, community.premiere)}>
                       Download .ics
                     </PillButton>

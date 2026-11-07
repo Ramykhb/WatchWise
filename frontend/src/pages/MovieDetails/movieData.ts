@@ -33,6 +33,8 @@ export type MovieDetails = {
   tags: { label: string; highlight?: boolean }[]
   year: string
   runtime: string
+  /** For a TV show, one episode's length; missing when TMDB has none. */
+  runtimeMinutes?: number | null
   language: string
   director: string
   tmdbScore: string

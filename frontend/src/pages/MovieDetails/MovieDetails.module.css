@@ -311,6 +311,206 @@
   color: var(--text-on-violet-muted);
 }
 
+/* "Add to calendar": the button and its date and time picker. */
+.calendarPicker {
+  position: relative;
+}
+
+.calendarPopover {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 8px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(340px, calc(100vw - 40px));
+  padding: 20px;
+  border-radius: 20px;
+  background: var(--surface-white);
+  box-shadow: var(--elevation-soft);
+  color: var(--ink-900);
+}
+
+.calendarPopoverTitle {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.monthHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.monthName {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.monthNav {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  font-size: 20px;
+  line-height: 1;
+  color: var(--ground-violet);
+  transition: background-color 0.15s ease-out;
+}
+
+.monthNav:hover:not(:disabled) {
+  background: var(--surface-violet-tint);
+}
+
+.monthNav:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  row-gap: 2px;
+}
+
+.weekday {
+  padding-bottom: 4px;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  color: var(--ink-400);
+}
+
+.dayButton {
+  aspect-ratio: 1;
+  border-radius: var(--radius-pill);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color 0.15s ease-out,
+    color 0.15s ease-out;
+}
+
+.dayButton:hover:not(:disabled) {
+  background: var(--surface-violet-tint);
+}
+
+.dayButton:focus-visible,
+.monthNav:focus-visible,
+.period:focus-visible {
+  outline: 2px solid var(--ground-violet);
+  outline-offset: 1px;
+}
+
+.dayToday {
+  font-weight: 700;
+  color: var(--ground-violet);
+  box-shadow: inset 0 0 0 1.5px var(--ground-violet);
+}
+
+.dayButton:disabled {
+  cursor: not-allowed;
+  color: var(--ink-400);
+  opacity: 0.5;
+}
+
+.dayButton[aria-pressed='true'] {
+  background: var(--ground-violet);
+  color: var(--ground-cream);
+}
+
+.timeRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 14px;
+  border-top: 1.5px solid var(--border-subtle);
+}
+
+.timeLabel {
+  margin-right: auto;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.timeInput {
+  width: 44px;
+  padding: 8px 0;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-white);
+  font: inherit;
+  font-weight: 700;
+  font-size: 15px;
+  text-align: center;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.timeInput:focus {
+  border-color: var(--ground-violet);
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--surface-violet-tint);
+}
+
+.periods {
+  display: flex;
+  gap: 2px;
+  margin-left: 6px;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-violet-tint);
+}
+
+.period {
+  padding: 6px 10px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--ground-violet);
+}
+
+.period[aria-pressed='true'] {
+  background: var(--ground-violet);
+  color: var(--ground-cream);
+}
+
+.calendarHint,
+.calendarError {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-600);
+}
+
+.calendarError {
+  font-weight: 500;
+  color: #c4291e;
+}
+
+.calendarPopoverActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 1100px) {
+  /* Anchored to the row instead of the button, so it can't run off the right edge. */
+  .actions {
+    position: relative;
+  }
+
+  .calendarPicker {
+    position: static;
+  }
+}
+
 .actionWatched {
   background: var(--ground-violet-deep);
   color: var(--ground-cream);
