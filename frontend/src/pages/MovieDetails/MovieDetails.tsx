@@ -41,6 +41,7 @@ import { filmKeyOf, titleOf, type FilmKey } from '../../lib/movies.ts'
 import { api } from '../../lib/api.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { useWatchlist } from '../../lib/watchlist.ts'
+import { downloadWatchEvent, outlookCalendarUrl, toCalendarTime } from './calendar.ts'
 import styles from './MovieDetails.module.css'
 
 /** What the last request for a TMDB movie returned, tagged with the request it answers. */
@@ -64,12 +65,11 @@ function googleCalendarUrl(text: string, start: string, end: string) {
 /** How long the calendar event lasts when TMDB has no runtime for the title. */
 const DEFAULT_EVENT_MINUTES = 120
 
-const toCalendarTime = (date: Date) => date.toISOString().replace(/[-:]|\.\d{3}/g, '')
 const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate())
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
 /**
- * "Add to calendar": pick when you'll watch, then Google Calendar opens with an event from that time until
+ * "Add to calendar": pick when you'll watch and a calendar, with an event from that time until
  * the title's runtime later (one episode for a TV show).
  */
 function AddToCalendar({ title, runtimeMinutes, runtime, isShow }: { title: string; runtimeMinutes: number | null; runtime: string; isShow: boolean }) {
@@ -81,6 +81,8 @@ function AddToCalendar({ title, runtimeMinutes, runtime, isShow }: { title: stri
   const [hour, setHour] = useState('8')
   const [minute, setMinute] = useState('00')
   const [period, setPeriod] = useState<'AM' | 'PM'>('PM')
+  const [calendar, setCalendar] = useState('google')
+  const calendarId = useId()
   const [error, setError] = useState('')
   const pickerRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -109,7 +111,7 @@ function AddToCalendar({ title, runtimeMinutes, runtime, isShow }: { title: stri
     if (below <= 0) return
     if (lenis) lenis.scrollTo(window.scrollY + below)
     else window.scrollBy({ top: below, behavior: 'smooth' })
-  }, [open, lenis])
+  }, [open, lenis, calendar])
 
   // Close on a click outside the picker.
   useEffect(() => {
@@ -148,7 +150,15 @@ function AddToCalendar({ title, runtimeMinutes, runtime, isShow }: { title: stri
       setError('Pick a time that hasn’t passed.')
       return
     }
-    window.open(googleCalendarUrl(`Watch ${title}`, toCalendarTime(start), toCalendarTime(end)), '_blank', 'noopener,noreferrer')
+    const eventTitle = `Watch ${title}`
+    if (calendar === 'apple') {
+      downloadWatchEvent(eventTitle, start, end)
+    } else {
+      const url = calendar === 'outlook'
+        ? outlookCalendarUrl(eventTitle, start, end)
+        : googleCalendarUrl(eventTitle, toCalendarTime(start), toCalendarTime(end))
+      window.open(url, '_blank', 'noopener,noreferrer')
+    }
     setDay(null)
     close()
   }
@@ -262,8 +272,21 @@ function AddToCalendar({ title, runtimeMinutes, runtime, isShow }: { title: stri
               </p>
             )
           )}
+          <div className={styles.calendarDestination}>
+            <label htmlFor={calendarId}>Calendar</label>
+            <select id={calendarId} value={calendar} onChange={(event) => setCalendar(event.target.value)} aria-describedby={calendar === 'apple' ? `${calendarId}-hint` : undefined}>
+              <option value="google">Google Calendar</option>
+              <option value="apple">Apple Calendar (iOS / Mac)</option>
+              <option value="outlook">Outlook</option>
+            </select>
+          </div>
+          {calendar === 'apple' && (
+            <p id={`${calendarId}-hint`} className={styles.calendarHint}>
+              Download the calendar file to import it. On iPhone, if it only previews, email the file to yourself and open the attachment in Apple Mail to add it.
+            </p>
+          )}
           <div className={styles.calendarPopoverActions}>
-            <PillButton type="submit">Add to Google Calendar</PillButton>
+            <PillButton type="submit">{calendar === 'apple' ? 'Download calendar event' : `Add to ${calendar === 'outlook' ? 'Outlook' : 'Google Calendar'}`}</PillButton>
             <PillButton variant="outline" onClick={close}>
               Cancel
             </PillButton>

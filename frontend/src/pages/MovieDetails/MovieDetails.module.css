@@ -500,6 +500,25 @@
   gap: 10px;
 }
 
+.calendarDestination {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.calendarDestination select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-white);
+  color: var(--ink-900);
+  font: inherit;
+}
+
 @media (max-width: 1100px) {
   /* Anchored to the row instead of the button, so it can't run off the right edge. */
   .actions {
