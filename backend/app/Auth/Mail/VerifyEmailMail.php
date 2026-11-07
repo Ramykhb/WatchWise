@@ -22,6 +22,6 @@ class VerifyEmailMail extends Mailable
 
     public function content(): Content
     {
-        return new Content(markdown: 'mail.verify-email');
+        return new Content(view: 'mail.verify-email', text: 'mail.text.verify-email');
     }
 }
