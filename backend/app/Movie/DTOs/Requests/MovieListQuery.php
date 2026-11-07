@@ -16,13 +16,15 @@ final readonly class MovieListQuery
         public int $page = 1,
         /** Upcoming films: most anticipated first, or earliest release first. */
         public string $sort = 'popularity',
+        /** Viewer's first eligible local release date, when browsing upcoming films. */
+        public ?string $releaseFrom = null,
     ) {}
 
     /**
-     * @param  array{list?: string, page?: int|string, sort?: string}  $validated
+     * @param  array{list?: string, page?: int|string, sort?: string, release_from?: string}  $validated
      */
     public static function fromValidated(array $validated): self
     {
-        return new self($validated['list'] ?? 'popular', (int) ($validated['page'] ?? 1), $validated['sort'] ?? 'popularity');
+        return new self($validated['list'] ?? 'popular', (int) ($validated['page'] ?? 1), $validated['sort'] ?? 'popularity', $validated['release_from'] ?? null);
     }
 }

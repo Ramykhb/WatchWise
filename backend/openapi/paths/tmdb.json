@@ -52,6 +52,7 @@
         "parameters": [
           {"name": "list", "in": "query", "required": false, "description": "Which list to fetch. upcoming holds films whose first release date is today in UTC or later, most popular first. Home filters out films already released on the viewer's local date (TMDB's own upcoming list counts a release in any country, so most of it is already out).", "schema": {"type": "string", "enum": ["popular", "top_rated", "now_playing", "upcoming"], "default": "popular"}},
           {"name": "sort", "in": "query", "required": false, "description": "For the upcoming list, popularity shows most anticipated first; release_date shows earliest releases first, before pagination. Other lists retain their provider ordering.", "schema": {"type": "string", "enum": ["popularity", "release_date"], "default": "popularity"}},
+          {"name": "release_from", "in": "query", "required": false, "description": "For upcoming films, inclusive first release date applied before pagination. Defaults to today in UTC. The releases page sends tomorrow in the viewer's timezone to exclude films already out locally.", "schema": {"type": "string", "format": "date"}},
           {"name": "page", "in": "query", "required": false, "description": "Page number.", "schema": {"type": "integer", "minimum": 1, "maximum": 500, "default": 1}}
         ],
         "responses": {

@@ -123,6 +123,52 @@ class MoviesTest extends TestCase
         }
     }
 
+    public function test_upcoming_filters_by_viewer_date_before_pagination_and_separates_its_cache(): void
+    {
+        config(['services.tmdb.key' => 'test-key']);
+        Http::preventStrayRequests();
+        $this->travelTo('2026-11-07 12:00:00');
+        Http::fake([
+            'https://api.themoviedb.org/3/discover/movie*' => function ($request) {
+                $date = $request['primary_release_date.gte'];
+
+                return Http::response([
+                    'page' => (int) $request['page'],
+                    'total_pages' => 2,
+                    'total_results' => 40,
+                    'results' => array_map(fn ($id) => [
+                        'id' => $id,
+                        'title' => 'Release '.$id,
+                        'release_date' => $date,
+                    ], range(1, 20)),
+                ]);
+            },
+        ]);
+
+        // A full first page of today's films used to disappear in the frontend.
+        $this->getJson('/api/movies?list=upcoming&sort=release_date')
+            ->assertOk()->assertJsonPath('movies.0.release_date', '2026-11-07');
+        $path = '/api/movies?list=upcoming&sort=release_date&release_from=2026-11-08';
+        $this->getJson($path)->assertOk()->assertJsonCount(20, 'movies')
+            ->assertJsonPath('movies.0.release_date', '2026-11-08');
+        $this->getJson($path)->assertOk()->assertJsonPath('movies.0.release_date', '2026-11-08');
+        $this->getJson($path.'&page=2')->assertOk()->assertJsonPath('page', 2)
+            ->assertJsonPath('movies.0.release_date', '2026-11-08');
+
+        Http::assertSentCount(3);
+        foreach ([1, 2] as $page) {
+            Http::assertSent(fn ($request) => $request['primary_release_date.gte'] === '2026-11-08'
+                && $request['sort_by'] === 'primary_release_date.asc'
+                && $request['page'] === $page);
+        }
+    }
+
+    public function test_movies_rejects_an_invalid_release_boundary(): void
+    {
+        $this->getJson('/api/movies?list=upcoming&release_from=2026-02-30')
+            ->assertUnprocessable()->assertJsonValidationErrors(['release_from']);
+    }
+
     public function test_movies_rejects_an_unknown_list_sort(): void
     {
         $this->getJson('/api/movies?list=upcoming&sort=random')
