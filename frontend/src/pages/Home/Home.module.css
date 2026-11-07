@@ -64,15 +64,6 @@
   background: var(--surface-white);
 }
 
-.weatherSource {
-  align-self: flex-start;
-  margin-top: -8px;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--ink-600);
-  text-decoration: underline;
-}
-
 .chipYellow {
   background: var(--accent-yellow);
 }

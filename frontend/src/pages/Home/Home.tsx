@@ -141,9 +141,11 @@ export default function Home() {
         params: { latitude, longitude },
       })
       const movies = Array.isArray(data.movies) ? data.movies : []
-      const recommendation = movies[Math.floor(Math.random() * movies.length)]
+      // Another request or tab may have filled the cache while this request was in flight.
+      const existing = readTonightPick({ latitude, longitude })
+      const recommendation = existing?.movie ?? movies[Math.floor(Math.random() * movies.length)]
       if (recommendation) {
-        const cached = cacheTonightPick(recommendation, { latitude, longitude })
+        const cached = existing ?? cacheTonightPick(recommendation, { latitude, longitude })
         setWeatherPick(toRecommendationMovie(recommendation))
         setPickTimestamp(cached.cachedAt)
       } else {
