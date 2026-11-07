@@ -1,7 +1,7 @@
 import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { useCallback, useEffect, useState } from 'react'
 
-const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000').replace(/\/$/, '')
+const backendUrl = (import.meta.env?.VITE_BACKEND_URL ?? 'http://localhost:8000').replace(/\/$/, '')
 
 /** The shared Laravel API client (`/api/...`) for both application and auth requests. */
 export const api = axios.create({
@@ -153,7 +153,7 @@ type ApiState<T> = { key: string; data: T | undefined; error: unknown }
  * previous data stays on screen meanwhile).
  */
 /** `enabled: false` sends nothing (e.g. a signed-out visitor, whose 401 would end the session). */
-export function useApi<T>(path: string, { enabled = true }: { enabled?: boolean } = {}) {
+export function useApi<T>(path: string, { enabled = true, retries = 0 }: { enabled?: boolean; retries?: number } = {}) {
   const [version, setVersion] = useState(0)
   const key = `${path}#${version}`
   const [state, setState] = useState<ApiState<T>>(() => ({ key: '', data: cache.get(path) as T | undefined, error: undefined }))
@@ -167,13 +167,29 @@ export function useApi<T>(path: string, { enabled = true }: { enabled?: boolean 
   useEffect(() => {
     if (!enabled) return
     let active = true
-    fetchShared<T>(path)
-      .then((data) => active && setState({ key, data, error: undefined }))
-      .catch((error: unknown) => active && setState({ key, data: undefined, error }))
+    let attempt = 0
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const load = () => {
+      fetchShared<T>(path)
+        .then((data) => active && setState({ key, data, error: undefined }))
+        .catch((error: unknown) => {
+          if (!active) return
+          const status = axios.isAxiosError(error) ? error.response?.status : undefined
+          const transient = axios.isAxiosError(error) && !axios.isCancel(error) && (status === undefined || status === 408 || (status >= 500 && status <= 599))
+          if (transient && attempt < retries) {
+            timer = setTimeout(load, 1000 * 2 ** attempt++)
+            return
+          }
+          // A failed refresh must not erase the last successful response.
+          setState((current) => ({ ...current, key, error }))
+        })
+    }
+    load()
     return () => {
       active = false
+      clearTimeout(timer)
     }
-  }, [path, key, enabled])
+  }, [path, key, enabled, retries])
 
   const setData = useCallback(
     (update: T | ((current: T) => T)) => {

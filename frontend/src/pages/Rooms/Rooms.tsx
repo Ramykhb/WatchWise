@@ -91,7 +91,7 @@ export default function Rooms() {
     return () => window.clearInterval(timer)
   }, [])
 
-  const roomsQuery = useApi<{ rooms: ApiRoom[] }>('/rooms')
+  const roomsQuery = useApi<{ rooms: ApiRoom[] }>('/rooms', { retries: 2 })
   const rooms = (roomsQuery.data?.rooms ?? []).map((r) => toRoom(r, now))
   const setRoomsData = roomsQuery.setData
   const reloadRooms = roomsQuery.reload
@@ -455,8 +455,9 @@ export default function Rooms() {
     setShowMenu(false)
   }
 
-  // With no rooms (or while they load) the page keeps its normal layout: each column shows an empty state.
+  // Only a successful, empty response means there are no rooms.
   const loadingRooms = roomsQuery.loading && rooms.length === 0
+  const roomsFailed = !roomsQuery.loading && !!roomsQuery.error
   const openCreate = () => setCreating(true)
 
   const isMuted = room ? muted.includes(room.id) : false
@@ -682,7 +683,14 @@ export default function Rooms() {
                 <RoomListSkeleton />
               </li>
             )}
-            {!loadingRooms && rooms.length === 0 && (
+            {roomsFailed && (
+              <li className={styles.emptyList} role="alert">
+                <p className={styles.emptyListTitle}>Couldn't load rooms</p>
+                <p className={styles.noRooms}>{rooms.length > 0 ? 'Showing your last loaded rooms. Try again to update them.' : 'Please try again to load the rooms.'}</p>
+                <PillButton variant="soft" onClick={reloadRooms}>Try again</PillButton>
+              </li>
+            )}
+            {!loadingRooms && !roomsFailed && rooms.length === 0 && (
               <li className={styles.emptyList}>
                 <p className={styles.emptyListTitle}>No rooms yet</p>
                 <p className={styles.noRooms}>Start one about a film and invite people to talk about it.</p>
@@ -704,7 +712,7 @@ export default function Rooms() {
             <header className={styles.chatHead}>
               <span className={`${styles.chatThumb} ${styles.thumbPlaceholder}`} aria-hidden="true" />
               <div className={styles.chatTitle}>
-                <h2 id="room-title">{loadingRooms ? 'Loading rooms…' : 'No room open'}</h2>
+                <h2 id="room-title">{loadingRooms ? 'Loading rooms…' : roomsFailed ? 'Rooms unavailable' : 'No room open'}</h2>
                 <p className={styles.live}>Rooms are live chats about a film.</p>
               </div>
             </header>
@@ -712,6 +720,12 @@ export default function Rooms() {
             <div className={styles.messages}>
               {loadingRooms ? (
                 <RoomChatSkeleton />
+              ) : roomsFailed ? (
+                <div className={styles.emptyChat}>
+                  <p className={styles.emptyChatTitle}>Couldn't load rooms</p>
+                  <p className={styles.emptyChatText}>Try again to load the conversations.</p>
+                  <PillButton onClick={reloadRooms}>Try again</PillButton>
+                </div>
               ) : (
                 <div className={styles.emptyChat}>
                   <p className={styles.emptyChatTitle}>Start the first conversation</p>
