@@ -1,4 +1,4 @@
-import LoadingState from '../../components/LoadingState/LoadingState.tsx'
+import { WatchlistSkeleton, HistorySkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { BookmarkPlus, Compass, Sparkles } from 'lucide-react'
@@ -172,7 +172,7 @@ export default function Watchlist() {
 
         <div className={styles.body}>
           <section className={styles.queue} aria-busy={loading && !data} aria-label={tabs.find((t) => t.id === tab)!.label} data-enter data-enter-delay="0.25">
-            {loading && !data && <LoadingState label="Loading your watchlist…" />}
+            {loading && !data && <WatchlistSkeleton />}
             {tab === 'watchlist' && (
               <>
                 {/* TODO: availability filters (in cinemas / streaming / coming soon) once TMDB data is connected. */}
@@ -301,7 +301,7 @@ export default function Watchlist() {
                   See all
                 </button>
               </div>
-              {loading && !data ? <LoadingState label="Loading watch history…" compact /> : history.length > 0 ? <HistoryList entries={history.slice(0, 5)} /> : <p className={styles.added}>Films you mark as watched show up here.</p>}
+              {loading && !data ? <HistorySkeleton /> : history.length > 0 ? <HistoryList entries={history.slice(0, 5)} /> : <p className={styles.added}>Films you mark as watched show up here.</p>}
             </section>
 
             {taste.length > 0 && (

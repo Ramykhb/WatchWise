@@ -1,4 +1,5 @@
-import LoadingState, { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
+import { RoomChatSkeleton, RoomListSkeleton, RoomInfoSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
+import { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
@@ -663,8 +664,8 @@ export default function Rooms() {
               </li>
             ))}
             {loadingRooms && (
-              <li className={styles.noRooms}>
-                <LoadingIndicator label="Loading rooms…" />
+              <li>
+                <RoomListSkeleton />
               </li>
             )}
             {!loadingRooms && rooms.length === 0 && (
@@ -696,7 +697,7 @@ export default function Rooms() {
 
             <div className={styles.messages}>
               {loadingRooms ? (
-                <LoadingState label="Loading rooms…" />
+                <RoomChatSkeleton />
               ) : (
                 <div className={styles.emptyChat}>
                   <p className={styles.emptyChatTitle}>Start the first conversation</p>
@@ -725,40 +726,44 @@ export default function Rooms() {
 
         {!room && (
           <aside className={styles.info} aria-label="Room info" data-enter data-enter-delay="0.25">
-            <section className={styles.movie}>
-              <div className={styles.movieRow}>
-                <span className={`${styles.moviePoster} ${styles.thumbPlaceholder}`} aria-hidden="true" />
-                <div className={styles.movieText}>
-                  <p className={styles.movieTitle}>No title yet</p>
-                  <p className={styles.movieMeta}>Each room is about one movie or TV show. You pick it when you create the room.</p>
-                </div>
-              </div>
-              <PillButton variant="accent" to="/discover">
-                Browse movies
-              </PillButton>
-            </section>
+            {loadingRooms ? <RoomInfoSkeleton /> : (
+              <>
+                <section className={styles.movie}>
+                  <div className={styles.movieRow}>
+                    <span className={`${styles.moviePoster} ${styles.thumbPlaceholder}`} aria-hidden="true" />
+                    <div className={styles.movieText}>
+                      <p className={styles.movieTitle}>No title yet</p>
+                      <p className={styles.movieMeta}>Each room is about one movie or TV show. You pick it when you create the room.</p>
+                    </div>
+                  </div>
+                  <PillButton variant="accent" to="/discover">
+                    Browse movies
+                  </PillButton>
+                </section>
 
-            <section className={styles.rules} aria-labelledby="rules-title">
-              <h3 id="rules-title" className={styles.cardTitle}>
-                <img src={shieldIcon} width={18} height={18} alt="" />
-                Room rules
-              </h3>
-              <ul>
-                {rulesFor(false).map((rule) => (
-                  <li key={rule}>
-                    <img src={checkIcon} width={14} height={14} alt="" />
-                    {rule}
-                  </li>
-                ))}
-              </ul>
-            </section>
+                <section className={styles.rules} aria-labelledby="rules-title">
+                  <h3 id="rules-title" className={styles.cardTitle}>
+                    <img src={shieldIcon} width={18} height={18} alt="" />
+                    Room rules
+                  </h3>
+                  <ul>
+                    {rulesFor(false).map((rule) => (
+                      <li key={rule}>
+                        <img src={checkIcon} width={14} height={14} alt="" />
+                        {rule}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
 
-            <section className={styles.online} aria-labelledby="online-title">
-              <h3 id="online-title" className={styles.cardTitle}>
-                In this room · 0
-              </h3>
-              <p className={styles.noRooms}>No one here yet.</p>
-            </section>
+                <section className={styles.online} aria-labelledby="online-title">
+                  <h3 id="online-title" className={styles.cardTitle}>
+                    In this room · 0
+                  </h3>
+                  <p className={styles.noRooms}>No one here yet.</p>
+                </section>
+              </>
+            )}
           </aside>
         )}
 

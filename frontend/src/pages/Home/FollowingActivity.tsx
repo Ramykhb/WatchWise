@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Link } from 'react-router'
 import { ListVideo } from 'lucide-react'
 import AvatarImage from '../../components/AvatarImage/AvatarImage.tsx'
-import LoadingState from '../../components/LoadingState/LoadingState.tsx'
+import { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
 import { look, shortName, timeAgo } from '../../lib/format.ts'
 import { itemKey } from '../../lib/movies.ts'
@@ -59,7 +59,7 @@ export default function FollowingActivity({ activity, loading, error, reload }: 
           {loading && activity.length > 0 ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
-      {loading && activity.length === 0 ? <LoadingState label="Loading activity…" compact />
+      {loading && activity.length === 0 ? <LoadingIndicator label="Loading activity…" />
         : error ? (
           <div className={styles.activityState} role="status">
             <p>Activity is temporarily unavailable.</p>

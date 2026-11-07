@@ -1,4 +1,4 @@
-import LoadingState from '../../components/LoadingState/LoadingState.tsx'
+import { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { useAuth } from '../../contexts/useAuth.ts'
@@ -32,5 +32,5 @@ export default function AuthCallback() {
     return () => { active = false }
   }, [navigate, params, setUser])
 
-  return <main style={{ padding: '4rem', maxWidth: 720, margin: '0 auto' }}>{message ? <p role="alert">{message}</p> : <LoadingState label="Completing sign-in…" />}</main>
+  return <main style={{ padding: '4rem', maxWidth: 720, margin: '0 auto' }}>{message ? <p role="alert">{message}</p> : <LoadingIndicator label="Completing sign-in…" />}</main>
 }

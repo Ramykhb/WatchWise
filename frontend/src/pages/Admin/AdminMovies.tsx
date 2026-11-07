@@ -1,4 +1,4 @@
-import LoadingState from '../../components/LoadingState/LoadingState.tsx'
+import { AdminMoviesSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import AdminPagination from '../../components/AdminPagination/AdminPagination.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
@@ -306,7 +306,7 @@ export default function AdminMovies() {
                           </button>
                         </>
                       ) : (
-                        <LoadingState label="Loading movies…" />
+                        <AdminMoviesSkeleton />
                       )}
                     </td>
                   </tr>

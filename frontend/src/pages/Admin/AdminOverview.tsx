@@ -1,4 +1,4 @@
-import LoadingState from '../../components/LoadingState/LoadingState.tsx'
+import { AdminOverviewSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import StatCard from '../../components/StatCard/StatCard.tsx'
@@ -221,7 +221,7 @@ export default function AdminOverview() {
               </button>
             </>
           ) : (
-            <LoadingState label="Loading the overview…" />
+            <AdminOverviewSkeleton />
           )}
         </div>
       ) : (

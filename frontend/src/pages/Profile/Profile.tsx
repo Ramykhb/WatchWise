@@ -1,4 +1,5 @@
-import { PageLoading, LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
+import { ProfileSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
+import { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
@@ -46,7 +47,7 @@ export default function Profile() {
   const { data, error } = useApi<ApiProfile>(`/users/${encodeURIComponent(handle ?? user?.username ?? '')}`)
   if (isStatus(error, 404)) return <Placeholder title="Profile not found" notFound />
   if (error) return <Placeholder title="Couldn't load this profile" />
-  if (!data) return <PageLoading label="Loading profile…" layout="profile" />
+  if (!data) return <ProfileSkeleton />
   // Keyed by user so tabs and follow state reset when moving between profiles.
   return <ProfilePage key={data.user.id} profile={toProfile(data)} />
 }

@@ -1,4 +1,4 @@
-import LoadingState from '../../components/LoadingState/LoadingState.tsx'
+import { DiscoverListsSkeleton, DiscoverPeopleSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import axios from 'axios'
 import { Link, useSearchParams } from 'react-router'
@@ -603,7 +603,7 @@ export default function Discover() {
                   </button>
                 </p>
               ) : !listsQuery.data ? (
-                <LoadingState label="Loading lists…" layout="cards" />
+                <DiscoverListsSkeleton />
               ) : lists.length === 0 ? (
                 <p className={styles.empty}>{submittedQuery ? `No public lists match “${submittedQuery}”.` : 'No public lists yet.'}</p>
               ) : (
@@ -738,7 +738,7 @@ function PeopleResults({ loading, failed, people, query, onRetry }: PeopleResult
       </p>
     )
   }
-  if (loading) return <LoadingState label="Searching people…" />
+  if (loading) return <DiscoverPeopleSkeleton />
   if (people.length === 0) return <p className={styles.empty}>{query ? `No one matches “${query}”.` : 'No members yet.'}</p>
 
   return (

@@ -1,5 +1,5 @@
+import { SettingsSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import LoadError from '../../components/LoadingState/LoadError.tsx'
-import { PageLoading } from '../../components/LoadingState/LoadingState.tsx'
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useLenis } from 'lenis/react'
@@ -70,7 +70,7 @@ const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000')
 export default function Settings() {
   const { data, setData, error, loading, reload } = useApi<ApiMe>('/me')
   if (error && !loading) return <LoadError label="Couldn’t load your settings." onRetry={reload} />
-  if (!data) return <PageLoading label="Loading your settings…" layout="settings" />
+  if (!data) return <SettingsSkeleton />
   return <SettingsPage key={data.user.id} me={data} onChange={setData} />
 }
 

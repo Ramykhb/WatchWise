@@ -1,4 +1,5 @@
-import LoadingState, { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
+import { MovieReviewsSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
+import { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
@@ -234,7 +235,7 @@ export default function MovieReviews({ tmdbId, mediaType, me, stars, onStarsSave
         </label>
       </div>
 
-      {!page && !failed && <LoadingState label="Loading reviews…" />}
+      {!page && !failed && <MovieReviewsSkeleton />}
       {failed && !page && (
         <p className={styles.muted} role="alert">
           Couldn’t load reviews.{' '}

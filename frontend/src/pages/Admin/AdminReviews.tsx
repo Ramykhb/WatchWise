@@ -1,4 +1,4 @@
-import LoadingState from '../../components/LoadingState/LoadingState.tsx'
+import { AdminReviewsSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import AdminPagination from '../../components/AdminPagination/AdminPagination.tsx'
@@ -176,9 +176,10 @@ export default function AdminReviews() {
 
       <div className={styles.body}>
         <div id="review-queue" className={styles.queue} role="tabpanel" aria-labelledby={`tab-${tab}`} aria-busy={loading}>
-          {!data && (
-            <div className={styles.empty} role={error ? 'alert' : 'status'}>
-              <div className={styles.emptyTitle}>{error ? apiErrorMessage(error, 'Unable to load reviews.') : <LoadingState label="Loading reviews…" />}</div>
+          {!data && !error && <AdminReviewsSkeleton />}
+          {!data && Boolean(error) && (
+            <div className={styles.empty} role="alert">
+              <div className={styles.emptyTitle}>{apiErrorMessage(error, 'Unable to load reviews.')}</div>
               {Boolean(error) && (
                 <button type="button" className={styles.view} onClick={reload}>
                   Try again

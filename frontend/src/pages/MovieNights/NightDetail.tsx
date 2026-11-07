@@ -1,4 +1,4 @@
-import { PageLoading } from '../../components/LoadingState/LoadingState.tsx'
+import { NightDetailSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useRef, useState, type CSSProperties } from 'react'
 import { useParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
@@ -69,7 +69,7 @@ export default function NightDetailRoute() {
   // Nights you are not part of answer 403; treat them like missing ones.
   if (isStatus(error, 404) || isStatus(error, 403)) return <Placeholder title="Movie night not found" notFound />
   if (error) return <Placeholder title="Couldn't load this movie night" />
-  if (!data) return <PageLoading label="Loading movie night…" />
+  if (!data) return <NightDetailSkeleton />
   // Keyed by id so open popovers reset when moving between nights.
   return (
     <NightDetailPage

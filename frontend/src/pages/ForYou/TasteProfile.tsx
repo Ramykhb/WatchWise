@@ -1,4 +1,4 @@
-import LoadingState from "../../components/LoadingState/LoadingState.tsx";
+import { TasteProfileSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { api } from "../../lib/api.ts";
@@ -33,7 +33,7 @@ export default function TasteProfile({ userId, weatherEnabled }: { userId: numbe
       }}>Try again</button>
     </div>
   );
-  if (!profile) return <LoadingState label="Loading your taste profile…" />;
+  if (!profile) return <TasteProfileSkeleton />;
 
   const sources: string[] = [];
   if (profile.watched_movies) sources.push(`${profile.watched_movies} watched ${profile.watched_movies === 1 ? "film" : "films"}`);

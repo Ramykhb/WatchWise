@@ -1,5 +1,5 @@
+import { EditProfileSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import LoadError from '../../components/LoadingState/LoadError.tsx'
-import { PageLoading } from '../../components/LoadingState/LoadingState.tsx'
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
@@ -37,7 +37,7 @@ const fieldsOf = (user: ApiMe['user']): Fields => ({
 export default function EditProfile() {
   const { data, setData, error, loading, reload } = useApi<ApiMe>('/me')
   if (error && !loading) return <LoadError label="Couldn’t load your profile." onRetry={reload} />
-  if (!data) return <PageLoading label="Loading your profile…" layout="settings" />
+  if (!data) return <EditProfileSkeleton />
   return <EditProfilePage key={data.user.id} me={data} onChange={setData} />
 }
 

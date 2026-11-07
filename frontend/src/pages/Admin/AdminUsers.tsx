@@ -1,4 +1,4 @@
-import LoadingState from '../../components/LoadingState/LoadingState.tsx'
+import { AdminUsersSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import AdminPagination from '../../components/AdminPagination/AdminPagination.tsx'
@@ -294,7 +294,7 @@ export default function AdminUsers() {
                         </button>
                       </>
                     ) : (
-                      <LoadingState label="Loading users…" />
+                      <AdminUsersSkeleton />
                     )}
                   </td>
                 </tr>

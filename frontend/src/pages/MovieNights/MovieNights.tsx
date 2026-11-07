@@ -1,4 +1,4 @@
-import LoadingState from '../../components/LoadingState/LoadingState.tsx'
+import { MovieNightsSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { ArrowRight, CalendarDays, Clapperboard, Users } from 'lucide-react'
@@ -211,7 +211,7 @@ export default function MovieNights() {
               </p>
             )}
 
-            {!store.loaded && <LoadingState label="Loading movie nights…" />}
+            {!store.loaded && <MovieNightsSkeleton />}
             {store.loaded && tab !== 'past' && (invitations.length > 0 || tab === 'invitations') && (
               <section className={styles.invites} aria-labelledby="invites-title">
                 <div className={styles.invitesHead}>

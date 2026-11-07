@@ -1,4 +1,5 @@
-import LoadingState, { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
+import { CinemaSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
+import { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ExternalLink, Navigation, X } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
@@ -274,7 +275,7 @@ export default function Cinemas() {
             {nearbyCinemas.length === 0 && (
               <li className={styles.empty}>
                 {loadingCinemas
-                  ? <LoadingState label="Finding cinemas near you…" />
+                  ? <CinemaSkeleton />
                   : cinemaSearchNote
                     ? 'Cinema results could not be loaded. Use my location to try again.'
                     : 'No cinemas found near your location.'}

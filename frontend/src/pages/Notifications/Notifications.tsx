@@ -1,4 +1,4 @@
-import LoadingState from '../../components/LoadingState/LoadingState.tsx'
+import { NotificationsSkeleton, NotificationPreferencesSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
@@ -120,7 +120,7 @@ export default function Notifications() {
 
         <div className={styles.body}>
           <section className={styles.feed} aria-busy={!loaded} aria-label="Notifications" data-enter data-enter-delay="0.2">
-            {!loaded && <LoadingState label="Loading notifications…" />}
+            {!loaded && <NotificationsSkeleton />}
             {groups.map(({ group, list }) => (
               <div key={group} className={styles.group}>
                 <h2 className={styles.groupTitle}>{group}</h2>
@@ -153,7 +153,7 @@ export default function Notifications() {
               Notify me about
             </h2>
             {!prefs && (me.loading || !me.error) ? (
-              <LoadingState label="Loading preferences…" />
+              <NotificationPreferencesSkeleton />
             ) : me.error ? (
               <p role="alert">Couldn’t load preferences. <button type="button" onClick={me.reload}>Try again</button></p>
             ) : (
