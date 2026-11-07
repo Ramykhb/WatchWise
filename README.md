@@ -293,7 +293,9 @@ Use [backend/.env.example](backend/.env.example) and [frontend/.env.example](fro
 
 ## Deploy the backend on Render
 
-For the frontend on Vercel, set the project's **Root Directory** to `frontend`. The committed `frontend/vercel.json` selects Vite, builds into `dist`, proxies `/api` to Render, and serves `index.html` for frontend routes so refreshes and direct links work. Include this configuration in the deployed commit and redeploy after changing it. Set `VITE_BACKEND_URL` to an empty string in Vercel to use the API proxy.
+For the frontend on Vercel, set the project's **Root Directory** to `frontend`. The committed `frontend/vercel.json` selects Vite, builds into `dist`, proxies `/api` to Render, and serves `index.html` for frontend routes so refreshes and direct links work. Its build command clears `VITE_BACKEND_URL` so API requests and social-login navigation use the Vercel origin even if an environment variable points to Render. Keep the project's Build Command override disabled so this command is used. Include this configuration in the deployed commit and redeploy after changing it.
+
+On Render, set `FRONTEND_URL` to the production Vercel origin and leave `SESSION_DOMAIN` unset (or `null`) so cookies have no explicit domain. Set each provider's redirect URI to `https://YOUR-VERCEL-DOMAIN/api/auth/social/{provider}/callback` in both Render's environment and the provider's developer console. OAuth must start and finish on the same frontend hostname that owns the state cookie. Redeploy Render after changing its environment.
 
 Create a **Web Service** using the repository's `dev` branch and these settings:
 
