@@ -278,6 +278,33 @@ OAuth callback URLs follow `http://localhost:8000/api/auth/social/{provider}/cal
 
 Use [backend/.env.example](backend/.env.example) and [frontend/.env.example](frontend/.env.example) as the configuration reference. Keep private credentials out of version control. Restart Vite after changing frontend environment variables; run `php artisan config:clear` after changing cached backend configuration.
 
+## Deploy the backend on Render
+
+Create a **Web Service** using the repository's `dev` branch and these settings:
+
+| Setting | Value |
+| --- | --- |
+| Language / runtime | Docker |
+| Root Directory | `backend` |
+| Dockerfile Path | `./Dockerfile` |
+| Docker Build Context | `.` |
+| Docker Command | Leave blank; the image starts Apache automatically. |
+| Health Check Path | `/api/health` |
+
+Render builds the Dockerfile, which includes PHP 8.4, Composer, Apache and the MySQL PHP driver. No separate build or start command is needed. Apache serves `public/` on Render's `PORT` (default `10000`). See [Render's Docker documentation](https://render.com/docs/docker).
+
+Set environment variables in Render rather than copying `.env` into the image:
+
+- `APP_ENV=production`, `APP_DEBUG=false`, `LOG_CHANNEL=stderr`.
+- `APP_KEY`: generate once with `php artisan key:generate --show`, then keep that value across deploys.
+- `APP_URL`: the backend's public HTTPS URL. `FRONTEND_URL`: the deployed frontend's origin, with no trailing slash.
+- `DB_CONNECTION=mysql` and the existing database's `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, and `DB_PASSWORD`.
+- `JWT_SECRET` and the API keys and OAuth configuration needed by your enabled features. OAuth redirect URIs must use the deployed backend URL.
+
+Configuration, routes and views are cached at container startup so they use Render's environment. Database migrations are not run automatically; run `php artisan migrate --force` in a Render pre-deploy command (paid services) or the service shell when schema changes are needed.
+
+This container runs the HTTP API. Run Reverb, queue workers and the scheduler as separate services if those features are enabled. Uploaded avatars use local storage by default; use persistent storage or an object storage service to retain them across deploys.
+
 ## API documentation
 
 With the backend running:
