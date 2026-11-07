@@ -5,12 +5,12 @@ return [
         'key' => env('GOOGLE_PLACES_API_KEY'),
     ],
 
-    'openweather' => [
-        'key' => env('OPENWEATHER_API_KEY'),
-        'url' => env('OPENWEATHER_URL', 'https://api.openweathermap.org/data/2.5/weather'),
-        'default_latitude' => (float) env('OPENWEATHER_DEFAULT_LATITUDE', 33.8938),
-        'default_longitude' => (float) env('OPENWEATHER_DEFAULT_LONGITUDE', 35.5018),
-        'timezone' => env('OPENWEATHER_TIMEZONE', 'Asia/Beirut'),
+    'weatherapi' => [
+        'key' => env('WEATHERAPI_KEY'),
+        'url' => env('WEATHERAPI_URL', 'https://api.weatherapi.com/v1/current.json'),
+        'default_latitude' => (float) env('WEATHERAPI_DEFAULT_LATITUDE', 33.8938),
+        'default_longitude' => (float) env('WEATHERAPI_DEFAULT_LONGITUDE', 35.5018),
+        'timezone' => env('WEATHERAPI_TIMEZONE', 'Asia/Beirut'),
     ],
 
     'tmdb' => [

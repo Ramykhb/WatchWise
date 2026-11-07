@@ -332,7 +332,7 @@ export default function Home() {
               <WeatherIcon size={14} aria-hidden="true" />
               {weatherSummary}
             </span>
-            {currentWeather && <a className={styles.weatherSource} href="https://openweathermap.org/" target="_blank" rel="noreferrer">Weather data: OpenWeather</a>}
+            {currentWeather && <a className={styles.weatherSource} href="https://www.weatherapi.com/" target="_blank" rel="noreferrer">Weather data: WeatherAPI.com</a>}
             <SplitHeadline
               id="home-title"
               className={styles.title}

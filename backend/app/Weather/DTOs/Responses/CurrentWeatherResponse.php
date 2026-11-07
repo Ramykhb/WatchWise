@@ -5,7 +5,7 @@ namespace App\Weather\DTOs\Responses;
 use Carbon\CarbonImmutable;
 use JsonSerializable;
 
-/** Normalizes OpenWeatherMap data into the weather contract shared with the frontend. */
+/** Normalizes WeatherAPI.com data into the weather contract shared with the frontend. */
 final readonly class CurrentWeatherResponse implements JsonSerializable
 {
     public function __construct(
@@ -19,29 +19,25 @@ final readonly class CurrentWeatherResponse implements JsonSerializable
     ) {}
 
     /** @param array<string, mixed> $data */
-    public static function fromOpenWeather(array $data): ?self
+    public static function fromWeatherApi(array $data): ?self
     {
-        foreach (['main.temp', 'main.humidity', 'main.feels_like', 'wind.speed', 'weather.0.id', 'dt'] as $field) {
-            if (! is_numeric(data_get($data, $field))) {
+        foreach (['temp_c', 'humidity', 'feelslike_c', 'wind_kph', 'precip_mm', 'condition.code', 'last_updated_epoch'] as $field) {
+            if (! is_numeric(data_get($data, 'current.'.$field))) {
                 return null;
             }
         }
 
-        $rain = data_get($data, 'rain.1h', 0);
-        $snow = data_get($data, 'snow.1h', 0);
-        if (! is_numeric($rain) || ! is_numeric($snow)) {
-            return null;
-        }
+        $current = $data['current'];
 
         return new self(
-            CarbonImmutable::createFromTimestampUTC((int) $data['dt'])
-                ->setTimezone(config('services.openweather.timezone'))->format('Y-m-d\TH:i'),
-            (float) $data['main']['temp'],
-            (int) $data['main']['humidity'],
-            (float) $data['main']['feels_like'],
-            (float) $rain + (float) $snow,
-            self::weatherCode((int) $data['weather'][0]['id']),
-            round((float) $data['wind']['speed'] * 3.6, 1),
+            CarbonImmutable::createFromTimestampUTC((int) $current['last_updated_epoch'])
+                ->setTimezone(config('services.weatherapi.timezone'))->format('Y-m-d\TH:i'),
+            (float) $current['temp_c'],
+            (int) $current['humidity'],
+            (float) $current['feelslike_c'],
+            (float) $current['precip_mm'],
+            self::weatherCode((int) $current['condition']['code']),
+            (float) $current['wind_kph'],
         );
     }
 
@@ -49,28 +45,29 @@ final readonly class CurrentWeatherResponse implements JsonSerializable
     private static function weatherCode(int $code): int
     {
         return match ($code) {
-            800 => 0,
-            801 => 1,
-            802 => 2,
-            803, 804 => 3,
-            701, 741 => 45,
-            300, 310 => 51,
-            301, 311, 313, 321 => 53,
-            302, 312, 314 => 55,
-            500 => 61,
-            501 => 63,
-            502, 503, 504 => 65,
-            511 => 66,
-            520 => 80,
-            521 => 81,
-            522, 531 => 82,
-            600 => 71,
-            601 => 73,
-            602 => 75,
-            611, 612, 613, 615, 616 => 77,
-            620 => 85,
-            621, 622 => 86,
-            200, 201, 202, 210, 211, 212, 221, 230, 231, 232 => 95,
+            1000 => 0,
+            1003 => 2,
+            1006, 1009 => 3,
+            1030, 1135 => 45,
+            1147 => 48,
+            1150, 1153 => 51,
+            1072, 1168 => 56,
+            1171 => 57,
+            1063, 1180, 1183 => 61,
+            1186, 1189 => 63,
+            1192, 1195 => 65,
+            1198 => 66,
+            1201 => 67,
+            1240 => 80,
+            1243 => 81,
+            1246 => 82,
+            1066, 1210, 1213 => 71,
+            1114, 1216, 1219 => 73,
+            1117, 1222, 1225 => 75,
+            1069, 1204, 1207, 1237, 1249, 1252, 1261, 1264 => 77,
+            1255 => 85,
+            1258 => 86,
+            1087, 1273, 1276, 1279, 1282 => 95,
             default => -1,
         };
     }

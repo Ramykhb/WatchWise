@@ -13,8 +13,8 @@ class WeatherService implements WeatherServiceInterface
 
     public function current(WeatherQuery $query): WeatherResponse
     {
-        $latitude = $query->latitude ?? (float) config('services.openweather.default_latitude');
-        $longitude = $query->longitude ?? (float) config('services.openweather.default_longitude');
+        $latitude = $query->latitude ?? (float) config('services.weatherapi.default_latitude');
+        $longitude = $query->longitude ?? (float) config('services.weatherapi.default_longitude');
 
         return new WeatherResponse(
             $latitude,

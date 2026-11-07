@@ -11,11 +11,11 @@ class WeatherTest extends TestCase
     {
         parent::setUp();
         config([
-            'services.openweather.key' => 'test-weather-key',
-            'services.openweather.url' => 'https://api.openweathermap.org/data/2.5/weather',
-            'services.openweather.default_latitude' => 33.8938,
-            'services.openweather.default_longitude' => 35.5018,
-            'services.openweather.timezone' => 'Asia/Beirut',
+            'services.weatherapi.key' => 'test-weather-key',
+            'services.weatherapi.url' => 'https://api.weatherapi.com/v1/current.json',
+            'services.weatherapi.default_latitude' => 33.8938,
+            'services.weatherapi.default_longitude' => 35.5018,
+            'services.weatherapi.timezone' => 'Asia/Beirut',
         ]);
         Http::preventStrayRequests();
     }
@@ -24,17 +24,22 @@ class WeatherTest extends TestCase
     private function weatherPayload(float $temperature = 18): array
     {
         return [
-            'dt' => 1704067200,
-            'main' => ['temp' => $temperature, 'humidity' => 60, 'feels_like' => 17],
-            'wind' => ['speed' => 2],
-            'weather' => [['id' => 801]],
+            'current' => [
+                'last_updated_epoch' => 1704067200,
+                'temp_c' => $temperature,
+                'humidity' => 60,
+                'feelslike_c' => 17,
+                'wind_kph' => 7.2,
+                'precip_mm' => 0,
+                'condition' => ['code' => 1003],
+            ],
         ];
     }
 
     public function test_weather_defaults_to_beirut_when_coordinates_are_not_provided(): void
     {
         Http::fake([
-            'https://api.openweathermap.org/*' => Http::response($this->weatherPayload()),
+            'https://api.weatherapi.com/*' => Http::response($this->weatherPayload()),
         ]);
 
         $response = $this->getJson('/api/weather');
@@ -46,14 +51,14 @@ class WeatherTest extends TestCase
             ->assertJsonPath('location.is_default', true);
 
         Http::assertSent(fn ($request) => $request->url() ===
-            'https://api.openweathermap.org/data/2.5/weather?lat=33.8938&lon=35.5018&appid=test-weather-key&units=metric'
+            'https://api.weatherapi.com/v1/current.json?key=test-weather-key&q=33.8938%2C35.5018&aqi=no'
         );
     }
 
     public function test_weather_uses_the_provided_coordinates(): void
     {
         Http::fake([
-            'https://api.openweathermap.org/*' => Http::response($this->weatherPayload(22)),
+            'https://api.weatherapi.com/*' => Http::response($this->weatherPayload(22)),
         ]);
 
         $response = $this->getJson('/api/weather?latitude=40.7128&longitude=-74.006');
@@ -72,10 +77,10 @@ class WeatherTest extends TestCase
             ->assertJsonValidationErrors(['longitude']);
     }
 
-    public function test_weather_returns_502_when_openweather_fails(): void
+    public function test_weather_returns_502_when_weatherapi_fails(): void
     {
         Http::fake([
-            'https://api.openweathermap.org/*' => Http::response('boom', 500),
+            'https://api.weatherapi.com/*' => Http::response('boom', 500),
         ]);
 
         $this->getJson('/api/weather')
@@ -86,7 +91,7 @@ class WeatherTest extends TestCase
     public function test_weather_is_throttled_to_thirty_requests_a_minute(): void
     {
         Http::fake([
-            'https://api.openweathermap.org/*' => Http::response($this->weatherPayload()),
+            'https://api.weatherapi.com/*' => Http::response($this->weatherPayload()),
         ]);
 
         for ($i = 0; $i < 30; $i++) {

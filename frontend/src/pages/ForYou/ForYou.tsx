@@ -622,7 +622,7 @@ export default function ForYou() {
                 Humidity {current.relative_humidity_2m}% · Precipitation{" "}
                 {current.precipitation} mm · Wind{" "}
                 {Math.round(current.wind_speed_10m)} km/h
-                {" · "}<a className={styles.weatherSource} href="https://openweathermap.org/" target="_blank" rel="noreferrer">OpenWeather</a>
+                {" · "}<a className={styles.weatherSource} href="https://www.weatherapi.com/" target="_blank" rel="noreferrer">WeatherAPI.com</a>
               </p>
             )}
             <label className={styles.switch}>
