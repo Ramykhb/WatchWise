@@ -243,6 +243,10 @@
   color: var(--text-on-violet-muted);
 }
 
+.weatherSource {
+  text-decoration: underline;
+}
+
 /* "Adapt suggestions to weather" switch, drawn like the Figma 44×26 mint "Switch" (on). */
 .switch {
   position: relative;

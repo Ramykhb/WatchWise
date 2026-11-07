@@ -5,10 +5,10 @@ namespace App\Weather\Exceptions;
 use Illuminate\Http\JsonResponse;
 use RuntimeException;
 
-/** Open-Meteo could not be reached or answered with an error. Rendered as a fixed 502. */
+/** OpenWeatherMap could not be reached or answered with an error. Rendered as a fixed 502. */
 class WeatherUnavailable extends RuntimeException
 {
-    public function __construct(string $message = 'Open-Meteo is unavailable.')
+    public function __construct(string $message = 'OpenWeatherMap is unavailable.')
     {
         parent::__construct($message);
     }

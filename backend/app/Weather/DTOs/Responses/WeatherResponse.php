@@ -4,7 +4,7 @@ namespace App\Weather\DTOs\Responses;
 
 use JsonSerializable;
 
-/** The current weather at a location. `current` is Open-Meteo's own block, passed through as is. */
+/** The current weather at a location, normalized into the application weather format. */
 final readonly class WeatherResponse implements JsonSerializable
 {
     /**

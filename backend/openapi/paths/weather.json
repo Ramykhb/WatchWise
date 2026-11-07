@@ -3,7 +3,7 @@
     "/api/weather": {
       "get": {
         "summary": "Get current weather",
-        "description": "Current weather from Open-Meteo. Send latitude and longitude together, or neither to use the default location. Limited to 30 requests per minute.",
+        "description": "Current weather from OpenWeatherMap, normalized into the application weather format. Send latitude and longitude together, or neither to use the default location. Limited to 30 requests per minute.",
         "tags": ["Weather"],
         "parameters": [
           {"name": "latitude", "in": "query", "required": false, "description": "Required if longitude is sent.", "schema": {"type": "number", "minimum": -90, "maximum": 90}, "example": 33.8938},
@@ -64,7 +64,7 @@
           "current": {
             "type": "object",
             "nullable": true,
-            "description": "Open-Meteo's current block, passed through as is.",
+            "description": "Normalized weather: Celsius, humidity percent, precipitation in mm over the last hour, wind in km/h, and WMO-compatible condition codes (-1 for unknown conditions).",
             "additionalProperties": true,
             "properties": {
               "time": {"type": "string", "example": "2026-10-24T12:00"},

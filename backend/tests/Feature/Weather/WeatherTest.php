@@ -7,12 +7,34 @@ use Tests\TestCase;
 
 class WeatherTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config([
+            'services.openweather.key' => 'test-weather-key',
+            'services.openweather.url' => 'https://api.openweathermap.org/data/2.5/weather',
+            'services.openweather.default_latitude' => 33.8938,
+            'services.openweather.default_longitude' => 35.5018,
+            'services.openweather.timezone' => 'Asia/Beirut',
+        ]);
+        Http::preventStrayRequests();
+    }
+
+    /** @return array<string, mixed> */
+    private function weatherPayload(float $temperature = 18): array
+    {
+        return [
+            'dt' => 1704067200,
+            'main' => ['temp' => $temperature, 'humidity' => 60, 'feels_like' => 17],
+            'wind' => ['speed' => 2],
+            'weather' => [['id' => 801]],
+        ];
+    }
+
     public function test_weather_defaults_to_beirut_when_coordinates_are_not_provided(): void
     {
         Http::fake([
-            'https://api.open-meteo.com/*' => Http::response([
-                'current' => ['temperature_2m' => 18],
-            ]),
+            'https://api.openweathermap.org/*' => Http::response($this->weatherPayload()),
         ]);
 
         $response = $this->getJson('/api/weather');
@@ -24,16 +46,14 @@ class WeatherTest extends TestCase
             ->assertJsonPath('location.is_default', true);
 
         Http::assertSent(fn ($request) => $request->url() ===
-            'https://api.open-meteo.com/v1/forecast?latitude=33.8938&longitude=35.5018&current=temperature_2m%2Crelative_humidity_2m%2Capparent_temperature%2Cprecipitation%2Cweather_code%2Cwind_speed_10m&timezone=Asia%2FBeirut'
+            'https://api.openweathermap.org/data/2.5/weather?lat=33.8938&lon=35.5018&appid=test-weather-key&units=metric'
         );
     }
 
     public function test_weather_uses_the_provided_coordinates(): void
     {
         Http::fake([
-            'https://api.open-meteo.com/*' => Http::response([
-                'current' => ['temperature_2m' => 22],
-            ]),
+            'https://api.openweathermap.org/*' => Http::response($this->weatherPayload(22)),
         ]);
 
         $response = $this->getJson('/api/weather?latitude=40.7128&longitude=-74.006');
@@ -52,10 +72,10 @@ class WeatherTest extends TestCase
             ->assertJsonValidationErrors(['longitude']);
     }
 
-    public function test_weather_returns_502_when_open_meteo_fails(): void
+    public function test_weather_returns_502_when_openweather_fails(): void
     {
         Http::fake([
-            'https://api.open-meteo.com/*' => Http::response('boom', 500),
+            'https://api.openweathermap.org/*' => Http::response('boom', 500),
         ]);
 
         $this->getJson('/api/weather')
@@ -66,7 +86,7 @@ class WeatherTest extends TestCase
     public function test_weather_is_throttled_to_thirty_requests_a_minute(): void
     {
         Http::fake([
-            'https://api.open-meteo.com/*' => Http::response(['current' => []]),
+            'https://api.openweathermap.org/*' => Http::response($this->weatherPayload()),
         ]);
 
         for ($i = 0; $i < 30; $i++) {

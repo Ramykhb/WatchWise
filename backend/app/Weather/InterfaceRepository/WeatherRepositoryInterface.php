@@ -7,7 +7,7 @@ use App\Weather\Exceptions\WeatherUnavailable;
 interface WeatherRepositoryInterface
 {
     /**
-     * Open-Meteo's `current` block for a location (null when the answer has none).
+     * Normalized current weather for a location.
      *
      * @return array<string, mixed>|null
      *

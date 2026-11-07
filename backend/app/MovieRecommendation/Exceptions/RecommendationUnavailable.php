@@ -7,7 +7,7 @@ use RuntimeException;
 
 /**
  * The weather or AI step failed. Rendered as a fixed 502 with a short message, so neither
- * Open-Meteo's nor the AI provider's error ever reaches the client. The underlying failure is logged.
+ * OpenWeatherMap's nor the AI provider's error ever reaches the client. The underlying failure is logged.
  */
 class RecommendationUnavailable extends RuntimeException
 {

@@ -5,11 +5,12 @@ return [
         'key' => env('GOOGLE_PLACES_API_KEY'),
     ],
 
-    'open_meteo' => [
-        'url' => env('OPEN_METEO_URL', 'https://api.open-meteo.com/v1/forecast'),
-        'default_latitude' => (float) env('OPEN_METEO_DEFAULT_LATITUDE', 33.8938),
-        'default_longitude' => (float) env('OPEN_METEO_DEFAULT_LONGITUDE', 35.5018),
-        'timezone' => env('OPEN_METEO_TIMEZONE', 'Asia/Beirut'),
+    'openweather' => [
+        'key' => env('OPENWEATHER_API_KEY'),
+        'url' => env('OPENWEATHER_URL', 'https://api.openweathermap.org/data/2.5/weather'),
+        'default_latitude' => (float) env('OPENWEATHER_DEFAULT_LATITUDE', 33.8938),
+        'default_longitude' => (float) env('OPENWEATHER_DEFAULT_LONGITUDE', 35.5018),
+        'timezone' => env('OPENWEATHER_TIMEZONE', 'Asia/Beirut'),
     ],
 
     'tmdb' => [

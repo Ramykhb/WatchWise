@@ -122,7 +122,7 @@ This README describes the implemented application, its local setup, and the rema
 | Authentication | `firebase/php-jwt`, refresh-token persistence, Laravel Socialite |
 | Database | SQLite by default for local development |
 | Real time | Laravel Reverb, Laravel Echo, Pusher-compatible browser client |
-| External data | TMDB, Open-Meteo, Google Places, Mapbox |
+| External data | TMDB, OpenWeatherMap, Google Places, Mapbox |
 | AI | Groq; an optional Gemini client is also included in the backend |
 | Validation | TypeScript, ESLint, PHPUnit, Laravel Pint, GitHub Actions |
 
@@ -277,7 +277,8 @@ Use `moderator` instead of `admin` to test the restricted moderation role. The a
 | `TMDB_API_KEY`, `TMDB_URL`, `TMDB_IMAGE_URL` | Movie/TV metadata, search, genres, people, and artwork. |
 | `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_API_URL` | AI assistant, weather mood/recommendations, sentiment, and moderation. |
 | `GROQ_API_KEY_2` | Separate Groq key used for watched-history recommendations. |
-| `OPEN_METEO_*` | Weather API URL, default coordinates, and timezone; defaults use Beirut and `Asia/Beirut`. |
+| `OPENWEATHER_API_KEY` | Backend-only OpenWeatherMap API key for the free Current Weather API. |
+| `OPENWEATHER_URL`, `OPENWEATHER_DEFAULT_LATITUDE`, `OPENWEATHER_DEFAULT_LONGITUDE`, `OPENWEATHER_TIMEZONE` | Optional weather settings; defaults use the Current Weather endpoint, Beirut, and `Asia/Beirut`. |
 | `GOOGLE_PLACES_API_KEY` | Nearby cinema lookup. |
 | Mapbox client configuration | The public access token is currently configured in `frontend/src/pages/Cinemas/Cinemas.tsx`; `VITE_MAPBOX_STYLE_URL` optionally overrides the map style. |
 | `GOOGLE_*`, `GITHUB_*`, `DISCORD_*` | OAuth client IDs, client secrets, and redirect URIs. |
@@ -311,6 +312,7 @@ Set environment variables in Render rather than copying `.env` into the image:
 - `APP_KEY`: generate once with `php artisan key:generate --show`, then keep that value across deploys.
 - `APP_URL`: the backend's public HTTPS URL. `FRONTEND_URL`: the deployed frontend's origin, with no trailing slash.
 - `DB_CONNECTION=mysql` and the existing database's `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, and `DB_PASSWORD`.
+- `OPENWEATHER_API_KEY`: your OpenWeatherMap account key. Weather requests use the Current Weather API (`/data/2.5/weather`) with metric units; no One Call subscription is needed. See [OpenWeather documentation](https://openweathermap.org/api/current).
 - `JWT_SECRET` and the API keys and OAuth configuration needed by your enabled features. OAuth redirect URIs must use the deployed backend URL.
 
 Configuration, routes and views are cached at container startup so they use Render's environment. Database migrations are not run automatically; run `php artisan migrate --force` in a Render pre-deploy command (paid services) or the service shell when schema changes are needed.
