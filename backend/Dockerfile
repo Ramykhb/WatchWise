@@ -11,10 +11,10 @@ WORKDIR /var/www/html
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        git unzip libicu-dev libonig-dev libzip-dev \
+        git unzip supervisor libicu-dev libonig-dev libzip-dev \
     && docker-php-ext-install -j"$(nproc)" \
         bcmath intl mbstring opcache pcntl pdo_mysql zip \
-    && a2enmod rewrite \
+    && a2enmod rewrite proxy proxy_http \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
@@ -26,6 +26,7 @@ RUN composer install --no-dev --prefer-dist --no-interaction \
 
 COPY . .
 COPY docker/apache.conf /etc/apache2/sites-available/000-default.conf
+COPY docker/supervisord.conf /etc/supervisor/watchwise.conf
 COPY --chmod=755 docker/start.sh /usr/local/bin/start-watchwise
 
 RUN printf 'Listen ${PORT}\n' > /etc/apache2/ports.conf \

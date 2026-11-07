@@ -304,7 +304,7 @@ Create a **Web Service** using the repository's `dev` branch and these settings:
 | Docker Command | Leave blank; the image starts Apache automatically. |
 | Health Check Path | `/api/health` |
 
-Render builds the Dockerfile, which includes PHP 8.4, Composer, Apache and the MySQL PHP driver. No separate build or start command is needed. Apache serves `public/` on Render's `PORT` (default `10000`). See [Render's Docker documentation](https://render.com/docs/docker).
+Render builds the Dockerfile, which includes PHP 8.4, Composer, Apache, Reverb, Supervisor and the MySQL PHP driver. No separate build or start command is needed. Apache serves `public/` on Render's `PORT` (default `10000`) and proxies `/app/` WebSocket connections to Reverb inside the container. See [Render's Docker documentation](https://render.com/docs/docker).
 
 Set environment variables in Render rather than copying `.env` into the image:
 
@@ -317,7 +317,18 @@ Set environment variables in Render rather than copying `.env` into the image:
 
 Configuration, routes and views are cached at container startup so they use Render's environment. Database migrations are not run automatically; run `php artisan migrate --force` in a Render pre-deploy command (paid services) or the service shell when schema changes are needed.
 
-This container runs the HTTP API. Run Reverb, queue workers and the scheduler as separate services if those features are enabled. Uploaded avatars use local storage by default; use persistent storage or an object storage service to retain them across deploys.
+This container runs the HTTP API and Reverb under Supervisor, which restarts either process if it exits. Keep `REVERB_APP_ID`, `REVERB_APP_KEY` and `REVERB_APP_SECRET` set in Render. Internal broadcasts use `127.0.0.1:18080` over HTTP; the startup script configures this automatically. Browser connection settings default to Render's `RENDER_EXTERNAL_HOSTNAME`, port `443`, and HTTPS. For a custom hostname or to replace existing localhost overrides, set:
+
+```env
+REVERB_PUBLIC_HOST=your-backend.onrender.com
+REVERB_PUBLIC_PORT=443
+REVERB_PUBLIC_SCHEME=https
+REVERB_ALLOWED_ORIGINS=localhost
+```
+
+Use a hostname without `https://` for `REVERB_PUBLIC_HOST`. Set `REVERB_ALLOWED_ORIGINS` to the frontend hostname (or comma-separated hostnames), such as `localhost` during local development. The frontend obtains these public settings from `/api/chat/connection`; changing frontend `VITE_REVERB_*` variables does not configure this app's sockets. Render terminates TLS, so Reverb listens internally over plain HTTP while browsers connect with `wss://`. See [Laravel Reverb configuration](https://laravel.com/docs/12.x/reverb) and [Render WebSockets](https://render.com/docs/websocket).
+
+Queue workers and the scheduler still need separate processes if those features are enabled. Uploaded avatars use local storage by default; use persistent storage or an object storage service to retain them across deploys.
 
 ## API documentation
 
