@@ -52,6 +52,7 @@ import {
   type RoomScope,
   type RoomSection,
 } from './roomsData.ts'
+import MemberCard from './MemberCard.tsx'
 import styles from './Rooms.module.css'
 
 /** A burst of new messages is confirmed as read once it settles. */
@@ -460,6 +461,19 @@ export default function Rooms() {
 
   const isMuted = room ? muted.includes(room.id) : false
   const isMine = (member: Member) => member.id === user?.id
+  // Someone's card (photo, name, Follow, Visit profile) after clicking their name; 'open' false plays its exit.
+  const [card, setCard] = useState<{ member: Member; open: boolean } | null>(null)
+  /** A member's name: your own links to your profile, anyone else's opens their card. */
+  const memberName = (member: Member, className: string) =>
+    isMine(member) ? (
+      <Link className={className} to="/profile">
+        {member.name} (you)
+      </Link>
+    ) : (
+      <button type="button" className={`${className} ${styles.nameButton}`} aria-haspopup="dialog" onClick={() => setCard({ member, open: true })}>
+        {member.name}
+      </button>
+    )
   // The room's members (the host and everyone who joined), host first.
   const people = room
     ? [room.host, ...room.members].filter((m, i, list): m is Member => m !== null && list.findIndex((x) => x?.id === m.id) === i)
@@ -891,7 +905,7 @@ export default function Rooms() {
                   </span>
                   <div className={styles.messageBody}>
                     <p className={styles.messageMeta}>
-                      <strong>{message.from.name}</strong>
+                      {memberName(message.from, styles.author)}
                       <span className={styles.time}>{message.time}</span>
                     </p>
                     <p className={styles.bubble}>{message.text}</p>
@@ -1050,9 +1064,7 @@ export default function Rooms() {
                   <span className={styles.avatar} style={{ background: member.color }} aria-hidden="true">
                     {member.initials}
                   </span>
-                  <Link className={styles.memberName} to={isMine(member) ? '/profile' : `/profile/${member.handle}`}>
-                    {isMine(member) ? `${member.name} (you)` : member.name}
-                  </Link>
+                  {memberName(member, styles.memberName)}
                   {member.id === room.host?.id && <span className={styles.hostChip}>Host</span>}
                 </li>
               ))}
@@ -1062,9 +1074,7 @@ export default function Rooms() {
                   <span className={styles.avatar} style={{ background: member.color }} aria-hidden="true">
                     {member.initials}
                   </span>
-                  <Link className={styles.memberName} to={isMine(member) ? '/profile' : `/profile/${member.handle}`}>
-                    {isMine(member) ? `${member.name} (you)` : member.name}
-                  </Link>
+                  {memberName(member, styles.memberName)}
                   <span className={styles.invitedChip}>Invited</span>
                 </li>
               ))}
@@ -1074,6 +1084,16 @@ export default function Rooms() {
         </>
         )}
       </main>
+
+      {card && (
+        <MemberCard
+          key={card.member.id}
+          member={card.member}
+          open={card.open}
+          onClose={() => setCard({ ...card, open: false })}
+          onClosed={() => setCard(null)}
+        />
+      )}
 
       {deleting && (
         <ConfirmDialog

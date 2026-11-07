@@ -1,0 +1,184 @@
+/* The room stays visible behind a light, blurred veil; the card rises in (same motion as Add to list). */
+.backdrop,
+.backdropClosing {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 360px);
+  place-content: center;
+  overflow-y: auto;
+  padding: 40px 16px;
+  background: rgb(22 18 43 / 0.35);
+  backdrop-filter: blur(5px);
+  animation: fade-in 0.22s ease-out both;
+}
+
+.backdropClosing {
+  animation: fade-out 0.22s ease-in both;
+  pointer-events: none;
+}
+
+.dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 36px 28px 28px;
+  border-radius: 32px;
+  background: var(--surface-white);
+  box-shadow: var(--elevation-float);
+  text-align: center;
+  animation: move-in 0.4s var(--ease-out-back) both;
+}
+
+.backdropClosing .dialog {
+  animation: move-out 0.22s ease-in both;
+}
+
+.close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-cream-deep);
+  transition: scale 0.25s var(--ease-out-back);
+}
+
+.close:hover {
+  scale: 1.1;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 32px;
+  color: var(--ink-900);
+}
+
+.photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.names {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.name {
+  overflow-wrap: anywhere;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
+}
+
+.handle {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  color: var(--ink-600);
+}
+
+.meta {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--ink-600);
+}
+
+.note {
+  font-size: 14px;
+  color: var(--ink-600);
+}
+
+.textButton {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.action {
+  flex: 1 1 120px;
+  justify-content: center;
+}
+
+/* Holds the Follow button's place while the profile loads, so the card doesn't jump. */
+.followPlaceholder {
+  display: inline-flex;
+  flex: 1 1 120px;
+  justify-content: center;
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-cream-deep);
+  font-weight: 700;
+  font-size: 14px;
+  color: transparent;
+  animation: pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes move-in {
+  from {
+    opacity: 0;
+    translate: 0 40px;
+  }
+}
+
+@keyframes move-out {
+  to {
+    opacity: 0;
+    translate: 0 40px;
+  }
+}
+
+@keyframes pulse {
+  to {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .backdropClosing,
+  .dialog,
+  .backdropClosing .dialog,
+  .followPlaceholder {
+    animation: none;
+  }
+}
