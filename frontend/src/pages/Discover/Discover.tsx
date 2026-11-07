@@ -763,7 +763,8 @@ function PeopleResults({ loading, failed, people, query, onRetry }: PeopleResult
   )
 }
 
-function ResultsSkeleton({ view }: { view: 'grid' | 'list' }) {
+/** Placeholder results while a page loads; the grid one is also used by the Coming soon page. */
+export function ResultsSkeleton({ view }: { view: 'grid' | 'list' }) {
   if (view === 'list') {
     return (
       <ul className={styles.list} aria-hidden="true">

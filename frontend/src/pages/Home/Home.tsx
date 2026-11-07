@@ -19,7 +19,8 @@ import calendarSmIcon from '../../assets/home/icon-calendar-sm.svg'
 import chatIcon from '../../assets/home/icon-chat.svg'
 import onlineDot from '../../assets/home/dot-online.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { RELEASE_GRADIENTS, gradientCss } from './homeData.ts'
+import { RELEASE_GRADIENTS, gradientCss, upcomingReleases } from './homeData.ts'
+import { googleCalendarUrl } from '../MovieDetails/calendar.ts'
 import styles from './Home.module.css'
 import WeeklyTrending from './WeeklyTrending.tsx'
 import FollowingActivity from './FollowingActivity.tsx'
@@ -482,44 +483,6 @@ export default function Home() {
   )
 }
 
-const DAY = 86_400_000
-const RELATIVE_TIME = new Intl.RelativeTimeFormat('en-US', { numeric: 'auto' })
-
-/** "tomorrow", "in 9 days", "in 3 weeks" or "in 2 months". */
-function releasesIn(days: number) {
-  if (days < 14) return RELATIVE_TIME.format(days, 'day')
-  if (days < 60) return RELATIVE_TIME.format(Math.round(days / 7), 'week')
-  return RELATIVE_TIME.format(Math.round(days / 30), 'month')
-}
-
-/**
- * The three most anticipated films from the upcoming list (it comes most popular first), soonest first.
- * Days count in the viewer's time zone, so a film that is already out here is skipped.
- */
-function upcomingReleases(movies: TmdbMovie[], genres: Map<number, string>) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return movies
-    .flatMap((movie) => {
-      if (!movie.release_date) return []
-      const date = new Date(`${movie.release_date}T00:00:00`)
-      const days = Math.round((date.getTime() - today.getTime()) / DAY)
-      if (days < 1) return []
-      const genre = movie.genre_ids.map((id) => genres.get(id)).find(Boolean)
-      return [{
-        id: movie.id,
-        title: movie.title,
-        posterUrl: movie.poster_url,
-        days,
-        month: date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
-        day: date.toLocaleDateString('en-US', { day: '2-digit' }),
-        meta: [genre, releasesIn(days)].filter(Boolean).join(' · '),
-      }]
-    })
-    .slice(0, 3)
-    .sort((a, b) => a.days - b.days)
-}
-
 /** Coming soon: the next big releases from TMDB, each linking to its movie page. */
 function ComingSoon() {
   const { data, error, loading, reload } = useApi<MoviePage>('/movies?list=upcoming')
@@ -578,7 +541,17 @@ function ComingSoon() {
                   </p>
                   <p className={styles.releaseMeta}>{release.meta}</p>
                 </div>
-                <button type="button" className={styles.calendar} aria-label={`Add ${release.title} to calendar`}>
+                <button
+                  type="button"
+                  className={styles.calendar}
+                  aria-label={`Add ${release.title}'s release day to Google Calendar`}
+                  // An all-day event on the release day ("20261120/20261121": Google's end day is exclusive).
+                  onClick={() => {
+                    const day = (date: Date) => date.toLocaleDateString('sv-SE').replaceAll('-', '')
+                    const next = new Date(release.date.getFullYear(), release.date.getMonth(), release.date.getDate() + 1)
+                    window.open(googleCalendarUrl(`${release.title} comes out`, day(release.date), day(next)), '_blank', 'noopener,noreferrer')
+                  }}
+                >
                   <img src={calendarIcon} width={20} height={20} alt="" />
                 </button>
               </div>
