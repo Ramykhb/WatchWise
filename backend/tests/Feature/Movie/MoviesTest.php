@@ -84,6 +84,52 @@ class MoviesTest extends TestCase
             && $request['api_key'] === 'test-key');
     }
 
+    public function test_upcoming_release_order_is_applied_before_pagination_and_cached_separately(): void
+    {
+        config(['services.tmdb.key' => 'test-key']);
+        Http::preventStrayRequests();
+        $this->travelTo('2026-11-04 01:00:00');
+        Http::fake([
+            'https://api.themoviedb.org/3/discover/movie*' => function ($request) {
+                $chronological = $request['sort_by'] === 'primary_release_date.asc';
+
+                return Http::response([
+                    'page' => (int) $request['page'],
+                    'total_pages' => 2,
+                    'total_results' => 2,
+                    'results' => [[
+                        'id' => $chronological ? (int) $request['page'] : 99,
+                        'title' => $chronological ? 'Next release' : 'Popular release',
+                        'release_date' => $chronological ? '2026-11-05' : '2027-05-01',
+                    ]],
+                ]);
+            },
+        ]);
+
+        // Home may warm the popularity cache before the releases page opens.
+        $this->getJson('/api/movies?list=upcoming')->assertOk()->assertJsonPath('movies.0.id', 99);
+        $first = $this->getJson('/api/movies?list=upcoming&sort=release_date')
+            ->assertOk()->assertJsonPath('movies.0.id', 1)->json();
+        $this->getJson('/api/movies?list=upcoming&sort=release_date')->assertOk()->assertExactJson($first);
+        $this->getJson('/api/movies?list=upcoming&sort=release_date&page=2')
+            ->assertOk()->assertJsonPath('page', 2)->assertJsonPath('movies.0.id', 2);
+        $this->getJson('/api/movies?list=upcoming')->assertOk()->assertJsonPath('movies.0.id', 99);
+
+        Http::assertSentCount(3);
+        foreach ([1, 2] as $page) {
+            Http::assertSent(fn ($request) => $request['sort_by'] === 'primary_release_date.asc'
+                && $request['page'] === $page
+                && $request['primary_release_date.gte'] === '2026-11-04');
+        }
+    }
+
+    public function test_movies_rejects_an_unknown_list_sort(): void
+    {
+        $this->getJson('/api/movies?list=upcoming&sort=random')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['sort']);
+    }
+
     public function test_each_list_page_is_cached_for_an_hour(): void
     {
         config(['services.tmdb.key' => 'test-key']);

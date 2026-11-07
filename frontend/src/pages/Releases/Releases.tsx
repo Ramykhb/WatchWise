@@ -16,7 +16,7 @@ import settingsStyles from '../Settings/Settings.module.css'
 export default function Releases() {
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
-  const { data, error, loading, reload } = useApi<MoviePage>('/movies?list=upcoming')
+  const { data, error, loading, reload } = useApi<MoviePage>('/movies?list=upcoming&sort=release_date')
   // Pages loaded after the first one with "Show more releases".
   const [more, setMore] = useState<{ movies: TmdbMovie[]; page: number }>({ movies: [], page: 1 })
   const [loadingMore, setLoadingMore] = useState(false)
@@ -53,7 +53,7 @@ export default function Releases() {
     setLoadingMore(true)
     setMoreFailed(false)
     try {
-      const { data: next } = await api.get<MoviePage>('/movies', { params: { list: 'upcoming', page: more.page + 1 } })
+      const { data: next } = await api.get<MoviePage>('/movies', { params: { list: 'upcoming', sort: 'release_date', page: more.page + 1 } })
       setMore((current) => ({ movies: [...current.movies, ...next.movies], page: next.page }))
     } catch {
       setMoreFailed(true)
