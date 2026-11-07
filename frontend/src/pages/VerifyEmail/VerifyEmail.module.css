@@ -1,0 +1,15 @@
+.bg { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; }
+.form { display: flex; flex-direction: column; align-items: flex-start; gap: 24px; width: min(460px, 100%); margin-block: 60px; }
+.form h1 { font-family: var(--font-display); font-size: clamp(44px, 5vw, 72px); font-weight: 900; line-height: 1; letter-spacing: -0.05em; }
+.description { font-size: 18px; line-height: 1.6; color: var(--ink-600); }
+.address, .feedback, .error { font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+.formBody { display: flex; flex-direction: column; gap: 24px; width: 100%; }
+.textButton { color: var(--ground-violet); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; background: none; border: 0; padding: 0; text-align: left; }
+.textButton:disabled { opacity: 0.6; cursor: wait; }
+.error { color: #ac253d; }
+.continue { border-radius: var(--radius-pill); background: var(--ink-900); color: var(--ground-cream); padding: 18px 28px; font-weight: 700; }
+.topLink { color: var(--ground-cream); font-weight: 700; border: 1.5px solid currentColor; border-radius: var(--radius-pill); padding: 10px 22px; }
+.card { position: absolute; top: 22%; left: 16%; width: min(440px, 75%); border-radius: 32px; padding: 44px; background: var(--ground-cream); box-shadow: var(--elevation-float); transform: rotate(-5deg); display: flex; flex-direction: column; gap: 24px; }
+.card p { font-family: var(--font-display); font-weight: 900; font-size: 44px; line-height: 1.1; letter-spacing: -0.04em; }
+.card span { color: var(--ink-600); }
+@media (max-width: 1024px) { .form { margin-block: 24px; } .topLink { color: var(--ink-900); } }

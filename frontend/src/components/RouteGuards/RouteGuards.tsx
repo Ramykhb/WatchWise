@@ -10,6 +10,7 @@ export function RequireAuth() {
   const location = useLocation()
   if (loading || sessionError) return <SessionStatus />
   if (!user) return <Navigate to="/signin" replace state={{ from: location }} />
+  if (!user.email_verified_at) return <Navigate to="/verify-email" replace />
   return <Outlet />
 }
 
@@ -17,7 +18,7 @@ export function RequireAuth() {
 export function RequireGuest({ children }: { children: ReactNode }) {
   const { user, loading, sessionError } = useAuth()
   if (loading || sessionError) return <SessionStatus />
-  if (user) return <Navigate to="/home-page" replace />
+  if (user) return <Navigate to={user.email_verified_at ? "/home-page" : "/verify-email"} replace />
   return children
 }
 

@@ -14,7 +14,7 @@ return [
     |
     */
 
-    'default' => env('MAIL_MAILER', 'log'),
+    'default' => env('MAIL_MAILER', 'brevo'),
 
     /*
     |--------------------------------------------------------------------------
@@ -36,6 +36,22 @@ return [
     */
 
     'mailers' => [
+
+        'brevo' => [
+            'transport' => 'brevo',
+            'key' => env('BREVO_API_KEY'),
+        ],
+
+        'brevo-smtp' => [
+            'transport' => 'smtp',
+            'scheme' => 'smtp',
+            'host' => 'smtp-relay.brevo.com',
+            'port' => 587,
+            'username' => env('BREVO_SMTP_USERNAME'),
+            'password' => env('BREVO_SMTP_KEY'),
+            'timeout' => 15,
+            'require_tls' => true,
+        ],
 
         'smtp' => [
             'transport' => 'smtp',

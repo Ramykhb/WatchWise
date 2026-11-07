@@ -11,6 +11,7 @@ use App\Auth\InterfaceServices\EmailVerificationServiceInterface;
 use App\Auth\InterfaceServices\PasswordResetServiceInterface;
 use App\Auth\InterfaceServices\SocialAuthServiceInterface;
 use App\Auth\Listeners\SendEmailVerification;
+use App\Auth\Mail\BrevoTransport;
 use App\Auth\Repository\PasswordResetRepository;
 use App\Auth\Repository\RefreshTokenRepository;
 use App\Auth\Repository\SocialAccountRepository;
@@ -23,6 +24,7 @@ use Illuminate\Auth\Events\Registered;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -50,6 +52,8 @@ class AuthModuleServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Mail::extend('brevo', fn (array $config): BrevoTransport => new BrevoTransport($config['key'] ?? ''));
+
         Event::listen(Registered::class, SendEmailVerification::class);
 
         $this->configureRateLimiting();

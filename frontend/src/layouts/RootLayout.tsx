@@ -11,7 +11,7 @@ export default function RootLayout() {
   const lenisRef = useRef<LenisRef>(null)
   const { user } = useAuth()
   // One notifications socket for the whole session; the header's bell and the pop-ups read its store.
-  useLiveNotifications(user?.id)
+  useLiveNotifications(user?.email_verified_at ? user.id : undefined)
 
   // Drive Lenis from GSAP's ticker so smooth scrolling and GSAP animations share one frame loop.
   useEffect(() => {
@@ -26,8 +26,8 @@ export default function RootLayout() {
   return (
     <ReactLenis root ref={lenisRef} options={{ autoRaf: false, lerp: 0.1 }}>
       <Outlet />
-      {user && <ChatbotWidget key={user.id} userId={user.id} />}
-      {user && <NotificationPopups />}
+      {user?.email_verified_at && <ChatbotWidget key={user.id} userId={user.id} />}
+      {user?.email_verified_at && <NotificationPopups />}
       <ScrollRestoration />
     </ReactLenis>
   )

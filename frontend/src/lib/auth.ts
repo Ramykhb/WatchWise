@@ -15,6 +15,7 @@ export type AuthUser = {
   role: string
   profile_visibility: string
   is_active: boolean
+  email_verified_at: string | null
 }
 
 export type AuthPayload = { user: AuthUser; expires_at: string }

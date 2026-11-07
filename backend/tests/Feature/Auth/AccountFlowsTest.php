@@ -64,12 +64,12 @@ class AccountFlowsTest extends TestCase
     {
         $user = User::factory()->unverified()->create();
 
-        $this->get("/api/auth/verify-email/{$user->id}/".sha1($user->email))->assertForbidden();
+        $this->get("/api/auth/verify-email/{$user->id}/".sha1($user->email))->assertRedirect('http://front.test/verify-email?status=invalid');
 
         $expired = URL::temporarySignedRoute('auth.verify-email', now()->subMinute(), [
             'id' => $user->id, 'hash' => sha1($user->email),
         ]);
-        $this->get($expired)->assertForbidden();
+        $this->get($expired)->assertRedirect('http://front.test/verify-email?status=expired');
 
         $wrong = URL::temporarySignedRoute('auth.verify-email', now()->addMinutes(5), [
             'id' => $user->id, 'hash' => sha1('other@example.com'),

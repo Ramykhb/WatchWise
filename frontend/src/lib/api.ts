@@ -21,7 +21,7 @@ const publicAuthEndpoints = [
   '/auth/reset-password',
   '/auth/resend-verification',
 ]
-const guestRoutes = ['/', '/signin', '/signup', '/forgot-password', '/auth/callback']
+const guestRoutes = ['/', '/signin', '/signup', '/forgot-password', '/auth/callback', '/verify-email']
 export const SESSION_EXPIRED_EVENT = 'watchwise:session-expired'
 export const SESSION_REQUEST_TIMEOUT = 10_000
 
@@ -67,6 +67,11 @@ function clearSessionAndRedirect(): Promise<void> {
 api.interceptors.response.use(undefined, async (error: AxiosError) => {
   const config = error.config as RetryableRequestConfig | undefined
   const status = error.response?.status
+
+  // Verification failures are authorization decisions; refreshing cannot verify an email.
+  if (status === 403 && (error.response?.data as { code?: string } | undefined)?.code === 'email_unverified') {
+    return Promise.reject(error)
+  }
 
   if (!config || config.signal?.aborted || ![401, 403].includes(status ?? 0) || shouldSkipRefresh(config.url)) {
     return Promise.reject(error)

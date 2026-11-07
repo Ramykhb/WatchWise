@@ -3,6 +3,7 @@ import RootLayout from './layouts/RootLayout.tsx'
 import Landing from './pages/Landing/Landing.tsx'
 import SignIn from './pages/SignIn/SignIn.tsx'
 import SignUp from './pages/SignUp/SignUp.tsx'
+import VerifyEmail from './pages/VerifyEmail/VerifyEmail.tsx'
 import ForgotPassword from './pages/ForgotPassword/ForgotPassword.tsx'
 import Home from './pages/Home/Home.tsx'
 import Person from './pages/Person/Person.tsx'
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <RequireGuest><Landing /></RequireGuest> },
       { path: 'signin', element: <RequireGuest><SignIn /></RequireGuest> },
+      { path: 'verify-email', element: <VerifyEmail /> },
       { path: 'signup', element: <RequireGuest><SignUp /></RequireGuest> },
       { path: 'forgot-password', element: <RequireGuest><ForgotPassword /></RequireGuest> },
       { path: 'auth/callback', element: <RequireGuest><AuthCallback /></RequireGuest> },

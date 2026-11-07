@@ -8,6 +8,7 @@ use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\EmailVerificationServiceInterface;
 use App\Auth\Mail\VerifyEmailMail;
 use App\Models\User;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 
@@ -23,7 +24,7 @@ class EmailVerificationService implements EmailVerificationServiceInterface
             return;
         }
 
-        // After the response is sent: SMTP latency must not reveal whether the account exists, and
+        // After the response is sent: Mail delivery latency must not reveal whether the account exists, and
         // a mail transport failure must not break registration.
         defer(fn () => rescue(function () use ($user): void {
             $url = URL::temporarySignedRoute(
@@ -55,6 +56,7 @@ class EmailVerificationService implements EmailVerificationServiceInterface
 
         if (! $user->email_verified_at) {
             $this->users->markEmailVerified($user);
+            event(new Verified($user));
         }
 
         return true;

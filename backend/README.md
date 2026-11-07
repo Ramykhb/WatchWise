@@ -1,3 +1,26 @@
+## WatchWise email verification
+
+In `backend/.env`, configure:
+
+```dotenv
+MAIL_MAILER=brevo
+BREVO_API_KEY=your_brevo_api_key
+MAIL_FROM_ADDRESS=your_verified_brevo_sender@example.com
+MAIL_FROM_NAME=WatchWise
+APP_URL=http://localhost:8000
+FRONTEND_URL=http://localhost:5173
+```
+
+Brevo API keys authenticate the transactional API (`POST /v3/smtp/email`). The sender must be verified in Brevo. For the SMTP relay instead, set `MAIL_MAILER=brevo-smtp`, `BREVO_SMTP_USERNAME` to the login from Brevo, and `BREVO_SMTP_KEY` to a separate SMTP key. The relay uses port 587 with STARTTLS; an API key cannot serve as its password.
+
+After changing environment values, run `php artisan config:clear` and restart the backend. Keep `APP_URL` and `FRONTEND_URL` aligned with your externally reachable URLs. No new migration or queue worker is needed for verification.
+
+Signup persists an unverified user and sends a signed verification link after the response. Links expire after 60 minutes. Following a valid link updates `users.email_verified_at` and redirects to the frontend verification page. Repeated clicks before expiry succeed without changing the timestamp. Expired or tampered links redirect to a recovery page with a resend form. Resending is limited to three requests per minute per IP and email, with the same response for unknown and already verified addresses. Previously sent links remain valid until their own expiration.
+
+Unverified sessions can inspect `/api/auth/me`, refresh, log out, and request another email. Other JWT-protected APIs return `403` with `code=email_unverified`; the frontend directs those users to `/verify-email`. Verified social signups continue straight to the app. Verification reads the database, so existing sessions unlock immediately after confirmation.
+
+Mail failures are reported to `storage/logs/laravel.log`; the account remains available for resending. A successful HTTP response from signup/resend confirms the request, not inbox delivery. Check Brevo’s transactional logs for rejected senders, delivery failures, and bounces; users can request another link after resolving a delivery issue.
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">

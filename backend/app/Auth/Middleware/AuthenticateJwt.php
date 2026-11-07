@@ -32,6 +32,11 @@ class AuthenticateJwt
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
+        // Session inspection remains available so unverified users can complete verification.
+        if (! $current->isVerified() && ! $request->is('api/auth/me')) {
+            return response()->json(['message' => 'Your email address is not verified.', 'code' => 'email_unverified'], 403);
+        }
+
         $user = $current->user();
         if ($user !== null && ($user->last_active_at === null || $user->last_active_at->lt(now()->subMinutes(self::ACTIVITY_WINDOW_MINUTES)))) {
             $this->users->markActive($user);
