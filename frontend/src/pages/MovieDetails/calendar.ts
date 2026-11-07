@@ -1,5 +1,11 @@
 export const toCalendarTime = (date: Date) => date.toISOString().replace(/[-:]|\.\d{3}/g, '')
 
+/** `start` and `end` are UTC times like "20261107T183000Z", or days like "20261120" for an all-day event. */
+export function googleCalendarUrl(text: string, start: string, end: string) {
+  const params = new URLSearchParams({ action: 'TEMPLATE', text, dates: `${start}/${end}` })
+  return `https://calendar.google.com/calendar/render?${params}`
+}
+
 export function outlookCalendarUrl(title: string, start: Date, end: Date) {
   const params = new URLSearchParams({
     path: '/calendar/action/compose',

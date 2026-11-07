@@ -35,6 +35,8 @@ export type MovieDetails = {
   runtime: string
   /** For a TV show, one episode's length; missing when TMDB has none. */
   runtimeMinutes?: number | null
+  /** "2026-11-20" (first air date for a TV show); missing when TMDB has none. */
+  releaseDate?: string | null
   language: string
   director: string
   tmdbScore: string
