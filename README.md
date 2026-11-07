@@ -293,6 +293,8 @@ Use [backend/.env.example](backend/.env.example) and [frontend/.env.example](fro
 
 ## Deploy the backend on Render
 
+For the frontend on Vercel, set the project's **Root Directory** to `frontend`. The committed `frontend/vercel.json` selects Vite, builds into `dist`, proxies `/api` to Render, and serves `index.html` for frontend routes so refreshes and direct links work. Include this configuration in the deployed commit and redeploy after changing it. Set `VITE_BACKEND_URL` to an empty string in Vercel to use the API proxy.
+
 Create a **Web Service** using the repository's `dev` branch and these settings:
 
 | Setting | Value |
