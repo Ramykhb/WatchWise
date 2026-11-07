@@ -9,6 +9,7 @@
         { "url": "/" }
     ],
     "tags": [
+        { "name": "Health" },
         { "name": "Auth" },
         { "name": "Account" },
         { "name": "Social login" },

@@ -284,7 +284,8 @@ With the backend running:
 
 - Interactive documentation: `http://localhost:8000/api/documentation`
 - OpenAPI JSON: `http://localhost:8000/api/documentation/openapi.json`
-- Health endpoint: `http://localhost:8000/up`
+- JSON health endpoint: `GET http://localhost:8000/api/health` returns `200` with `{"status":"ok"}` without authentication. This checks application liveness, without querying the database or external services.
+- Laravel health endpoint: `http://localhost:8000/up`
 
 | API group | Main capabilities |
 | --- | --- |

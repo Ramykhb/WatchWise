@@ -1,0 +1,29 @@
+{
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Check backend health",
+        "description": "Public liveness check. Confirms the application can serve requests without checking database or external service availability. Responses are not cached.",
+        "tags": ["Health"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The backend is running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": {
+                    "status": {"type": "string", "enum": ["ok"]}
+                  }
+                },
+                "example": {"status": "ok"}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

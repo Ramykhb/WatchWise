@@ -6,11 +6,14 @@ use App\Docs\Controllers\DocumentationController;
 use App\Genre\Controllers\GenreController;
 use App\Groq\Controllers\ChatController;
 use App\Groq\Controllers\ChatSocketController;
+use App\Health\Controllers\HealthController;
 use App\Movie\Controllers\MovieController;
 use App\MovieRecommendation\Controllers\RecommendationController;
 use App\Person\Controllers\PersonController;
 use App\Weather\Controllers\WeatherController;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/health', HealthController::class)->name('health');
 
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register'])->middleware('throttle:auth-register');
