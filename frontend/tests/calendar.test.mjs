@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { outlookCalendarUrl, watchEventIcs } from '../src/pages/MovieDetails/calendar.ts'
+import { googleCalendarUrl, outlookCalendarUrl, toCalendarTime, watchEventIcs } from '../src/pages/MovieDetails/calendar.ts'
+import { movieNightEvent } from '../src/pages/MovieNights/nightCalendar.ts'
 
 test('Outlook preserves the title and UTC instants across midnight', () => {
   const start = new Date('2026-11-08T23:30:00+02:00')
@@ -27,4 +28,26 @@ test('Apple event escapes title content and folds Unicode without corrupting it'
   assert.equal(ics.split('\r\nEND:VEVENT\r\n').length, 2)
   const uid = unfolded.match(/UID:([^\r]+)/)[1]
   assert.notEqual(watchEventIcs(title, start, end).match(/UID:([^\r]+)/)[1], uid)
+})
+
+test('movie night exports keep the local scheduled time, host, meeting link and location for every calendar', () => {
+  const event = movieNightEvent(
+    { title: 'Film & Friends', date: '2026-11-08', time: '23:30' },
+    { host: { name: 'Ramy' }, link: 'https://example.com/meet?a=1&b=2' },
+    'Cinema, Screen; 2',
+  )
+  assert.equal(event.start.getHours(), 23)
+  assert.equal(event.start.getMinutes(), 30)
+  assert.equal(event.end.getDate(), 9)
+  assert.equal(event.end - event.start, 3 * 60 * 60 * 1000)
+  const google = new URL(googleCalendarUrl(event.title, toCalendarTime(event.start), toCalendarTime(event.end), event.details))
+  const outlook = new URL(outlookCalendarUrl(event.title, event.start, event.end, event.details))
+  const ics = watchEventIcs(event.title, event.start, event.end, event.details).replace(/\r\n /g, '')
+  assert.equal(google.searchParams.get('dates'), `${toCalendarTime(event.start)}/${toCalendarTime(event.end)}`)
+  assert.equal(google.searchParams.get('details'), event.details.description)
+  assert.equal(outlook.searchParams.get('body'), event.details.description)
+  for (const url of [google, outlook]) assert.equal(url.searchParams.get('location'), event.details.location)
+  assert.ok(ics.includes(`DESCRIPTION:Hosted by Ramy\\nOnline: https://example.com/meet?a=1&b=2\r\n`))
+  assert.ok(ics.includes('LOCATION:Cinema\\, Screen\\; 2\r\n'))
+  assert.ok(ics.includes(`DTSTART:${toCalendarTime(event.start)}\r\nDTEND:${toCalendarTime(event.end)}`))
 })

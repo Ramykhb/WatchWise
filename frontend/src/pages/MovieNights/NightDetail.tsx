@@ -30,6 +30,8 @@ import MovieSearch from '../../components/MovieSearch/MovieSearch.tsx'
 import { useMovies } from '../../lib/movieDetails.ts'
 import { Thumb } from '../Lists/ListDialog.tsx'
 import styles from './NightDetail.module.css'
+import { downloadWatchEvent, googleCalendarUrl, outlookCalendarUrl, toCalendarTime } from '../MovieDetails/calendar.ts'
+import { movieNightEvent } from './nightCalendar.ts'
 
 const RSVP_OPTIONS: { id: Exclude<Rsvp, 'pending'>; label: string; icon?: string }[] = [
   { id: 'going', label: 'Going', icon: checkIcon },
@@ -46,21 +48,6 @@ const RSVP_CHIP: Record<Rsvp, { label: string; icon?: string; className: string 
 
 /** RSVP icons are masks filled with the text colour, so they follow the selected option. */
 const maskIcon = (icon: string) => ({ '--icon': `url("${icon}")` }) as CSSProperties
-
-/** Google Calendar "add event" link for a 3-hour movie night. */
-function calendarUrl(night: Night, detail: NightDetail, where: string) {
-  const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, '').slice(0, 15)
-  const start = new Date(`${night.date}T${night.time}:00`)
-  const end = new Date(start.getTime() + 3 * 60 * 60 * 1000)
-  const params = new URLSearchParams({
-    action: 'TEMPLATE',
-    text: `${night.title} — WatchWise movie night`,
-    dates: `${stamp(start)}/${stamp(end)}`,
-    details: [`Hosted by ${detail.host.name}`, detail.link && `Online: ${detail.link}`].filter(Boolean).join('\n'),
-    location: where,
-  })
-  return `https://calendar.google.com/calendar/render?${params}`
-}
 
 export default function NightDetailRoute() {
   const { slug } = useParams()
@@ -100,6 +87,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
   const { candidates, closed } = detail
   const rsvp = detail.myRsvp
   const where = night.online ? 'Online' : (detail.where ?? night.where)
+  const calendarEvent = movieNightEvent(night, detail, where)
   const myVote = detail.myVote
   const topVotes = Math.max(0, ...candidates.map((c) => c.voters.length))
   const leaders = detail.winner
@@ -211,10 +199,31 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                   ))}
                 </div>
                 )}
-                <a className={styles.heroBtn} href={calendarUrl(night, detail, where)} target="_blank" rel="noreferrer">
-                  <img src={calendarCreamIcon} width={16} height={16} alt="" />
-                  Add to calendar
-                </a>
+                <details className={styles.calendarPicker} onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.currentTarget.open = false
+                    event.currentTarget.querySelector('summary')?.focus()
+                  }
+                }}>
+                  <summary className={styles.heroBtn}>
+                    <img src={calendarCreamIcon} width={16} height={16} alt="" />
+                    Add to calendar
+                  </summary>
+                  <div className={styles.calendarOptions}>
+                    <a href={googleCalendarUrl(calendarEvent.title, toCalendarTime(calendarEvent.start), toCalendarTime(calendarEvent.end), calendarEvent.details)} target="_blank" rel="noreferrer">
+                      Google Calendar
+                    </a>
+                    <button type="button" onClick={(event) => {
+                      downloadWatchEvent(calendarEvent.title, calendarEvent.start, calendarEvent.end, calendarEvent.details)
+                      event.currentTarget.closest('details')?.removeAttribute('open')
+                    }}>
+                      Apple Calendar (iOS)
+                    </button>
+                    <a href={outlookCalendarUrl(calendarEvent.title, calendarEvent.start, calendarEvent.end, calendarEvent.details)} target="_blank" rel="noreferrer">
+                      Outlook Calendar
+                    </a>
+                  </div>
+                </details>
                 <button type="button" className={styles.heroBtn} onClick={handleShare}>
                   <img src={shareIcon} width={16} height={16} alt="" />
                   Share invite

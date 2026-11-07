@@ -1,12 +1,16 @@
 export const toCalendarTime = (date: Date) => date.toISOString().replace(/[-:]|\.\d{3}/g, '')
 
 /** `start` and `end` are UTC times like "20261107T183000Z", or days like "20261120" for an all-day event. */
-export function googleCalendarUrl(text: string, start: string, end: string) {
+export type CalendarDetails = { description?: string; location?: string }
+
+export function googleCalendarUrl(text: string, start: string, end: string, details: CalendarDetails = {}) {
   const params = new URLSearchParams({ action: 'TEMPLATE', text, dates: `${start}/${end}` })
+  if (details.description) params.set('details', details.description)
+  if (details.location) params.set('location', details.location)
   return `https://calendar.google.com/calendar/render?${params}`
 }
 
-export function outlookCalendarUrl(title: string, start: Date, end: Date) {
+export function outlookCalendarUrl(title: string, start: Date, end: Date, details: CalendarDetails = {}) {
   const params = new URLSearchParams({
     path: '/calendar/action/compose',
     rru: 'addevent',
@@ -15,6 +19,8 @@ export function outlookCalendarUrl(title: string, start: Date, end: Date) {
     enddt: end.toISOString(),
     allday: 'false',
   })
+  if (details.description) params.set('body', details.description)
+  if (details.location) params.set('location', details.location)
   return `https://outlook.live.com/calendar/0/deeplink/compose?${params}`
 }
 
@@ -37,7 +43,7 @@ function foldLine(line: string) {
   return folded
 }
 
-export function watchEventIcs(title: string, start: Date, end: Date) {
+export function watchEventIcs(title: string, start: Date, end: Date, details: CalendarDetails = {}) {
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -50,14 +56,16 @@ export function watchEventIcs(title: string, start: Date, end: Date) {
     `DTSTART:${toCalendarTime(start)}`,
     `DTEND:${toCalendarTime(end)}`,
     `SUMMARY:${escapeText(title)}`,
+    ...(details.description ? [`DESCRIPTION:${escapeText(details.description)}`] : []),
+    ...(details.location ? [`LOCATION:${escapeText(details.location)}`] : []),
     'END:VEVENT',
     'END:VCALENDAR',
     '',
   ].map(foldLine).join('\r\n')
 }
 
-export function downloadWatchEvent(title: string, start: Date, end: Date) {
-  const url = URL.createObjectURL(new Blob([watchEventIcs(title, start, end)], { type: 'text/calendar;charset=utf-8' }))
+export function downloadWatchEvent(title: string, start: Date, end: Date, details: CalendarDetails = {}) {
+  const url = URL.createObjectURL(new Blob([watchEventIcs(title, start, end, details)], { type: 'text/calendar;charset=utf-8' }))
   const link = document.createElement('a')
   link.href = url
   link.download = 'watchwise-event.ics'
