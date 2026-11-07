@@ -6,7 +6,7 @@ import { upcomingReleaseParams } from '../src/pages/Releases/releasesApi.ts'
 test('release boundary rolls over to the next local month and year', () => {
   assert.equal(upcomingReleaseParams(new Date(2026, 10, 30)).release_from, '2026-12-01')
   assert.deepEqual(upcomingReleaseParams(new Date(2026, 11, 31)), {
-    list: 'upcoming', sort: 'release_date', release_from: '2027-01-01',
+    list: 'upcoming', sort: 'popularity', release_from: '2027-01-01',
   })
 })
 

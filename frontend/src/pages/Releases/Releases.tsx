@@ -13,7 +13,7 @@ import homeStyles from '../Home/Home.module.css'
 import settingsStyles from '../Settings/Settings.module.css'
 import { upcomingReleaseParams } from './releasesApi.ts'
 
-/** "All releases →" from Home: every upcoming film TMDB lists, soonest first, by month, with more on demand. */
+/** "All releases →" from Home: popular upcoming films, grouped by month, with more on demand. */
 export default function Releases() {
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
@@ -71,7 +71,7 @@ export default function Releases() {
       <main className={homeStyles.main}>
         <header className={settingsStyles.header} data-enter data-enter-delay="0.05">
           <SplitHeadline className={settingsStyles.title} lines={[{ text: 'Coming soon' }]} />
-          <p className={settingsStyles.subtitle}>The next films in cinemas, soonest first. Open one to add it to your watchlist.</p>
+          <p className={settingsStyles.subtitle}>The most anticipated upcoming films, grouped by release month. Open one to add it to your watchlist.</p>
         </header>
 
         {error && !loading ? (
