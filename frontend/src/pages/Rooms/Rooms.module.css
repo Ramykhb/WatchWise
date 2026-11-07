@@ -697,6 +697,16 @@
   color: var(--ground-cream);
 }
 
+.retrySend {
+  border: 0;
+  padding: 2px 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .typing {
   display: flex;
   align-items: center;

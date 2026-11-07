@@ -31,11 +31,13 @@ import listStyles from '../Lists/ListDialog.module.css'
 import xSmIcon from '../../assets/listmodal/icon-x-sm.svg'
 import { applyRead, hasExpired, mergeMessages, syncWithServer, waitingFor, withoutExpired } from './roomHistory.ts'
 import type { RoomSocket, RoomSocketStatus } from './roomSocket.ts'
+import { confirmOutgoing, visibleOutgoing, type OutgoingMessage } from './roomOutbox.ts'
 import {
   EMOJIS,
   ROOM_KINDS,
   ROOM_SCOPES,
   channelName,
+  clockTime,
   matchesFilters,
   rulesFor,
   sectionOf,
@@ -103,6 +105,8 @@ export default function Rooms() {
   const titleSearch = useTitleSearch(titleQuery)
   const titleResults = titleSearch.results
   const [draft, setDraft] = useState('')
+  const [outbox, setOutbox] = useState<OutgoingMessage[]>([])
+  const sendingIds = useRef(new Set<string>())
   // Sending, joining, declining or inviting failed.
   const [chatError, setChatError] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
@@ -276,12 +280,14 @@ export default function Rooms() {
   })).filter((section) => section.rooms.length > 0)
 
   const roomMessages = toMessages(messages, viewerId)
+  const outgoing = visibleOutgoing(outbox, messages, threadKey)
+  const displayedCount = roomMessages.length + outgoing.length
 
   // Keep the newest message in view.
   useEffect(() => {
     const el = messagesRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [room?.id, messages.length])
+  }, [room?.id, displayedCount])
 
   const openRoom = (id: string) => {
     setShowMenu(false)
@@ -294,20 +300,35 @@ export default function Rooms() {
     navigate(`/rooms/${id}`, { replace: true })
   }
 
-  const send = async (text: string) => {
+  const deliver = async (item: OutgoingMessage, targetRoomId: string) => {
+    if (sendingIds.current.has(item.id)) return
+    sendingIds.current.add(item.id)
+    setOutbox((current) => current.map((message) => message.id === item.id ? { ...message, status: 'sending', error: undefined } : message))
+    try {
+      const { data } = await api.post<{ message: ApiMessage }>(`/rooms/${targetRoomId}/messages`, { content: item.content })
+      setThread((current) => (current.key === item.threadKey ? { ...current, messages: mergeMessages(current.messages, [data.message]) } : current))
+      setOutbox((current) => confirmOutgoing(current, item.id, data.message.id))
+    } catch (error) {
+      const detail = apiErrorMessage(error, "Couldn't send your message. Please try again.")
+      setOutbox((current) => current.map((message) => message.id === item.id ? { ...message, status: 'failed', error: detail } : message))
+    } finally {
+      sendingIds.current.delete(item.id)
+    }
+  }
+
+  const send = (text: string) => {
     const body = text.trim()
-    if (!body || !room) return
+    if (!body || !room || viewerId === undefined) return
+    const item: OutgoingMessage = {
+      id: crypto.randomUUID(), threadKey, userId: viewerId, content: body,
+      createdAt: new Date().toISOString(), status: 'sending',
+      knownIds: thread.messages.map((message) => message.id),
+    }
+    setOutbox((current) => [...current, item])
     setDraft('')
     setShowEmoji(false)
     setChatError('')
-    try {
-      const response = await api.post<{ message: ApiMessage }>(`/rooms/${room.id}/messages`, { content: body })
-      // The socket delivers it too; merging by id keeps one copy.
-      setThread((current) => (current.key === threadKey ? { ...current, messages: mergeMessages(current.messages, [response.data.message]) } : current))
-    } catch (error) {
-      setDraft(body)
-      setChatError(apiErrorMessage(error, "Couldn't send your message. Please try again."))
-    }
+    void deliver(item, room.id)
   }
 
   const replaceRoom = (updated: ApiRoom) => setRoomsData((current) => ({ rooms: current.rooms.map((r) => (r.id === updated.id ? updated : r)) }))
@@ -832,7 +853,7 @@ export default function Rooms() {
           )}
 
           <div ref={messagesRef} className={styles.messages} data-lenis-prevent role="log" aria-live="polite" aria-label={`${room.name} messages`}>
-            {roomMessages.length === 0 && (loaded || !syncError) && (
+            {displayedCount === 0 && (loaded || !syncError) && (
               <p className={styles.system}>
                 <span>
                   {!loaded
@@ -874,6 +895,18 @@ export default function Rooms() {
                 </div>
               ),
             )}
+            {outgoing.map((message) => (
+              <div key={message.id} className={styles.own}>
+                <p className={styles.ownBubble}>{message.content}</p>
+                <p className={styles.time} role="status">
+                  {clockTime(new Date(message.createdAt))} · {message.status === 'sending' ? 'Sending…' : 'Not sent'}
+                  {message.status === 'failed' && (
+                    <> · <button type="button" className={styles.retrySend} onClick={() => void deliver(message, room.id)}>Retry</button></>
+                  )}
+                </p>
+                {message.error && <p className={styles.receipt}>{message.error}</p>}
+              </div>
+            ))}
           </div>
           {chatError && (
             <p className={styles.menuNote} role="alert">
