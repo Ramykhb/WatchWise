@@ -31,8 +31,9 @@ import { movieFor, tmdbIdOf } from '../../lib/movies.ts'
 import { useWatchlist } from '../../lib/watchlist.ts'
 import type { ApiHome } from '../../lib/types.ts'
 import { formatWhen, localDateTime } from '../MovieNights/nightsData.ts'
-import { loadGenres, toTileMovie, type MoviePage, type TmdbMovie } from '../Discover/discoverApi.ts'
+import { loadGenres, toTileMovie, type MoviePage } from '../Discover/discoverApi.ts'
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
+import { cacheTonightPick, PICK_CACHE_TTL, readTonightPick, type WeatherRecommendation } from './tonightPickCache.ts'
 
 type WeatherResponse = {
   location: { latitude: number; longitude: number; is_default: boolean }
@@ -50,34 +51,7 @@ type WeatherMood = { title: string; mood: string; description: string }
 type WeatherCache = { cachedAt: number; weather: WeatherResponse; mood?: WeatherMood }
 const WEATHER_CACHE_KEY = 'watchwise:weather-mood:v1'
 const WEATHER_CACHE_TTL = 60 * 60 * 1000
-const RECOMMENDATION_CACHE_KEY = 'watchwise:weather-recommendations:v1'
-type WeatherRecommendation = TmdbMovie & { reason: string }
-type RecommendationCache = { cachedAt: number; latitude: number; longitude: number; movies: WeatherRecommendation[] }
-
-function readRecommendationCache(location?: WeatherResponse['location']): RecommendationCache | null {
-  if (!location) return null
-  try {
-    const raw = localStorage.getItem(RECOMMENDATION_CACHE_KEY)
-    if (!raw) return null
-    const cache = JSON.parse(raw) as Partial<RecommendationCache>
-    const age = Date.now() - (cache.cachedAt ?? 0)
-    const validMovies = Array.isArray(cache.movies) && cache.movies.every((movie) =>
-      typeof movie?.id === 'number' && typeof movie.title === 'string' && typeof movie.reason === 'string',
-    )
-    if (cache.latitude !== location.latitude || cache.longitude !== location.longitude || !validMovies || age < 0 || age >= WEATHER_CACHE_TTL) {
-      localStorage.removeItem(RECOMMENDATION_CACHE_KEY)
-      return null
-    }
-    return cache as RecommendationCache
-  } catch {
-    try { localStorage.removeItem(RECOMMENDATION_CACHE_KEY) } catch { /* Storage may be unavailable. */ }
-    return null
-  }
-}
-
-function randomRecommendation(movies: WeatherRecommendation[]): Movie | null {
-  if (movies.length === 0) return null
-  const recommendation = movies[Math.floor(Math.random() * movies.length)]
+function toRecommendationMovie(recommendation: WeatherRecommendation): Movie {
   return { ...toTileMovie(recommendation, new Map()), recommendationReason: recommendation.reason }
 }
 
@@ -143,8 +117,9 @@ export default function Home() {
   const { data: home, loading: homeLoading, error: homeError, reload: reloadHome } = useApi<ApiHome>('/home')
   const activity = home?.activity ?? []
   const [initialWeatherCache] = useState(readWeatherCache)
-  const [initialRecommendationCache] = useState(() => readRecommendationCache(initialWeatherCache?.weather.location))
-  const [weatherPick, setWeatherPick] = useState<Movie | null>(() => randomRecommendation(initialRecommendationCache?.movies ?? []))
+  const [initialRecommendationCache] = useState(() => readTonightPick(initialWeatherCache?.weather.location))
+  const [weatherPick, setWeatherPick] = useState<Movie | null>(() => initialRecommendationCache ? toRecommendationMovie(initialRecommendationCache.movie) : null)
+  const [pickTimestamp, setPickTimestamp] = useState<number | null>(() => initialRecommendationCache?.cachedAt ?? null)
   const [pickLoading, setPickLoading] = useState(initialRecommendationCache === null)
   const [weather, setWeather] = useState<WeatherResponse | null>(() => initialWeatherCache?.weather ?? null)
   const [weatherTimestamp, setWeatherTimestamp] = useState<number | null>(() => initialWeatherCache?.cachedAt ?? null)
@@ -153,17 +128,28 @@ export default function Home() {
   const [locationStatus, setLocationStatus] = useState<'checking' | 'requesting' | 'granted' | 'unavailable'>('checking')
 
   const fetchWeatherRecommendations = useCallback(async (latitude: number, longitude: number) => {
+    const cached = readTonightPick({ latitude, longitude })
+    if (cached) {
+      setWeatherPick(toRecommendationMovie(cached.movie))
+      setPickTimestamp(cached.cachedAt)
+      setPickLoading(false)
+      return
+    }
     setPickLoading(true)
     try {
       const { data } = await api.get<{ movies: WeatherRecommendation[] }>('/movie-recommendations', {
         params: { latitude, longitude },
       })
       const movies = Array.isArray(data.movies) ? data.movies : []
-      const cachedAt = Date.now()
-      try {
-        localStorage.setItem(RECOMMENDATION_CACHE_KEY, JSON.stringify({ cachedAt, latitude, longitude, movies } satisfies RecommendationCache))
-      } catch { /* Keep recommendations usable if browser storage is unavailable. */ }
-      setWeatherPick(randomRecommendation(movies))
+      const recommendation = movies[Math.floor(Math.random() * movies.length)]
+      if (recommendation) {
+        const cached = cacheTonightPick(recommendation, { latitude, longitude })
+        setWeatherPick(toRecommendationMovie(recommendation))
+        setPickTimestamp(cached.cachedAt)
+      } else {
+        setWeatherPick(null)
+        setPickTimestamp(null)
+      }
     } catch (error) {
       console.error('Unable to load Home weather recommendations:', error)
       setWeatherPick(null)
@@ -212,7 +198,6 @@ export default function Home() {
 
   const useDefaultLocation = useCallback(() => {
     try { localStorage.removeItem(WEATHER_CACHE_KEY) } catch { /* Storage may be unavailable. */ }
-    try { localStorage.removeItem(RECOMMENDATION_CACHE_KEY) } catch { /* Storage may be unavailable. */ }
     setWeather(null)
     setWeatherPick(null)
     setPickLoading(true)
@@ -291,6 +276,15 @@ export default function Home() {
     return () => window.clearTimeout(timeout)
   }, [requestFreshWeather, weatherTimestamp])
 
+  useEffect(() => {
+    if (pickTimestamp === null || !weather) return
+    const timeout = window.setTimeout(
+      () => void fetchWeatherRecommendations(weather.location.latitude, weather.location.longitude),
+      Math.max(0, pickTimestamp + PICK_CACHE_TTL - Date.now()),
+    )
+    return () => window.clearTimeout(timeout)
+  }, [fetchWeatherRecommendations, pickTimestamp, weather])
+
   const canShowWeather = locationStatus === 'granted' || (locationStatus === 'unavailable' && weather?.location.is_default === true)
   const currentWeather = canShowWeather ? weather : null
   const condition = currentWeather ? weatherLabel(currentWeather.current.weather_code) : null
@@ -333,7 +327,6 @@ export default function Home() {
               <WeatherIcon size={14} aria-hidden="true" />
               {weatherSummary}
             </span>
-            {currentWeather && <a className={styles.weatherSource} href="https://www.weatherapi.com/" target="_blank" rel="noreferrer">Weather data: WeatherAPI.com</a>}
             <SplitHeadline
               id="home-title"
               className={styles.title}
