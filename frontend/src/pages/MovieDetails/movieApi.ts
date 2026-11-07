@@ -116,6 +116,7 @@ export function toDetails(api: TmdbMovieDetails, genres: Map<number, string>): M
     year: api.year ? String(api.year) : '—',
     runtime: formatRuntime(api.runtime),
     runtimeMinutes: api.runtime,
+    releaseDate: api.release_date,
     language: api.original_language?.name ?? '—',
     director: directorNames || 'Unknown',
     tmdbScore: api.vote_count ? `${api.tmdb_score.toFixed(1)} / 10` : 'No votes yet',

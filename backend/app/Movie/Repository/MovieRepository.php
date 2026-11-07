@@ -48,14 +48,14 @@ class MovieRepository implements MovieRepositoryInterface
     public function list(MovieListQuery $query): array
     {
         if ($query->list === 'upcoming') {
-            return $this->upcoming($query->page);
+            return $this->upcoming($query->page, $query->sort);
         }
 
         return $this->client->get("/movie/{$query->list}", ['page' => $query->page])->json();
     }
 
     /**
-     * Films releasing from today in UTC, the most anticipated first.
+     * Films releasing from today in UTC, ordered by popularity or earliest release.
      *
      * TMDB's own /movie/upcoming counts a release in any country, so most of that list is already out somewhere.
      * Home's "Coming soon" shows this list, so it gets the same longer timeout and retry as trending.
@@ -64,11 +64,11 @@ class MovieRepository implements MovieRepositoryInterface
      *
      * @return array<string, mixed>
      */
-    private function upcoming(int $page): array
+    private function upcoming(int $page, string $sort): array
     {
         return $this->client->get('/discover/movie', [
             'primary_release_date.gte' => today()->toDateString(),
-            'sort_by' => 'popularity.desc',
+            'sort_by' => $sort === 'release_date' ? 'primary_release_date.asc' : 'popularity.desc',
             'page' => $page,
             'include_adult' => 'false',
         ], timeout: 20, attempts: 2)->json();

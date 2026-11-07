@@ -18,6 +18,7 @@ class MovieListRequest extends FormRequest
         return [
             'list' => ['sometimes', 'string', Rule::in(MovieListQuery::LISTS)],
             'page' => ['sometimes', 'integer', 'between:1,500'],
+            'sort' => ['sometimes', 'string', Rule::in(['popularity', 'release_date'])],
         ];
     }
 

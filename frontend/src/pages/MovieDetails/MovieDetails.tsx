@@ -41,7 +41,7 @@ import { filmKeyOf, titleOf, type FilmKey } from '../../lib/movies.ts'
 import { api } from '../../lib/api.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { useWatchlist } from '../../lib/watchlist.ts'
-import { downloadWatchEvent, outlookCalendarUrl, toCalendarTime } from './calendar.ts'
+import { downloadWatchEvent, googleCalendarUrl, outlookCalendarUrl, toCalendarTime } from './calendar.ts'
 import styles from './MovieDetails.module.css'
 
 /** What the last request for a TMDB movie returned, tagged with the request it answers. */
@@ -56,12 +56,6 @@ const PINS = [
 
 type Premiere = Community['premiere']
 
-/** `start` and `end` are UTC times like "20261107T183000Z". */
-function googleCalendarUrl(text: string, start: string, end: string) {
-  const params = new URLSearchParams({ action: 'TEMPLATE', text, dates: `${start}/${end}` })
-  return `https://calendar.google.com/calendar/render?${params}`
-}
-
 /** How long the calendar event lasts when TMDB has no runtime for the title. */
 const DEFAULT_EVENT_MINUTES = 120
 
@@ -72,11 +66,26 @@ const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
  * "Add to calendar": pick when you'll watch and a calendar, with an event from that time until
  * the title's runtime later (one episode for a TV show).
  */
-function AddToCalendar({ title, runtimeMinutes, runtime, isShow }: { title: string; runtimeMinutes: number | null; runtime: string; isShow: boolean }) {
+function AddToCalendar({
+  title,
+  runtimeMinutes,
+  runtime,
+  isShow,
+  releaseDay,
+}: {
+  title: string
+  runtimeMinutes: number | null
+  runtime: string
+  isShow: boolean
+  /** Set for a title that isn't out yet: days before it can't be picked. */
+  releaseDay: Date | null
+}) {
   const [open, setOpen] = useState(false)
   const [today, setToday] = useState(() => startOfDay(new Date()))
+  // The first day that can be picked: today, or the release day for a title that isn't out yet.
+  const earliest = releaseDay && releaseDay > today ? releaseDay : today
   // The month on show (its first day), the picked day, and the time as typed.
-  const [month, setMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1))
+  const [month, setMonth] = useState(() => new Date(earliest.getFullYear(), earliest.getMonth(), 1))
   const [day, setDay] = useState<Date | null>(null)
   const [hour, setHour] = useState('8')
   const [minute, setMinute] = useState('00')
@@ -98,7 +107,7 @@ function AddToCalendar({ title, runtimeMinutes, runtime, isShow }: { title: stri
   const end = start ? new Date(start.getTime() + minutes * 60_000) : null
   const length = runtimeMinutes ? (isShow ? `one episode, ${runtime}` : runtime) : 'about 2 hours, as the runtime isn’t known'
 
-  const onFirstMonth = month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth()
+  const onFirstMonth = month.getFullYear() === earliest.getFullYear() && month.getMonth() === earliest.getMonth()
   const blanks = month.getDay()
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()
   const days = Array.from({ length: daysInMonth }, (_, index) => new Date(month.getFullYear(), month.getMonth(), index + 1))
@@ -125,8 +134,9 @@ function AddToCalendar({ title, runtimeMinutes, runtime, isShow }: { title: stri
 
   const toggle = () => {
     const now = startOfDay(new Date())
+    const first = releaseDay && releaseDay > now ? releaseDay : now
     setToday(now)
-    setMonth(new Date((day ?? now).getFullYear(), (day ?? now).getMonth(), 1))
+    setMonth(new Date((day ?? first).getFullYear(), (day ?? first).getMonth(), 1))
     setError('')
     setOpen((value) => !value)
   }
@@ -181,6 +191,11 @@ function AddToCalendar({ title, runtimeMinutes, runtime, isShow }: { title: stri
       {open && (
         <form ref={popoverRef} className={styles.calendarPopover} role="dialog" aria-label={`Add ${title} to your calendar`} onSubmit={handleSubmit} noValidate>
           <p className={styles.calendarPopoverTitle}>When will you watch it?</p>
+          {earliest !== today && (
+            <p className={styles.calendarHint}>
+              Comes out {earliest.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}, so you can pick that day or later.
+            </p>
+          )}
 
           <div className={styles.monthHead}>
             <button type="button" className={styles.monthNav} aria-label="Previous month" disabled={onFirstMonth} onClick={() => changeMonth(-1)}>
@@ -211,8 +226,8 @@ function AddToCalendar({ title, runtimeMinutes, runtime, isShow }: { title: stri
                   className={isToday ? `${styles.dayButton} ${styles.dayToday}` : styles.dayButton}
                   aria-label={date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                   aria-pressed={isPicked}
-                  disabled={date < today}
-                  autoFocus={isPicked || (!day && isToday)}
+                  disabled={date < earliest}
+                  autoFocus={isPicked || (!day && date.getTime() === earliest.getTime())}
                   onClick={() => {
                     setDay(date)
                     setError('')
@@ -573,6 +588,11 @@ function MovieDetailsPage({ details }: { details: Details }) {
   }
   const toggleWatchlist = () => changeWatchlist((key) => (onWatchlist ? watchlist.remove(key) : watchlist.add(key)))
   const toggleWatched = () => changeWatchlist((key) => watchlist.setWatched(key, !watched))
+  // A title that isn't out yet can't have been watched; it can still go on the watchlist or a calendar.
+  const [today] = useState(() => startOfDay(new Date()))
+  const releaseDay = details.releaseDate ? new Date(`${details.releaseDate}T00:00:00`) : null
+  const unreleased = releaseDay !== null && releaseDay > today
+  const releaseHintId = useId()
   const [playing, setPlaying] = useState(false)
   // "Add to list" pop-up: 'open', 'closing' (exit animation) or closed.
   const [listDialog, setListDialog] = useState<'open' | 'closing' | null>(null)
@@ -738,17 +758,28 @@ function MovieDetailsPage({ details }: { details: Details }) {
                 )}
                 <button
                   type="button"
-                  className={watched ? styles.actionWatched : styles.actionOutline}
-                  aria-pressed={watched}
-                  aria-disabled={watchlistKey === null || undefined}
+                  className={watched && !unreleased ? styles.actionWatched : styles.actionOutline}
+                  aria-pressed={watched && !unreleased}
+                  aria-disabled={watchlistKey === null || unreleased || undefined}
                   aria-busy={watchlistBusy || undefined}
-                  aria-describedby={watchlistKey === null ? watchlistHintId : undefined}
-                  onClick={toggleWatched}
+                  aria-describedby={unreleased ? releaseHintId : watchlistKey === null ? watchlistHintId : undefined}
+                  onClick={() => !unreleased && toggleWatched()}
                 >
                   <img src={eyeIcon} width={16} height={16} alt="" />
-                  {watched ? 'Watched' : 'Mark as watched'}
+                  {watched && !unreleased ? 'Watched' : 'Mark as watched'}
                 </button>
-                <AddToCalendar title={movie.title} runtimeMinutes={details.runtimeMinutes ?? null} runtime={details.runtime} isShow={movie.mediaType === 'tv'} />
+                {unreleased && releaseDay && (
+                  <span id={releaseHintId} className={styles.actionHint}>
+                    Out {releaseDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                )}
+                <AddToCalendar
+                  title={movie.title}
+                  runtimeMinutes={details.runtimeMinutes ?? null}
+                  runtime={details.runtime}
+                  isShow={movie.mediaType === 'tv'}
+                  releaseDay={unreleased ? releaseDay : null}
+                />
                 {/* aria-disabled (not disabled) keeps it focusable, so keyboard and screen-reader users reach the reason. */}
                 <button
                   type="button"

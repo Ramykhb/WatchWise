@@ -27,6 +27,7 @@ import NightDetail from './pages/MovieNights/NightDetail.tsx'
 import Rooms from './pages/Rooms/Rooms.tsx'
 import Notifications from './pages/Notifications/Notifications.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
+import Releases from './pages/Releases/Releases.tsx'
 import { RequireAdmin, RequireAuth, RequireGuest } from './components/RouteGuards/RouteGuards.tsx'
 import AuthCallback from './pages/AuthCallback/AuthCallback.tsx'
 
@@ -90,7 +91,7 @@ export const router = createBrowserRouter([
           { path: 'movie-nights/:slug', element: <NightDetail /> },
           // One optional room id keeps the page mounted when switching rooms.
           { path: 'rooms/:roomId?', element: <Rooms /> },
-          { path: 'releases', element: <Placeholder title="Coming soon" /> },
+          { path: 'releases', element: <Releases /> },
           { path: 'movies/:slug/credits', element: <Placeholder title="Full credits" /> },
           { path: 'movies/:slug/videos', element: <Placeholder title="Videos" /> },
           { path: '*', element: <Placeholder title="Page not found" notFound /> },
