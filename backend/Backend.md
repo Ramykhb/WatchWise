@@ -85,7 +85,7 @@ app/Auth/
 
 ## How a request flows
 
-1. A request hits a route in `routes/api.php` or one of the files it `require`s.
+1. A request hits a route in one of the per-entity files that `routes/api.php` `require`s (or in `api.php` itself for health and the `/auth` basics).
 2. A middleware (`auth.jwt`, `auth.optional`, `verified.email` or `role`) asks `CurrentUserFactory` who is calling.
 3. The factory reads the access token (cookie or Bearer header) and returns a `JwtCurrentUser`, or a `GuestUser` if the token is missing or invalid.
 4. On a signed-in route outside `/api/auth`, `auth.jwt` rejects a guest with 401, then `verified.email` rejects an unverified account with 403 `{"message": "Verify your email address to continue.", "code": "email_unverified"}`. Both run before rate limiting and route model binding (the priority list in `bootstrap/app.php`), so a refused request spends no rate-limit slot and learns nothing about the bound record.
@@ -97,9 +97,14 @@ app/Auth/
 
 | File | Purpose |
 | --- | --- |
-| `routes/api.php` | `/api/health`, `/api/auth` register, login, refresh, logout and `me`, with rate limits. It also holds the public routes of the other modules (TMDB movies/people/genres, weather, weather mood, movie recommendations, nearby cinemas, documentation), `require`s the three files below, holds the signed `GET /api/me/email/confirm/{id}/{hash}` link (outside the verified group, because it must work without a session), and holds the one `['auth.jwt', 'verified.email']` group that wraps `social.php`, `admin.php`, `/api/chat/*`, `/api/watched-recommendations`, `/api/people-recommendations`, `/api/following-recommendations` and `/api/taste-profile` |
-| `routes/auth_flows.php` | Email verification, password reset and Google/GitHub/Discord login routes |
-| `routes/social.php` | Loaded inside the verified group: home, `/me` (including `/me/email`), users and following, lists, watchlist, ratings, reviews, movie nights, rooms (with `rooms/socket-auth`), notifications (with `notifications/socket-auth`) |
+| `routes/api.php` | Thin entry point: `/api/health`, `/api/auth` register, login, refresh, logout and `me` (with rate limits), the one `['auth.jwt', 'verified.email']` group, and the `require` of every per-entity file below. It holds no other routes |
+| `routes/auth_flows.php` | Email verification, password reset and Google/GitHub/Discord login routes (outside the verified group) |
+| `routes/user.php` | Verified group: `/api/home`, `/api/me/*` (including `/me/email`), `/api/users` and following |
+| `routes/lists.php`, `watchlist.php`, `ratings.php`, `reviews.php`, `movie_nights.php` | Verified group: one file each for `/api/lists`, `/api/watchlist`, `/api/ratings`, `/api/reviews`, `/api/movie-nights` |
+| `routes/rooms.php`, `notifications.php` | Verified group: `/api/rooms` (with `rooms/socket-auth`) and `/api/notifications` (with `notifications/socket-auth`) |
+| `routes/chat.php`, `recommendations.php` | Verified group: `/api/chat/*`; `/api/watched-recommendations`, `/api/people-recommendations`, `/api/following-recommendations`, `/api/taste-profile` |
+| `routes/email_change.php` | The signed `GET /api/me/email/confirm/{id}/{hash}` link, outside the verified group because it must work without a session |
+| `routes/weather.php`, `cinemas.php`, `movies.php`, `recommendations_public.php`, `documentation.php` | Public guest routes, outside the verified group: weather and weather mood, nearby cinemas, TMDB movies/people/genres, `GET /api/movie-recommendations`, documentation |
 | `routes/admin.php` | `/api/admin/*`, loaded inside the verified group and adding `role:admin` or `role:admin,moderator` (see [Admin module](#admin-module)) |
 | `routes/channels.php` | Reverb private-channel rules (`chat.*`, `room.*`, `rooms.*`, `notifications.*`). Loaded by `GroqModuleServiceProvider` when broadcasting resolves |
 | `routes/console.php` | The `rooms:prune-messages` command and its every-minute schedule |
@@ -252,7 +257,7 @@ All in `app/Auth/Middleware/`.
 | `verified.email` | `EnsureEmailVerified.php` | 401 for a guest, 403 `{"message": "Verify your email address to continue.", "code": "email_unverified"}` if the email is unverified |
 | `role` | `EnsureRole.php` | 403 unless the user has one of the required roles |
 
-**A verified email is required everywhere.** Every route that needs a signed-in user, except `/api/auth/*`, needs a verified email too, admins and moderators included. `routes/api.php` applies `['auth.jwt', 'verified.email']` once, to a group that `require`s `social.php` and `admin.php` and holds the chat and signed-in recommendation routes, so a route added there inherits it. `/api/auth/*` (register, login, refresh, logout, `me`, the verification link, resend, forgot/reset password, social login) stays open so an unverified account can verify, resend the link or sign out; login, register and refresh still issue tokens to it. Public guest routes (TMDB, weather, weather mood, movie recommendations, nearby cinemas, health, documentation) are unchanged. `tests/Feature/Auth/RequireVerifiedEmailTest.php` fails if a route with `auth.jwt` outside `/api/auth` lacks `verified.email`. The OpenAPI spec adds the `EmailUnverified` 403 to every secured operation outside `/api/auth` (`OpenApiSpec::documentEmailVerification`).
+**A verified email is required everywhere.** Every route that needs a signed-in user, except `/api/auth/*`, needs a verified email too, admins and moderators included. `routes/api.php` applies `['auth.jwt', 'verified.email']` once, to a group that `require`s the signed-in per-entity files (`user.php`, `lists.php`, `rooms.php`, `chat.php`, `admin.php` and so on, all bare routes with no `auth.jwt` wrapper), so a route in one of those files inherits it. `/api/auth/*` (register, login, refresh, logout, `me`, the verification link, resend, forgot/reset password, social login) stays open so an unverified account can verify, resend the link or sign out; login, register and refresh still issue tokens to it. Public guest routes (TMDB, weather, weather mood, movie recommendations, nearby cinemas, health, documentation) are unchanged. `tests/Feature/Auth/RequireVerifiedEmailTest.php` fails if a route with `auth.jwt` outside `/api/auth` lacks `verified.email`. The OpenAPI spec adds the `EmailUnverified` 403 to every secured operation outside `/api/auth` (`OpenApiSpec::documentEmailVerification`).
 
 ## Form requests
 
@@ -393,7 +398,7 @@ app/Support/            Shared code: TmdbHttpClient (adds the API key, timeout, 
 - Movie lists are paginated with `page` from 1 to 500 and 20 movies per page. Responses include `page`, `total_pages` (capped at 500, TMDB's limit) and `total_results`. Genres are a short fixed list, so they are not paginated.
 - Ratings are converted from TMDB's 0 to 10 scale to 0 to 5. Adult content is always excluded.
 - Setup: set `TMDB_API_KEY` in `.env`. `TMDB_URL` and `TMDB_IMAGE_URL` have working defaults in `config/services.php`.
-- Routes are in `routes/api.php` and the config is the `tmdb` entry in `config/services.php`.
+- Routes are in `routes/movies.php` and the config is the `tmdb` entry in `config/services.php`.
 - Tests: `tests/Feature/Movie/`, `tests/Feature/Genre/` and `tests/Feature/Support/` (the endpoints, repositories, catalogue and `TmdbHttpClient`), `tests/Feature/Social/TvShowsTest.php`, and `tests/Unit/Movie/` and `tests/Unit/Genre/` (the services).
 
 ## Person module
@@ -450,7 +455,7 @@ app/MovieNight/
   Providers/            MovieNightModuleServiceProvider (interface bindings)
 ```
 
-- The routes did not change (`/api/lists` and `/api/movie-nights`, in `routes/social.php`).
+- The routes did not change (`/api/lists` and `/api/movie-nights`, in `routes/lists.php` and `routes/movie_nights.php`).
 - The form requests run the policy check in `authorize()`, so a forbidden request is rejected before validation, as before.
 - `GET /api/lists` with an unknown `scope` now fails validation (422 with an `errors` object) instead of returning the message "Unknown scope.".
 - A public list whose owner's profile is followers-only or private is for that owner's followers only: `scope=public` leaves it out for everyone else, and `GET /api/lists/{list}` answers 403 (`MovieListPolicy::view`; the owner and admins always see it). `scope=following` already only lists people you follow.
@@ -474,7 +479,7 @@ app/Watchlist/
   Providers/            WatchlistModuleServiceProvider (interface bindings)
 ```
 
-- The routes did not change (`/api/watchlist`, in `routes/social.php`).
+- The routes did not change (`/api/watchlist`, in `routes/watchlist.php`).
 - `POST /api/watchlist` answers 201 for a new film and 200 when the film was already there.
 - Tests: `tests/Feature/Social/ContentTest.php` and `tests/Feature/Social/WatchlistRulesTest.php`.
 
@@ -551,7 +556,7 @@ app/User/
   Providers/            UserModuleServiceProvider (interface bindings, the me-email-change and me-email-confirm rate limiters)
 ```
 
-- Routes are in `routes/social.php`: `/api/home`; `/api/me` (show, update, delete), `/me/preferences`, `/me/password` (revokes the other devices' sessions), `/me/avatar` (upload/delete, public disk), `/me/social/{google|github|discord}` (disconnect), `/me/follow-requests/{username}` (accept/decline), `/me/email` (see below); `/api/users` (search) and `/api/users/{username}` with `followers`, `following` and `follow`/unfollow.
+- Routes are in `routes/user.php`: `/api/home`; `/api/me` (show, update, delete), `/me/preferences`, `/me/password` (revokes the other devices' sessions), `/me/avatar` (upload/delete, public disk), `/me/social/{google|github|discord}` (disconnect), `/me/follow-requests/{username}` (accept/decline), `/me/email` (see below); `/api/users` (search) and `/api/users/{username}` with `followers`, `following` and `follow`/unfollow.
 - `ProfilePrivacy` decides what a viewer may see of a profile.
 - `/api/home` returns the 3 busiest rooms, your next movie night (accepted guests and the leading vote) and `activity`: the 8 newest items from people you follow (reviews, ratings, public lists, watched titles and watchlist additions), each kind filtered by that person's privacy switches. Spoiler reviews have no excerpt.
 - Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php`, `AccountRulesTest.php`, `PlaceholderPasswordTest.php` and `tests/Feature/User/HomeActivityTest.php` and `EmailChangeTest.php`.
@@ -565,7 +570,7 @@ app/User/
 | `PUT /api/me/email` | `auth.jwt` + `verified.email`, `throttle:me-email-change` | `email` + `current_password`. Stores the address in `users.pending_email`, mails a signed 60-minute link to it (`ConfirmEmailChangeMail`) and warns the current address (`EmailChangeRequestedMail`, new address masked as `j***@example.com`). `email` and `email_verified_at` are untouched |
 | `POST /api/me/email/resend` | `auth.jwt` + `verified.email`, `throttle:me-email-change` | A fresh link to the pending address (422 `NoPendingEmailChange` when there is none) |
 | `DELETE /api/me/email` | `auth.jwt` + `verified.email` | Clears the pending address |
-| `GET /api/me/email/confirm/{id}/{hash}` (`me.email.confirm`) | signed link (no login; declared in `routes/api.php` outside the verified group), `throttle:me-email-confirm` | Swaps `email = pending_email`, sets `email_verified_at = now()`, clears `pending_email`, revokes every refresh token through `AuthServiceInterface::revokeSessions()` and mails the old address (`EmailChangedMail`). Redirects to `FRONTEND_URL/edit-profile?email_change=success\|invalid\|expired\|taken` |
+| `GET /api/me/email/confirm/{id}/{hash}` (`me.email.confirm`) | signed link (no login; declared in `routes/email_change.php` outside the verified group), `throttle:me-email-confirm` | Swaps `email = pending_email`, sets `email_verified_at = now()`, clears `pending_email`, revokes every refresh token through `AuthServiceInterface::revokeSessions()` and mails the old address (`EmailChangedMail`). Redirects to `FRONTEND_URL/edit-profile?email_change=success\|invalid\|expired\|taken` |
 
 - `current_password` is required unless the account still has the social placeholder password (`has_password: false`); the link to the new address is required for everyone.
 - The new address must differ from the current one and must not be any account's `email`. It is checked again when the link is opened; if someone took it meanwhile, the pending change is dropped and the redirect says `taken`.
@@ -912,3 +917,5 @@ The backend is deployed to Render from `backend/Dockerfile` (`php:8.4-apache-boo
 ## Adding a new entity
 
 Follow the same layout, for example `app/Review/` with `Controllers/`, `FormRequests/`, `InterfaceServices/`, `Services/`, `InterfaceRepository/`, `Repository/`, and its own `ReviewModuleServiceProvider` registered in `bootstrap/providers.php`. Keep the Eloquent model in `app/Models`.
+
+Give the entity its own routes file under `routes/` (snake_case, for example `routes/reviews.php`) and `require` it from the right group in `routes/api.php`: inside the `['auth.jwt', 'verified.email']` group for signed-in routes (write bare routes, no `auth.jwt` wrapper), or after that group for public guest routes. Do not add entity routes to `api.php` itself.
