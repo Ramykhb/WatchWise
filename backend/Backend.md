@@ -1,6 +1,6 @@
 # Backend Overview
 
-What each module does. Paths are relative to `backend/`. The backend is split into modules under `app/`: `Auth`, `Genre`, `Movie`, `Gemini`, `Groq`, `Weather` and `MovieRecommendation`. Everything up to "Tests" describes the Auth module, and each other module has its own section after it.
+What each module does. Paths are relative to `backend/`. The backend is a Laravel 12 / PHP 8.4 API split into feature modules under `app/`: `Admin`, `Auth`, `Cinema`, `Docs`, `Gemini`, `Genre`, `Groq`, `Health`, `Movie`, `MovieList`, `MovieNight`, `MovieRecommendation`, `Notification`, `Person`, `Rating`, `Review`, `Room`, `User`, `Watchlist` and `Weather`. Shared code is in `app/Support/`, the Eloquent models in `app/Models/`, and framework-level providers in `app/Providers/`. Everything up to "Tests" describes the Auth module, and each other module has its own section after it. The mandatory structure rules are in `CLAUDE.md` ("WatchWise Module Architecture").
 
 ## Contents
 
@@ -24,13 +24,24 @@ What each module does. Paths are relative to `backend/`. The backend is split in
 - [Wiring](#wiring)
 - [Tests](#tests)
 - [Genre and Movie modules](#genre-and-movie-modules)
+- [Person module](#person-module)
+- [MovieList and MovieNight modules](#movielist-and-movienight-modules)
+- [Watchlist module](#watchlist-module)
+- [Rating module](#rating-module)
+- [Review module](#review-module)
+- [User module](#user-module)
+- [Room module](#room-module)
 - [Notification module](#notification-module)
 - [Admin module](#admin-module)
+- [Removed code](#removed-code)
 - [Gemini module](#gemini-module)
 - [Groq module](#groq-module)
 - [Weather module](#weather-module)
 - [MovieRecommendation module](#movierecommendation-module)
+- [Cinema module](#cinema-module)
+- [Health module](#health-module)
 - [API documentation (Swagger UI)](#api-documentation-swagger-ui)
+- [Deployment (Docker / Render)](#deployment-docker--render)
 - [Security notes](#security-notes)
 - [Known follow-ups](#known-follow-ups)
 - [Adding a new entity](#adding-a-new-entity)
@@ -47,7 +58,7 @@ Controller -> InterfaceServices -> Services -> InterfaceRepository -> Repository
 - **Controllers** only handle HTTP: validation (form requests), calling a service, status codes, cookies and redirects.
 - **Services** hold the business rules. They depend on repository interfaces, never on Eloquent.
 - **Repositories** are the only place that queries models.
-- Interfaces are bound to implementations in `app/Auth/Providers/AuthModuleServiceProvider.php`.
+- Interfaces are bound to implementations in each module's `Providers/<Feature>ModuleServiceProvider.php` (`public array $bindings`), for Auth `app/Auth/Providers/AuthModuleServiceProvider.php`. Every module provider is listed in `bootstrap/providers.php`.
 
 ## Folder layout
 
@@ -65,8 +76,8 @@ app/Auth/
     Responses/          Output data objects returned by the services
   Factories/            TokenFactory, CurrentUserFactory
   CurrentUser/          CurrentUser interface, JwtCurrentUser, GuestUser
-  Support/              AuthCookies, TokenPair
-  Mail/                 Verification and reset emails
+  Support/              AuthCookies, TokenPair, DiscordOAuthClient, GooglePhoto
+  Mail/                 Verification and reset emails, BrevoTransport
   Listeners/            Sends the verification email on registration
   Exceptions/           Domain exceptions the controllers map to responses
   Providers/            AuthModuleServiceProvider (interface bindings)
@@ -85,8 +96,12 @@ app/Auth/
 
 | File | Purpose |
 | --- | --- |
-| `routes/api.php` | `/api/auth` register, login, refresh, logout and `me`, with rate limits. It also holds the routes of the other modules (TMDB, weather, weather mood and movie recommendations) |
-| `routes/auth_flows.php` | Email verification, password reset and Google/GitHub login routes |
+| `routes/api.php` | `/api/health`, `/api/auth` register, login, refresh, logout and `me`, with rate limits. It also holds the public and AI routes of the other modules (chat, TMDB movies/people/genres, weather, weather mood, recommendations, nearby cinemas, documentation) and `require`s the three files below |
+| `routes/auth_flows.php` | Email verification, password reset and Google/GitHub/Discord login routes |
+| `routes/social.php` | Everything behind `auth.jwt`: home, `/me`, users and following, lists, watchlist, ratings, reviews, movie nights, rooms, notifications |
+| `routes/admin.php` | `/api/admin/*` (see [Admin module](#admin-module)) |
+| `routes/channels.php` | Reverb private-channel rules (`chat.*`, `room.*`, `rooms.*`, `notifications.*`). Loaded by `GroqModuleServiceProvider` when broadcasting resolves |
+| `routes/console.php` | The `rooms:prune-messages` command and its every-minute schedule |
 
 All auth endpoints:
 
@@ -97,23 +112,25 @@ All auth endpoints:
 | `POST /api/auth/refresh` | refresh cookie | Rotate the refresh token and issue new tokens |
 | `POST /api/auth/logout` | refresh cookie | Revoke the session and clear the cookies |
 | `GET /api/auth/me` | `auth.jwt` | The current user |
-| `GET /api/auth/verify-email/{id}/{hash}` | signed link | Verify the email, then redirect to the frontend |
+| `GET /api/auth/verify-email/{id}/{hash}` | signed link | Verify the email, then redirect to the frontend. A bad or expired signature redirects to `{FRONTEND_URL}/verify-email?status=invalid\|expired` (handled in `bootstrap/app.php`) |
 | `POST /api/auth/resend-verification` | none | Resend the verification email |
 | `POST /api/auth/forgot-password` | none | Send a reset link (same response whether or not the account exists) |
 | `POST /api/auth/reset-password` | reset token | Set a new password and revoke all sessions |
-| `GET /api/auth/social/{google\|github}` | none | Start the OAuth login |
-| `GET /api/auth/social/{google\|github}/callback` | state cookie | Finish the OAuth login, then redirect to the frontend |
+| `GET /api/auth/social/{google\|github\|discord}` | none | Start the OAuth login |
+| `GET /api/auth/social/{google\|github\|discord}/callback` | state cookie | Finish the OAuth login, then redirect to the frontend |
 
 ## Config
 
 | File | Purpose |
 | --- | --- |
-| `.env.example` | SMTP mail placeholders, `FRONTEND_URL`, Google and GitHub OAuth variables, JWT settings |
+| `.env.example` | Every variable the app reads, with placeholders (see [Setup](#setup)) |
 | `config/jwt.php` | Signing secret, issuer, access lifetime (15 min), refresh lifetime (30 days), cookie names |
 | `config/cors.php` | CORS rules for the frontend |
-| `config/services.php` | Google and GitHub OAuth credentials, frontend URL |
+| `config/services.php` | Google, GitHub and Discord OAuth credentials, frontend URL, `tmdb`, `groq` (`key`, `watched_key`, `model`, `url`), `gemini`, `weatherapi`, `google_places`, `social_password` |
+| `config/mail.php` | Default mailer `brevo` (HTTP API) and `brevo-smtp` (SMTP relay) |
+| `config/broadcasting.php`, `config/reverb.php` | The Reverb connection, its public host/port/scheme for browsers, and the allowed origins (`REVERB_ALLOWED_ORIGINS`, default the `FRONTEND_URL` host) |
 | `phpunit.xml` | Test-only `JWT_SECRET` and `FRONTEND_URL` |
-| `app/Providers/AppServiceProvider.php` | Empty on purpose. Every module registers its own bindings, listeners and rate limiters in its own provider |
+| `app/Providers/AppServiceProvider.php` | Defines the `tmdb` limiter, and in the local environment starts Reverb automatically when `php artisan serve` runs. Module bindings, listeners and other limiters live in each module's provider |
 
 ## Setup
 
@@ -121,18 +138,22 @@ Copy `.env.example` to `.env` (it is gitignored) and set:
 
 | Variable | Notes |
 | --- | --- |
-| `DB_*` | Database connection (MySQL) |
+| `DB_*` | Database connection. `.env.example` defaults to SQLite (`database/database.sqlite`); the Docker image ships `pdo_mysql` for MySQL |
 | `JWT_SECRET` | Required, at least 32 characters. Generate one with `php -r "echo bin2hex(random_bytes(32));"`. Without it, login and register return a 500 |
 | `JWT_ACCESS_TTL`, `JWT_REFRESH_TTL_DAYS` | Token lifetimes, default 15 minutes and 30 days |
 | `FRONTEND_URL` | Where emails link to and where the social login redirects. Also the CORS origin |
-| `MAIL_*` | SMTP settings for the verification and reset emails. For local work, `MAIL_MAILER=log` writes emails to `storage/logs/laravel.log` instead of sending them |
-| `GOOGLE_*`, `GITHUB_*` | OAuth client id, secret and redirect URI. The redirect URI must match the callback route, for example `http://localhost:8000/api/auth/social/google/callback` |
-| `TMDB_API_KEY` | Needed by the Genre and Movie modules. `TMDB_URL` and `TMDB_IMAGE_URL` have defaults |
-| `GROQ_API_KEY` | Needed by weather mood and movie recommendations. `GROQ_MODEL` defaults to `openai/gpt-oss-20b`; `GROQ_API_URL` has a default |
+| `MAIL_MAILER`, `BREVO_API_KEY`, `MAIL_FROM_*` | The default mailer is `brevo` (Brevo's transactional HTTP API, `app/Auth/Mail/BrevoTransport.php`); the sender must be verified in Brevo. `MAIL_MAILER=brevo-smtp` uses `BREVO_SMTP_USERNAME`/`BREVO_SMTP_KEY` instead. For local work, `MAIL_MAILER=log` writes emails to `storage/logs/laravel.log` |
+| `GOOGLE_*`, `GITHUB_*`, `DISCORD_*` | OAuth client id, secret and redirect URI. The redirect URI must match the callback route, for example `http://localhost:8000/api/auth/social/google/callback` |
+| `SOCIAL_PLACEHOLDER_PASSWORD` | Optional shared password given to social sign-ups so Settings can let them set a first one (`app/Support/SocialPlaceholderPassword.php`). It is refused at login and as a new password. Empty = a random password per user |
+| `TMDB_API_KEY` | Needed by the Genre, Movie and Person modules. `TMDB_URL` and `TMDB_IMAGE_URL` have defaults |
+| `GROQ_API_KEY` | Needed by chat, weather mood, weather recommendations and review moderation/sentiment. `GROQ_MODEL` defaults to `openai/gpt-oss-20b`; `GROQ_API_URL` has a default |
+| `GROQ_API_KEY_2` | A second Groq account key, used only by the watched-history and favourite-people recommendations (`keyProfile: 'watched'`) |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Optional for the standalone Gemini client. `GEMINI_URL` has a default |
-| `OPEN_METEO_*` | Optional. The URL, default location and timezone have defaults in `config/services.php` |
+| `WEATHERAPI_KEY` | Needed by `/api/weather` and weather recommendations (WeatherAPI.com). `WEATHERAPI_URL`, `WEATHERAPI_DEFAULT_LATITUDE`/`_LONGITUDE` (Beirut) and `WEATHERAPI_TIMEZONE` (`Asia/Beirut`) have defaults |
+| `GOOGLE_PLACES_API_KEY` | Needed by `/api/nearby-cinemas` (Google Places API, new) |
+| `REVERB_*` | Socket server credentials (generate with `php artisan reverb:install`), `REVERB_PORT=18080`, and the optional `REVERB_PUBLIC_*` and `REVERB_ALLOWED_ORIGINS` |
 
-Then run `composer install`, `php artisan key:generate` and `php artisan migrate`.
+Then run `composer install`, `php artisan key:generate` and `php artisan migrate`. `composer run dev` is recommended locally (`PHP_CLI_SERVER_WORKERS=4`) so slow API calls don't block other pages; run `php artisan schedule:work` too for room message pruning.
 
 ## Rate limits
 
@@ -144,11 +165,16 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `auth-refresh` | `AuthModuleServiceProvider` | 30 | `POST /api/auth/refresh` |
 | `auth-verify-email` | `AuthModuleServiceProvider` | 20 | the verification link |
 | `auth-resend-verification`, `auth-forgot-password` | `AuthModuleServiceProvider` | 3 | the matching auth route |
-| `ai` | `GroqModuleServiceProvider` | 10 | `POST /api/weather-mood`, `GET /api/movie-recommendations` (both call paid AI APIs) |
+| `ai` | `GroqModuleServiceProvider` | 10 | `POST /api/weather-mood`, `GET /api/movie-recommendations`, `/api/watched-recommendations`, `/api/people-recommendations` (all call paid AI APIs) |
+| `chat` | `GroqModuleServiceProvider` | 10 (and 100 per hour) | `POST /api/chat/messages`, per signed-in user |
 | `weather` | `WeatherModuleServiceProvider` | 30 | `GET /api/weather` |
-| `tmdb` | `AppServiceProvider` | 60 | the five TMDB routes |
+| `tmdb` | `AppServiceProvider` | 60 | the eight TMDB routes (movies, trending, search, discover, movie details, person, collaborators, genres) |
+| `room-messages`, `room-reads`, `room-socket`, `room-invites` | `RoomModuleServiceProvider` | 30, 120, 60, 30 | the matching room routes, per signed-in user |
+| `notification-socket` | `NotificationModuleServiceProvider` | 30 | `POST /api/notifications/socket-auth`, per signed-in user |
 
-Each auth limiter is checked in two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket. The other limiters count per IP.
+Each auth limiter is checked in two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket. `ai`, `weather` and `tmdb` count per IP; the chat, room and notification limiters count per user (`bootstrap/app.php` runs `auth.jwt` before throttling so the user is known).
+
+A few routes still use plain `throttle:N,M`: `PUT /api/me/password` (6), `PUT /api/ratings/{tmdbId}` (60), `PUT /api/reviews/mine` (20), `POST /api/reviews/{review}/helpful` (60), `POST /api/reviews/{review}/report` (10), `/api/chat/connection` and `/api/chat/auth` (60), `/api/following-recommendations` and `/api/taste-profile` (60), `/api/nearby-cinemas` (30).
 
 The per-email bucket is shared across IPs, so someone who knows an email can block logins for that account for up to a minute. A captcha would remove that (see [Known follow-ups](#known-follow-ups)).
 
@@ -228,7 +254,8 @@ All in `app/Auth/Middleware/`.
 Each module keeps its Laravel form requests in a `FormRequests/` folder:
 
 - `app/Auth/FormRequests/`: `RegisterRequest`, `LoginRequest`, `ForgotPasswordRequest`, `ResetPasswordRequest`, `ResendVerificationRequest`.
-- `app/Movie/FormRequests/`: `MovieListRequest`, `MovieSearchRequest`, `MovieDiscoverRequest`.
+- `app/Movie/FormRequests/`: `MovieListRequest`, `MovieTrendingRequest`, `MovieSearchRequest`, `MovieDiscoverRequest`.
+- Every other module with input does the same (listed in each module's section below).
 
 A form request checks the incoming HTTP request before the controller runs, and turns it into a clean object for the service.
 
@@ -263,8 +290,10 @@ Do not confuse `FormRequests/` with `DTOs/Requests/`. The form request validates
 | `Listeners/SendEmailVerification.php` | Sends the verification link when a user registers. Registered in `AuthModuleServiceProvider` |
 | `Mail/VerifyEmailMail.php` | The verification email |
 | `Mail/ResetPasswordMail.php` | The password reset email |
-| `resources/views/mail/verify-email.blade.php` | Template for the verification email |
-| `resources/views/mail/reset-password.blade.php` | Template for the reset email |
+| `Mail/BrevoTransport.php` | The `brevo` mail transport (registered with `Mail::extend` in `AuthModuleServiceProvider`). Posts to `https://api.brevo.com/v3/smtp/email`; its errors never include the email body, links or key |
+| `resources/views/mail/layout.blade.php` | The shared WatchWise-branded HTML layout (images in `public/images/mail/`) |
+| `resources/views/mail/verify-email.blade.php`, `reset-password.blade.php` | HTML templates |
+| `resources/views/mail/text/*.blade.php` | Plain-text versions of both emails |
 
 Emails are sent directly, not queued, so no queue worker is needed. The work for an existing account (creating the token, hashing it, sending the mail) runs after the response is sent using `defer()`. This keeps the response time the same for known and unknown emails, and a broken mail server is logged without failing the request.
 
@@ -297,8 +326,8 @@ Most policies stay in `app/Policies/` because each belongs to the entity it prot
 
 | File | Purpose |
 | --- | --- |
-| `bootstrap/app.php` | Registers the API routes and the four middleware aliases |
-| `bootstrap/providers.php` | Registers `AppServiceProvider`, `AuthorizationServiceProvider` and the module service providers, including `GroqModuleServiceProvider` |
+| `bootstrap/app.php` | Registers the API and console routes, the four middleware aliases, runs `AuthenticateJwt` before `ThrottleRequests`, redirects bad verification links to the frontend, and renders JSON errors for every `api/*` request |
+| `bootstrap/providers.php` | Registers `AppServiceProvider`, `AuthorizationServiceProvider` and all 18 module service providers |
 
 ## Tests
 
@@ -306,6 +335,8 @@ Most policies stay in `app/Policies/` because each belongs to the entity it prot
 | --- | --- |
 | `tests/Feature/Auth/AuthenticationTest.php` | Register, login, refresh, logout, throttling |
 | `tests/Feature/Auth/AccountFlowsTest.php` | Email verification, password reset, social login |
+| `tests/Feature/Auth/BrevoVerificationTest.php` | The Brevo transport and the verification email end to end |
+| `tests/Feature/Auth/GooglePhotoTest.php` | Detecting Google's generated placeholder avatar |
 | `tests/Feature/Auth/MiddlewareTest.php` | The four middleware |
 | `tests/Feature/Auth/PolicyTest.php` | The policy rules, including messages |
 | `tests/Feature/Auth/Repository/` | Each repository against the database |
@@ -326,35 +357,62 @@ app/Genre/
   Providers/            GenreModuleServiceProvider (interface bindings)
 app/Movie/
   Controllers/          MovieController
-  FormRequests/         MovieListRequest, MovieSearchRequest, MovieDiscoverRequest
-  InterfaceServices/    MovieServiceInterface
-  Services/             MovieService
-  InterfaceRepository/  MovieRepositoryInterface
-  Repository/           MovieRepository
-  DTOs/Requests/        MovieListQuery, MovieSearchQuery, MovieDiscoverQuery
-  DTOs/Responses/       MovieResponse, MoviePageResponse, MovieDetailsResponse (+ CastMemberResponse, PersonResponse, TrailerResponse)
+  FormRequests/         MovieListRequest, MovieTrendingRequest, MovieSearchRequest, MovieDiscoverRequest
+  InterfaceServices/    MovieServiceInterface, MovieCatalogServiceInterface
+  Services/             MovieService (TMDB), MovieCatalogService (the local `movies` table)
+  InterfaceRepository/  MovieRepositoryInterface, MovieCatalogRepositoryInterface
+  Repository/           MovieRepository (TMDB), MovieCatalogRepository (Eloquent, `LocalMovie`)
+  DTOs/Requests/        MovieListQuery, MovieTrendingQuery, MovieSearchQuery, MovieDiscoverQuery, LocalMovieQuery, UpdateLocalMovieData
+  DTOs/Responses/       MovieResponse, MoviePageResponse, MovieDetailsResponse (+ CastMemberResponse, PersonResponse, TrailerResponse), CatalogSyncResponse
   Exceptions/           MovieNotFound (renders 404 "Movie not found.")
   Providers/            MovieModuleServiceProvider (interface bindings)
-app/Support/            Shared by both: TmdbHttpClient (adds the API key, timeout, wraps failures)
+app/Support/            Shared code: TmdbHttpClient (adds the API key, timeout, optional retry, wraps failures; getPool() runs up to 5 requests in parallel),
+                        MediaType (`movie`/`tv` and the frontend key "550" / "tv-1399"), LikePattern (escaped LIKE search), SocialPlaceholderPassword
   Exceptions/           TmdbUnavailable (renders a fixed 502 so TMDB's own error never reaches the client), TmdbNotFound (TMDB answered 404)
 ```
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/movies?list=&page=` | A page of `popular` (default), `top_rated`, `now_playing` or `upcoming` movies. `upcoming` holds films whose first release date is today in UTC or later, most popular first; Home filters out films already released on the viewer's local date |
-| `GET /api/movies/search?q=&page=&year=` | Search movies by title. `q` is required (max 100 characters) |
-| `GET /api/movies/discover` | Filtered browsing: `genres`, `year_from`, `year_to`, `min_rating` (0 to 5), `runtime_min`, `runtime_max`, `language`, `sort` (`popularity`, `rating`, `release_date`, `title`), `page` |
-| `GET /api/movies/{id}` | One movie with genres, US certification, runtime, original language, directors, top 12 cast, a YouTube trailer, budget, box office and 10 recommended movies (fetched in one TMDB call). Unknown ids return 404 |
+| `GET /api/movies?list=&page=&sort=&release_from=` | A page of `popular` (default), `top_rated`, `now_playing` or `upcoming` movies. `upcoming` uses TMDB Discover for films whose primary release date is `release_from` (default today in UTC) or later, sorted by `popularity` (default) or `release_date`; the frontend sends the viewer's first eligible local date so filtering happens before pagination. Upcoming and trending use a 20 s timeout with one retry |
+| `GET /api/movies/trending?type=movie\|tv` | TMDB's weekly trending titles, cached for an hour |
+| `GET /api/movies/search?q=&page=&year=&type=` | Search by title. `q` is required (max 100 characters). `type` is `movie` (default), `tv` or `all` (movies and shows merged by popularity, up to 10 pages) |
+| `GET /api/movies/discover` | Filtered browsing: `genres`, `tv_genres`, `year_from`, `year_to`, `min_rating` (0 to 5), `runtime_min`, `runtime_max`, `language`, `sort` (`popularity`, `rating`, `release_date`, `title`), `type` (`movie`, `tv`, `all`), `page` |
+| `GET /api/movies/{id}?type=tv` | One movie (or TV show with `type=tv`) with genres, certification, runtime, original language, directors, top 12 cast, a YouTube trailer, budget, box office and 10 related titles (fetched in one TMDB call). Unknown ids return 404 |
 | `GET /api/genres` | The movie genres (id and name), cached for a day |
 
-- All five are public. They share the `tmdb` rate limit: 60 requests per minute per IP (see [Rate limits](#rate-limits)), so one client cannot use up the TMDB quota.
-- Movie details are cached for 6 hours per movie (`tmdb.movie.{id}`); unknown movies and TMDB failures are not cached.
-- List pages are cached for an hour (`tmdb.list.{list}.{page}`); TMDB failures are not cached.
+- All are public. Together with the two Person routes they share the `tmdb` rate limit: 60 requests per minute per IP (see [Rate limits](#rate-limits)), so one client cannot use up the TMDB quota.
+- Movie details are cached for 6 hours per title; unknown titles and TMDB failures are not cached. `credits()` and `metadata()` (used by the recommendations and taste profile) fetch many titles' credits/genres at once through `getPool()` and cache each for 6 hours.
+- List pages are cached for an hour (`tmdb.list.{list}.{sort}.{release_from}.{page}`); TMDB failures are not cached.
+- **Local catalogue:** `MovieCatalogService::remember()` stores a film in the `movies` table (`LocalMovie`, with its first director) the first time someone rates or reviews it. Admins edit, hide or feature these rows (see [Admin module](#admin-module)); hidden films are left out of the app's own lists and stats. TV shows are never stored.
 - Movie lists are paginated with `page` from 1 to 500 and 20 movies per page. Responses include `page`, `total_pages` (capped at 500, TMDB's limit) and `total_results`. Genres are a short fixed list, so they are not paginated.
 - Ratings are converted from TMDB's 0 to 10 scale to 0 to 5. Adult content is always excluded.
 - Setup: set `TMDB_API_KEY` in `.env`. `TMDB_URL` and `TMDB_IMAGE_URL` have working defaults in `config/services.php`.
 - Routes are in `routes/api.php` and the config is the `tmdb` entry in `config/services.php`.
-- Tests: `tests/Feature/Movie/`, `tests/Feature/Genre/` and `tests/Feature/Support/` (the endpoints, repositories and `TmdbHttpClient`), and `tests/Unit/Movie/` and `tests/Unit/Genre/` (the services).
+- Tests: `tests/Feature/Movie/`, `tests/Feature/Genre/` and `tests/Feature/Support/` (the endpoints, repositories, catalogue and `TmdbHttpClient`), `tests/Feature/Social/TvShowsTest.php`, and `tests/Unit/Movie/` and `tests/Unit/Genre/` (the services).
+
+## Person module
+
+`app/Person/` is the person page (actor, director, writer…). Like Movie, its repository calls TMDB instead of the database.
+
+```
+app/Person/
+  Controllers/          PersonController (show, collaborators)
+  InterfaceServices/    PersonServiceInterface
+  Services/             PersonService
+  InterfaceRepository/  PersonRepositoryInterface
+  Repository/           PersonRepository (/person/{id}?append_to_response=movie_credits, /movie/{id}/credits)
+  DTOs/Responses/       PersonDetailsResponse, PersonCreditResponse, CollaboratorsResponse, CollaboratorResponse
+  Exceptions/           PersonNotFound (404)
+  Providers/            PersonModuleServiceProvider
+```
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/people/{id}` | Biography, birth/death, place of birth, department, photo, a "Known for" row (6 most-voted films) and the full filmography (one entry per film, newest first, with every role: `Actor`, `Director`, `Screenplay`…) |
+| `GET /api/people/{id}/collaborators` | The 3 people who share the most films (at least 2) with this person, counted over their 10 most-voted films' top 15 billed actors and key crew jobs. Each has their most frequent role and the shared film count |
+
+- Both are public, under the `tmdb` limiter, and cached for 6 hours (`tmdb.person.{id}`, `tmdb.person.{id}.collaborators`). A TMDB outage makes collaborators an empty list (not cached) rather than an error.
+- Tests: `tests/Feature/Person/`.
 
 ## MovieList and MovieNight modules
 
@@ -363,12 +421,12 @@ app/Support/            Shared by both: TmdbHttpClient (adds the API key, timeou
 ```
 app/MovieList/
   Controllers/          MovieListController
-  FormRequests/         MovieListIndexRequest, StoreMovieListRequest, UpdateMovieListRequest
+  FormRequests/         MovieListIndexRequest, StoreMovieListRequest, UpdateMovieListRequest, AddMovieListItemRequest, RemoveMovieListItemRequest
   InterfaceServices/    MovieListServiceInterface
   Services/             MovieListService (transactions)
   InterfaceRepository/  MovieListRepositoryInterface
   Repository/           MovieListRepository (scopes, search, syncing films)
-  DTOs/Requests/        MovieListSearchQuery, CreateMovieListData, UpdateMovieListData
+  DTOs/Requests/        MovieListSearchQuery, CreateMovieListData, UpdateMovieListData, ListFilmData
   Resources/            MovieListResource
   Policies/             MovieListPolicy, MovieListItemPolicy
   Providers/            MovieListModuleServiceProvider (interface bindings)
@@ -414,6 +472,58 @@ app/Watchlist/
 - `POST /api/watchlist` answers 201 for a new film and 200 when the film was already there.
 - Tests: `tests/Feature/Social/ContentTest.php` and `tests/Feature/Social/WatchlistRulesTest.php`.
 
+## Rating module
+
+`app/Rating/` is the Movie page's "Your rating". A rating is a `reviews` row without text (migration `2026_10_26_000001_allow_rating_only_reviews`), so a rating and a review of the same title share one row.
+
+```
+app/Rating/
+  Controllers/          RatingController (show, update)
+  FormRequests/         ShowRatingRequest, RateMovieRequest
+  InterfaceServices/    RatingServiceInterface
+  Services/             RatingService (also remembers the film in the local catalogue)
+  InterfaceRepository/  RatingRepositoryInterface
+  Repository/           RatingRepository (upsert on user_id, tmdb_id, media_type)
+  Providers/            RatingModuleServiceProvider
+```
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/ratings/{tmdbId}?type=movie\|tv` | `{rating}`, null when you haven't rated the title |
+| `PUT /api/ratings/{tmdbId}` | Body `rating` (1 to 5), `type` (default `movie`). A new rating-only row is approved straight away; an existing review keeps its text and moderation state |
+
+- Tests: `tests/Feature/Social/RatingTest.php`.
+
+## Review module
+
+`app/Review/` holds the Movie page's Reviews section and the review data the Admin module moderates. The `Review`, `ReviewVote` and `ReviewReport` models stay in `app/Models/`, and `ReviewPolicy` in `app/Policies/`.
+
+```
+app/Review/
+  Controllers/          MovieReviewController (index, save, destroy, helpful, unhelpful, report)
+  FormRequests/         MovieReviewIndexRequest, SaveReviewRequest, MyReviewRequest, ReportReviewRequest
+  DTOs/Requests/        MovieReviewQuery (sorts, 10 per page), SaveReviewData (max 2000 characters), ReportReviewData
+  DTOs/Responses/       MovieReviewResponse, ReportReviewResponse
+  InterfaceServices/    MovieReviewServiceInterface (the page), ReviewServiceInterface (admin queue), ReviewModerationServiceInterface
+  Services/             MovieReviewService, ReviewService, ReviewModerationService (Groq labels), SentimentClassifier (Groq sentiment)
+  InterfaceRepository/  MovieReviewRepositoryInterface, ReviewRepositoryInterface
+  Repository/           MovieReviewRepository, ReviewRepository
+  Providers/            ReviewModuleServiceProvider
+```
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/reviews?tmdb_id=&type=&sort=helpful\|newest\|highest\|lowest&page=` | `summary` (average, counts, star distribution and sentiment split as percentages), `mine`, a page of `reviews` and `has_more` |
+| `PUT /api/reviews/mine` | Write or rewrite your review: `tmdb_id`, `type`, `content` (not blank, max 2000), `rating` 1 to 5, `has_spoilers` |
+| `DELETE /api/reviews/mine?tmdb_id=&type=` | Remove the text; the star rating stays |
+| `POST`, `DELETE /api/reviews/{review}/helpful` | Mark or unmark a review helpful; returns the `helpful` count. Not your own review, and only approved text reviews whose author's privacy shows them to you |
+| `POST /api/reviews/{review}/report` | Report with a `reason` (see [Admin module](#admin-module)) |
+
+- **Moderation on save:** `ReviewModerationService` asks Groq (strict JSON schema) for the labels `offensive language`, `spoiler` and `spam`. No labels means the review is approved at once; any label sends it to the admin queue as pending. If Groq fails, the labels are null and the review waits for a moderator. `has_spoilers` is set when the author ticks it or Groq finds a spoiler.
+- **Sentiment:** `SentimentClassifier` asks Groq for positive/neutral/negative and falls back to the star rating (4 to 5 positive, 3 neutral, 1 to 2 negative).
+- Saving a movie review also remembers the film in the local catalogue. Marking helpful sends a `review_helpful` notification; taking it back removes it.
+- Tests: `tests/Feature/Social/MovieReviewsTest.php`, `tests/Feature/Review/ReviewReportTest.php` and `tests/Feature/Admin/AdminReviewsTest.php`.
+
 ## User module
 
 `app/User/` holds everything about the person behind the account, in the same layers as Auth: their own account (`/api/me`), public profiles and following (`/api/users`) and the Home page (`/api/home`). The `User`, `UserPreference` and `Follow` models stay in `app/Models/`. Sign-in, registration and tokens stay in the Auth module.
@@ -434,9 +544,10 @@ app/User/
   Providers/            UserModuleServiceProvider (interface bindings)
 ```
 
-- The routes did not change (`routes/social.php`).
+- Routes are in `routes/social.php`: `/api/home`; `/api/me` (show, update, delete), `/me/preferences`, `/me/password` (revokes the other devices' sessions), `/me/avatar` (upload/delete, public disk), `/me/social/{google|github|discord}` (disconnect), `/me/follow-requests/{username}` (accept/decline); `/api/users` (search) and `/api/users/{username}` with `followers`, `following` and `follow`/unfollow.
 - `ProfilePrivacy` decides what a viewer may see of a profile.
-- Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php` and `AccountRulesTest.php`.
+- `/api/home` returns the 3 busiest rooms, your next movie night (accepted guests and the leading vote) and `activity`: the 8 newest items from people you follow (reviews, ratings, public lists, watched titles and watchlist additions), each kind filtered by that person's privacy switches. Spoiler reviews have no excerpt.
+- Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php`, `AccountRulesTest.php`, `PlaceholderPasswordTest.php` and `tests/Feature/User/HomeActivityTest.php`.
 
 ## Room module
 
@@ -585,9 +696,9 @@ An admin cannot demote, deactivate or delete themselves (`CannotModerateSelf`). 
 
 - the notifications API (`/api/notifications`) and the `Notifier` that created notifications when someone followed, invited, voted or mentioned another user, since rebuilt as the [Notification module](#notification-module);
 - the old discussion rooms API (`/api/rooms`), since rebuilt as the [Room module](#room-module);
-- the activity feed (`ActivityFeedService`), so `/api/home` no longer returns `activity` and `/api/users/{username}` no longer returns `activity` or the `reviews` list (the `counts.reviews` number is still there).
+- the activity feed (`ActivityFeedService`), so `/api/users/{username}` no longer returns `activity` or the `reviews` list (the `counts.reviews` number is still there). `/api/home`'s `activity` has since been rebuilt from the reviews, lists and watchlist tables (see [User module](#user-module)); the old `activity_feed` table is unused.
 
-The database tables, models and policies for notifications, rooms, messages, reviews and the activity feed are still in place (`app/Models/`, `app/Policies/`, the migrations), so no data was dropped. `/api/home` still returns the busiest rooms and the next movie night.
+The database tables, models and policies for notifications, rooms, messages, reviews and the activity feed are still in place (`app/Models/`, `app/Policies/`, the migrations), so no data was dropped.
 
 ## Gemini module
 
@@ -598,7 +709,7 @@ app/Gemini/
   InterfaceServices/  GeminiServiceInterface   ask(string $prompt): array
   Services/           GeminiService            sends the prompt, asks for JSON and returns it as an array
   Exceptions/         GeminiUnavailable        thrown on any failure
-  Providers/          GeminiModuleServiceProvider (binding and the `ai` rate limiter)
+  Providers/          GeminiModuleServiceProvider (binding only)
 ```
 
 - Setup: set `GEMINI_API_KEY` and `GEMINI_MODEL` in `.env`. `GEMINI_URL` has a default in `config/services.php`. The key is sent in a header, not in the URL.
@@ -611,14 +722,29 @@ The chatbot extends this module. `GET /api/chat/connection` returns public socke
 
 After installing Composer dependencies, run `php artisan reverb:install --no-interaction` once to generate local Reverb credentials. In the local environment, `php artisan serve` starts Reverb automatically on port `18080` and stops it when the API server exits. Existing local `.env` files should set `REVERB_PORT=18080`; if `REVERB_SERVER_PORT` is set, update that to `18080` too. The browser reads connection settings from the API, so it does not need a copy of the socket key in its own environment file. In production, run Reverb as its own managed process, configure `REVERB_PUBLIC_HOST`, `REVERB_PUBLIC_PORT`, `REVERB_PUBLIC_SCHEME` and the allowed frontend hostname, and proxy secure WebSocket traffic to Reverb. The existing `GROQ_API_KEY` and `GROQ_MODEL` are reused.
 
-`app/Groq/` contains the Groq chat-completions client used by Weather mood and movie recommendations. It sends the API key as a Bearer token and supports strict JSON Schema responses through `GroqStructuredOutputInterface`; the simpler `GroqServiceInterface` uses the weather mood schema.
+`app/Groq/` contains the Groq chat-completions client used by the chatbot, weather mood, recommendations and review moderation/sentiment. One `GroqService` implements three interfaces: `GroqServiceInterface::ask()` (the weather mood schema), `GroqStructuredOutputInterface::askWithSchema()` (strict JSON Schema responses, `reasoning_effort: low`) and `GroqChatServiceInterface::streamChat()` (server-sent events, 60 s and 8000-character reply limits). It sends the API key as a Bearer token.
+
+```
+app/Groq/
+  Controllers/          ChatController (store), ChatSocketController (show = public socket settings, store = channel auth)
+  FormRequests/         ChatMessageRequest (history must be completed user/assistant turns in order), ChatSocketRequest
+  DTOs/Requests/        ChatMessageData (message, history and length limits)
+  DTOs/Responses/       ChatResponse
+  InterfaceServices/    GroqServiceInterface, GroqStructuredOutputInterface, GroqChatServiceInterface, ChatServiceInterface
+  Services/             GroqService (HTTP client), ChatService (system prompt, batches deltas every 64 characters or 80 ms)
+  Events/               ChatDelta (`chat.delta` on `chat.{userId}.{conversationId}`, broadcast now)
+  Exceptions/           GroqUnavailable, ChatUnavailable
+  Providers/            GroqModuleServiceProvider (bindings, the `ai` and `chat` limiters, loads routes/channels.php)
+```
 
 - Setup: set `GROQ_API_KEY` in `.env`. `GROQ_MODEL` defaults to `openai/gpt-oss-20b` and `GROQ_API_URL` defaults to `https://api.groq.com/openai/v1`.
+- **Key profiles:** `askWithSchema(..., keyProfile: 'watched')` uses `GROQ_API_KEY_2` with a longer connect timeout and one retry; everything else uses `'default'` (`GROQ_API_KEY`). This keeps the heavy watched-history calls on a separate Groq quota.
 - `GroqUnavailable` contains only a short failure reason; the provider response body is never returned to clients.
+- Tests: `tests/Feature/Groq/ChatTest.php`, `GroqKeyTest.php`.
 
 ## Weather module
 
-`app/Weather/` reads the current weather from Open-Meteo and turns it into a movie mood.
+`app/Weather/` reads the current weather from WeatherAPI.com and turns it into a movie mood.
 
 ```
 app/Weather/
@@ -627,9 +753,9 @@ app/Weather/
   InterfaceServices/    WeatherServiceInterface, WeatherMoodServiceInterface
   Services/             WeatherService, WeatherMoodService (builds the Groq prompt)
   InterfaceRepository/  WeatherRepositoryInterface
-  Repository/           WeatherRepository (the only code that calls Open-Meteo)
+  Repository/           WeatherRepository (the only code that calls WeatherAPI.com)
   DTOs/Requests/        WeatherQuery, WeatherMoodQuery
-  DTOs/Responses/       WeatherResponse, WeatherMoodResponse
+  DTOs/Responses/       WeatherResponse, CurrentWeatherResponse (maps WeatherAPI.com to the fields below), WeatherMoodResponse
   Exceptions/           WeatherUnavailable, WeatherMoodUnavailable (fixed 502 responses)
   Providers/            WeatherModuleServiceProvider (bindings and the `weather` limiter)
 ```
@@ -639,28 +765,63 @@ app/Weather/
 | `GET /api/weather?latitude=&longitude=` | Current weather. Both coordinates are optional, but if one is sent the other is required. Without them, the default location (Beirut) is used and the response says `is_default: true` |
 | `POST /api/weather-mood` | Body: `condition`, `temperature`, `humidity`, `wind`, `precipitation`. Returns `{"title": "WEATHER MOOD", "mood", "description"}` generated by Groq's `openai/gpt-oss-20b` model |
 
-Setup: the Open-Meteo URL, default location and timezone have defaults in `config/services.php` and can be overridden with the `OPEN_METEO_*` variables.
+- `current` keeps the field names of the earlier Open-Meteo version (`time`, `temperature_2m`, `relative_humidity_2m`, `apparent_temperature`, `precipitation`, `weather_code`, `wind_speed_10m`) so the frontend and recommendations did not change. `CurrentWeatherResponse` translates WeatherAPI.com condition codes to WMO weather codes, and gives `time` in `WEATHERAPI_TIMEZONE`.
+- Setup: set `WEATHERAPI_KEY`. The URL, default location and timezone have defaults in `config/services.php` (`weatherapi`). A missing key or failed request throws `WeatherUnavailable`; failures are logged to `stderr` (visible in Render's logs) without the URL, coordinates, key or body.
+- Tests: `tests/Feature/Weather/` and `tests/Unit/Weather/`.
 
 ## MovieRecommendation module
 
-`app/MovieRecommendation/` retrieves real TMDB candidates in weather-appropriate genres, then asks Groq to select up to 10 that fit the current weather.
+`app/MovieRecommendation/` builds the recommendation shelves and the taste profile. Every AI shelf follows the same rule: real TMDB candidates are gathered first, Groq (strict JSON schema) may only pick candidate ids and add a reason, and unknown ids are discarded.
 
 ```
 app/MovieRecommendation/
-  Controllers/          RecommendationController (index)
+  Controllers/          RecommendationController (index, watched, people, following, taste)
   FormRequests/         RecommendationRequest
-  InterfaceServices/    RecommendationServiceInterface
-  Services/             RecommendationService (weather description, TMDB candidates, Groq selection)
+  InterfaceServices/    RecommendationServiceInterface, FollowingRecommendationServiceInterface, TasteProfileServiceInterface
+  Services/             RecommendationService (weather + watched), PeopleRecommendationService, FollowingRecommendationService, TasteProfileService
+  InterfaceRepository/  FollowingRecommendationRepositoryInterface, TasteProfileRepositoryInterface
+  Repository/           FollowingRecommendationRepository, TasteProfileRepository
+  Support/              WatchedPeople (most-watched director and actor, shared by the taste profile and the people shelf)
   DTOs/Requests/        RecommendationQuery
-  DTOs/Responses/       RecommendationResponse
+  DTOs/Responses/       RecommendationResponse, TasteProfileResponse
   Exceptions/           RecommendationUnavailable (fixed 502 responses)
   Providers/            MovieRecommendationModuleServiceProvider
 ```
 
-- `GET /api/movie-recommendations?latitude=&longitude=` returns up to 10 TMDB movie records with `id`, title, poster, rating, release date and a recommendation reason. The coordinates are validated like `/api/weather` and optional.
-- It reuses `WeatherServiceInterface` for the weather, `MovieServiceInterface` for TMDB candidates and `GroqStructuredOutputInterface` for candidate selection. Groq can only select candidate IDs; unknown IDs are discarded. It has no HTTP code of its own.
+| Endpoint | Auth, limiter | Returns |
+| --- | --- | --- |
+| `GET /api/movie-recommendations?latitude=&longitude=` | public, `ai` | Up to 10 movies that fit the current weather. Candidates come from TMDB Discover in weather-appropriate genres (by WMO weather code); coordinates are optional and validated like `/api/weather` |
+| `GET /api/watched-recommendations` | `auth.jwt`, `ai` | `source` (a random title from your watch history) and 6 similar movies/shows from its TMDB "similar" list plus Discover in the same genres (TV and movie genres translated both ways), excluding what you've watched. Uses the `watched` Groq key; cached for an hour per user and watch-history fingerprint |
+| `GET /api/people-recommendations` | `auth.jwt`, `ai` | Your most-watched `director` and `actor` and 6 unwatched, released films from their filmographies. Same key and caching as above |
+| `GET /api/following-recommendations` | `auth.jwt`, `throttle:60,1` | Up to 6 titles that people you follow rated 5 stars, most raters first, excluding what you've watched. No AI. Re-checks follows, privacy (`ratings` switch, visibility), activity and moderation on every request, so it is never cached |
+| `GET /api/taste-profile` | `auth.jwt`, `throttle:60,1` | Watched movie/show counts, 5-star rating count, following count, top 3 genres with percentages, and the most-watched director and actor |
+
+- An empty watch history returns empty shelves rather than an error.
 - Errors are fixed messages: `{"error": "Could not get the weather"}` or `{"error": "Could not generate recommendations"}`, both with status 502. The real failure is logged.
-- The `ai` rate limiter applies (10 a minute per IP).
+- Tests: `tests/Feature/MovieRecommendation/` and `tests/Unit/MovieRecommendation/`.
+
+## Cinema module
+
+`app/Cinema/` finds cinemas near the viewer with the Google Places API (new).
+
+```
+app/Cinema/
+  Controllers/          NearbyCinemaController (index)
+  FormRequests/         NearbyCinemasRequest (latitude and longitude required)
+  InterfaceServices/    CinemaServiceInterface
+  Services/             CinemaService (calls places:searchNearby, computes the distance)
+  DTOs/Requests/        NearbyCinemasQuery
+  DTOs/Responses/       CinemaResponse (id, name, address, latitude, longitude, distance_meters, website)
+  Exceptions/           CinemaSearchUnavailable (503 when not configured or unreachable, 502 for a bad answer)
+  Providers/            CinemaModuleServiceProvider
+```
+
+- `GET /api/nearby-cinemas?latitude=&longitude=` is public with `throttle:30,1`. It returns up to 20 `movie_theater` places within 30 km, nearest first.
+- Setup: `GOOGLE_PLACES_API_KEY`. The key is sent as the `X-Goog-Api-Key` header with a field mask, so only the fields above are billed.
+
+## Health module
+
+`app/Health/` has a single invokable `HealthController`: `GET /api/health` returns `{"status": "ok"}` with `Cache-Control: no-store`, for uptime checks (Render). Laravel's own `/up` page is also enabled in `bootstrap/app.php`. Tests: `tests/Feature/Health/HealthTest.php`.
 
 ## API documentation (Swagger UI)
 
@@ -675,7 +836,7 @@ How it is built (no extra package is needed):
 | Part | What it does |
 | --- | --- |
 | `openapi/base.json` | The title, security schemes (the `access_token` cookie and a Bearer token) and shared schemas |
-| `openapi/paths/*.json` | One file per module: `auth.json`, `tmdb.json`, `weather.json`, `recommendations.json` |
+| `openapi/paths/*.json` | One file per area: `admin`, `auth`, `chat`, `cinemas`, `health`, `notifications`, `recommendations`, `rooms`, `social`, `tmdb`, `weather` |
 | `app/Docs/Services/OpenApiSpec.php` | Merges those files into one OpenAPI 3 document and fails on a duplicate path |
 | `app/Docs/Controllers/DocumentationController.php` | Serves the page (`/api/documentation`) and the spec (`/api/documentation/openapi.json`) |
 | `resources/views/docs/swagger.blade.php` | The page. Swagger UI 5.17.14 is loaded from a CDN |
@@ -683,7 +844,22 @@ How it is built (no extra package is needed):
 
 - The page and the spec only work when `APP_ENV` is `local` (or `testing`). In any other environment they return 404.
 - When you add an endpoint, add it to the matching `openapi/paths/*.json` file. The coverage test fails until you do.
-- Some endpoints need keys in `.env` to work for real: `TMDB_API_KEY` for the movie endpoints, `GROQ_API_KEY` for weather mood and movie recommendations, and SMTP or `MAIL_MAILER=log` for the account emails (with `log`, the verification link is in `storage/logs/laravel.log`).
+- Some endpoints need keys in `.env` to work for real: `TMDB_API_KEY` for the movie and person endpoints, `GROQ_API_KEY` (and `GROQ_API_KEY_2`) for chat, weather mood and recommendations, `WEATHERAPI_KEY` for weather, `GOOGLE_PLACES_API_KEY` for nearby cinemas, and `BREVO_API_KEY` or `MAIL_MAILER=log` for the account emails (with `log`, the verification link is in `storage/logs/laravel.log`).
+
+## Deployment (Docker / Render)
+
+The backend is deployed to Render from `backend/Dockerfile` (`php:8.4-apache-bookworm`, extensions `bcmath intl mbstring opcache pcntl pdo_mysql zip`, port `10000`, `APP_ENV=production`, logs to `stderr`).
+
+| File | Purpose |
+| --- | --- |
+| `Dockerfile` | Installs Composer dependencies without dev packages, copies the app and the files below, prepares `storage/` and `bootstrap/cache` |
+| `docker/start.sh` | Fails without `APP_KEY`, points Reverb at `127.0.0.1:18080`, sets `REVERB_PUBLIC_*` from `RENDER_EXTERNAL_HOSTNAME` (port 443, https), caches config/routes/views, links storage, then starts supervisord |
+| `docker/supervisord.conf` | Runs two processes: `reverb:start` (private, port 18080) and Apache |
+| `docker/apache.conf` | Serves `public/` and proxies WebSocket traffic on `/app/` to Reverb, so the API and sockets share one public port |
+
+- Migrations are not run by the container; run `php artisan migrate --force` against the production database yourself.
+- The scheduler (`rooms:prune-messages`) is not started by the container either. Opening a room still cleans up its own expired messages, but a cron or worker calling `schedule:run` is needed for full pruning.
+- The frontend (Vercel) calls the API through a same-origin proxy (see the frontend config).
 
 ## Security notes
 
@@ -699,6 +875,12 @@ How it is built (no extra package is needed):
 - The real SMTP delivery and the Google and GitHub logins have only been tested with fakes and mocks.
 - `MovieNightPolicy` runs a database query (`invites()->exists()`) inside the policy. Leave it until the movie night feature exists, then move that check into a repository.
 - `MessagePolicy::view` follows the room: any logged-in user can read a public room's messages, only members and invitees a private room's.
+- A few places do not follow the module rules in `CLAUDE.md` yet:
+  - `PeopleRecommendationService` has no interface and is injected as a concrete class; it and `RecommendationService` use other modules' repositories (`WatchlistRepositoryInterface`, `PersonRepositoryInterface`) instead of their service interfaces.
+  - `CinemaService` calls Google Places with `Http::` directly instead of through a repository.
+  - `MovieController::show` reads `type` from the raw `Request` instead of a FormRequest.
+  - `PeopleRecommendationService` builds poster URLs with a hard-coded `https://image.tmdb.org/t/p` instead of `TMDB_IMAGE_URL`.
+- `config/services.php` still has unused `postmark`, `resend`, `ses` and `slack` entries from the Laravel skeleton.
 
 ## Adding a new entity
 
