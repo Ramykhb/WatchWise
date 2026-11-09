@@ -23,7 +23,16 @@ const publicAuthEndpoints = [
 ]
 const guestRoutes = ['/', '/signin', '/signup', '/forgot-password', '/auth/callback', '/verify-email']
 export const SESSION_EXPIRED_EVENT = 'watchwise:session-expired'
+/** Fired when the API refuses a request because the signed-in account's email is not verified yet. */
+export const EMAIL_UNVERIFIED_EVENT = 'watchwise:email-unverified'
 export const SESSION_REQUEST_TIMEOUT = 10_000
+
+/** True for the API's 403 `{ code: 'email_unverified' }`: the account must verify its email before using the app. */
+export function isEmailUnverified(error: unknown): boolean {
+  return axios.isAxiosError(error)
+    && error.response?.status === 403
+    && (error.response.data as { code?: string } | undefined)?.code === 'email_unverified'
+}
 
 function shouldSkipRefresh(url?: string): boolean {
   if (!url) return false
@@ -68,8 +77,10 @@ api.interceptors.response.use(undefined, async (error: AxiosError) => {
   const config = error.config as RetryableRequestConfig | undefined
   const status = error.response?.status
 
-  // Verification failures are authorization decisions; refreshing cannot verify an email.
-  if (status === 403 && (error.response?.data as { code?: string } | undefined)?.code === 'email_unverified') {
+  // Verification failures are authorization decisions; refreshing cannot verify an email. The auth state
+  // was stale (e.g. the account changed in another tab), so tell it; the route guard then shows Verify email.
+  if (isEmailUnverified(error)) {
+    window.dispatchEvent(new Event(EMAIL_UNVERIFIED_EVENT))
     return Promise.reject(error)
   }
 
