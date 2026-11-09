@@ -97,9 +97,9 @@ app/Auth/
 
 | File | Purpose |
 | --- | --- |
-| `routes/api.php` | `/api/health`, `/api/auth` register, login, refresh, logout and `me`, with rate limits. It also holds the public routes of the other modules (TMDB movies/people/genres, weather, weather mood, movie recommendations, nearby cinemas, documentation), `require`s the three files below, and holds the one `['auth.jwt', 'verified.email']` group that wraps `social.php`, `admin.php`, `/api/chat/*`, `/api/watched-recommendations`, `/api/people-recommendations`, `/api/following-recommendations` and `/api/taste-profile` |
+| `routes/api.php` | `/api/health`, `/api/auth` register, login, refresh, logout and `me`, with rate limits. It also holds the public routes of the other modules (TMDB movies/people/genres, weather, weather mood, movie recommendations, nearby cinemas, documentation), `require`s the three files below, holds the signed `GET /api/me/email/confirm/{id}/{hash}` link (outside the verified group, because it must work without a session), and holds the one `['auth.jwt', 'verified.email']` group that wraps `social.php`, `admin.php`, `/api/chat/*`, `/api/watched-recommendations`, `/api/people-recommendations`, `/api/following-recommendations` and `/api/taste-profile` |
 | `routes/auth_flows.php` | Email verification, password reset and Google/GitHub/Discord login routes |
-| `routes/social.php` | Loaded inside the verified group: home, `/me`, users and following, lists, watchlist, ratings, reviews, movie nights, rooms (with `rooms/socket-auth`), notifications (with `notifications/socket-auth`) |
+| `routes/social.php` | Loaded inside the verified group: home, `/me` (including `/me/email`), users and following, lists, watchlist, ratings, reviews, movie nights, rooms (with `rooms/socket-auth`), notifications (with `notifications/socket-auth`) |
 | `routes/admin.php` | `/api/admin/*`, loaded inside the verified group and adding `role:admin` or `role:admin,moderator` (see [Admin module](#admin-module)) |
 | `routes/channels.php` | Reverb private-channel rules (`chat.*`, `room.*`, `rooms.*`, `notifications.*`). Loaded by `GroqModuleServiceProvider` when broadcasting resolves |
 | `routes/console.php` | The `rooms:prune-messages` command and its every-minute schedule |
@@ -168,6 +168,8 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `auth-resend-verification`, `auth-forgot-password` | `AuthModuleServiceProvider` | 3 | the matching auth route |
 | `ai` | `GroqModuleServiceProvider` | 10 | `POST /api/weather-mood`, `GET /api/movie-recommendations`, `/api/watched-recommendations`, `/api/people-recommendations` (all call paid AI APIs) |
 | `chat` | `GroqModuleServiceProvider` | 10 (and 100 per hour) | `POST /api/chat/messages`, per signed-in user |
+| `me-email-change` | `UserModuleServiceProvider` | 3 (and 10 per hour), per account | `PUT /api/me/email`, `POST /api/me/email/resend` |
+| `me-email-confirm` | `UserModuleServiceProvider` | 20 | the email change confirmation link |
 | `weather` | `WeatherModuleServiceProvider` | 30 | `GET /api/weather` |
 | `tmdb` | `AppServiceProvider` | 60 | the eight TMDB routes (movies, trending, search, discover, movie details, person, collaborators, genres) |
 | `room-messages`, `room-reads`, `room-socket`, `room-invites` | `RoomModuleServiceProvider` | 30, 120, 60, 30 | the matching room routes, per signed-in user |
@@ -297,6 +299,7 @@ Do not confuse `FormRequests/` with `DTOs/Requests/`. The form request validates
 | `resources/views/mail/layout.blade.php` | The shared WatchWise-branded HTML layout (images in `public/images/mail/`) |
 | `resources/views/mail/verify-email.blade.php`, `reset-password.blade.php` | HTML templates |
 | `resources/views/mail/text/*.blade.php` | Plain-text versions of both emails |
+| `app/User/Mail/*`, `resources/views/mail/confirm-email-change`, `email-change-requested`, `email-changed` | The email change emails (User module), on the same layout, with plain-text versions in `resources/views/mail/text/` |
 
 Emails are sent directly, not queued, so no queue worker is needed. The work for an existing account (creating the token, hashing it, sending the mail) runs after the response is sent using `defer()`. This keeps the response time the same for known and unknown emails, and a broken mail server is logged without failing the request.
 
@@ -534,23 +537,41 @@ app/Review/
 ```
 app/User/
   Controllers/          UserController (account under /me, profiles and following under /users, and /home)
-  FormRequests/         UpdateProfileRequest, UpdatePreferencesRequest, UpdatePasswordRequest, UploadAvatarRequest, DeleteAccountRequest, UserSearchRequest
-  InterfaceServices/    AccountServiceInterface, ProfileServiceInterface, HomeServiceInterface
-  Services/             AccountService (settings, password, avatar, delete), ProfileService (search, profile page, follow), HomeService, ProfilePrivacy (what a viewer may see of a profile)
+  FormRequests/         UpdateProfileRequest, UpdatePreferencesRequest, UpdatePasswordRequest, UploadAvatarRequest, DeleteAccountRequest, UserSearchRequest, RequestEmailChangeRequest
+  InterfaceServices/    AccountServiceInterface, ProfileServiceInterface, HomeServiceInterface, EmailChangeServiceInterface
+  Services/             AccountService (settings, password, avatar, delete), ProfileService (search, profile page, follow), HomeService, ProfilePrivacy (what a viewer may see of a profile), EmailChangeService (pending email, confirmation link, notices)
   InterfaceRepository/  AccountRepositoryInterface, ProfileRepositoryInterface, HomeRepositoryInterface
   Repository/           AccountRepository, ProfileRepository, HomeRepository
-  DTOs/Requests/        UpdateProfileData, UpdatePreferencesData, ChangePasswordData, DeleteAccountData, UserSearchQuery
-  DTOs/Responses/       AccountResponse, ProfileResponse, UserSearchResponse, FollowResponse, HomeResponse
+  DTOs/Requests/        UpdateProfileData, UpdatePreferencesData, ChangePasswordData, DeleteAccountData, UserSearchQuery, RequestEmailChangeData, ConfirmEmailChangeData
+  DTOs/Responses/       AccountResponse, ProfileResponse, UserSearchResponse, FollowResponse, HomeResponse, EmailChangeOutcome (enum: success, invalid, expired, taken)
   Resources/            MemberResource (the small public card of a user, used by many modules)
-  Exceptions/           IncorrectPassword (422 on the wrong field), ProfileSectionHidden (403)
+  Exceptions/           IncorrectPassword (422 on the wrong field), ProfileSectionHidden (403), NoPendingEmailChange (422)
+  Mail/                 ConfirmEmailChangeMail, EmailChangeRequestedMail, EmailChangedMail
   Policies/             UserPolicy, UserPreferencePolicy
-  Providers/            UserModuleServiceProvider (interface bindings)
+  Providers/            UserModuleServiceProvider (interface bindings, the me-email-change and me-email-confirm rate limiters)
 ```
 
-- Routes are in `routes/social.php`: `/api/home`; `/api/me` (show, update, delete), `/me/preferences`, `/me/password` (revokes the other devices' sessions), `/me/avatar` (upload/delete, public disk), `/me/social/{google|github|discord}` (disconnect), `/me/follow-requests/{username}` (accept/decline); `/api/users` (search) and `/api/users/{username}` with `followers`, `following` and `follow`/unfollow.
+- Routes are in `routes/social.php`: `/api/home`; `/api/me` (show, update, delete), `/me/preferences`, `/me/password` (revokes the other devices' sessions), `/me/avatar` (upload/delete, public disk), `/me/social/{google|github|discord}` (disconnect), `/me/follow-requests/{username}` (accept/decline), `/me/email` (see below); `/api/users` (search) and `/api/users/{username}` with `followers`, `following` and `follow`/unfollow.
 - `ProfilePrivacy` decides what a viewer may see of a profile.
 - `/api/home` returns the 3 busiest rooms, your next movie night (accepted guests and the leading vote) and `activity`: the 8 newest items from people you follow (reviews, ratings, public lists, watched titles and watchlist additions), each kind filtered by that person's privacy switches. Spoiler reviews have no excerpt.
-- Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php`, `AccountRulesTest.php`, `PlaceholderPasswordTest.php` and `tests/Feature/User/HomeActivityTest.php`.
+- Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php`, `AccountRulesTest.php`, `PlaceholderPasswordTest.php` and `tests/Feature/User/HomeActivityTest.php` and `EmailChangeTest.php`.
+
+### Changing the sign-in email
+
+`PATCH /api/me` does not change the email: it accepts `email` only when it equals the current one (forms send the whole profile) and rejects a different one with 422. The flow is:
+
+| Method and path | Auth | Purpose |
+| --- | --- | --- |
+| `PUT /api/me/email` | `auth.jwt` + `verified.email`, `throttle:me-email-change` | `email` + `current_password`. Stores the address in `users.pending_email`, mails a signed 60-minute link to it (`ConfirmEmailChangeMail`) and warns the current address (`EmailChangeRequestedMail`, new address masked as `j***@example.com`). `email` and `email_verified_at` are untouched |
+| `POST /api/me/email/resend` | `auth.jwt` + `verified.email`, `throttle:me-email-change` | A fresh link to the pending address (422 `NoPendingEmailChange` when there is none) |
+| `DELETE /api/me/email` | `auth.jwt` + `verified.email` | Clears the pending address |
+| `GET /api/me/email/confirm/{id}/{hash}` (`me.email.confirm`) | signed link (no login; declared in `routes/api.php` outside the verified group), `throttle:me-email-confirm` | Swaps `email = pending_email`, sets `email_verified_at = now()`, clears `pending_email`, revokes every refresh token through `AuthServiceInterface::revokeSessions()` and mails the old address (`EmailChangedMail`). Redirects to `FRONTEND_URL/edit-profile?email_change=success\|invalid\|expired\|taken` |
+
+- `current_password` is required unless the account still has the social placeholder password (`has_password: false`); the link to the new address is required for everyone.
+- The new address must differ from the current one and must not be any account's `email`. It is checked again when the link is opened; if someone took it meanwhile, the pending change is dropped and the redirect says `taken`.
+- The link's `hash` is `sha1(pending_email)`, so replacing or cancelling the request makes earlier links `invalid`. Expired or tampered signatures get the same redirect from `bootstrap/app.php`.
+- `GET /api/me` (`AccountResponse`) has a top-level `pending_email` (null when nothing is pending). The column is in the `User` model's `$hidden`.
+- Emails are sent with `defer()` + `rescue()`, like the Auth emails.
 
 ## Room module
 
@@ -871,6 +892,7 @@ The backend is deployed to Render from `backend/Dockerfile` (`php:8.4-apache-boo
 - Social login refuses emails the provider has not verified. If an unverified local account already uses that email, its password is replaced and its sessions are revoked, so a pre-registered account cannot be taken over.
 - That takeover of an unverified account by social login is intentional (`SocialAuthService::resolveUser`, tested by `AccountFlowsTest::test_social_login_takes_over_unverified_local_account_by_resetting_its_password`). Someone can register an account with another person's email before that person signs up. When the real owner later signs in with Google, GitHub or Discord and the provider vouches for the email, they get the account: it is marked verified, the squatter's password stops working and the squatter's sessions are revoked. Because every signed-in route outside `/api/auth` needs a verified email, an unverified account holds no app data or access, so handing it to the proven owner loses nothing.
 - Unverified accounts can sign in but reach only `/api/auth/*`. Broadcasting channel auth goes only through `/api/chat/auth`, `/api/rooms/socket-auth` and `/api/notifications/socket-auth`, which are in the verified group; there is no `Broadcast::routes()` (`/broadcasting/auth` is a 404), so an unverified account cannot subscribe to any private channel.
+- Changing the sign-in email needs the current password (except accounts still on the social placeholder) and only takes effect once the signed link mailed to the new address is opened; until then the old address keeps working for sign-in and password resets. The old address is told when a change is requested and when it happens, and confirming revokes every refresh token. A typo or a stolen session therefore cannot move the account to another inbox (see [Changing the sign-in email](#changing-the-sign-in-email)).
 - Registration ignores any `role` in the request, so every new user is a `user`. Admins and moderators are set in the database or by an admin through `PATCH /api/admin/users/{user}`.
 
 ## Known follow-ups

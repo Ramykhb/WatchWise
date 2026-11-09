@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
-    protected $hidden = ['password', 'remember_token', 'last_active_at'];
+    protected $hidden = ['password', 'remember_token', 'last_active_at', 'pending_email'];
 
     protected $fillable = [
         'name',

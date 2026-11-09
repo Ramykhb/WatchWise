@@ -8,15 +8,33 @@ use App\User\InterfaceRepository\AccountRepositoryInterface;
 
 class AccountRepository implements AccountRepositoryInterface
 {
-    public function updateProfile(User $user, array $attributes, bool $unverifyEmail): void
+    public function updateProfile(User $user, array $attributes): void
     {
-        $user->fill($attributes);
+        $user->fill($attributes)->save();
+    }
 
-        if ($unverifyEmail) {
-            $user->email_verified_at = null;
-        }
+    public function findById(int $id): ?User
+    {
+        return User::find($id);
+    }
 
-        $user->save();
+    public function emailBelongsToAnotherUser(string $email, int $userId): bool
+    {
+        return User::where('email', $email)->whereKeyNot($userId)->exists();
+    }
+
+    public function updatePendingEmail(User $user, ?string $email): void
+    {
+        $user->forceFill(['pending_email' => $email])->save();
+    }
+
+    public function applyPendingEmail(User $user): void
+    {
+        $user->forceFill([
+            'email' => $user->pending_email,
+            'email_verified_at' => now(),
+            'pending_email' => null,
+        ])->save();
     }
 
     public function findOrNewPreferences(User $user): UserPreference

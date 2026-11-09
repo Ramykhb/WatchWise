@@ -22,6 +22,9 @@ Route::prefix('me')->controller(UserController::class)->group(function () {
     Route::delete('/', 'destroyMe');
     Route::patch('preferences', 'updatePreferences');
     Route::put('password', 'updatePassword')->middleware('throttle:6,1');
+    Route::put('email', 'requestEmailChange')->middleware('throttle:me-email-change');
+    Route::post('email/resend', 'resendEmailChange')->middleware('throttle:me-email-change');
+    Route::delete('email', 'cancelEmailChange');
     Route::post('avatar', 'uploadAvatar');
     Route::delete('avatar', 'deleteAvatar');
     Route::delete('social/{provider}', 'disconnectSocial')->where('provider', 'google|github|discord');

@@ -4,6 +4,7 @@ namespace App\User\FormRequests;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\User\DTOs\Requests\UpdateProfileData;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -27,12 +28,17 @@ class UpdateProfileRequest extends FormRequest
      */
     public function rules(): array
     {
-        $userId = app(CurrentUser::class)->id();
+        $user = app(CurrentUser::class)->user();
 
         return [
             'name' => ['sometimes', 'required', 'string', 'min:2', 'max:255'],
-            'username' => ['sometimes', 'required', 'string', 'regex:/^[a-z0-9_.]{3,20}$/i', Rule::unique('users', 'username')->ignore($userId)],
-            'email' => ['sometimes', 'required', 'string', 'email:rfc', 'max:255', Rule::unique('users', 'email')->ignore($userId)],
+            'username' => ['sometimes', 'required', 'string', 'regex:/^[a-z0-9_.]{3,20}$/i', Rule::unique('users', 'username')->ignore($user->id)],
+            // Accepted only unchanged (forms send the whole profile); a new address goes through PUT /api/me/email.
+            'email' => ['sometimes', 'required', 'string', function (string $attribute, mixed $value, Closure $fail) use ($user): void {
+                if (! is_string($value) || strcasecmp($value, $user->email) !== 0) {
+                    $fail('Change your email from the sign-in email form: it needs your password and a confirmation link.');
+                }
+            }],
             'location' => ['sometimes', 'nullable', 'string', 'max:120'],
             'bio' => ['sometimes', 'nullable', 'string', 'max:160'],
             'profile_visibility' => ['sometimes', 'required', Rule::in(['public', 'followers', 'private'])],
@@ -41,6 +47,6 @@ class UpdateProfileRequest extends FormRequest
 
     public function toDto(): UpdateProfileData
     {
-        return UpdateProfileData::fromValidated($this->validated());
+        return UpdateProfileData::fromValidated($this->safe()->except('email'));
     }
 }

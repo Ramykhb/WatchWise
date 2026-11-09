@@ -10,6 +10,7 @@ use App\Health\Controllers\HealthController;
 use App\Movie\Controllers\MovieController;
 use App\MovieRecommendation\Controllers\RecommendationController;
 use App\Person\Controllers\PersonController;
+use App\User\Controllers\UserController;
 use App\Weather\Controllers\WeatherController;
 use Illuminate\Support\Facades\Route;
 
@@ -43,6 +44,13 @@ Route::middleware(['auth.jwt', 'verified.email'])->group(function () {
     Route::get('/following-recommendations', [RecommendationController::class, 'following'])->middleware('throttle:60,1');
     Route::get('/taste-profile', [RecommendationController::class, 'taste'])->middleware('throttle:60,1');
 });
+
+// The link mailed to a new address opens in whatever browser holds that inbox, so it needs no session
+// and sits outside the verified group (the signature proves it came from the email).
+Route::get('me/email/confirm/{id}/{hash}', [UserController::class, 'confirmEmailChange'])
+    ->middleware(['signed', 'throttle:me-email-confirm'])
+    ->whereNumber('id')
+    ->name('me.email.confirm');
 
 Route::get('/weather', [WeatherController::class, 'show'])->middleware('throttle:weather');
 Route::post('/weather-mood', [WeatherController::class, 'mood'])->middleware('throttle:ai');

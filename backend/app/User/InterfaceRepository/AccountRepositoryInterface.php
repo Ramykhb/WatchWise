@@ -9,9 +9,19 @@ interface AccountRepositoryInterface
 {
     /**
      * @param  array<string, mixed>  $attributes
-     * @param  bool  $unverifyEmail  a new address has to be confirmed again
      */
-    public function updateProfile(User $user, array $attributes, bool $unverifyEmail): void;
+    public function updateProfile(User $user, array $attributes): void;
+
+    public function findById(int $id): ?User;
+
+    /** Whether some other account already signs in with this address. */
+    public function emailBelongsToAnotherUser(string $email, int $userId): bool;
+
+    /** Stores (or with null, clears) the address the member asked to switch to. */
+    public function updatePendingEmail(User $user, ?string $email): void;
+
+    /** Makes the pending address the sign-in email, marks it verified and clears the pending one. */
+    public function applyPendingEmail(User $user): void;
 
     /** The user's preferences row, or an unsaved one when they never set any. */
     public function findOrNewPreferences(User $user): UserPreference;
