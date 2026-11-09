@@ -3,7 +3,7 @@
     "info": {
         "title": "WatchWise API",
         "version": "1.0.0",
-        "description": "WatchWise backend API.\n\nAuthentication uses HttpOnly cookies set by `POST /api/auth/login` or `POST /api/auth/register`. After logging in through 'Try it out', the browser sends the cookies automatically on the same origin, so protected endpoints work without pasting a token. A Bearer access token (`Authorization: Bearer <token>`) also works."
+        "description": "WatchWise backend API.\n\nAuthentication uses HttpOnly cookies set by `POST /api/auth/login` or `POST /api/auth/register`. After logging in through 'Try it out', the browser sends the cookies automatically on the same origin, so protected endpoints work without pasting a token. A Bearer access token (`Authorization: Bearer <token>`) also works.\n\nEvery signed-in endpoint outside `/api/auth` also needs a verified email. An unverified account gets `403 {\"message\": \"Verify your email address to continue.\", \"code\": \"email_unverified\"}`; `/api/auth/me`, `refresh`, `logout` and `resend-verification` keep working so it can finish verifying."
     },
     "servers": [
         { "url": "/" }
@@ -25,6 +25,17 @@
     ],
     "paths": {},
     "components": {
+        "responses": {
+            "EmailUnverified": {
+                "description": "The signed-in account has not verified its email (`code: email_unverified`).",
+                "content": {
+                    "application/json": {
+                        "schema": {"$ref": "#/components/schemas/EmailUnverifiedError"},
+                        "example": {"message": "Verify your email address to continue.", "code": "email_unverified"}
+                    }
+                }
+            }
+        },
         "securitySchemes": {
             "cookieAuth": {
                 "type": "apiKey",
@@ -38,6 +49,13 @@
             }
         },
         "schemas": {
+            "EmailUnverifiedError": {
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string"},
+                    "code": {"type": "string", "enum": ["email_unverified"]}
+                }
+            },
             "Message": {
                 "type": "object",
                 "properties": {

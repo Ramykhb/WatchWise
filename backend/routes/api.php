@@ -23,22 +23,29 @@ Route::prefix('auth')->group(function () {
     Route::get('me', [AuthController::class, 'me'])->middleware('auth.jwt');
 });
 
+// Exempt from `verified.email` so an unverified member can verify, resend the link or reset the password.
 require __DIR__.'/auth_flows.php';
-require __DIR__.'/social.php';
-require __DIR__.'/admin.php';
 
-Route::prefix('chat')->middleware('auth.jwt')->group(function () {
-    Route::get('connection', [ChatSocketController::class, 'show'])->middleware('throttle:60,1');
-    Route::post('auth', [ChatSocketController::class, 'store'])->middleware('throttle:60,1');
-    Route::post('messages', [ChatController::class, 'store'])->middleware('throttle:chat');
+// Every signed-in route outside /api/auth needs a verified email: guests get 401, unverified members 403
+// (`code: email_unverified`). Add new signed-in routes inside this group; RequireVerifiedEmailTest checks it.
+Route::middleware(['auth.jwt', 'verified.email'])->group(function () {
+    require __DIR__.'/social.php';
+    require __DIR__.'/admin.php';
+
+    Route::prefix('chat')->group(function () {
+        Route::get('connection', [ChatSocketController::class, 'show'])->middleware('throttle:60,1');
+        Route::post('auth', [ChatSocketController::class, 'store'])->middleware('throttle:60,1');
+        Route::post('messages', [ChatController::class, 'store'])->middleware('throttle:chat');
+    });
+
+    Route::get('/watched-recommendations', [RecommendationController::class, 'watched'])->middleware('throttle:ai');
+    Route::get('/people-recommendations', [RecommendationController::class, 'people'])->middleware('throttle:ai');
+    Route::get('/following-recommendations', [RecommendationController::class, 'following'])->middleware('throttle:60,1');
+    Route::get('/taste-profile', [RecommendationController::class, 'taste'])->middleware('throttle:60,1');
 });
 
 Route::get('/weather', [WeatherController::class, 'show'])->middleware('throttle:weather');
 Route::post('/weather-mood', [WeatherController::class, 'mood'])->middleware('throttle:ai');
-Route::get('/watched-recommendations', [RecommendationController::class, 'watched'])->middleware(['auth.jwt', 'throttle:ai']);
-Route::get('/people-recommendations', [RecommendationController::class, 'people'])->middleware(['auth.jwt', 'throttle:ai']);
-Route::get('/following-recommendations', [RecommendationController::class, 'following'])->middleware(['auth.jwt', 'throttle:60,1']);
-Route::get('/taste-profile', [RecommendationController::class, 'taste'])->middleware(['auth.jwt', 'throttle:60,1']);
 Route::get('/movie-recommendations', [RecommendationController::class, 'index'])->middleware('throttle:ai');
 Route::get('/nearby-cinemas', [NearbyCinemaController::class, 'index'])->middleware('throttle:30,1');
 

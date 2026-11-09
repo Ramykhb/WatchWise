@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { authApi, type AuthUser } from '../lib/auth.ts'
-import { clearApiCache, isStatus, SESSION_EXPIRED_EVENT, SESSION_REQUEST_TIMEOUT } from '../lib/api.ts'
+import { clearApiCache, EMAIL_UNVERIFIED_EVENT, isStatus, SESSION_EXPIRED_EVENT, SESSION_REQUEST_TIMEOUT } from '../lib/api.ts'
 import { clearMyLists } from '../pages/Lists/myListsStore.ts'
 import { clearNights } from '../pages/MovieNights/nightsStore.ts'
 import { clearNotifications } from '../pages/Notifications/notificationsStore.ts'
@@ -37,6 +37,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionError(null)
     setLoading(true)
     setSessionAttempt((attempt) => attempt + 1)
+  }, [])
+
+  // The API says this account is not verified: mark it so, and the route guards send it to Verify email.
+  useEffect(() => {
+    const markUnverified = () => setUserState((current) => (current?.email_verified_at ? { ...current, email_verified_at: null } : current))
+    window.addEventListener(EMAIL_UNVERIFIED_EVENT, markUnverified)
+    return () => window.removeEventListener(EMAIL_UNVERIFIED_EVENT, markUnverified)
   }, [])
 
   // Room conversations are no longer saved in the browser; drop any an earlier version left behind.

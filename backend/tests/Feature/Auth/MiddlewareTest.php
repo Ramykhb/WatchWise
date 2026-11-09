@@ -51,7 +51,8 @@ class MiddlewareTest extends TestCase
     public function test_verified_email_middleware(): void
     {
         $this->getJson('/api/_test/verified')->assertUnauthorized();
-        $this->as(User::factory()->unverified()->create())->getJson('/api/_test/verified')->assertForbidden();
+        $this->as(User::factory()->unverified()->create())->getJson('/api/_test/verified')->assertForbidden()
+            ->assertExactJson(['message' => 'Verify your email address to continue.', 'code' => 'email_unverified']);
         $this->as(User::factory()->create())->getJson('/api/_test/verified')->assertOk();
     }
 

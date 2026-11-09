@@ -230,6 +230,10 @@ class AccountFlowsTest extends TestCase
     {
         $user = User::factory()->unverified()->create(['email' => 'me@example.com', 'password' => 'attacker-password']);
         $oldHash = $user->password;
+        RefreshToken::create([
+            'user_id' => $user->id, 'token_hash' => 'attacker-session', 'family_id' => 'f',
+            'expires_at' => now()->addDay(),
+        ]);
         $this->mockSocialite('google', $this->socialUser('g1', 'me@example.com', ['email_verified' => true]));
 
         $this->hitSocialCallback('google')->assertRedirect('http://front.test/auth/callback?status=success');
@@ -237,6 +241,7 @@ class AccountFlowsTest extends TestCase
         $user->refresh();
         $this->assertNotNull($user->email_verified_at);
         $this->assertNotSame($oldHash, $user->password);
+        $this->assertNotNull(RefreshToken::where('token_hash', 'attacker-session')->first()->revoked_at);
         $this->postJson('/api/auth/login', ['email' => 'me@example.com', 'password' => 'attacker-password'])
             ->assertUnauthorized();
     }
