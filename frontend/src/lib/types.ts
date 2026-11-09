@@ -108,7 +108,7 @@ export type ApiMe = {
   has_password: boolean
   /** A new sign-in email waiting for its confirmation link to be opened; `user.email` stays in use until then. */
   pending_email: string | null
-  /** True while an account without a password must approve the change from its current address (the new one isn't mailed yet). */
+  /** True while the current address still has to approve the change (no password, or a first one not yet proven); the new one is not mailed yet. */
   pending_email_awaiting_current: boolean
   counts: { unread_notifications: number; followers: number; following: number }
 }

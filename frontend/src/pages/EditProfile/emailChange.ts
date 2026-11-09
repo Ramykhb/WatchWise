@@ -16,8 +16,8 @@ export function emailChangeNotice(status: string | null): string | null {
 }
 
 /**
- * What the pending-change box says. Accounts without a password first approve the change from their
- * current address (`awaitingCurrent`); only then is the new address mailed.
+ * What the pending-change box says. When the password proves nothing, the current address first approves the
+ * change (`awaitingCurrent`); only then is the new address mailed.
  */
 export function pendingEmailMessage(pending: string, awaitingCurrent: boolean): string {
   return awaitingCurrent
