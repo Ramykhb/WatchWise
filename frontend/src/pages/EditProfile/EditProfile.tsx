@@ -17,7 +17,7 @@ import { colorOf, initialsOf } from '../../lib/format.ts'
 import type { ApiMe } from '../../lib/types.ts'
 import settingsStyles from '../Settings/Settings.module.css'
 import styles from './EditProfile.module.css'
-import { emailChangeNotice } from './emailChange.ts'
+import { emailChangeNotice, pendingEmailMessage } from './emailChange.ts'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const USERNAME_PATTERN = /^@?[a-z0-9_.]{3,20}$/i
@@ -352,9 +352,7 @@ function EmailSection({ me, apply, returned }: { me: ApiMe; apply: Apply; return
 
         {pending ? (
           <div className={styles.pending}>
-            <p className={styles.pendingText}>
-              We sent a link to <strong>{pending}</strong>. The change applies once you click it; until then, keep signing in with your current email.
-            </p>
+            <p className={styles.pendingText}>{pendingEmailMessage(pending, me.pending_email_awaiting_current)}</p>
             <div className={styles.photoButtons}>
               <PillButton variant="outline" onClick={resend} disabled={busy}>
                 Resend link
@@ -406,7 +404,12 @@ function EmailSection({ me, apply, returned }: { me: ApiMe; apply: Apply; return
         )}
 
         <p className={note ? settingsStyles.note : styles.dirtyNote} role="status">
-          {note || (pending ? '' : 'We’ll email a confirmation link to the new address and let your current one know.')}
+          {note ||
+            (pending
+              ? ''
+              : me.has_password
+                ? 'We’ll email a confirmation link to the new address and let your current one know.'
+                : 'We’ll ask your current address to approve the change first, then email a confirmation link to the new one.')}
         </p>
       </div>
     </form>
