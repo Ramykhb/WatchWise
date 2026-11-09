@@ -43,8 +43,7 @@ class EmailChangeService implements EmailChangeServiceInterface
 
     public function request(User $user, RequestEmailChangeData $data): AccountResponse
     {
-        // Accounts made by social sign-in hold the placeholder, so they have no password to type;
-        // their current address has to approve the change instead.
+        // Accounts made by social sign-in hold the placeholder, so they have no password to type.
         $hasPassword = ! SocialPlaceholderPassword::isStoredFor($user);
 
         if ($hasPassword) {
@@ -56,9 +55,13 @@ class EmailChangeService implements EmailChangeServiceInterface
             }
         }
 
-        $this->accounts->storePendingEmail($user, $data->email, bin2hex(random_bytes(32)), authorized: $hasPassword);
+        // Without a password, or with one chosen in Settings without knowing any earlier one (which a
+        // stolen session could do), the password proves nothing: the current address approves instead.
+        $passwordIsProof = $hasPassword && $user->password_set_without_proof_at === null;
 
-        if ($hasPassword) {
+        $this->accounts->storePendingEmail($user, $data->email, bin2hex(random_bytes(32)), authorized: $passwordIsProof);
+
+        if ($passwordIsProof) {
             $this->sendConfirmationLink($user);
             $this->mailLater($user->email, new EmailChangeRequestedMail($user->name, self::mask($data->email), $this->cancelUrl($user)));
         } else {
@@ -110,13 +113,24 @@ class EmailChangeService implements EmailChangeServiceInterface
             return EmailChangeOutcome::CheckNewInbox;
         }
 
+        $nonce = $user->pending_email_nonce;
+
         if ($this->accounts->emailBelongsToAnotherUser($user->pending_email, $user->id)) {
-            $this->accounts->clearPendingEmail($user);
+            $this->accounts->clearPendingEmail($user, $nonce);
 
             return EmailChangeOutcome::Taken;
         }
 
-        $this->accounts->markPendingEmailAuthorized($user);
+        // Compare-and-set: only the request this link was made for, and only once, so a request replaced
+        // or cancelled meanwhile is never marked approved and a double click mails the new address once.
+        if (! $this->accounts->authorizePendingEmail($user, $nonce)) {
+            $current = $this->accounts->findById($user->id);
+
+            return $current?->pending_email_nonce === $nonce && $current->pending_email_authorized_at !== null
+                ? EmailChangeOutcome::CheckNewInbox
+                : EmailChangeOutcome::Invalid;
+        }
+
         $this->sendConfirmationLink($user);
 
         return EmailChangeOutcome::CheckNewInbox;
@@ -131,22 +145,28 @@ class EmailChangeService implements EmailChangeServiceInterface
             return EmailChangeOutcome::Invalid;
         }
 
+        $nonce = $user->pending_email_nonce;
+
         // Someone may have signed up with the address since the request.
         if ($this->accounts->emailBelongsToAnotherUser($user->pending_email, $user->id)) {
-            $this->accounts->clearPendingEmail($user);
+            $this->accounts->clearPendingEmail($user, $nonce);
 
             return EmailChangeOutcome::Taken;
         }
 
         $previousEmail = $user->email;
 
+        // Compare-and-set: the swap only happens if the row still holds this exact approved request.
         try {
-            $this->accounts->applyPendingEmail($user);
+            $applied = $this->accounts->applyPendingEmail($user, $nonce);
         } catch (UniqueConstraintViolationException) {
-            $user->refresh();
-            $this->accounts->clearPendingEmail($user);
+            $this->accounts->clearPendingEmail($user, $nonce);
 
             return EmailChangeOutcome::Taken;
+        }
+
+        if (! $applied) {
+            return EmailChangeOutcome::Invalid;
         }
 
         // Whoever held a session under the old address has to sign in again.
@@ -164,12 +184,13 @@ class EmailChangeService implements EmailChangeServiceInterface
             return EmailChangeOutcome::Invalid;
         }
 
-        $this->accounts->clearPendingEmail($user);
-
-        return EmailChangeOutcome::Cancelled;
+        // Only the request this link was mailed for, even if a newer one replaced it a moment ago.
+        return $this->accounts->clearPendingEmail($user, $user->pending_email_nonce)
+            ? EmailChangeOutcome::Cancelled
+            : EmailChangeOutcome::Invalid;
     }
 
-    /** To the current address of an account without a password: approve (or cancel) before the new address is mailed. */
+    /** To the current address when the password proves nothing: approve (or cancel) before the new address is mailed. */
     private function sendAuthorizationLink(User $user): void
     {
         $url = $this->signedLink(self::LINK_AUTHORIZE, $user, self::EXPIRES_MINUTES);

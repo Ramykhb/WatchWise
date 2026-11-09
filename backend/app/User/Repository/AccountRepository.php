@@ -5,6 +5,7 @@ namespace App\User\Repository;
 use App\Models\User;
 use App\Models\UserPreference;
 use App\User\InterfaceRepository\AccountRepositoryInterface;
+use Illuminate\Database\Eloquent\Builder;
 
 class AccountRepository implements AccountRepositoryInterface
 {
@@ -32,29 +33,67 @@ class AccountRepository implements AccountRepositoryInterface
         ])->save();
     }
 
-    public function markPendingEmailAuthorized(User $user): void
+    public function authorizePendingEmail(User $user, string $nonce): bool
     {
-        $user->forceFill(['pending_email_authorized_at' => now()])->save();
+        $now = now();
+        $updated = $this->samePendingRequest($user, $nonce)
+            ->whereNull('pending_email_authorized_at')
+            ->update(['pending_email_authorized_at' => $now]);
+
+        if ($updated === 1) {
+            $user->forceFill(['pending_email_authorized_at' => $now])->syncOriginalAttribute('pending_email_authorized_at');
+        }
+
+        return $updated === 1;
     }
 
-    public function clearPendingEmail(User $user): void
+    public function clearPendingEmail(User $user, ?string $nonce = null): bool
     {
-        $user->forceFill([
-            'pending_email' => null,
-            'pending_email_nonce' => null,
-            'pending_email_authorized_at' => null,
-        ])->save();
+        $cleared = ['pending_email' => null, 'pending_email_nonce' => null, 'pending_email_authorized_at' => null];
+        $query = $nonce === null ? User::query()->whereKey($user->id) : $this->samePendingRequest($user, $nonce);
+        $updated = $query->update($cleared);
+
+        if ($updated === 1) {
+            $user->forceFill($cleared)->syncOriginalAttributes(array_keys($cleared));
+        }
+
+        return $updated === 1;
     }
 
-    public function applyPendingEmail(User $user): void
+    public function applyPendingEmail(User $user, string $nonce): bool
     {
-        $user->forceFill([
+        $now = now();
+        $applied = [
             'email' => $user->pending_email,
-            'email_verified_at' => now(),
+            'email_verified_at' => $now,
             'pending_email' => null,
             'pending_email_nonce' => null,
             'pending_email_authorized_at' => null,
-        ])->save();
+            'password_set_without_proof_at' => null,
+        ];
+        $updated = $this->samePendingRequest($user, $nonce)
+            ->whereNotNull('pending_email_authorized_at')
+            ->update($applied);
+
+        if ($updated === 1) {
+            $user->forceFill($applied)->syncOriginalAttributes(array_keys($applied));
+        }
+
+        return $updated === 1;
+    }
+
+    /**
+     * The user's row, only while it still holds this exact pending request and the same password.
+     *
+     * @return Builder<User>
+     */
+    private function samePendingRequest(User $user, string $nonce): Builder
+    {
+        return User::query()
+            ->whereKey($user->id)
+            ->where('pending_email', $user->pending_email)
+            ->where('pending_email_nonce', $nonce)
+            ->where('password', $user->getAttributes()['password']);
     }
 
     public function findOrNewPreferences(User $user): UserPreference
@@ -67,9 +106,19 @@ class AccountRepository implements AccountRepositoryInterface
         $preferences->save();
     }
 
-    public function updatePassword(User $user, string $plainPassword): void
+    public function updatePassword(User $user, string $plainPassword, bool $setWithoutProof = false): void
     {
-        $user->forceFill(['password' => $plainPassword])->save();
+        $attributes = ['password' => $plainPassword];
+        if ($setWithoutProof) {
+            $attributes['password_set_without_proof_at'] = now();
+        }
+
+        $user->forceFill($attributes)->save();
+    }
+
+    public function clearPasswordSetWithoutProof(User $user): void
+    {
+        $user->forceFill(['password_set_without_proof_at' => null])->save();
     }
 
     public function updateAvatar(User $user, ?string $url): void

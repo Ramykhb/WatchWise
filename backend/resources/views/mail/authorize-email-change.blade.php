@@ -8,6 +8,6 @@
     'secondaryPrompt' => 'Wasn’t you?',
     'secondaryAction' => 'Cancel this change',
     'secondaryUrl' => $cancelUrl,
-    'note' => 'If you didn’t ask for this, don’t open the approval link: cancel the change, then set a password in your profile. Nothing changes unless the approval link is opened.',
+    'note' => 'If you didn’t ask for this, don’t open the approval link: cancel the change, then reset your password with “Forgot password” on the sign-in page. Nothing changes unless the approval link is opened.',
     'signoff' => 'Keeping your seat safe,',
 ])

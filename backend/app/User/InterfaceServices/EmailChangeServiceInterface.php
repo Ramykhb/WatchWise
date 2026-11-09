@@ -23,7 +23,8 @@ interface EmailChangeServiceInterface
     /**
      * Stores the address as pending (replacing an earlier one, whose links stop working). With a
      * password of its own, the account must type it; the new address then gets its confirmation link
-     * and the current one a notice with a cancel link. Without one, only the current address is
+     * and the current one a notice with a cancel link. Without one, or when the password was chosen in
+     * Settings without proving anything (`password_set_without_proof_at`), only the current address is
      * mailed: a link that approves the change (or cancels it) before the new address hears anything.
      *
      * @throws IncorrectPassword
@@ -48,8 +49,9 @@ interface EmailChangeServiceInterface
     public function discardPendingChange(User $user): void;
 
     /**
-     * The signed link mailed to the current address of an account without a password: approves the
-     * change and mails the confirmation link to the new address.
+     * The signed link mailed to the current address when the password proves nothing: approves the
+     * change (once, and only for the request it was made for) and mails the confirmation link to the
+     * new address.
      */
     public function authorize(EmailChangeLinkData $data): EmailChangeOutcome;
 

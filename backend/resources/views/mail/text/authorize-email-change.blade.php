@@ -12,7 +12,7 @@ This link expires in {{ $expiresInMinutes }} minutes.
 Wasn’t you? Cancel this change:
 {{ $cancelUrl }}
 
-If you didn’t ask for this, don’t open the approval link: cancel the change, then set a password in your profile. Nothing changes unless the approval link is opened.
+If you didn’t ask for this, don’t open the approval link: cancel the change, then reset your password with “Forgot password” on the sign-in page. Nothing changes unless the approval link is opened.
 
 Keeping your seat safe,
 The WatchWise crew

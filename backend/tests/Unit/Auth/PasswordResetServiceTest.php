@@ -12,7 +12,7 @@ use App\Auth\Mail\ResetPasswordMail;
 use App\Auth\Services\PasswordResetService;
 use App\Models\PasswordReset;
 use App\Models\User;
-use App\User\InterfaceServices\EmailChangeServiceInterface;
+use App\User\InterfaceServices\AccountServiceInterface;
 use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -28,7 +28,7 @@ class PasswordResetServiceTest extends TestCase
 
     private MockInterface $refreshTokens;
 
-    private MockInterface $emailChange;
+    private MockInterface $accounts;
 
     private PasswordResetService $service;
 
@@ -39,8 +39,8 @@ class PasswordResetServiceTest extends TestCase
         $this->users = Mockery::mock(UserRepositoryInterface::class);
         $this->resets = Mockery::mock(PasswordResetRepositoryInterface::class);
         $this->refreshTokens = Mockery::mock(RefreshTokenRepositoryInterface::class);
-        $this->emailChange = Mockery::mock(EmailChangeServiceInterface::class);
-        $this->service = new PasswordResetService($this->users, $this->resets, $this->refreshTokens, $this->emailChange);
+        $this->accounts = Mockery::mock(AccountServiceInterface::class);
+        $this->service = new PasswordResetService($this->users, $this->resets, $this->refreshTokens, $this->accounts);
     }
 
     private function user(): User
@@ -122,13 +122,13 @@ class PasswordResetServiceTest extends TestCase
         $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword'));
     }
 
-    public function test_reset_updates_password_drops_pending_email_change_deletes_record_and_revokes_tokens(): void
+    public function test_reset_updates_password_records_inbox_proof_deletes_record_and_revokes_tokens(): void
     {
         $user = $this->user();
         $this->resets->shouldReceive('latestFor')->andReturn($this->record('tok'));
         $this->users->shouldReceive('findByEmail')->andReturn($user);
         $this->users->shouldReceive('updatePassword')->once()->with($user, 'newpassword');
-        $this->emailChange->shouldReceive('discardPendingChange')->once()->with($user);
+        $this->accounts->shouldReceive('passwordResetThroughEmail')->once()->with($user);
         $this->resets->shouldReceive('deleteFor')->once()->with('ada@example.com');
         $this->refreshTokens->shouldReceive('revokeAllForUser')->once()->with(7);
 
