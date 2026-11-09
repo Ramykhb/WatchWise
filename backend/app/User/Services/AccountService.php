@@ -3,7 +3,6 @@
 namespace App\User\Services;
 
 use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
-use App\Auth\InterfaceServices\EmailVerificationServiceInterface;
 use App\Models\User;
 use App\Support\SocialPlaceholderPassword;
 use App\User\DTOs\Requests\ChangePasswordData;
@@ -22,7 +21,6 @@ class AccountService implements AccountServiceInterface
 {
     public function __construct(
         private readonly AccountRepositoryInterface $accounts,
-        private readonly EmailVerificationServiceInterface $verification,
         private readonly RefreshTokenRepositoryInterface $tokens,
     ) {}
 
@@ -33,14 +31,7 @@ class AccountService implements AccountServiceInterface
 
     public function updateProfile(User $user, UpdateProfileData $data): AccountResponse
     {
-        $email = $data->attributes['email'] ?? null;
-        $emailChanged = $email !== null && strcasecmp($email, $user->email) !== 0;
-
-        $this->accounts->updateProfile($user, $data->attributes, $emailChanged);
-
-        if ($emailChanged) {
-            $this->verification->send($user);
-        }
+        $this->accounts->updateProfile($user, $data->attributes);
 
         return AccountResponse::fromModel($user->refresh());
     }

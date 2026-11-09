@@ -5,17 +5,21 @@ namespace App\User\Controllers;
 use App\Auth\CurrentUser\CurrentUser;
 use App\Auth\Support\AuthCookies;
 use App\Models\User;
+use App\User\DTOs\Requests\ConfirmEmailChangeData;
 use App\User\FormRequests\DeleteAccountRequest;
+use App\User\FormRequests\RequestEmailChangeRequest;
 use App\User\FormRequests\UpdatePasswordRequest;
 use App\User\FormRequests\UpdatePreferencesRequest;
 use App\User\FormRequests\UpdateProfileRequest;
 use App\User\FormRequests\UploadAvatarRequest;
 use App\User\FormRequests\UserSearchRequest;
 use App\User\InterfaceServices\AccountServiceInterface;
+use App\User\InterfaceServices\EmailChangeServiceInterface;
 use App\User\InterfaceServices\HomeServiceInterface;
 use App\User\InterfaceServices\ProfileServiceInterface;
 use App\User\Resources\MemberResource;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -28,6 +32,7 @@ class UserController
         private readonly AccountServiceInterface $account,
         private readonly ProfileServiceInterface $profiles,
         private readonly HomeServiceInterface $home,
+        private readonly EmailChangeServiceInterface $emailChange,
     ) {}
 
     /** GET /api/home — the signed-in Home page: busy rooms and your next movie night. */
@@ -60,6 +65,32 @@ class UserController
         $this->account->changePassword($current->user(), $request->toDto());
 
         return response()->json(['message' => 'Password updated. Other devices have been signed out.']);
+    }
+
+    /** PUT /api/me/email — needs the current password; the address only changes once the link mailed to it is opened. */
+    public function requestEmailChange(RequestEmailChangeRequest $request, CurrentUser $current): JsonResponse
+    {
+        return response()->json($this->emailChange->request($current->user(), $request->toDto()));
+    }
+
+    /** POST /api/me/email/resend — a fresh link to the pending address. */
+    public function resendEmailChange(CurrentUser $current): JsonResponse
+    {
+        return response()->json($this->emailChange->resend($current->user()));
+    }
+
+    /** DELETE /api/me/email — drops the pending address. */
+    public function cancelEmailChange(CurrentUser $current): JsonResponse
+    {
+        return response()->json($this->emailChange->cancel($current->user()));
+    }
+
+    /** GET /api/me/email/confirm/{id}/{hash} — signed link target (no login needed), then back to the frontend. */
+    public function confirmEmailChange(int $id, string $hash): RedirectResponse
+    {
+        $outcome = $this->emailChange->confirm(new ConfirmEmailChangeData($id, $hash));
+
+        return redirect(rtrim(config('services.frontend_url'), '/').'/edit-profile?email_change='.$outcome->value);
     }
 
     /** POST /api/me/avatar — multipart `avatar`, stored on the public disk. */

@@ -38,6 +38,13 @@ return Application::configure(basePath: dirname(__DIR__))
 
                 return redirect(rtrim(config('services.frontend_url'), '/').'/verify-email?status='.$status);
             }
+
+            if ($request->routeIs('me.email.confirm')) {
+                $status = URL::hasCorrectSignature($request) && ! URL::signatureHasNotExpired($request)
+                    ? 'expired' : 'invalid';
+
+                return redirect(rtrim(config('services.frontend_url'), '/').'/edit-profile?email_change='.$status);
+            }
         });
 
         $exceptions->shouldRenderJsonWhen(

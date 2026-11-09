@@ -44,6 +44,8 @@ final readonly class AccountResponse implements JsonSerializable
             'connected' => $user->socialAccounts->mapWithKeys(fn ($account) => [$account->provider => $account->created_at?->toJSON()]),
             // False while a social sign-up still has the placeholder password (Settings then disables "current password").
             'has_password' => ! SocialPlaceholderPassword::isStoredFor($user),
+            // The address waiting for its confirmation link to be opened; `user.email` stays the sign-in email until then.
+            'pending_email' => $user->pending_email,
             'counts' => [
                 // What the bell counts; room read receipts share the table but are not notifications.
                 'unread_notifications' => $user->notifications()->whereIn('type', Notification::FEED_TYPES)->whereNull('read_at')->count(),

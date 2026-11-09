@@ -15,7 +15,7 @@ interface AccountServiceInterface
 {
     public function show(User $user): AccountResponse;
 
-    /** Changing the email address marks it unverified and sends a new verification mail. */
+    /** Name, handle, location, bio and visibility; the email changes through EmailChangeServiceInterface. */
     public function updateProfile(User $user, UpdateProfileData $data): AccountResponse;
 
     /** Merges the switches that were sent into the saved settings; unknown keys are ignored. */
