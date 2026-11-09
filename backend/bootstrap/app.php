@@ -25,8 +25,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureRole::class,
             'verified.email' => EnsureEmailVerified::class,
         ]);
-        // Resolve the account before per-user rate limits and route model binding.
+        // Resolve the account, then require a verified email, before per-user rate limits and route model
+        // binding: a guest gets 401, an unverified member 403, and neither spends a rate-limit slot.
         $middleware->prependToPriorityList(ThrottleRequests::class, AuthenticateJwt::class);
+        $middleware->prependToPriorityList(ThrottleRequests::class, EnsureEmailVerified::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (InvalidSignatureException $exception, Request $request) {

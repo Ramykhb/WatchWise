@@ -11,7 +11,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Resolves the CurrentUser once per request, binds it in the container and
- * rejects anonymous requests with 401.
+ * rejects anonymous requests with 401. It does not check the email: routes that
+ * need a verified member also use `verified.email` (see routes/api.php).
  */
 class AuthenticateJwt
 {
@@ -30,11 +31,6 @@ class AuthenticateJwt
 
         if (! $current->isAuthenticated()) {
             return response()->json(['message' => 'Unauthenticated.'], 401);
-        }
-
-        // Session inspection remains available so unverified users can complete verification.
-        if (! $current->isVerified() && ! $request->is('api/auth/me')) {
-            return response()->json(['message' => 'Your email address is not verified.', 'code' => 'email_unverified'], 403);
         }
 
         $user = $current->user();

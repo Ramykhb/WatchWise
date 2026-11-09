@@ -85,21 +85,22 @@ app/Auth/
 
 ## How a request flows
 
-1. A request hits a route in `routes/api.php` or `routes/auth_flows.php`.
+1. A request hits a route in `routes/api.php` or one of the files it `require`s.
 2. A middleware (`auth.jwt`, `auth.optional`, `verified.email` or `role`) asks `CurrentUserFactory` who is calling.
 3. The factory reads the access token (cookie or Bearer header) and returns a `JwtCurrentUser`, or a `GuestUser` if the token is missing or invalid.
-4. The controller validates the input and calls a service through its interface.
-5. The service applies the rules and uses repositories for data.
-6. Policies receive the `CurrentUser` to decide what it may do.
+4. On a signed-in route outside `/api/auth`, `auth.jwt` rejects a guest with 401, then `verified.email` rejects an unverified account with 403 `{"message": "Verify your email address to continue.", "code": "email_unverified"}`. Both run before rate limiting and route model binding (the priority list in `bootstrap/app.php`), so a refused request spends no rate-limit slot and learns nothing about the bound record.
+5. The controller validates the input and calls a service through its interface.
+6. The service applies the rules and uses repositories for data.
+7. Policies receive the `CurrentUser` to decide what it may do.
 
 ## Routes
 
 | File | Purpose |
 | --- | --- |
-| `routes/api.php` | `/api/health`, `/api/auth` register, login, refresh, logout and `me`, with rate limits. It also holds the public and AI routes of the other modules (chat, TMDB movies/people/genres, weather, weather mood, recommendations, nearby cinemas, documentation) and `require`s the three files below |
+| `routes/api.php` | `/api/health`, `/api/auth` register, login, refresh, logout and `me`, with rate limits. It also holds the public routes of the other modules (TMDB movies/people/genres, weather, weather mood, movie recommendations, nearby cinemas, documentation), `require`s the three files below, and holds the one `['auth.jwt', 'verified.email']` group that wraps `social.php`, `admin.php`, `/api/chat/*`, `/api/watched-recommendations`, `/api/people-recommendations`, `/api/following-recommendations` and `/api/taste-profile` |
 | `routes/auth_flows.php` | Email verification, password reset and Google/GitHub/Discord login routes |
-| `routes/social.php` | Everything behind `auth.jwt`: home, `/me`, users and following, lists, watchlist, ratings, reviews, movie nights, rooms, notifications |
-| `routes/admin.php` | `/api/admin/*` (see [Admin module](#admin-module)) |
+| `routes/social.php` | Loaded inside the verified group: home, `/me`, users and following, lists, watchlist, ratings, reviews, movie nights, rooms (with `rooms/socket-auth`), notifications (with `notifications/socket-auth`) |
+| `routes/admin.php` | `/api/admin/*`, loaded inside the verified group and adding `role:admin` or `role:admin,moderator` (see [Admin module](#admin-module)) |
 | `routes/channels.php` | Reverb private-channel rules (`chat.*`, `room.*`, `rooms.*`, `notifications.*`). Loaded by `GroqModuleServiceProvider` when broadcasting resolves |
 | `routes/console.php` | The `rooms:prune-messages` command and its every-minute schedule |
 
@@ -111,7 +112,7 @@ All auth endpoints:
 | `POST /api/auth/login` | none | Log in and set the token cookies |
 | `POST /api/auth/refresh` | refresh cookie | Rotate the refresh token and issue new tokens |
 | `POST /api/auth/logout` | refresh cookie | Revoke the session and clear the cookies |
-| `GET /api/auth/me` | `auth.jwt` | The current user |
+| `GET /api/auth/me` | `auth.jwt` | The current user. Works for an unverified account (`email_verified_at` is `null`), so the frontend can show the verify screen |
 | `GET /api/auth/verify-email/{id}/{hash}` | signed link | Verify the email, then redirect to the frontend. A bad or expired signature redirects to `{FRONTEND_URL}/verify-email?status=invalid\|expired` (handled in `bootstrap/app.php`) |
 | `POST /api/auth/resend-verification` | none | Resend the verification email |
 | `POST /api/auth/forgot-password` | none | Send a reset link (same response whether or not the account exists) |
@@ -172,7 +173,7 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `room-messages`, `room-reads`, `room-socket`, `room-invites` | `RoomModuleServiceProvider` | 30, 120, 60, 30 | the matching room routes, per signed-in user |
 | `notification-socket` | `NotificationModuleServiceProvider` | 30 | `POST /api/notifications/socket-auth`, per signed-in user |
 
-Each auth limiter is checked in two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket. `ai`, `weather` and `tmdb` count per IP; the chat, room and notification limiters count per user (`bootstrap/app.php` runs `auth.jwt` before throttling so the user is known).
+Each auth limiter is checked in two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket. `ai`, `weather` and `tmdb` count per IP; the chat, room and notification limiters count per user (`bootstrap/app.php` runs `auth.jwt` and `verified.email` before throttling, so the user is known and an unverified account never spends a slot).
 
 A few routes still use plain `throttle:N,M`: `PUT /api/me/password` (6), `PUT /api/ratings/{tmdbId}` (60), `PUT /api/reviews/mine` (20), `POST /api/reviews/{review}/helpful` (60), `POST /api/reviews/{review}/report` (10), `/api/chat/connection` and `/api/chat/auth` (60), `/api/following-recommendations` and `/api/taste-profile` (60), `/api/nearby-cinemas` (30).
 
@@ -244,10 +245,12 @@ All in `app/Auth/Middleware/`.
 
 | Alias | File | Behavior |
 | --- | --- | --- |
-| `auth.jwt` | `AuthenticateJwt.php` | Requires a logged-in user, otherwise 401 |
+| `auth.jwt` | `AuthenticateJwt.php` | Requires a logged-in user, otherwise 401. Does not look at the email, so `/api/auth/me` works while unverified |
 | `auth.optional` | `AuthenticateOptional.php` | Lets anonymous requests through as a guest |
-| `verified.email` | `EnsureEmailVerified.php` | 403 if the email is unverified |
+| `verified.email` | `EnsureEmailVerified.php` | 401 for a guest, 403 `{"message": "Verify your email address to continue.", "code": "email_unverified"}` if the email is unverified |
 | `role` | `EnsureRole.php` | 403 unless the user has one of the required roles |
+
+**A verified email is required everywhere.** Every route that needs a signed-in user, except `/api/auth/*`, needs a verified email too, admins and moderators included. `routes/api.php` applies `['auth.jwt', 'verified.email']` once, to a group that `require`s `social.php` and `admin.php` and holds the chat and signed-in recommendation routes, so a route added there inherits it. `/api/auth/*` (register, login, refresh, logout, `me`, the verification link, resend, forgot/reset password, social login) stays open so an unverified account can verify, resend the link or sign out; login, register and refresh still issue tokens to it. Public guest routes (TMDB, weather, weather mood, movie recommendations, nearby cinemas, health, documentation) are unchanged. `tests/Feature/Auth/RequireVerifiedEmailTest.php` fails if a route with `auth.jwt` outside `/api/auth` lacks `verified.email`. The OpenAPI spec adds the `EmailUnverified` 403 to every secured operation outside `/api/auth` (`OpenApiSpec::documentEmailVerification`).
 
 ## Form requests
 
@@ -866,6 +869,8 @@ The backend is deployed to Render from `backend/Dockerfile` (`php:8.4-apache-boo
 - Passwords are hashed by the `User` model cast. Refresh tokens and reset tokens are stored hashed. The refresh token is rotated on every use, and presenting an already-used one revokes the whole session chain.
 - Tokens travel in HttpOnly cookies (the access token is also accepted as a Bearer header).
 - Social login refuses emails the provider has not verified. If an unverified local account already uses that email, its password is replaced and its sessions are revoked, so a pre-registered account cannot be taken over.
+- That takeover of an unverified account by social login is intentional (`SocialAuthService::resolveUser`, tested by `AccountFlowsTest::test_social_login_takes_over_unverified_local_account_by_resetting_its_password`). Someone can register an account with another person's email before that person signs up. When the real owner later signs in with Google, GitHub or Discord and the provider vouches for the email, they get the account: it is marked verified, the squatter's password stops working and the squatter's sessions are revoked. Because every signed-in route outside `/api/auth` needs a verified email, an unverified account holds no app data or access, so handing it to the proven owner loses nothing.
+- Unverified accounts can sign in but reach only `/api/auth/*`. Broadcasting channel auth goes only through `/api/chat/auth`, `/api/rooms/socket-auth` and `/api/notifications/socket-auth`, which are in the verified group; there is no `Broadcast::routes()` (`/broadcasting/auth` is a 404), so an unverified account cannot subscribe to any private channel.
 - Registration ignores any `role` in the request, so every new user is a `user`. Admins and moderators are set in the database or by an admin through `PATCH /api/admin/users/{user}`.
 
 ## Known follow-ups
