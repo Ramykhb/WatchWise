@@ -49,6 +49,9 @@
                     @else
                     <div style="height:28px;font-size:0;line-height:0;">&nbsp;</div>
                     @endisset
+                    @isset($secondaryUrl)
+                    <p style="margin:0 0 28px;font-size:14px;line-height:23px;color:#5a5470;">{{ $secondaryPrompt }} <a href="{{ $secondaryUrl }}" style="color:#2b1a63;font-weight:700;text-decoration:underline;">{{ $secondaryAction }}</a></p>
+                    @endisset
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td bgcolor="#fbe6cf" style="padding:18px 20px;border-radius:12px;border-left:3px solid #ff5a4e;font-size:13px;line-height:22px;color:#5a5470;">{{ $note }}</td></tr></table>
                     <p style="margin:28px 0 0;font-size:14px;line-height:23px;color:#5a5470;">{{ $signoff }}<br><strong style="color:#2b1a63;">The WatchWise crew</strong></p>
                 </td></tr>

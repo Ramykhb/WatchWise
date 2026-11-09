@@ -23,9 +23,27 @@ class AccountRepository implements AccountRepositoryInterface
         return User::where('email', $email)->whereKeyNot($userId)->exists();
     }
 
-    public function updatePendingEmail(User $user, ?string $email): void
+    public function storePendingEmail(User $user, string $email, string $nonce, bool $authorized): void
     {
-        $user->forceFill(['pending_email' => $email])->save();
+        $user->forceFill([
+            'pending_email' => $email,
+            'pending_email_nonce' => $nonce,
+            'pending_email_authorized_at' => $authorized ? now() : null,
+        ])->save();
+    }
+
+    public function markPendingEmailAuthorized(User $user): void
+    {
+        $user->forceFill(['pending_email_authorized_at' => now()])->save();
+    }
+
+    public function clearPendingEmail(User $user): void
+    {
+        $user->forceFill([
+            'pending_email' => null,
+            'pending_email_nonce' => null,
+            'pending_email_authorized_at' => null,
+        ])->save();
     }
 
     public function applyPendingEmail(User $user): void
@@ -34,6 +52,8 @@ class AccountRepository implements AccountRepositoryInterface
             'email' => $user->pending_email,
             'email_verified_at' => now(),
             'pending_email' => null,
+            'pending_email_nonce' => null,
+            'pending_email_authorized_at' => null,
         ])->save();
     }
 

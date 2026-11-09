@@ -5,7 +5,7 @@ namespace App\User\Controllers;
 use App\Auth\CurrentUser\CurrentUser;
 use App\Auth\Support\AuthCookies;
 use App\Models\User;
-use App\User\DTOs\Requests\ConfirmEmailChangeData;
+use App\User\DTOs\Requests\EmailChangeLinkData;
 use App\User\FormRequests\DeleteAccountRequest;
 use App\User\FormRequests\RequestEmailChangeRequest;
 use App\User\FormRequests\UpdatePasswordRequest;
@@ -67,13 +67,16 @@ class UserController
         return response()->json(['message' => 'Password updated. Other devices have been signed out.']);
     }
 
-    /** PUT /api/me/email — needs the current password; the address only changes once the link mailed to it is opened. */
+    /**
+     * PUT /api/me/email — needs the current password; the address only changes once the link mailed to it
+     * is opened. Accounts without a password first approve the change from their current address.
+     */
     public function requestEmailChange(RequestEmailChangeRequest $request, CurrentUser $current): JsonResponse
     {
         return response()->json($this->emailChange->request($current->user(), $request->toDto()));
     }
 
-    /** POST /api/me/email/resend — a fresh link to the pending address. */
+    /** POST /api/me/email/resend — mails the link the pending change waits for again (current or new address). */
     public function resendEmailChange(CurrentUser $current): JsonResponse
     {
         return response()->json($this->emailChange->resend($current->user()));
@@ -85,10 +88,26 @@ class UserController
         return response()->json($this->emailChange->cancel($current->user()));
     }
 
+    /** GET /api/me/email/authorize/{id}/{hash} — signed link to the current address (no login needed), then back to the frontend. */
+    public function authorizeEmailChange(int $id, string $hash): RedirectResponse
+    {
+        $outcome = $this->emailChange->authorize(new EmailChangeLinkData($id, $hash));
+
+        return redirect(rtrim(config('services.frontend_url'), '/').'/edit-profile?email_change='.$outcome->value);
+    }
+
     /** GET /api/me/email/confirm/{id}/{hash} — signed link target (no login needed), then back to the frontend. */
     public function confirmEmailChange(int $id, string $hash): RedirectResponse
     {
-        $outcome = $this->emailChange->confirm(new ConfirmEmailChangeData($id, $hash));
+        $outcome = $this->emailChange->confirm(new EmailChangeLinkData($id, $hash));
+
+        return redirect(rtrim(config('services.frontend_url'), '/').'/edit-profile?email_change='.$outcome->value);
+    }
+
+    /** GET /api/me/email/cancel/{id}/{hash} — signed "this wasn't me" link to the current address (no login needed). */
+    public function cancelEmailChangeFromLink(int $id, string $hash): RedirectResponse
+    {
+        $outcome = $this->emailChange->cancelFromLink(new EmailChangeLinkData($id, $hash));
 
         return redirect(rtrim(config('services.frontend_url'), '/').'/edit-profile?email_change='.$outcome->value);
     }

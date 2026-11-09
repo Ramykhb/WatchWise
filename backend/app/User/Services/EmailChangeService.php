@@ -5,7 +5,7 @@ namespace App\User\Services;
 use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Models\User;
 use App\Support\SocialPlaceholderPassword;
-use App\User\DTOs\Requests\ConfirmEmailChangeData;
+use App\User\DTOs\Requests\EmailChangeLinkData;
 use App\User\DTOs\Requests\RequestEmailChangeData;
 use App\User\DTOs\Responses\AccountResponse;
 use App\User\DTOs\Responses\EmailChangeOutcome;
@@ -13,6 +13,7 @@ use App\User\Exceptions\IncorrectPassword;
 use App\User\Exceptions\NoPendingEmailChange;
 use App\User\InterfaceRepository\AccountRepositoryInterface;
 use App\User\InterfaceServices\EmailChangeServiceInterface;
+use App\User\Mail\AuthorizeEmailChangeMail;
 use App\User\Mail\ConfirmEmailChangeMail;
 use App\User\Mail\EmailChangedMail;
 use App\User\Mail\EmailChangeRequestedMail;
@@ -26,6 +27,15 @@ class EmailChangeService implements EmailChangeServiceInterface
 {
     public const EXPIRES_MINUTES = 60;
 
+    /** The "this wasn't me" link stays usable for as long as a pending change can realistically wait. */
+    public const CANCEL_EXPIRES_MINUTES = 7 * 24 * 60;
+
+    private const LINK_AUTHORIZE = 'authorize';
+
+    private const LINK_CONFIRM = 'confirm';
+
+    private const LINK_CANCEL = 'cancel';
+
     public function __construct(
         private readonly AccountRepositoryInterface $accounts,
         private readonly AuthServiceInterface $auth,
@@ -33,8 +43,11 @@ class EmailChangeService implements EmailChangeServiceInterface
 
     public function request(User $user, RequestEmailChangeData $data): AccountResponse
     {
-        // Accounts made by social sign-in hold the placeholder, so they have no password to type; the link still proves the address.
-        if (! SocialPlaceholderPassword::isStoredFor($user)) {
+        // Accounts made by social sign-in hold the placeholder, so they have no password to type;
+        // their current address has to approve the change instead.
+        $hasPassword = ! SocialPlaceholderPassword::isStoredFor($user);
+
+        if ($hasPassword) {
             if ($data->currentPassword === null) {
                 throw IncorrectPassword::forMissingCurrentPassword();
             }
@@ -43,9 +56,14 @@ class EmailChangeService implements EmailChangeServiceInterface
             }
         }
 
-        $this->accounts->updatePendingEmail($user, $data->email);
-        $this->sendConfirmationLink($user);
-        $this->mailLater($user->email, new EmailChangeRequestedMail($user->name, self::mask($data->email)));
+        $this->accounts->storePendingEmail($user, $data->email, bin2hex(random_bytes(32)), authorized: $hasPassword);
+
+        if ($hasPassword) {
+            $this->sendConfirmationLink($user);
+            $this->mailLater($user->email, new EmailChangeRequestedMail($user->name, self::mask($data->email), $this->cancelUrl($user)));
+        } else {
+            $this->sendAuthorizationLink($user);
+        }
 
         return AccountResponse::fromModel($user);
     }
@@ -56,32 +74,66 @@ class EmailChangeService implements EmailChangeServiceInterface
             throw new NoPendingEmailChange;
         }
 
-        $this->sendConfirmationLink($user);
+        if ($user->pending_email_authorized_at === null) {
+            $this->sendAuthorizationLink($user);
+        } else {
+            $this->sendConfirmationLink($user);
+        }
 
         return AccountResponse::fromModel($user);
     }
 
     public function cancel(User $user): AccountResponse
     {
-        if ($user->pending_email !== null) {
-            $this->accounts->updatePendingEmail($user, null);
-        }
+        $this->discardPendingChange($user);
 
         return AccountResponse::fromModel($user);
     }
 
-    public function confirm(ConfirmEmailChangeData $data): EmailChangeOutcome
+    public function discardPendingChange(User $user): void
+    {
+        if ($user->pending_email !== null || $user->pending_email_nonce !== null) {
+            $this->accounts->clearPendingEmail($user);
+        }
+    }
+
+    public function authorize(EmailChangeLinkData $data): EmailChangeOutcome
     {
         $user = $this->accounts->findById($data->userId);
 
-        // The hash binds the link to one pending address: replacing or cancelling it voids the link.
-        if (! $user || $user->pending_email === null || ! hash_equals(sha1($user->pending_email), $data->hash)) {
+        if (! $this->linkMatches(self::LINK_AUTHORIZE, $user, $data->hash)) {
+            return EmailChangeOutcome::Invalid;
+        }
+
+        // Opened twice: the new address already has its link.
+        if ($user->pending_email_authorized_at !== null) {
+            return EmailChangeOutcome::CheckNewInbox;
+        }
+
+        if ($this->accounts->emailBelongsToAnotherUser($user->pending_email, $user->id)) {
+            $this->accounts->clearPendingEmail($user);
+
+            return EmailChangeOutcome::Taken;
+        }
+
+        $this->accounts->markPendingEmailAuthorized($user);
+        $this->sendConfirmationLink($user);
+
+        return EmailChangeOutcome::CheckNewInbox;
+    }
+
+    public function confirm(EmailChangeLinkData $data): EmailChangeOutcome
+    {
+        $user = $this->accounts->findById($data->userId);
+
+        // Never before the current address approved, even if the link was somehow obtained early.
+        if (! $this->linkMatches(self::LINK_CONFIRM, $user, $data->hash) || $user->pending_email_authorized_at === null) {
             return EmailChangeOutcome::Invalid;
         }
 
         // Someone may have signed up with the address since the request.
         if ($this->accounts->emailBelongsToAnotherUser($user->pending_email, $user->id)) {
-            $this->accounts->updatePendingEmail($user, null);
+            $this->accounts->clearPendingEmail($user);
 
             return EmailChangeOutcome::Taken;
         }
@@ -92,7 +144,7 @@ class EmailChangeService implements EmailChangeServiceInterface
             $this->accounts->applyPendingEmail($user);
         } catch (UniqueConstraintViolationException) {
             $user->refresh();
-            $this->accounts->updatePendingEmail($user, null);
+            $this->accounts->clearPendingEmail($user);
 
             return EmailChangeOutcome::Taken;
         }
@@ -104,15 +156,71 @@ class EmailChangeService implements EmailChangeServiceInterface
         return EmailChangeOutcome::Success;
     }
 
+    public function cancelFromLink(EmailChangeLinkData $data): EmailChangeOutcome
+    {
+        $user = $this->accounts->findById($data->userId);
+
+        if (! $this->linkMatches(self::LINK_CANCEL, $user, $data->hash)) {
+            return EmailChangeOutcome::Invalid;
+        }
+
+        $this->accounts->clearPendingEmail($user);
+
+        return EmailChangeOutcome::Cancelled;
+    }
+
+    /** To the current address of an account without a password: approve (or cancel) before the new address is mailed. */
+    private function sendAuthorizationLink(User $user): void
+    {
+        $url = $this->signedLink(self::LINK_AUTHORIZE, $user, self::EXPIRES_MINUTES);
+
+        $this->mailLater($user->email, new AuthorizeEmailChangeMail(
+            $user->name, self::mask($user->pending_email), $url, $this->cancelUrl($user), self::EXPIRES_MINUTES,
+        ));
+    }
+
     private function sendConfirmationLink(User $user): void
     {
-        $url = URL::temporarySignedRoute(
-            'me.email.confirm',
-            now()->addMinutes(self::EXPIRES_MINUTES),
-            ['id' => $user->id, 'hash' => sha1($user->pending_email)],
-        );
+        $url = $this->signedLink(self::LINK_CONFIRM, $user, self::EXPIRES_MINUTES);
 
         $this->mailLater($user->pending_email, new ConfirmEmailChangeMail($user->name, $url, self::EXPIRES_MINUTES));
+    }
+
+    private function cancelUrl(User $user): string
+    {
+        return $this->signedLink(self::LINK_CANCEL, $user, self::CANCEL_EXPIRES_MINUTES);
+    }
+
+    private function signedLink(string $purpose, User $user, int $minutes): string
+    {
+        return URL::temporarySignedRoute(
+            'me.email.'.$purpose,
+            now()->addMinutes($minutes),
+            ['id' => $user->id, 'hash' => $this->linkHash($purpose, $user)],
+        );
+    }
+
+    /**
+     * Binds a link to one purpose, one pending request (the nonce, so asking A, then B, then A again
+     * never revives the first link) and the current password hash (so changing or resetting the
+     * password voids it). Keyed with APP_KEY, so it cannot be computed from the database alone.
+     */
+    private function linkHash(string $purpose, User $user): string
+    {
+        return hash_hmac(
+            'sha256',
+            implode('|', [$purpose, $user->id, $user->pending_email, $user->pending_email_nonce, $user->password]),
+            (string) config('app.key'),
+        );
+    }
+
+    /** Whether the link was made for this purpose, this pending request and the current password. */
+    private function linkMatches(string $purpose, ?User $user, string $hash): bool
+    {
+        return $user !== null
+            && $user->pending_email !== null
+            && $user->pending_email_nonce !== null
+            && hash_equals($this->linkHash($purpose, $user), $hash);
     }
 
     /** After the response is sent, so a slow or broken mail server is logged without failing the request. */

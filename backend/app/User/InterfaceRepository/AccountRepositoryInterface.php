@@ -17,10 +17,19 @@ interface AccountRepositoryInterface
     /** Whether some other account already signs in with this address. */
     public function emailBelongsToAnotherUser(string $email, int $userId): bool;
 
-    /** Stores (or with null, clears) the address the member asked to switch to. */
-    public function updatePendingEmail(User $user, ?string $email): void;
+    /**
+     * Stores the address the member asked to switch to with a fresh nonce for its links, marked as
+     * authorized by the current address straight away or left waiting for it.
+     */
+    public function storePendingEmail(User $user, string $email, string $nonce, bool $authorized): void;
 
-    /** Makes the pending address the sign-in email, marks it verified and clears the pending one. */
+    /** Records that the current address agreed to the pending change. */
+    public function markPendingEmailAuthorized(User $user): void;
+
+    /** Drops the pending address, its nonce and its authorization. */
+    public function clearPendingEmail(User $user): void;
+
+    /** Makes the pending address the sign-in email, marks it verified and clears the pending change. */
     public function applyPendingEmail(User $user): void;
 
     /** The user's preferences row, or an unsaved one when they never set any. */

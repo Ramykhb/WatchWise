@@ -6,6 +6,8 @@ namespace App\User\DTOs\Responses;
 enum EmailChangeOutcome: string
 {
     case Success = 'success';
+    case CheckNewInbox = 'check-new-inbox';
+    case Cancelled = 'cancelled';
     case Invalid = 'invalid';
     case Expired = 'expired';
     case Taken = 'taken';

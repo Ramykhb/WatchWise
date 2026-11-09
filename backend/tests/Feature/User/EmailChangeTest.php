@@ -2,12 +2,15 @@
 
 namespace Tests\Feature\User;
 
+use App\Models\PasswordReset;
 use App\Models\RefreshToken;
 use App\Models\User;
 use App\Support\SocialPlaceholderPassword;
+use App\User\Mail\AuthorizeEmailChangeMail;
 use App\User\Mail\ConfirmEmailChangeMail;
 use App\User\Mail\EmailChangedMail;
 use App\User\Mail\EmailChangeRequestedMail;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Tests\Feature\Social\SocialTestCase;
@@ -28,14 +31,29 @@ class EmailChangeTest extends SocialTestCase
     {
         $this->as($user)->putJson('/api/me/email', ['email' => $email, 'current_password' => 'password'])->assertOk();
 
-        $url = null;
-        Mail::assertSent(ConfirmEmailChangeMail::class, function (ConfirmEmailChangeMail $mail) use ($email, &$url): bool {
-            $url = $mail->url;
+        return $this->lastMailed(ConfirmEmailChangeMail::class, $email)->url;
+    }
 
-            return $mail->hasTo($email);
-        });
+    /** An account created by social sign-in, still holding the placeholder password. */
+    private function socialOnlyUser(string $email = 'old@example.com'): User
+    {
+        config(['services.social_password.placeholder' => 'phpunit-placeholder-Xy9#only-for-tests']);
 
-        return $url;
+        return User::factory()->create(['email' => $email, 'password' => SocialPlaceholderPassword::forNewAccount()]);
+    }
+
+    /**
+     * @template T of \Illuminate\Mail\Mailable
+     *
+     * @param  class-string<T>  $mailable
+     * @return T
+     */
+    private function lastMailed(string $mailable, string $to): object
+    {
+        $mail = Mail::sent($mailable, fn ($mail) => $mail->hasTo($to))->last();
+        $this->assertNotNull($mail, "No {$mailable} was sent to {$to}.");
+
+        return $mail;
     }
 
     private function redirectFor(string $status): string
@@ -50,7 +68,8 @@ class EmailChangeTest extends SocialTestCase
         $this->as($user)->putJson('/api/me/email', ['email' => 'new@example.com', 'current_password' => 'password'])
             ->assertOk()
             ->assertJsonPath('user.email', 'old@example.com')
-            ->assertJsonPath('pending_email', 'new@example.com');
+            ->assertJsonPath('pending_email', 'new@example.com')
+            ->assertJsonPath('pending_email_awaiting_current', false);
 
         $user->refresh();
         $this->assertSame('old@example.com', $user->email);
@@ -58,6 +77,7 @@ class EmailChangeTest extends SocialTestCase
         $this->as($user)->getJson('/api/me')->assertJsonPath('pending_email', 'new@example.com');
         Mail::assertSent(ConfirmEmailChangeMail::class, fn (ConfirmEmailChangeMail $mail) => $mail->hasTo('new@example.com'));
         Mail::assertSent(EmailChangeRequestedMail::class, fn (EmailChangeRequestedMail $mail) => $mail->hasTo('old@example.com') && $mail->maskedNewEmail === 'n***@example.com');
+        Mail::assertNotSent(AuthorizeEmailChangeMail::class);
     }
 
     public function test_the_current_password_is_required(): void
@@ -75,17 +95,76 @@ class EmailChangeTest extends SocialTestCase
         Mail::assertNothingSent();
     }
 
-    public function test_accounts_without_a_password_of_their_own_skip_the_password_but_still_confirm(): void
+    public function test_an_account_without_a_password_must_approve_from_its_current_address_first(): void
     {
-        config(['services.social_password.placeholder' => 'phpunit-placeholder-Xy9#only-for-tests']);
-        $user = User::factory()->create(['password' => SocialPlaceholderPassword::forNewAccount()]);
+        $user = $this->socialOnlyUser();
 
         $this->as($user)->putJson('/api/me/email', ['email' => 'new@example.com'])
             ->assertOk()
-            ->assertJsonPath('pending_email', 'new@example.com');
+            ->assertJsonPath('pending_email', 'new@example.com')
+            ->assertJsonPath('pending_email_awaiting_current', true);
 
-        $this->assertNotSame('new@example.com', $user->refresh()->email);
-        Mail::assertSent(ConfirmEmailChangeMail::class);
+        $this->assertSame('old@example.com', $user->refresh()->email);
+        Mail::assertNotSent(ConfirmEmailChangeMail::class);
+        Mail::assertSent(AuthorizeEmailChangeMail::class, fn (AuthorizeEmailChangeMail $mail) => $mail->hasTo('old@example.com') && $mail->maskedNewEmail === 'n***@example.com');
+        Mail::assertSent(AuthorizeEmailChangeMail::class, 1);
+        $this->as($user)->getJson('/api/me')->assertJsonPath('pending_email_awaiting_current', true);
+    }
+
+    public function test_an_account_without_a_password_completes_the_change_through_both_addresses(): void
+    {
+        $this->freezeSecond();
+        $user = $this->socialOnlyUser();
+        RefreshToken::factory()->for($user)->create();
+        $this->as($user)->putJson('/api/me/email', ['email' => 'new@example.com'])->assertOk();
+        $authorizeUrl = $this->lastMailed(AuthorizeEmailChangeMail::class, 'old@example.com')->url;
+
+        $this->get($authorizeUrl)->assertRedirect($this->redirectFor('check-new-inbox'));
+
+        $this->as($user)->getJson('/api/me')->assertJsonPath('pending_email_awaiting_current', false);
+        $confirmUrl = $this->lastMailed(ConfirmEmailChangeMail::class, 'new@example.com')->url;
+
+        // Opening the approval link again changes nothing and mails nothing new.
+        $this->get($authorizeUrl)->assertRedirect($this->redirectFor('check-new-inbox'));
+        Mail::assertSent(ConfirmEmailChangeMail::class, 1);
+
+        $this->get($confirmUrl)->assertRedirect($this->redirectFor('success'));
+
+        $user->refresh();
+        $this->assertSame('new@example.com', $user->email);
+        $this->assertTrue($user->email_verified_at->equalTo(now()));
+        $this->assertNull($user->pending_email);
+        $this->assertNull($user->pending_email_authorized_at);
+        $this->assertSame(0, RefreshToken::where('user_id', $user->id)->whereNull('revoked_at')->count());
+        Mail::assertSent(EmailChangedMail::class, fn (EmailChangedMail $mail) => $mail->hasTo('old@example.com') && $mail->maskedNewEmail === 'n***@example.com');
+    }
+
+    public function test_the_new_address_link_is_refused_until_the_current_address_approves(): void
+    {
+        $user = User::factory()->create(['email' => 'old@example.com']);
+        $url = $this->requestChange($user, 'new@example.com');
+        // The same link, but as if the current address had not approved yet (as for an account without a password).
+        $user->forceFill(['pending_email_authorized_at' => null])->save();
+
+        $this->get($url)->assertRedirect($this->redirectFor('invalid'));
+
+        $user->refresh();
+        $this->assertSame('old@example.com', $user->email);
+        $this->assertSame('new@example.com', $user->pending_email);
+        Mail::assertNotSent(EmailChangedMail::class);
+    }
+
+    public function test_an_address_taken_before_the_approval_is_not_mailed(): void
+    {
+        $user = $this->socialOnlyUser();
+        $this->as($user)->putJson('/api/me/email', ['email' => 'new@example.com'])->assertOk();
+        User::factory()->create(['email' => 'new@example.com']);
+
+        $this->get($this->lastMailed(AuthorizeEmailChangeMail::class, 'old@example.com')->url)
+            ->assertRedirect($this->redirectFor('taken'));
+
+        $this->assertNull($user->refresh()->pending_email);
+        Mail::assertNotSent(ConfirmEmailChangeMail::class);
     }
 
     public function test_the_new_email_must_be_different_and_free(): void
@@ -127,28 +206,153 @@ class EmailChangeTest extends SocialTestCase
         $this->get($first)->assertRedirect($this->redirectFor('invalid'));
         $this->assertSame('old@example.com', $user->refresh()->email);
 
-        $this->as($user)->deleteJson('/api/me/email')->assertOk()->assertJsonPath('pending_email', null);
+        $this->as($user)->deleteJson('/api/me/email')
+            ->assertOk()
+            ->assertJsonPath('pending_email', null)
+            ->assertJsonPath('pending_email_awaiting_current', false);
 
+        $user->refresh();
+        $this->assertNull($user->pending_email_nonce);
+        $this->assertNull($user->pending_email_authorized_at);
         $this->get($second)->assertRedirect($this->redirectFor('invalid'));
         $this->assertSame('old@example.com', $user->refresh()->email);
         Mail::assertNotSent(EmailChangedMail::class);
+    }
+
+    public function test_asking_for_the_same_address_again_never_revives_an_older_link(): void
+    {
+        $user = User::factory()->create(['email' => 'old@example.com']);
+        $firstForA = $this->requestChange($user, 'a@example.com');
+        $this->requestChange($user, 'b@example.com');
+        $secondForA = $this->requestChange($user, 'a@example.com');
+
+        $this->get($firstForA)->assertRedirect($this->redirectFor('invalid'));
+        $this->assertSame('old@example.com', $user->refresh()->email);
+
+        $this->get($secondForA)->assertRedirect($this->redirectFor('success'));
+        $this->assertSame('a@example.com', $user->refresh()->email);
+    }
+
+    public function test_changing_the_password_voids_the_link_and_clears_the_pending_change(): void
+    {
+        $user = User::factory()->create(['email' => 'old@example.com']);
+        $url = $this->requestChange($user, 'attacker@example.com');
+
+        $this->as($user)->putJson('/api/me/password', ['current_password' => 'password', 'password' => 'newsecret99', 'password_confirmation' => 'newsecret99'])
+            ->assertOk();
+
+        $user->refresh();
+        $this->assertNull($user->pending_email);
+        $this->assertNull($user->pending_email_nonce);
+        $this->get($url)->assertRedirect($this->redirectFor('invalid'));
+        $this->assertSame('old@example.com', $user->refresh()->email);
+        Mail::assertNotSent(EmailChangedMail::class);
+    }
+
+    public function test_resetting_the_password_voids_the_link_and_clears_the_pending_change(): void
+    {
+        $user = User::factory()->create(['email' => 'old@example.com']);
+        $url = $this->requestChange($user, 'attacker@example.com');
+        $record = new PasswordReset(['email' => 'old@example.com', 'token' => Hash::make('goodtoken')]);
+        $record->created_at = now();
+        $record->save();
+
+        $this->postJson('/api/auth/reset-password', ['email' => 'old@example.com', 'token' => 'goodtoken', 'password' => 'newsecret99', 'password_confirmation' => 'newsecret99'])
+            ->assertOk();
+
+        $this->assertNull($user->refresh()->pending_email);
+        $this->get($url)->assertRedirect($this->redirectFor('invalid'));
+        $this->assertSame('old@example.com', $user->refresh()->email);
+    }
+
+    public function test_the_link_is_bound_to_the_password_hash_even_if_the_pending_change_survives(): void
+    {
+        $user = User::factory()->create(['email' => 'old@example.com']);
+        $url = $this->requestChange($user, 'attacker@example.com');
+        // A password written by some other path that does not clear the pending change.
+        $user->forceFill(['password' => 'somethingelse1'])->save();
+
+        $this->get($url)->assertRedirect($this->redirectFor('invalid'));
+
+        $user->refresh();
+        $this->assertSame('old@example.com', $user->email);
+        $this->assertSame('attacker@example.com', $user->pending_email);
+    }
+
+    public function test_the_cancel_link_drops_the_pending_change_and_voids_its_links(): void
+    {
+        $user = User::factory()->create(['email' => 'old@example.com']);
+        $confirmUrl = $this->requestChange($user, 'attacker@example.com');
+        $cancelUrl = $this->lastMailed(EmailChangeRequestedMail::class, 'old@example.com')->cancelUrl;
+
+        $this->get($cancelUrl)->assertRedirect($this->redirectFor('cancelled'));
+
+        $user->refresh();
+        $this->assertNull($user->pending_email);
+        $this->assertNull($user->pending_email_nonce);
+        $this->get($confirmUrl)->assertRedirect($this->redirectFor('invalid'));
+        // Nothing is pending any more, so the same link is now a harmless no-op.
+        $this->get($cancelUrl)->assertRedirect($this->redirectFor('invalid'));
+        $this->assertSame('old@example.com', $user->refresh()->email);
+    }
+
+    public function test_the_cancel_link_in_the_approval_mail_voids_the_approval_link(): void
+    {
+        $user = $this->socialOnlyUser();
+        $this->as($user)->putJson('/api/me/email', ['email' => 'attacker@example.com'])->assertOk();
+        $mail = $this->lastMailed(AuthorizeEmailChangeMail::class, 'old@example.com');
+
+        $this->get($mail->cancelUrl)->assertRedirect($this->redirectFor('cancelled'));
+
+        $this->assertNull($user->refresh()->pending_email);
+        $this->get($mail->url)->assertRedirect($this->redirectFor('invalid'));
+        Mail::assertNotSent(ConfirmEmailChangeMail::class);
+    }
+
+    public function test_a_cancel_link_only_cancels_the_request_it_was_mailed_for(): void
+    {
+        $user = User::factory()->create(['email' => 'old@example.com']);
+        $this->requestChange($user, 'first@example.com');
+        $staleCancelUrl = $this->lastMailed(EmailChangeRequestedMail::class, 'old@example.com')->cancelUrl;
+        $this->requestChange($user, 'second@example.com');
+
+        $this->get($staleCancelUrl)->assertRedirect($this->redirectFor('invalid'));
+        $this->get(URL::temporarySignedRoute('me.email.cancel', now()->addHour(), ['id' => $user->id, 'hash' => str_repeat('0', 64)]))
+            ->assertRedirect($this->redirectFor('invalid'));
+
+        $this->assertSame('second@example.com', $user->refresh()->pending_email);
     }
 
     public function test_expired_and_tampered_links_redirect_without_changing_anything(): void
     {
         $user = User::factory()->create(['email' => 'old@example.com']);
         $this->requestChange($user, 'new@example.com');
-        $params = ['id' => $user->id, 'hash' => sha1('new@example.com')];
+        $params = ['id' => $user->id, 'hash' => str_repeat('a', 64)];
 
-        $this->get(URL::temporarySignedRoute('me.email.confirm', now()->subMinute(), $params))
-            ->assertRedirect($this->redirectFor('expired'));
-        $this->get("/api/me/email/confirm/{$user->id}/".sha1('new@example.com'))
-            ->assertRedirect($this->redirectFor('invalid'));
-        $this->get(URL::temporarySignedRoute('me.email.confirm', now()->addHour(), [...$params, 'hash' => sha1('other@example.com')]))
-            ->assertRedirect($this->redirectFor('invalid'));
+        foreach (['confirm', 'authorize', 'cancel'] as $link) {
+            $this->get(URL::temporarySignedRoute("me.email.{$link}", now()->subMinute(), $params))
+                ->assertRedirect($this->redirectFor('expired'));
+            $this->get("/api/me/email/{$link}/{$user->id}/".$params['hash'])
+                ->assertRedirect($this->redirectFor('invalid'));
+            $this->get(URL::temporarySignedRoute("me.email.{$link}", now()->addHour(), $params))
+                ->assertRedirect($this->redirectFor('invalid'));
+        }
 
         $this->assertSame('old@example.com', $user->refresh()->email);
         $this->assertSame('new@example.com', $user->pending_email);
+    }
+
+    public function test_one_link_cannot_stand_in_for_another(): void
+    {
+        $user = User::factory()->create(['email' => 'old@example.com']);
+        $this->requestChange($user, 'new@example.com');
+        $cancelUrl = $this->lastMailed(EmailChangeRequestedMail::class, 'old@example.com')->cancelUrl;
+        $hash = basename(parse_url($cancelUrl, PHP_URL_PATH));
+
+        $this->get(URL::temporarySignedRoute('me.email.confirm', now()->addHour(), ['id' => $user->id, 'hash' => $hash]))
+            ->assertRedirect($this->redirectFor('invalid'));
+
+        $this->assertSame('old@example.com', $user->refresh()->email);
     }
 
     public function test_an_address_taken_after_the_request_is_not_applied(): void
@@ -177,6 +381,27 @@ class EmailChangeTest extends SocialTestCase
         Mail::assertSent(EmailChangeRequestedMail::class, 1);
     }
 
+    public function test_resend_mails_the_link_the_current_stage_waits_for(): void
+    {
+        $user = $this->socialOnlyUser();
+        $this->as($user)->putJson('/api/me/email', ['email' => 'new@example.com'])->assertOk();
+
+        $this->as($user)->postJson('/api/me/email/resend')->assertOk()->assertJsonPath('pending_email_awaiting_current', true);
+
+        Mail::assertSent(AuthorizeEmailChangeMail::class, fn (AuthorizeEmailChangeMail $mail) => $mail->hasTo('old@example.com'));
+        Mail::assertSent(AuthorizeEmailChangeMail::class, 2);
+        Mail::assertNotSent(ConfirmEmailChangeMail::class);
+
+        $this->get($this->lastMailed(AuthorizeEmailChangeMail::class, 'old@example.com')->url)
+            ->assertRedirect($this->redirectFor('check-new-inbox'));
+        $this->as($user)->postJson('/api/me/email/resend')->assertOk();
+
+        Mail::assertSent(ConfirmEmailChangeMail::class, 2);
+        Mail::assertSent(AuthorizeEmailChangeMail::class, 2);
+        $this->get($this->lastMailed(ConfirmEmailChangeMail::class, 'new@example.com')->url)
+            ->assertRedirect($this->redirectFor('success'));
+    }
+
     public function test_email_change_requests_are_rate_limited_per_account(): void
     {
         $user = User::factory()->create();
@@ -188,23 +413,40 @@ class EmailChangeTest extends SocialTestCase
         $this->as($user)->putJson('/api/me/email', ['email' => 'new4@example.com', 'current_password' => 'password'])->assertTooManyRequests();
     }
 
-    public function test_the_email_change_endpoints_need_a_signed_in_user(): void
+    public function test_the_email_change_endpoints_need_a_signed_in_verified_user(): void
     {
         $this->putJson('/api/me/email', ['email' => 'new@example.com'])->assertUnauthorized();
         $this->postJson('/api/me/email/resend')->assertUnauthorized();
         $this->deleteJson('/api/me/email')->assertUnauthorized();
+
+        $unverified = User::factory()->unverified()->create();
+        $this->as($unverified)->putJson('/api/me/email', ['email' => 'new@example.com', 'current_password' => 'password'])->assertForbidden();
+        $this->as($unverified)->postJson('/api/me/email/resend')->assertForbidden();
+        $this->as($unverified)->deleteJson('/api/me/email')->assertForbidden();
+        Mail::assertNothingSent();
     }
 
-    public function test_the_emails_render_their_link_and_the_masked_address(): void
+    public function test_the_emails_render_their_links_and_the_masked_address(): void
     {
         $confirm = new ConfirmEmailChangeMail('Jane', 'http://api.test/confirm-link', 60);
         $confirm->assertSeeInHtml('http://api.test/confirm-link', false);
         $confirm->assertSeeInText('expires in 60 minutes');
 
-        $requested = new EmailChangeRequestedMail('Jane', 'n***@example.com');
+        $requested = new EmailChangeRequestedMail('Jane', 'n***@example.com', 'http://api.test/cancel-link');
         $requested->assertSeeInHtml('n***@example.com');
+        $requested->assertSeeInHtml('http://api.test/cancel-link', false);
+        $requested->assertSeeInText('http://api.test/cancel-link');
         $requested->assertSeeInText(self::FRONT.'/edit-profile');
+        $requested->assertSeeInText('voids any pending email change');
         $requested->assertDontSeeInHtml('expires in');
+
+        $authorize = new AuthorizeEmailChangeMail('Jane', 'n***@example.com', 'http://api.test/authorize-link', 'http://api.test/cancel-link', 60);
+        $authorize->assertSeeInHtml('n***@example.com');
+        $authorize->assertSeeInHtml('http://api.test/authorize-link', false);
+        $authorize->assertSeeInHtml('http://api.test/cancel-link', false);
+        $authorize->assertSeeInText('http://api.test/authorize-link');
+        $authorize->assertSeeInText('http://api.test/cancel-link');
+        $authorize->assertSeeInText('expires in 60 minutes');
 
         (new EmailChangedMail('Jane', 'n***@example.com'))->assertSeeInText('n***@example.com');
     }

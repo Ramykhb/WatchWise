@@ -13,6 +13,7 @@ use App\User\DTOs\Responses\AccountResponse;
 use App\User\Exceptions\IncorrectPassword;
 use App\User\InterfaceRepository\AccountRepositoryInterface;
 use App\User\InterfaceServices\AccountServiceInterface;
+use App\User\InterfaceServices\EmailChangeServiceInterface;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -22,6 +23,7 @@ class AccountService implements AccountServiceInterface
     public function __construct(
         private readonly AccountRepositoryInterface $accounts,
         private readonly RefreshTokenRepositoryInterface $tokens,
+        private readonly EmailChangeServiceInterface $emailChange,
     ) {}
 
     public function show(User $user): AccountResponse
@@ -67,6 +69,8 @@ class AccountService implements AccountServiceInterface
         }
 
         $this->accounts->updatePassword($user, $data->newPassword);
+        // Its links already stopped working (they are bound to the password hash); this clears Settings too.
+        $this->emailChange->discardPendingChange($user);
         // The access cookie stays valid until it expires (15 min); every refresh token is gone.
         $this->tokens->revokeAllForUser($user->id);
     }
