@@ -108,7 +108,7 @@ class SocialAuthService implements SocialAuthServiceInterface
                     // registered it may not be the owner: drop their password and sessions.
                     $this->users->markEmailVerified($user);
                     $this->users->clearPassword($user);
-                    $this->refreshTokens->revokeAllForUser($user->id);
+                    $this->refreshTokens->revokeAllForUser($user);
                 }
             } else {
                 $user = $this->users->create([

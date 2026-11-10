@@ -70,7 +70,7 @@ class PasswordResetService implements PasswordResetServiceInterface
             // The emailed token proves the inbox: a pending email change goes, and a first password set without proof now counts.
             $this->accounts->passwordResetThroughEmail($user);
             $this->resets->deleteFor($email);
-            $this->refreshTokens->revokeAllForUser($user->id);
+            $this->refreshTokens->revokeAllForUser($user);
         });
     }
 }

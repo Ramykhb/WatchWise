@@ -104,7 +104,7 @@ class SocialAuthServiceTest extends TestCase
         $this->users->shouldReceive('findByEmail')->andReturn($user);
         $this->users->shouldReceive('markEmailVerified')->once()->with($user);
         $this->users->shouldReceive('clearPassword')->once()->with($user);
-        $this->refreshTokens->shouldReceive('revokeAllForUser')->once()->with(3);
+        $this->refreshTokens->shouldReceive('revokeAllForUser')->once()->with($user)->andReturn(1);
         $this->accounts->shouldReceive('create')->once();
         $this->tokens->shouldReceive('issue')->once()->andReturn($this->pair($user));
 

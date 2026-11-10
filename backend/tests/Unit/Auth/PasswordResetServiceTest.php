@@ -130,7 +130,7 @@ class PasswordResetServiceTest extends TestCase
         $this->users->shouldReceive('updatePassword')->once()->with($user, 'newpassword');
         $this->accounts->shouldReceive('passwordResetThroughEmail')->once()->with($user);
         $this->resets->shouldReceive('deleteFor')->once()->with('ada@example.com');
-        $this->refreshTokens->shouldReceive('revokeAllForUser')->once()->with(7);
+        $this->refreshTokens->shouldReceive('revokeAllForUser')->once()->with($user)->andReturn(1);
 
         $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword'));
     }
