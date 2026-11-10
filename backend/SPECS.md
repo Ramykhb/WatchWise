@@ -178,14 +178,14 @@ Brief objective 1: User Authentication. Unchanged since the last check.
    - `role:admin,moderator` is used by the Admin routes (`routes/admin.php`). `moderator` is a new role value (Admin 7), and the frontend `RequireAdmin` guard reads `user.role` from `/auth/me`.
    - `auth.jwt` stamps `users.last_active_at` at most every 5 minutes (not exposed in any payload).
 9. **[Done] `SocialAuthController` is thin**
-   - `SocialAuthServiceInterface::redirectUrl()` checks the OAuth credentials (a missing or `CHANGE_ME` client id or secret throws `SocialLoginNotConfigured`, 503) and returns the provider URL. `providerUser()` returns the signed-in provider's user.
+   - `SocialAuthServiceInterface::redirectUrl()` checks the OAuth credentials (a missing or `CHANGE_ME` client id, secret or redirect URI throws `SocialLoginNotConfigured`, now a `provider_unavailable` redirect rather than a 503) and returns the provider URL. `loginWithProvider()` takes a `SocialCallbackData` DTO and runs the whole callback (see Backend.md, Social sign-in).
    - The Discord authorize URL, code exchange and profile fetch live in `Auth/Support/DiscordOAuthClient`, which throws `SocialProviderFailed` for an unusable answer. The controller only turns the results into redirects, and still maps any provider failure to the `provider_error` redirect reason.
 10. **[Done] Persistence moved to the repository**: `SocialAuthService` calls `UserRepositoryInterface::clearAvatar()` instead of saving the model itself.
 11. **[Done] Controllers no longer catch to build responses**
     - `InvalidCredentials` (401) and `InvalidResetToken` (422) render themselves, and the try/catch in `AuthController::login()` and `PasswordResetController::reset()` is gone.
     - `AuthController::refresh()` keeps its catch on purpose, because it must also clear the auth cookies (documented in its PHPDoc).
-    - The `EmailRequired`, `UnverifiedProviderEmail` and `AccountDisabled` catches in the social callback stay, because they map to redirect reasons.
-12. **[Done] Social redirect test no longer depends on `.env`**: `AccountFlowsTest::test_social_redirect_sets_state_cookie` sets the Google client ID and secret in config itself, so it passes even when `.env` has `GOOGLE_CLIENT_ID=CHANGE_ME`.
+    - The social callback catches one interface, `SocialLoginFailure`, whose `reason()` is the redirect reason; any other error is reported and becomes `provider_error`.
+12. **[Done] Social redirect test no longer depends on `.env`**: `AccountFlowsTest::test_social_redirect_sets_a_state_cookie_bound_to_the_provider` gets its OAuth config from `SignsInWithProviders::configureSocialProviders()`, so it passes even when `.env` has `GOOGLE_CLIENT_ID=CHANGE_ME`.
 13. **[Optional]** Captcha after repeated failed logins (existing TODO in `AuthController::login()`).
 
 ---

@@ -28,7 +28,7 @@ class ClearPlaceholderPasswordsMigrationTest extends TestCase
     private function socialUser(string $plainPassword, array $attributes = []): User
     {
         $user = User::factory()->create(['password' => Hash::make($plainPassword), ...$attributes]);
-        SocialAccount::create(['user_id' => $user->id, 'provider' => 'google', 'provider_id' => 'g'.$user->id, 'access_token' => 'token']);
+        SocialAccount::create(['user_id' => $user->id, 'provider' => 'google', 'provider_id' => 'g'.$user->id]);
 
         return $user;
     }

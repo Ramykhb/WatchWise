@@ -76,7 +76,7 @@ app/Auth/
     Responses/          Output data objects returned by the services
   Factories/            TokenFactory, CurrentUserFactory
   CurrentUser/          CurrentUser interface, JwtCurrentUser, GuestUser
-  Support/              AuthCookies, TokenPair, DiscordOAuthClient, GooglePhoto
+  Support/              AuthCookies, TokenPair, OAuthState, DiscordOAuthClient, GooglePhoto
   Mail/                 Verification and reset emails, BrevoTransport
   Listeners/            Sends the verification email on registration
   Exceptions/           Domain exceptions the controllers map to responses
@@ -123,8 +123,8 @@ All auth endpoints:
 | `POST /api/auth/resend-verification` | none | Resend the verification email |
 | `POST /api/auth/forgot-password` | none | Send a reset link (same response whether or not the account exists) |
 | `POST /api/auth/reset-password` | reset token | Set a new password and revoke all sessions. Also gives an account without a password (social sign-up) its first one |
-| `GET /api/auth/social/{google\|github\|discord}` | none | Start the OAuth login |
-| `GET /api/auth/social/{google\|github\|discord}/callback` | state cookie | Finish the OAuth login, then redirect to the frontend |
+| `GET /api/auth/social/{google\|github\|discord}` | none, `throttle:auth-social-redirect` | Start the OAuth login (redirects to `provider_unavailable` when the provider is not configured) |
+| `GET /api/auth/social/{google\|github\|discord}/callback` | state cookie, `throttle:auth-social-callback` | Finish the OAuth login, then redirect to the frontend (see [Social sign-in](#social-sign-in)) |
 
 ## Config
 
@@ -171,6 +171,7 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `auth-refresh` | `AuthModuleServiceProvider` | 30 | `POST /api/auth/refresh` |
 | `auth-verify-email` | `AuthModuleServiceProvider` | 20 | the verification link |
 | `auth-resend-verification`, `auth-forgot-password` | `AuthModuleServiceProvider` | 3 | the matching auth route |
+| `auth-social-redirect`, `auth-social-callback` | `AuthModuleServiceProvider` | 30, per IP only | `GET /api/auth/social/{provider}` and its `/callback`, one bucket each. Over the limit they redirect to the frontend failure page with `reason=too_many_attempts` (and `Retry-After`), clearing the state cookie, instead of a JSON 429 in the middle of the OAuth round trip |
 | `ai` | `GroqModuleServiceProvider` | 10 | `POST /api/weather-mood`, `GET /api/movie-recommendations`, `/api/watched-recommendations`, `/api/people-recommendations` (all call paid AI APIs) |
 | `chat` | `GroqModuleServiceProvider` | 10 (and 100 per hour) | `POST /api/chat/messages`, per signed-in user |
 | `me-email-change` | `UserModuleServiceProvider` | 3 (and 10 per hour), per account | `PUT /api/me/email`, `POST /api/me/email/resend` |
@@ -185,7 +186,7 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `room-messages`, `room-reads`, `room-socket`, `room-invites` | `RoomModuleServiceProvider` | 30, 120, 60, 30 | the matching room routes, per signed-in user |
 | `notification-socket` | `NotificationModuleServiceProvider` | 30 | `POST /api/notifications/socket-auth`, per signed-in user |
 
-Each auth limiter is checked in two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket. `ai`, `weather` and `tmdb` count per IP; the chat, room and notification limiters count per user (`bootstrap/app.php` runs `auth.jwt` and `verified.email` before throttling, so the user is known and an unverified account never spends a slot).
+Each auth limiter except the two social ones is checked in two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket. `ai`, `weather` and `tmdb` count per IP; the chat, room and notification limiters count per user (`bootstrap/app.php` runs `auth.jwt` and `verified.email` before throttling, so the user is known and an unverified account never spends a slot).
 
 A few routes still use plain `throttle:N,M`: `PUT /api/me/password` and `PUT /api/me/password/set` (6), `PUT /api/ratings/{tmdbId}` (60), `PUT /api/reviews/mine` (20), `POST /api/reviews/{review}/helpful` (60), `POST /api/reviews/{review}/report` (10), `/api/chat/connection` and `/api/chat/auth` (60), `/api/following-recommendations` and `/api/taste-profile` (60), `/api/nearby-cinemas` (30).
 
@@ -200,7 +201,8 @@ Plain `final readonly` classes in `app/Auth/DTOs/`. Services take Request DTOs a
 | `Requests/RegisterData`, `LoginData` | Built by `RegisterRequest::toDto()` and `LoginRequest::toDto()` |
 | `Requests/ForgotPasswordData`, `ResetPasswordData`, `ResendVerificationData` | Built by the matching form requests |
 | `Requests/VerifyEmailData` | The `id` and `hash` from the signed verification link |
-| `Requests/SocialLoginData` | What the module needs from an OAuth provider, built by `fromSocialite()` in the controller |
+| `Requests/SocialCallbackData` | The callback's result for the service: provider, whether the state matched, `code`, OAuth `error`, and the user agent and IP the session is recorded with. Built by `SocialCallbackRequest::toDto()` |
+| `Requests/SocialLoginData` | What the module needs from an OAuth provider, built inside `SocialAuthService` (`fromSocialite()`, or `DiscordOAuthClient`) |
 | `Responses/UserResponse` | The public user JSON (same fields as before) |
 | `Responses/AuthResponse` | The user plus the tokens. `body()` is the JSON, and `AuthCookies` turns the tokens into cookies |
 
@@ -215,7 +217,8 @@ Contracts in `app/Auth/InterfaceServices/`, implementations in `app/Auth/Service
 | `AuthService` | Register, login, refresh and logout. Throws `InvalidCredentials` or `InvalidRefreshToken` |
 | `PasswordResetService` | Sends the reset link (deferred until after the response) and resets the password. Revokes all refresh tokens on reset |
 | `EmailVerificationService` | Sends the signed verification link (60 minutes), resends it, and verifies a link |
-| `SocialAuthService` | Builds the provider redirect URL, fetches the provider's user (Discord through `Support/DiscordOAuthClient`), and Google/GitHub/Discord login. Refuses unverified provider emails and takes over unverified local accounts by resetting their password |
+| `SocialAuthService` | Builds the provider redirect URL and completes the callback: checks the state result and the configuration, fetches the provider's user (Discord through `DiscordOAuthClientInterface`), drops Google's placeholder photo (`GooglePhotoInterface`), then signs in, links or creates the account. Refuses unverified provider emails and takes over unverified local accounts by resetting their password. See [Social sign-in](#social-sign-in) |
+| `DiscordOAuthClient`, `GooglePhoto` (`Support/`) | The two third-party HTTP clients the social service uses, behind `InterfaceServices/DiscordOAuthClientInterface` and `GooglePhotoInterface` (bound in `AuthModuleServiceProvider`) |
 
 ## Repositories
 
@@ -226,7 +229,7 @@ Contracts in `app/Auth/InterfaceRepository/`, implementations in `app/Auth/Repos
 | `UserRepository` | `User` | Find by id or email, create, mark verified, update password |
 | `RefreshTokenRepository` | `RefreshToken` | Create, find (with row lock for rotation), mark rotated, revoke a family or all of a user's tokens |
 | `PasswordResetRepository` | `PasswordReset` | Replace, find latest and delete the reset row for an email |
-| `SocialAccountRepository` | `SocialAccount` | Find by provider, create, update the access token |
+| `SocialAccountRepository` | `SocialAccount` | Find by provider, create (provider access tokens are not stored) |
 
 ## Tokens and current user
 
@@ -249,7 +252,7 @@ All in `app/Auth/Controllers/`. They contain no database queries.
 | `AuthController.php` | Register, login, refresh, logout and `me`. Has the captcha TODO |
 | `EmailVerificationController.php` | Verifies the emailed link and resends it |
 | `PasswordResetController.php` | Forgot-password and reset-password |
-| `SocialAuthController.php` | Google, GitHub and Discord redirect and callback (state cookie check, redirects) |
+| `SocialAuthController.php` | Google, GitHub and Discord redirect and callback: sets and clears the state cookie, turns every outcome into a redirect |
 
 ## Middleware
 
@@ -325,7 +328,18 @@ Emails are sent directly, not queued, so no queue worker is needed. The work for
 
 In `app/Auth/Exceptions/`. Services throw them and controllers turn them into responses.
 
-`InvalidCredentials` and `InvalidResetToken` render their own 401 and 422 responses, as does `SocialLoginNotConfigured` (503). `InvalidRefreshToken`, `UnverifiedProviderEmail`, `EmailRequired`, `AccountDisabled` and `SocialProviderFailed` are caught in the controllers that need to clear cookies or redirect.
+`InvalidCredentials` and `InvalidResetToken` render their own 401 and 422 responses. `InvalidRefreshToken` is caught by `AuthController`, which clears the cookies.
+
+The social routes are browser navigations, so their exceptions are never rendered as JSON. The expected outcomes implement `SocialLoginFailure` and carry the redirect `reason()`: `InvalidOAuthState` (`invalid_state`), `SocialLoginNotConfigured` (`provider_unavailable`), `SocialLoginCancelled` (`access_denied`), `EmailRequired` (`email_required`), `UnverifiedProviderEmail` (`email_unverified`) and `AccountDisabled` (`account_disabled`). They are not reported (`SocialLoginNotConfigured` logs a warning instead, see below). `SocialAuthController` catches that interface, and catches any other `Throwable` (including `SocialProviderFailed`, `SocialAccountNotSaved` and failed Socialite or HTTP calls) as `provider_error`, reporting it first. Reported messages carry no personal data: the OAuth `error` value is logged only when it matches `^[a-z_]{1,64}$` (otherwise `unknown`), and a database failure while saving the account becomes `SocialAccountNotSaved` with only the SQLSTATE (no SQL, bindings or previous exception). `SocialLoginRedirect` (`Support/`) builds every redirect back to the frontend, for the controller and for the rate limiters.
+
+### Social sign-in
+
+- **State.** The redirect sets an HttpOnly, SameSite=Lax cookie (10 minutes) to `<provider>:<40 random characters>` (`Support/OAuthState`). Outside local/testing it is Secure and named `__Host-oauth_state`: browsers only accept that prefix with Secure, Path=/ and no Domain, so a sibling subdomain cannot plant a state of its own (login CSRF). It is built as a Symfony cookie directly so `SESSION_DOMAIN` never adds a Domain; local/testing use the plain `oauth_state` name because the cookie is not Secure there. The callback accepts the echoed `state` only when it equals the cookie and starts with that callback's provider, so a state issued for Google is refused at the GitHub callback. Every callback response, success or failure, expires the cookie, so a state is never accepted twice.
+- **Order of checks** (`SocialAuthService::loginWithProvider`): state, then configuration (`client_id`, `client_secret` and `redirect` must be set and not `CHANGE_ME`; otherwise a warning naming the provider and the missing key, never its value, is logged), then the OAuth `error` parameter (`access_denied` is a cancelled consent; anything else is a provider error), then the provider exchange. A blank provider user id is a provider error.
+- **Resolving the account** (one transaction): an identity already in `social_accounts` signs in to its user even when the provider no longer returns an email. Only an unlinked identity needs an email (`email_required`) that the provider verified (`email_unverified`). Trust is an explicit map that fails closed (`SocialAuthService::EMAIL_VERIFICATION`): Google and Discord report it per user; GitHub is trusted because Socialite's GitHub driver keeps its default `user:email` scope and takes the email from /user/emails, returning only the verified primary address (otherwise none, so `email_required`); any other provider is never trusted. Taking over an unverified local account also drops its pending email change (`EmailChangeServiceInterface::discardPendingChange()`), so its registrant cannot have a fresh confirmation link resent. `is_active` is checked before any write, both for a linked identity and for an account matched by email, so a disabled account is refused with nothing changed (no takeover, no verification, no link, no session).
+- **Concurrent first sign-ins** (double click, two tabs) can collide on `users.email`, `users.username` or `social_accounts (provider, provider_id)`. The losing transaction rolls back on `UniqueConstraintViolationException` and the lookup runs again (3 attempts in all), which finds the winner's rows and signs in to that account. A third collision is a reported `SocialAccountNotSaved` (`provider_error`). Every write of one attempt is in one transaction, so a failure part-way through (for example after a takeover cleared the password) leaves the account as it was.
+- **Provider tokens** are not stored. Migration `2026_11_11_100000_clear_social_account_access_tokens` erased the ones saved earlier; the nullable `social_accounts.access_token` column stays until a later change drops it, and `access_token` is no longer fillable on `SocialAccount`.
+- `TokenFactory::issue()` takes a `Request`, so the service rebuilds a minimal one from the DTO's user agent and IP rather than receiving the HTTP request.
 
 ## Authorization
 
@@ -358,9 +372,11 @@ Most policies stay in `app/Policies/` because each belongs to the entity it prot
 | --- | --- |
 | `tests/Feature/Auth/AuthenticationTest.php` | Register, login, refresh, logout, throttling |
 | `tests/Feature/Auth/AccountFlowsTest.php` | Email verification, password reset, social login |
+| `tests/Feature/Auth/SocialLoginTest.php` | Social sign-in failure reasons (each clears the state cookie), linked accounts without an email, disabled accounts left untouched, the unique-violation retry, cross-provider state, unconfigured providers, error reporting, throttling. `SignsInWithProviders` is the shared test helper |
+| `tests/Feature/Auth/ClearSocialAccessTokensMigrationTest.php` | The migration erasing stored provider tokens |
 | `tests/Feature/Auth/LowercaseEmailTest.php` | Emails stored lowercase; registration, login, password reset and social sign-in in any case; legacy mixed-case rows; the `lowercase_emails` migration (aborts on user email collisions, clears pending changes to a taken address) |
 | `tests/Feature/Auth/BrevoVerificationTest.php` | The Brevo transport and the verification email end to end |
-| `tests/Feature/Auth/GooglePhotoTest.php` | Detecting Google's generated placeholder avatar |
+| `tests/Feature/Auth/GooglePhotoTest.php` | Detecting Google's generated placeholder avatar, and dropping it during the Google callback |
 | `tests/Feature/Auth/MiddlewareTest.php` | The four middleware |
 | `tests/Feature/Auth/PolicyTest.php` | The policy rules, including messages |
 | `tests/Feature/Auth/Repository/` | Each repository against the database |

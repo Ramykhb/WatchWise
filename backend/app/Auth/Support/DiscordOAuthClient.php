@@ -4,13 +4,14 @@ namespace App\Auth\Support;
 
 use App\Auth\DTOs\Requests\SocialLoginData;
 use App\Auth\Exceptions\SocialProviderFailed;
+use App\Auth\InterfaceServices\DiscordOAuthClientInterface;
 use Illuminate\Support\Facades\Http;
 
 /**
  * Discord's OAuth flow, which Socialite has no built-in driver for: the authorize URL, the code exchange
  * and the profile fetch.
  */
-class DiscordOAuthClient
+class DiscordOAuthClient implements DiscordOAuthClientInterface
 {
     private const AUTHORIZE_URL = 'https://discord.com/oauth2/authorize';
 
@@ -31,9 +32,6 @@ class DiscordOAuthClient
         ]);
     }
 
-    /**
-     * @throws SocialProviderFailed when Discord sends no usable code, token or user
-     */
     public function user(?string $code): SocialLoginData
     {
         if (! is_string($code) || $code === '') {
@@ -56,7 +54,7 @@ class DiscordOAuthClient
 
         $user = Http::withToken($accessToken)->get(self::USER_URL)->throw()->json();
         $id = $user['id'] ?? null;
-        if (! is_string($id) || $id === '') {
+        if (! is_string($id) || trim($id) === '') {
             throw new SocialProviderFailed('Discord did not return a user ID.');
         }
 

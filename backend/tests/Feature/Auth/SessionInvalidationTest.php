@@ -9,16 +9,13 @@ use Firebase\JWT\JWT;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Testing\TestResponse;
-use Laravel\Socialite\Contracts\Provider;
-use Laravel\Socialite\Facades\Socialite;
-use Laravel\Socialite\Two\User as SocialiteUser;
-use Mockery;
 use Tests\TestCase;
 
 /** Revoking every session of an account raises `session_version`, which ends every access token issued with an older one. */
 class SessionInvalidationTest extends TestCase
 {
     use RefreshDatabase;
+    use SignsInWithProviders;
 
     protected function setUp(): void
     {
@@ -57,19 +54,10 @@ class SessionInvalidationTest extends TestCase
 
     private function googleSignIn(string $email): TestResponse
     {
-        $socialUser = new SocialiteUser;
-        $socialUser->map(['id' => 'g1', 'name' => 'Owner', 'nickname' => 'owner', 'email' => $email, 'avatar' => null]);
-        $socialUser->token = 'provider-access-token';
-        $socialUser->user = ['email_verified' => true];
+        $this->configureSocialProviders();
+        $this->mockSocialite('google', $this->socialiteUser('g1', $email, ['email_verified' => true]));
 
-        $driver = Mockery::mock(Provider::class);
-        $driver->shouldReceive('stateless')->andReturnSelf();
-        $driver->shouldReceive('user')->andReturn($socialUser);
-        Socialite::shouldReceive('driver')->with('google')->andReturn($driver);
-
-        return $this->withUnencryptedCookie('oauth_state', 'abc')
-            ->get('/api/auth/social/google/callback?state=abc')
-            ->assertRedirect('http://front.test/auth/callback?status=success');
+        return $this->hitSocialCallback('google')->assertRedirect('http://front.test/auth/callback?status=success');
     }
 
     public function test_a_squatter_loses_its_session_when_the_owner_takes_the_account_over(): void

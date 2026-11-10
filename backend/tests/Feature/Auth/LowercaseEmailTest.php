@@ -11,10 +11,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
-use Laravel\Socialite\Contracts\Provider;
-use Laravel\Socialite\Facades\Socialite;
-use Laravel\Socialite\Two\User as SocialiteUser;
-use Mockery;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -22,6 +18,7 @@ use Tests\TestCase;
 class LowercaseEmailTest extends TestCase
 {
     use RefreshDatabase;
+    use SignsInWithProviders;
 
     protected function setUp(): void
     {
@@ -122,28 +119,16 @@ class LowercaseEmailTest extends TestCase
         $this->assertDatabaseCount('password_resets', 0);
     }
 
-    private function mockSocialite(string $provider, ?string $email): void
+    private function mockGoogle(string $email): void
     {
-        $socialUser = new SocialiteUser;
-        $socialUser->map(['id' => 'g1', 'name' => 'Soc User', 'nickname' => 'soc', 'email' => $email, 'avatar' => null]);
-        $socialUser->token = 'provider-access-token';
-        $socialUser->user = ['email_verified' => true];
-
-        $driver = Mockery::mock(Provider::class);
-        $driver->shouldReceive('stateless')->andReturnSelf();
-        $driver->shouldReceive('user')->andReturn($socialUser);
-        Socialite::shouldReceive('driver')->with($provider)->andReturn($driver);
-    }
-
-    private function hitSocialCallback(string $provider)
-    {
-        return $this->withUnencryptedCookie('oauth_state', 'abc')->get("/api/auth/social/{$provider}/callback?state=abc");
+        $this->configureSocialProviders();
+        $this->mockSocialite('google', $this->socialiteUser('g1', $email, ['email_verified' => true]));
     }
 
     public function test_social_sign_in_with_a_mixed_case_email_links_the_lowercase_account(): void
     {
         $user = User::factory()->create(['email' => 'ali@example.com']);
-        $this->mockSocialite('google', 'Ali@Example.com');
+        $this->mockGoogle('Ali@Example.com');
 
         $this->hitSocialCallback('google')->assertRedirect('http://front.test/auth/callback?status=success');
 
@@ -153,7 +138,7 @@ class LowercaseEmailTest extends TestCase
 
     public function test_social_sign_up_with_a_mixed_case_email_stores_it_lowercase(): void
     {
-        $this->mockSocialite('google', 'New.Member@Example.com');
+        $this->mockGoogle('New.Member@Example.com');
 
         $this->hitSocialCallback('google')->assertRedirect('http://front.test/auth/callback?status=success');
 
