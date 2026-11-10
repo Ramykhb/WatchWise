@@ -329,7 +329,6 @@ Most policies stay in `app/Policies/` because each belongs to the entity it prot
 | Policy | Rule |
 | --- | --- |
 | `ReviewPolicy` | Owner-based access |
-| `UserPreferencePolicy` (`app/User/Policies/`) | Owner-based access |
 | `WatchlistPolicy` (`app/Watchlist/Policies/`) | Owner-based access |
 | `MovieListPolicy`, `MovieListItemPolicy` (`app/MovieList/Policies/`) | Private lists are visible to their owner only |
 | `MovieNightPolicy` (`app/MovieNight/Policies/`) | Organizer and invitees can view a night; only the organizer can change it |
@@ -554,16 +553,20 @@ app/User/
   DTOs/Requests/        UpdateProfileData, UpdatePreferencesData, ChangePasswordData, DeleteAccountData, UserSearchQuery, RequestEmailChangeData, ConfirmEmailChangeData
   DTOs/Responses/       AccountResponse, ProfileResponse, UserSearchResponse, FollowResponse, HomeResponse, EmailChangeOutcome (enum: success, invalid, expired, taken)
   Resources/            MemberResource (the small public card of a user, used by many modules)
-  Exceptions/           IncorrectPassword (422 on the wrong field), ProfileSectionHidden (403), NoPendingEmailChange (422)
-  Mail/                 ConfirmEmailChangeMail, EmailChangeRequestedMail, EmailChangedMail
-  Policies/             UserPolicy, UserPreferencePolicy
+  Exceptions/           IncorrectPassword (422 on the wrong field), ProfileSectionHidden (403 JSON), NoPendingEmailChange (422)
+  Mail/                 ConfirmEmailChangeMail, EmailChangeRequestedMail, EmailChangedMail, PasswordAddedMail, and the SendsMailAfterResponse trait (deferred, rescued sending shared by the two services)
+  Policies/             UserPolicy (view, follow)
   Providers/            UserModuleServiceProvider (interface bindings, the me-email-change and me-email-confirm rate limiters, plus user-search, user-follows, user-avatar and user-profile-update)
 ```
 
-- Routes are in `routes/user.php`: `/api/home`; `/api/me` (show, update, delete), `/me/preferences`, `/me/password` (revokes the other devices' sessions), `/me/avatar` (upload/delete, public disk), `/me/social/{google|github|discord}` (disconnect), `/me/follow-requests/{username}` (accept/decline), `/me/email` (see below); `/api/users` (search) and `/api/users/{username}` with `followers`, `following` and `follow`/unfollow.
+- Routes are in `routes/user.php`: `/api/home`; `/api/me` (show, update, delete), `/me/preferences`, `/me/password` (see below), `/me/avatar` (upload/delete, public disk; see below), `/me/social/{google|github|discord}` (disconnect), `/me/follow-requests/{username}` (accept/decline), `/me/email` (see below); `/api/users` (search) and `/api/users/{username}` with `followers`, `following` and `follow`/unfollow.
 - `ProfilePrivacy` decides what a viewer may see of a profile. The profile page decides `canView` once and reads every section through `sectionsShownTo()`, so a followers-only profile does not repeat the follow query per section. `my_following` still lists everyone the viewer follows: "View all" loads the full followers/following lists and each person there needs a Follow/Following button. The 8 recent followers/following are the newest follows first, and the review count skips empty text like Home does.
+- **Search input** (`GET /api/users?q=&limit=`): nothing is rejected. `UserSearchQuery::fromInput` treats a `q` that is not a string (`q[]=x`) as empty, trims it and cuts it to 100 characters, and clamps `limit` to 1-30 (a non-number falls back to 10).
+- **Changing the password** (`PUT /api/me/password`): `AccountService::changePassword` revokes every refresh token and calls `AuthServiceInterface::replaceSessions()`, which issues a fresh token pair for the calling request; the controller sets it as the new cookies. The refresh cookie is only sent to `/api/auth`, so the password route cannot tell which session is current, hence the fresh session instead of "revoke all but mine". This device stays signed in, every other device is signed out (their access cookies run out within 15 minutes). A pending email change is still discarded.
+- **First password notice:** when the password set was the first one (the account held the social placeholder), `PasswordAddedMail` goes to the account address (deferred, errors only logged), saying a password was added and linking to forgot-password if it was not them. An ordinary change sends nothing.
+- **Avatars:** `users.avatar` holds a path on the public disk (`avatars/<file>`) for uploaded pictures, or the external `http(s)` URL copied by social sign-in. The `User` model's `avatar` accessor returns a full URL for a stored path and leaves external URLs untouched, so every response (`UserResponse`, `MemberResource`, Admin, notifications) shows a full URL and `APP_URL` is never stored. Uploading stores the new file first, updates the row, then deletes the old file (and deletes the new one again if the update fails). Migration `2026_11_10_075004_convert_user_avatars_to_storage_paths` converts old `.../storage/avatars/<file>` URLs to paths (`down()` restores URLs).
 - `/api/home` returns the 3 busiest rooms, your next movie night (accepted guests and the leading vote) and `activity`: the 8 newest items from people you follow (reviews, ratings, public lists, watched titles and watchlist additions), each kind filtered by that person's privacy switches. Spoiler reviews have no excerpt.
-- Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php`, `AccountRulesTest.php`, `PlaceholderPasswordTest.php` and `tests/Feature/User/HomeActivityTest.php`, `EmailChangeTest.php`, `PasswordProofBackfillTest.php` and `Repository/AccountRepositoryTest.php` (the compare-and-set email-change writes).
+- Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php`, `AccountRulesTest.php`, `PlaceholderPasswordTest.php` and `tests/Feature/User/HomeActivityTest.php`, `EmailChangeTest.php`, `PasswordProofBackfillTest.php`, `AccountSafetyTest.php` (search input, password sessions, first-password notice, avatar storage) and `Repository/AccountRepositoryTest.php` (the compare-and-set email-change writes).
 
 ### Changing the sign-in email
 

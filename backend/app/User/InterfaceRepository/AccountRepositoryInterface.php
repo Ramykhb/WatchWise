@@ -60,7 +60,8 @@ interface AccountRepositoryInterface
     /** The owner proved control of the inbox, so a password chosen without proof now counts as proof. */
     public function clearPasswordSetWithoutProof(User $user): void;
 
-    public function updateAvatar(User $user, ?string $url): void;
+    /** `$avatar` is a path on the public disk for an uploaded picture, or null to remove it. */
+    public function updateAvatar(User $user, ?string $avatar): void;
 
     public function deleteSocialAccounts(User $user, string $provider): void;
 

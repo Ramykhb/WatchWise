@@ -2,6 +2,7 @@
 
 namespace App\User\InterfaceServices;
 
+use App\Auth\DTOs\Responses\AuthResponse;
 use App\Models\User;
 use App\User\DTOs\Requests\ChangePasswordData;
 use App\User\DTOs\Requests\DeleteAccountData;
@@ -9,6 +10,7 @@ use App\User\DTOs\Requests\UpdatePreferencesData;
 use App\User\DTOs\Requests\UpdateProfileData;
 use App\User\DTOs\Responses\AccountResponse;
 use App\User\Exceptions\IncorrectPassword;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 
 interface AccountServiceInterface
@@ -22,11 +24,13 @@ interface AccountServiceInterface
     public function updatePreferences(User $user, UpdatePreferencesData $data): AccountResponse;
 
     /**
-     * Signs out every other device by revoking their refresh tokens.
+     * Revokes every refresh token the user holds and starts a fresh session for the calling device,
+     * so only the other devices are signed out. A FIRST password (the account only had the social
+     * placeholder) also mails the address a notice. Returns the new session for the controller's cookies.
      *
      * @throws IncorrectPassword
      */
-    public function changePassword(User $user, ChangePasswordData $data): void;
+    public function changePassword(User $user, ChangePasswordData $data, Request $request): AuthResponse;
 
     /**
      * Called by the password-reset flow once a reset through the emailed link succeeded. That proves
@@ -35,7 +39,7 @@ interface AccountServiceInterface
      */
     public function passwordResetThroughEmail(User $user): void;
 
-    /** Stores the image on the public disk and replaces the previous one. */
+    /** Stores the image on the public disk (its path, not its URL, goes in the row), then removes the previous one. */
     public function uploadAvatar(User $user, UploadedFile $file): AccountResponse;
 
     public function deleteAvatar(User $user): AccountResponse;

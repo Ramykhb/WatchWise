@@ -59,12 +59,12 @@ class UserController
         return response()->json($this->account->updatePreferences($current->user(), $request->toDto()));
     }
 
-    /** PUT /api/me/password — signs out every other device by revoking their refresh tokens. */
-    public function updatePassword(UpdatePasswordRequest $request, CurrentUser $current): JsonResponse
+    /** PUT /api/me/password — signs out every other device; this one gets fresh cookies and stays signed in. */
+    public function updatePassword(UpdatePasswordRequest $request, CurrentUser $current, AuthCookies $cookies): JsonResponse
     {
-        $this->account->changePassword($current->user(), $request->toDto());
+        $session = $this->account->changePassword($current->user(), $request->toDto(), $request);
 
-        return response()->json(['message' => 'Password updated. Other devices have been signed out.']);
+        return $cookies->attach(response()->json(['message' => 'Password updated. Other devices have been signed out.']), $session);
     }
 
     /**
