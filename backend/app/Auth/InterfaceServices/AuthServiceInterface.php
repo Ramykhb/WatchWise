@@ -24,4 +24,10 @@ interface AuthServiceInterface
 
     /** Signs the user out everywhere by revoking every refresh token they hold. */
     public function revokeSessions(User $user): void;
+
+    /**
+     * Signs the user out everywhere, then starts one fresh session for the caller so the device that
+     * triggered the change stays signed in. The controller turns the result into the new cookies.
+     */
+    public function replaceSessions(User $user, Request $request): AuthResponse;
 }

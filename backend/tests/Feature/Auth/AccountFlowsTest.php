@@ -197,6 +197,8 @@ class AccountFlowsTest extends TestCase
 
         $user = User::where('email', 'new@example.com')->firstOrFail();
         $this->assertNotNull($user->email_verified_at);
+        // Social sign-ups store no password until they set one.
+        $this->assertNull($user->password);
         $account = SocialAccount::firstOrFail();
         $this->assertSame('provider-access-token', $account->access_token);
         $this->assertNotSame('provider-access-token', $account->getRawOriginal('access_token'));
@@ -226,10 +228,14 @@ class AccountFlowsTest extends TestCase
         $this->assertSame(0, SocialAccount::count());
     }
 
-    public function test_social_login_takes_over_unverified_local_account_by_resetting_its_password(): void
+    public function test_social_login_takes_over_unverified_local_account_by_clearing_its_password(): void
     {
         $user = User::factory()->unverified()->create(['email' => 'me@example.com', 'password' => 'attacker-password']);
         $oldHash = $user->password;
+        RefreshToken::create([
+            'user_id' => $user->id, 'token_hash' => 'attacker-session', 'family_id' => 'f',
+            'expires_at' => now()->addDay(),
+        ]);
         $this->mockSocialite('google', $this->socialUser('g1', 'me@example.com', ['email_verified' => true]));
 
         $this->hitSocialCallback('google')->assertRedirect('http://front.test/auth/callback?status=success');
@@ -237,6 +243,8 @@ class AccountFlowsTest extends TestCase
         $user->refresh();
         $this->assertNotNull($user->email_verified_at);
         $this->assertNotSame($oldHash, $user->password);
+        $this->assertNull($user->password);
+        $this->assertNotNull(RefreshToken::where('token_hash', 'attacker-session')->first()->revoked_at);
         $this->postJson('/api/auth/login', ['email' => 'me@example.com', 'password' => 'attacker-password'])
             ->assertUnauthorized();
     }

@@ -22,13 +22,30 @@ const publicAuthEndpoints = [
   '/auth/resend-verification',
 ]
 const guestRoutes = ['/', '/signin', '/signup', '/forgot-password', '/auth/callback', '/verify-email']
+/** Pages that work without a session; a failed session check there must not bounce the visitor to the landing page. */
+export function isGuestRoute(pathname: string): boolean {
+  return guestRoutes.includes(pathname) || pathname === '/account-link' || pathname.startsWith('/account-link/')
+}
 export const SESSION_EXPIRED_EVENT = 'watchwise:session-expired'
+/** Fired when the API refuses a request because the signed-in account's email is not verified yet. */
+export const EMAIL_UNVERIFIED_EVENT = 'watchwise:email-unverified'
 export const SESSION_REQUEST_TIMEOUT = 10_000
 
-function shouldSkipRefresh(url?: string): boolean {
+/** True for the API's 403 `{ code: 'email_unverified' }`: the account must verify its email before using the app. */
+export function isEmailUnverified(error: unknown): boolean {
+  return axios.isAxiosError(error)
+    && error.response?.status === 403
+    && (error.response.data as { code?: string } | undefined)?.code === 'email_unverified'
+}
+
+/** The emailed-link confirmations are authorised by their signature alone, so a 403/410 there is never a session problem. */
+const signedLinkPaths = /^\/me\/(email\/(confirm|authorize)|delete\/confirm)\//
+
+export function shouldSkipRefresh(url?: string): boolean {
   if (!url) return false
   const path = url.startsWith('http') ? new URL(url).pathname : url.split('?')[0]
-  return publicAuthEndpoints.some((endpoint) => path.endsWith(endpoint))
+  const apiPath = path.startsWith('/api/') ? path.slice(4) : path
+  return publicAuthEndpoints.some((endpoint) => path.endsWith(endpoint)) || signedLinkPaths.test(apiPath)
 }
 
 let refreshing = false
@@ -55,7 +72,7 @@ function clearSessionAndRedirect(): Promise<void> {
     .catch(() => undefined)
     .then(() => {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
-      if (!guestRoutes.includes(window.location.pathname)) window.location.replace('/')
+      if (!isGuestRoute(window.location.pathname)) window.location.replace('/')
     })
     .finally(() => {
       clearingSession = null
@@ -68,8 +85,10 @@ api.interceptors.response.use(undefined, async (error: AxiosError) => {
   const config = error.config as RetryableRequestConfig | undefined
   const status = error.response?.status
 
-  // Verification failures are authorization decisions; refreshing cannot verify an email.
-  if (status === 403 && (error.response?.data as { code?: string } | undefined)?.code === 'email_unverified') {
+  // Verification failures are authorization decisions; refreshing cannot verify an email. The auth state
+  // was stale (e.g. the account changed in another tab), so tell it; the route guard then shows Verify email.
+  if (isEmailUnverified(error)) {
+    window.dispatchEvent(new Event(EMAIL_UNVERIFIED_EVENT))
     return Promise.reject(error)
   }
 

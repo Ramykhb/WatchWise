@@ -60,8 +60,8 @@ class ProfileRepository implements ProfileRepositoryInterface
 
     public function reviewsCount(User $user, bool $approvedOnly): int
     {
-        // Star ratings from the Movie page are reviews without text; they aren't counted as reviews.
-        return $this->reviews($user, $approvedOnly)->whereNotNull('content')->count();
+        // Star ratings (no text, or empty text) aren't reviews; same rule as the Home feed.
+        return $this->reviews($user, $approvedOnly)->withText()->count();
     }
 
     public function topRatedTmdbIds(User $user, bool $approvedOnly, int $limit): SupportCollection
@@ -94,12 +94,12 @@ class ProfileRepository implements ProfileRepositoryInterface
 
     public function recentFollowers(User $user, int $limit): Collection
     {
-        return $user->followers()->limit($limit)->get();
+        return $user->followers()->orderByDesc('follows.id')->limit($limit)->get();
     }
 
     public function recentFollowing(User $user, int $limit): Collection
     {
-        return $user->following()->limit($limit)->get();
+        return $user->following()->orderByDesc('follows.id')->limit($limit)->get();
     }
 
     public function allFollowers(User $user): Collection
@@ -127,14 +127,17 @@ class ProfileRepository implements ProfileRepositoryInterface
      */
     private function matching(UserSearchQuery $query, int $exceptUserId): Builder
     {
-        $like = LikePattern::contains(ltrim($query->q, '@'));
+        $text = ltrim($query->q, '@');
+        $like = LikePattern::contains($text);
+        // Handles are stored lowercase, so "@Mali" finds "mali" whatever the database collation.
+        $handleLike = LikePattern::contains(mb_strtolower($text));
 
         return User::query()
             ->where('is_active', true)
             ->whereKeyNot($exceptUserId)
             ->when($query->q !== '', fn ($builder) => $builder->where(fn ($where) => $where
                 ->whereRaw("name LIKE ? ESCAPE '!'", [$like])
-                ->orWhereRaw("username LIKE ? ESCAPE '!'", [$like])));
+                ->orWhereRaw("username LIKE ? ESCAPE '!'", [$handleLike])));
     }
 
     /**

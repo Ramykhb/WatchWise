@@ -98,7 +98,7 @@ export default function VerifyEmail() {
       : status === 'invalid'
         ? 'This verification link is invalid or has been changed. Request a fresh link below.'
         : status === 'success'
-          ? 'The link was processed. Sign in to check your account’s verification status. If you are signed into a different account, switch accounts below.'
+          ? 'The link was processed. Sign in to check your account’s verification status. If you are signed into a different account, sign out below.'
           : 'Open the verification link in your email to finish setting up your WatchWise account. Links expire after 60 minutes.'
 
   return (
@@ -123,7 +123,7 @@ export default function VerifyEmail() {
         </>}
         {message && <p className={styles.feedback} role="status">{message}</p>}
         {error && <p className={styles.error} role="alert">{error}</p>}
-        {user && <button className={styles.textButton} type="button" onClick={() => { statusRequest.current?.abort(); void logout().catch(() => setError('Unable to sign out. Please try again.')) }}>Use a different account</button>}
+        {user && <button className={styles.textButton} type="button" onClick={() => { statusRequest.current?.abort(); void logout().catch(() => setError('Unable to sign out. Please try again.')) }}>Sign out</button>}
       </div>
     </AuthShell>
   )

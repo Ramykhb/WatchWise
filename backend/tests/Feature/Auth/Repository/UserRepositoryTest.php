@@ -58,4 +58,16 @@ class UserRepositoryTest extends TestCase
 
         $this->assertTrue(Hash::check('brand-new-pass', $user->fresh()->password));
     }
+
+    public function test_clear_password_leaves_no_password_and_no_unproven_mark(): void
+    {
+        $user = User::factory()->create(['password_set_without_proof_at' => now()]);
+
+        (new UserRepository)->clearPassword($user);
+
+        $user = $user->fresh();
+        $this->assertNull($user->password);
+        $this->assertNull($user->password_set_without_proof_at);
+        $this->assertFalse($user->hasPassword());
+    }
 }

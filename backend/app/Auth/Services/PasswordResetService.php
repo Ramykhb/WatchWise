@@ -10,6 +10,7 @@ use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\PasswordResetServiceInterface;
 use App\Auth\Mail\ResetPasswordMail;
+use App\User\InterfaceServices\AccountServiceInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -23,6 +24,7 @@ class PasswordResetService implements PasswordResetServiceInterface
         private UserRepositoryInterface $users,
         private PasswordResetRepositoryInterface $resets,
         private RefreshTokenRepositoryInterface $refreshTokens,
+        private AccountServiceInterface $accounts,
     ) {}
 
     public function sendResetLink(ForgotPasswordData $data): void
@@ -65,8 +67,10 @@ class PasswordResetService implements PasswordResetServiceInterface
 
         DB::transaction(function () use ($user, $email, $data): void {
             $this->users->updatePassword($user, $data->password);
+            // The emailed token proves the inbox: a pending email change goes, and a first password set without proof now counts.
+            $this->accounts->passwordResetThroughEmail($user);
             $this->resets->deleteFor($email);
-            $this->refreshTokens->revokeAllForUser($user->id);
+            $this->refreshTokens->revokeAllForUser($user);
         });
     }
 }

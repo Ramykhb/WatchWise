@@ -5,8 +5,8 @@ namespace App\User\DTOs\Responses;
 use App\Auth\DTOs\Responses\UserResponse;
 use App\Models\Notification;
 use App\Models\User;
-use App\Support\SocialPlaceholderPassword;
 use App\User\DTOs\Requests\UpdatePreferencesData;
+use App\User\InterfaceServices\AccountDeletionServiceInterface;
 use JsonSerializable;
 
 /** The signed-in user's own account: details, settings, linked sign-ins and header counts. */
@@ -33,6 +33,8 @@ final readonly class AccountResponse implements JsonSerializable
             $notifications[$key] = (bool) ($settings['notifications'][$key] ?? true);
         }
 
+        $hasPassword = $user->hasPassword();
+
         return new self([
             'user' => UserResponse::fromModel($user),
             'preferences' => [
@@ -42,8 +44,18 @@ final readonly class AccountResponse implements JsonSerializable
                 'notifications' => $notifications,
             ],
             'connected' => $user->socialAccounts->mapWithKeys(fn ($account) => [$account->provider => $account->created_at?->toJSON()]),
-            // False while a social sign-up still has the placeholder password (Settings then disables "current password").
-            'has_password' => ! SocialPlaceholderPassword::isStoredFor($user),
+            // False while the account has no password (a social sign-up that has not set one): Settings offers "set", not "change".
+            'has_password' => $hasPassword,
+            // True when DELETE /api/me mails a confirmation link instead of asking for the password: no password of
+            // its own, or a first one set in Settings without proof (which a stolen session could have done).
+            'deletion_by_email' => ! $hasPassword || $user->password_set_without_proof_at !== null,
+            // True while a deletion link mailed to the account is still valid (not expired, used or cancelled).
+            'deletion_pending' => $user->deletion_nonce !== null
+                && $user->deletion_requested_at?->isAfter(now()->subMinutes(AccountDeletionServiceInterface::EXPIRES_MINUTES)) === true,
+            // The address waiting for its confirmation link to be opened; `user.email` stays the sign-in email until then.
+            'pending_email' => $user->pending_email,
+            // True while an account without a password still has to approve the change from its current address.
+            'pending_email_awaiting_current' => $user->pending_email !== null && $user->pending_email_authorized_at === null,
             'counts' => [
                 // What the bell counts; room read receipts share the table but are not notifications.
                 'unread_notifications' => $user->notifications()->whereIn('type', Notification::FEED_TYPES)->whereNull('read_at')->count(),

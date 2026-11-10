@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/useAuth.ts'
 import { isAdminRole, isModeratorRole } from '../../lib/adminApi.ts'
 import SessionStatus from './SessionStatus.tsx'
 
-/** Signed-in pages: guests go to Sign in and come back here afterwards. */
+/** Signed-in pages: guests go to Sign in and come back here afterwards; unverified accounts go to Verify email. */
 export function RequireAuth() {
   const { user, loading, sessionError } = useAuth()
   const location = useLocation()
@@ -31,6 +31,7 @@ export function RequireAdmin() {
   const location = useLocation()
   if (loading || sessionError) return <SessionStatus />
   if (!user) return <Navigate to="/signin" replace state={{ from: location }} />
+  if (!user.email_verified_at) return <Navigate to="/verify-email" replace />
   if (isAdminRole(user.role)) return <Outlet />
   if (isModeratorRole(user.role)) {
     return location.pathname.startsWith('/admin/movies') ? <Navigate to="/admin" replace /> : <Outlet />

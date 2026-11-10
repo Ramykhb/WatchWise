@@ -252,7 +252,7 @@ Folder names are fixed: `InterfaceServices`, `InterfaceRepository` and `Reposito
 
 ## 8. Routes and API documentation
 
-- Routes call module controllers by their module namespace (`use App\User\Controllers\UserController;`). Group related routes with `Route::controller(...)`/`prefix(...)` as `routes/social.php` does; keep one routes file per area as today. Use `apiResource` when the controller follows REST conventions.
+- Routes call module controllers by their module namespace (`use App\User\Controllers\UserController;`). Group related routes with `Route::controller(...)`/`prefix(...)` as `routes/user.php` does; keep one routes file per entity (`routes/<entity>.php`), required from `routes/api.php`. Use `apiResource` when the controller follows REST conventions.
 - Route names, URLs and response shapes are a **public contract**. Do not rename or remove endpoints, or remove/rename response fields, as a side effect of a refactor. If a change is breaking, tell the user, check the frontend (`../frontend/src`) for callers, and update both together.
 - The API is documented by hand in `openapi/paths/*.json`. Any route added, removed or changed must be updated there in the same change, otherwise `OpenApiCoverageTest` fails.
 

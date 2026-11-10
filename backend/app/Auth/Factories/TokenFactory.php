@@ -22,17 +22,24 @@ class TokenFactory
 
     public function __construct(private readonly RefreshTokenRepositoryInterface $refreshTokens) {}
 
-    /** Issue a new access + refresh token pair (new refresh family unless one is given). */
-    public function issue(User $user, Request $request, ?string $familyId = null): TokenPair
+    /**
+     * Issue a new access + refresh token pair (new refresh family unless one is given). The access token
+     * carries `$sessionVersion` when given (the version a revocation just produced), else the user's.
+     */
+    public function issue(User $user, Request $request, ?string $familyId = null, ?int $sessionVersion = null): TokenPair
     {
-        [$access, $accessExp] = $this->issueAccessToken($user);
+        [$access, $accessExp] = $this->issueAccessToken($user, $sessionVersion);
         [$plain, $row] = $this->issueRefreshToken($user, $request, $familyId);
 
         return new TokenPair($user, $access, $accessExp, $plain, $row->expires_at);
     }
 
-    /** @return array{0: string, 1: CarbonImmutable} */
-    public function issueAccessToken(User $user): array
+    /**
+     * The `sv` claim is the account's session version; the token only works while it is still current.
+     *
+     * @return array{0: string, 1: CarbonImmutable}
+     */
+    public function issueAccessToken(User $user, ?int $sessionVersion = null): array
     {
         $now = now()->toImmutable();
         $exp = $now->addMinutes(config('jwt.access_ttl'));
@@ -43,6 +50,7 @@ class TokenFactory
             'role' => $user->role,
             'iat' => $now->getTimestamp(),
             'exp' => $exp->getTimestamp(),
+            'sv' => $sessionVersion ?? (int) ($user->session_version ?? 0),
             'jti' => (string) Str::uuid(),
         ], $this->secret(), self::ALGO);
 
@@ -84,12 +92,25 @@ class TokenFactory
      * Exchange a refresh token for a new pair, rotating the old one.
      * Presenting an already-used or revoked token revokes the whole family.
      *
+     * The owner's row is locked first, as revokeAllForUser() does, and the token is only checked after that:
+     * a revocation that committed while this waited is seen (the token is revoked, so this fails), and one
+     * that starts later waits for this commit and then revokes the token created here too.
+     *
      * @throws InvalidRefreshToken
      */
     public function rotate(string $plain, Request $request): TokenPair
     {
         $pair = DB::transaction(function () use ($plain, $request): ?TokenPair {
-            $row = $this->refreshTokens->findByHashForUpdate($this->hash($plain));
+            $hash = $this->hash($plain);
+            $found = $this->refreshTokens->findByHash($hash);
+
+            if (! $found) {
+                return null;
+            }
+
+            $user = $this->refreshTokens->findUserForUpdate($found->user_id);
+            // Read again under the user lock: only this read decides whether the token is still usable.
+            $row = $this->refreshTokens->findByHashForUpdate($hash);
 
             if (! $row) {
                 return null;
@@ -102,8 +123,7 @@ class TokenFactory
                 return null;
             }
 
-            $user = $row->user;
-
+            // Locked above, so the new access token carries the current session version.
             if ($row->expires_at->isPast() || ! $user || ! $user->is_active) {
                 $this->revokeFamily($row->family_id);
 
@@ -135,10 +155,10 @@ class TokenFactory
         $this->refreshTokens->revokeFamily($familyId);
     }
 
-    /** Revoke every refresh token the user holds. */
-    public function revokeAllForUser(User $user): void
+    /** Revoke every session the user holds (refresh tokens and older access tokens); returns the new session version. */
+    public function revokeAllForUser(User $user): int
     {
-        $this->refreshTokens->revokeAllForUser($user->id);
+        return $this->refreshTokens->revokeAllForUser($user);
     }
 
     public function hash(string $plain): string

@@ -15,7 +15,7 @@ use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\SocialAuthServiceInterface;
 use App\Auth\Support\DiscordOAuthClient;
 use App\Models\User;
-use App\Support\SocialPlaceholderPassword;
+use App\Support\EmailAddress;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -94,7 +94,8 @@ class SocialAuthService implements SocialAuthServiceInterface
                 return $account->user;
             }
 
-            $email = (string) $data->email;
+            // Providers may report "Ali@Example.com"; accounts are found and created by the lowercase address.
+            $email = EmailAddress::normalize((string) $data->email);
 
             // Never link to or create an account from an email the provider has not verified.
             if (! $this->emailIsVerified($data)) {
@@ -108,14 +109,14 @@ class SocialAuthService implements SocialAuthServiceInterface
                     // The local account was never proven to belong to this email, so whoever
                     // registered it may not be the owner: drop their password and sessions.
                     $this->users->markEmailVerified($user);
-                    $this->users->updatePassword($user, SocialPlaceholderPassword::forNewAccount());
-                    $this->refreshTokens->revokeAllForUser($user->id);
+                    $this->users->clearPassword($user);
+                    $this->refreshTokens->revokeAllForUser($user);
                 }
             } else {
                 $user = $this->users->create([
                     'name' => $data->name ?: ($data->nickname ?: Str::before($email, '@')),
                     'email' => $email,
-                    'password' => SocialPlaceholderPassword::forNewAccount(),
+                    'password' => null,
                     'avatar' => $data->avatar,
                 ]);
                 $this->users->markEmailVerified($user);

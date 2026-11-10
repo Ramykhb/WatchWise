@@ -4,6 +4,7 @@ use App\Auth\Middleware\AuthenticateJwt;
 use App\Auth\Middleware\AuthenticateOptional;
 use App\Auth\Middleware\EnsureEmailVerified;
 use App\Auth\Middleware\EnsureRole;
+use App\User\Support\AccountLink;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -25,8 +26,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureRole::class,
             'verified.email' => EnsureEmailVerified::class,
         ]);
-        // Resolve the account before per-user rate limits and route model binding.
+        // Resolve the account, then require a verified email, before per-user rate limits and route model
+        // binding: a guest gets 401, an unverified member 403, and neither spends a rate-limit slot.
         $middleware->prependToPriorityList(ThrottleRequests::class, AuthenticateJwt::class);
+        $middleware->prependToPriorityList(ThrottleRequests::class, EnsureEmailVerified::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (InvalidSignatureException $exception, Request $request) {
@@ -35,6 +38,19 @@ return Application::configure(basePath: dirname(__DIR__))
                     ? 'expired' : 'invalid';
 
                 return redirect(rtrim(config('services.frontend_url'), '/').'/verify-email?status='.$status);
+            }
+
+            // The emailed email-change and account-deletion links: a browser opening one (GET) lands on the public
+            // result page; the confirmation page's click (POST) gets the outcome as JSON.
+            $link = AccountLink::forRoute($request->route()?->getName());
+
+            if ($link !== null) {
+                $expired = URL::hasCorrectSignature($request) && ! URL::signatureHasNotExpired($request);
+                $outcome = $expired ? 'expired' : 'invalid';
+
+                return $request->isMethod('POST')
+                    ? response()->json(['outcome' => $outcome], $expired ? 410 : 403)
+                    : redirect($link->resultPage($outcome));
             }
         });
 

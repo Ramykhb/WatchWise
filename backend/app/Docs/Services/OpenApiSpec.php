@@ -41,6 +41,36 @@ class OpenApiSpec
             }
         }
 
+        return $this->documentEmailVerification($spec);
+    }
+
+    /**
+     * Every signed-in operation outside /api/auth sits behind `verified.email`, so each one gets the
+     * `email_unverified` 403 here instead of repeating it in every paths file.
+     *
+     * @param  array<string, mixed>  $spec
+     * @return array<string, mixed>
+     */
+    private function documentEmailVerification(array $spec): array
+    {
+        foreach ($spec['paths'] ?? [] as $path => $operations) {
+            if (str_starts_with($path, '/api/auth/')) {
+                continue;
+            }
+
+            foreach ($operations as $method => $operation) {
+                if (empty($operation['security'])) {
+                    continue;
+                }
+
+                $forbidden = $operation['responses']['403'] ?? null;
+                $spec['paths'][$path][$method]['responses']['403'] = $forbidden === null
+                    ? ['$ref' => '#/components/responses/EmailUnverified']
+                    : [...$forbidden, 'description' => $forbidden['description'].' Also returned with `code: email_unverified` when the signed-in account has not verified its email.'];
+                ksort($spec['paths'][$path][$method]['responses']);
+            }
+        }
+
         return $spec;
     }
 

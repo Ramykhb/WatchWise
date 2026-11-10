@@ -1,6 +1,6 @@
 # Backend Overview
 
-What each module does. Paths are relative to `backend/`. The backend is split into modules under `app/`: `Auth`, `Genre`, `Movie`, `Gemini`, `Groq`, `Weather` and `MovieRecommendation`. Everything up to "Tests" describes the Auth module, and each other module has its own section after it.
+What each module does. Paths are relative to `backend/`. The backend is a Laravel 12 / PHP 8.4 API split into feature modules under `app/`: `Admin`, `Auth`, `Cinema`, `Docs`, `Gemini`, `Genre`, `Groq`, `Health`, `Movie`, `MovieList`, `MovieNight`, `MovieRecommendation`, `Notification`, `Person`, `Rating`, `Review`, `Room`, `User`, `Watchlist` and `Weather`. Shared code is in `app/Support/`, the Eloquent models in `app/Models/`, and framework-level providers in `app/Providers/`. Everything up to "Tests" describes the Auth module, and each other module has its own section after it. The mandatory structure rules are in `CLAUDE.md` ("WatchWise Module Architecture").
 
 ## Contents
 
@@ -24,13 +24,24 @@ What each module does. Paths are relative to `backend/`. The backend is split in
 - [Wiring](#wiring)
 - [Tests](#tests)
 - [Genre and Movie modules](#genre-and-movie-modules)
+- [Person module](#person-module)
+- [MovieList and MovieNight modules](#movielist-and-movienight-modules)
+- [Watchlist module](#watchlist-module)
+- [Rating module](#rating-module)
+- [Review module](#review-module)
+- [User module](#user-module)
+- [Room module](#room-module)
 - [Notification module](#notification-module)
 - [Admin module](#admin-module)
+- [Removed code](#removed-code)
 - [Gemini module](#gemini-module)
 - [Groq module](#groq-module)
 - [Weather module](#weather-module)
 - [MovieRecommendation module](#movierecommendation-module)
+- [Cinema module](#cinema-module)
+- [Health module](#health-module)
 - [API documentation (Swagger UI)](#api-documentation-swagger-ui)
+- [Deployment (Docker / Render)](#deployment-docker--render)
 - [Security notes](#security-notes)
 - [Known follow-ups](#known-follow-ups)
 - [Adding a new entity](#adding-a-new-entity)
@@ -47,7 +58,7 @@ Controller -> InterfaceServices -> Services -> InterfaceRepository -> Repository
 - **Controllers** only handle HTTP: validation (form requests), calling a service, status codes, cookies and redirects.
 - **Services** hold the business rules. They depend on repository interfaces, never on Eloquent.
 - **Repositories** are the only place that queries models.
-- Interfaces are bound to implementations in `app/Auth/Providers/AuthModuleServiceProvider.php`.
+- Interfaces are bound to implementations in each module's `Providers/<Feature>ModuleServiceProvider.php` (`public array $bindings`), for Auth `app/Auth/Providers/AuthModuleServiceProvider.php`. Every module provider is listed in `bootstrap/providers.php`.
 
 ## Folder layout
 
@@ -65,8 +76,8 @@ app/Auth/
     Responses/          Output data objects returned by the services
   Factories/            TokenFactory, CurrentUserFactory
   CurrentUser/          CurrentUser interface, JwtCurrentUser, GuestUser
-  Support/              AuthCookies, TokenPair
-  Mail/                 Verification and reset emails
+  Support/              AuthCookies, TokenPair, DiscordOAuthClient, GooglePhoto
+  Mail/                 Verification and reset emails, BrevoTransport
   Listeners/            Sends the verification email on registration
   Exceptions/           Domain exceptions the controllers map to responses
   Providers/            AuthModuleServiceProvider (interface bindings)
@@ -74,19 +85,30 @@ app/Auth/
 
 ## How a request flows
 
-1. A request hits a route in `routes/api.php` or `routes/auth_flows.php`.
+1. A request hits a route in one of the per-entity files that `routes/api.php` `require`s (or in `api.php` itself for health and the `/auth` basics).
 2. A middleware (`auth.jwt`, `auth.optional`, `verified.email` or `role`) asks `CurrentUserFactory` who is calling.
 3. The factory reads the access token (cookie or Bearer header) and returns a `JwtCurrentUser`, or a `GuestUser` if the token is missing or invalid.
-4. The controller validates the input and calls a service through its interface.
-5. The service applies the rules and uses repositories for data.
-6. Policies receive the `CurrentUser` to decide what it may do.
+4. On a signed-in route outside `/api/auth`, `auth.jwt` rejects a guest with 401, then `verified.email` rejects an unverified account with 403 `{"message": "Verify your email address to continue.", "code": "email_unverified"}`. Both run before rate limiting and route model binding (the priority list in `bootstrap/app.php`), so a refused request spends no rate-limit slot and learns nothing about the bound record.
+5. The controller validates the input and calls a service through its interface.
+6. The service applies the rules and uses repositories for data.
+7. Policies receive the `CurrentUser` to decide what it may do.
 
 ## Routes
 
 | File | Purpose |
 | --- | --- |
-| `routes/api.php` | `/api/auth` register, login, refresh, logout and `me`, with rate limits. It also holds the routes of the other modules (TMDB, weather, weather mood and movie recommendations) |
-| `routes/auth_flows.php` | Email verification, password reset and Google/GitHub login routes |
+| `routes/api.php` | Thin entry point: `/api/health`, `/api/auth` register, login, refresh, logout and `me` (with rate limits), the one `['auth.jwt', 'verified.email']` group, and the `require` of every per-entity file below. It holds no other routes |
+| `routes/auth_flows.php` | Email verification, password reset and Google/GitHub/Discord login routes (outside the verified group) |
+| `routes/user.php` | Verified group: `/api/home`, `/api/me/*` (including `/me/email`), `/api/users` and following |
+| `routes/lists.php`, `watchlist.php`, `ratings.php`, `reviews.php`, `movie_nights.php` | Verified group: one file each for `/api/lists`, `/api/watchlist`, `/api/ratings`, `/api/reviews`, `/api/movie-nights` |
+| `routes/rooms.php`, `notifications.php` | Verified group: `/api/rooms` (with `rooms/socket-auth`) and `/api/notifications` (with `notifications/socket-auth`) |
+| `routes/chat.php`, `recommendations.php` | Verified group: `/api/chat/*`; `/api/watched-recommendations`, `/api/people-recommendations`, `/api/following-recommendations`, `/api/taste-profile` |
+| `routes/email_change.php`, `account_deletion.php` | The signed email-change links (`me.email.confirm`, `me.email.authorize`, `me.email.cancel`) and account-deletion links (`me.delete.confirm`, `me.delete.cancel`), plus the POST twins of the three that change something (`me.email.confirm.submit`, `me.email.authorize.submit`, `me.delete.confirm.submit`), outside the verified group because they must work without a session |
+| `routes/weather.php`, `cinemas.php`, `movies.php`, `recommendations_public.php`, `documentation.php` | Public guest routes, outside the verified group: weather and weather mood, nearby cinemas, TMDB movies/people/genres, `GET /api/movie-recommendations`, documentation |
+| `routes/admin.php` | `/api/admin/*`, loaded inside the verified group and adding `role:admin` or `role:admin,moderator` (see [Admin module](#admin-module)) |
+| `routes/channels.php` | Reverb private-channel rules (`chat.*`, `room.*`, `rooms.*`, `notifications.*`). Loaded by `GroqModuleServiceProvider` when broadcasting resolves |
+| `routes/console.php` | The `rooms:prune-messages` command and the schedule: `rooms:prune-messages` every minute, `users:prune-pending` hourly (`withoutOverlapping`) |
+| `app/Console/Commands/PrunePendingAccountData.php` | `users:prune-pending`: calls `PendingAccountCleanupServiceInterface::pruneExpired()` and prints how many expired pending email changes and account deletion requests it cleared |
 
 All auth endpoints:
 
@@ -96,24 +118,26 @@ All auth endpoints:
 | `POST /api/auth/login` | none | Log in and set the token cookies |
 | `POST /api/auth/refresh` | refresh cookie | Rotate the refresh token and issue new tokens |
 | `POST /api/auth/logout` | refresh cookie | Revoke the session and clear the cookies |
-| `GET /api/auth/me` | `auth.jwt` | The current user |
-| `GET /api/auth/verify-email/{id}/{hash}` | signed link | Verify the email, then redirect to the frontend |
+| `GET /api/auth/me` | `auth.jwt` | The current user. Works for an unverified account (`email_verified_at` is `null`), so the frontend can show the verify screen |
+| `GET /api/auth/verify-email/{id}/{hash}` | signed link | Verify the email, then redirect to the frontend. A bad or expired signature redirects to `{FRONTEND_URL}/verify-email?status=invalid\|expired` (handled in `bootstrap/app.php`) |
 | `POST /api/auth/resend-verification` | none | Resend the verification email |
 | `POST /api/auth/forgot-password` | none | Send a reset link (same response whether or not the account exists) |
-| `POST /api/auth/reset-password` | reset token | Set a new password and revoke all sessions |
-| `GET /api/auth/social/{google\|github}` | none | Start the OAuth login |
-| `GET /api/auth/social/{google\|github}/callback` | state cookie | Finish the OAuth login, then redirect to the frontend |
+| `POST /api/auth/reset-password` | reset token | Set a new password and revoke all sessions. Also gives an account without a password (social sign-up) its first one |
+| `GET /api/auth/social/{google\|github\|discord}` | none | Start the OAuth login |
+| `GET /api/auth/social/{google\|github\|discord}/callback` | state cookie | Finish the OAuth login, then redirect to the frontend |
 
 ## Config
 
 | File | Purpose |
 | --- | --- |
-| `.env.example` | SMTP mail placeholders, `FRONTEND_URL`, Google and GitHub OAuth variables, JWT settings |
+| `.env.example` | Every variable the app reads, with placeholders (see [Setup](#setup)) |
 | `config/jwt.php` | Signing secret, issuer, access lifetime (15 min), refresh lifetime (30 days), cookie names |
 | `config/cors.php` | CORS rules for the frontend |
-| `config/services.php` | Google and GitHub OAuth credentials, frontend URL |
+| `config/services.php` | Google, GitHub and Discord OAuth credentials, frontend URL, `tmdb`, `groq` (`key`, `watched_key`, `model`, `url`), `gemini`, `weatherapi`, `google_places` |
+| `config/mail.php` | Default mailer `brevo` (HTTP API) and `brevo-smtp` (SMTP relay) |
+| `config/broadcasting.php`, `config/reverb.php` | The Reverb connection, its public host/port/scheme for browsers, and the allowed origins (`REVERB_ALLOWED_ORIGINS`, default the `FRONTEND_URL` host) |
 | `phpunit.xml` | Test-only `JWT_SECRET` and `FRONTEND_URL` |
-| `app/Providers/AppServiceProvider.php` | Empty on purpose. Every module registers its own bindings, listeners and rate limiters in its own provider |
+| `app/Providers/AppServiceProvider.php` | Defines the `tmdb` limiter, and in the local environment starts Reverb automatically when `php artisan serve` runs. Module bindings, listeners and other limiters live in each module's provider |
 
 ## Setup
 
@@ -121,18 +145,21 @@ Copy `.env.example` to `.env` (it is gitignored) and set:
 
 | Variable | Notes |
 | --- | --- |
-| `DB_*` | Database connection (MySQL) |
+| `DB_*` | Database connection. `.env.example` defaults to SQLite (`database/database.sqlite`); the Docker image ships `pdo_mysql` for MySQL |
 | `JWT_SECRET` | Required, at least 32 characters. Generate one with `php -r "echo bin2hex(random_bytes(32));"`. Without it, login and register return a 500 |
 | `JWT_ACCESS_TTL`, `JWT_REFRESH_TTL_DAYS` | Token lifetimes, default 15 minutes and 30 days |
 | `FRONTEND_URL` | Where emails link to and where the social login redirects. Also the CORS origin |
-| `MAIL_*` | SMTP settings for the verification and reset emails. For local work, `MAIL_MAILER=log` writes emails to `storage/logs/laravel.log` instead of sending them |
-| `GOOGLE_*`, `GITHUB_*` | OAuth client id, secret and redirect URI. The redirect URI must match the callback route, for example `http://localhost:8000/api/auth/social/google/callback` |
-| `TMDB_API_KEY` | Needed by the Genre and Movie modules. `TMDB_URL` and `TMDB_IMAGE_URL` have defaults |
-| `GROQ_API_KEY` | Needed by weather mood and movie recommendations. `GROQ_MODEL` defaults to `openai/gpt-oss-20b`; `GROQ_API_URL` has a default |
+| `MAIL_MAILER`, `BREVO_API_KEY`, `MAIL_FROM_*` | The default mailer is `brevo` (Brevo's transactional HTTP API, `app/Auth/Mail/BrevoTransport.php`); the sender must be verified in Brevo. `MAIL_MAILER=brevo-smtp` uses `BREVO_SMTP_USERNAME`/`BREVO_SMTP_KEY` instead. For local work, `MAIL_MAILER=log` writes emails to `storage/logs/laravel.log` |
+| `GOOGLE_*`, `GITHUB_*`, `DISCORD_*` | OAuth client id, secret and redirect URI. The redirect URI must match the callback route, for example `http://localhost:8000/api/auth/social/google/callback` |
+| `TMDB_API_KEY` | Needed by the Genre, Movie and Person modules. `TMDB_URL` and `TMDB_IMAGE_URL` have defaults |
+| `GROQ_API_KEY` | Needed by chat, weather mood, weather recommendations and review moderation/sentiment. `GROQ_MODEL` defaults to `openai/gpt-oss-20b`; `GROQ_API_URL` has a default |
+| `GROQ_API_KEY_2` | A second Groq account key, used only by the watched-history and favourite-people recommendations (`keyProfile: 'watched'`) |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Optional for the standalone Gemini client. `GEMINI_URL` has a default |
-| `OPEN_METEO_*` | Optional. The URL, default location and timezone have defaults in `config/services.php` |
+| `WEATHERAPI_KEY` | Needed by `/api/weather` and weather recommendations (WeatherAPI.com). `WEATHERAPI_URL`, `WEATHERAPI_DEFAULT_LATITUDE`/`_LONGITUDE` (Beirut) and `WEATHERAPI_TIMEZONE` (`Asia/Beirut`) have defaults |
+| `GOOGLE_PLACES_API_KEY` | Needed by `/api/nearby-cinemas` (Google Places API, new) |
+| `REVERB_*` | Socket server credentials (generate with `php artisan reverb:install`), `REVERB_PORT=18080`, and the optional `REVERB_PUBLIC_*` and `REVERB_ALLOWED_ORIGINS` |
 
-Then run `composer install`, `php artisan key:generate` and `php artisan migrate`.
+Then run `composer install`, `php artisan key:generate` and `php artisan migrate`. `composer run dev` is recommended locally (`PHP_CLI_SERVER_WORKERS=4`) so slow API calls don't block other pages; run `php artisan schedule:work` too for room message pruning.
 
 ## Rate limits
 
@@ -144,11 +171,23 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `auth-refresh` | `AuthModuleServiceProvider` | 30 | `POST /api/auth/refresh` |
 | `auth-verify-email` | `AuthModuleServiceProvider` | 20 | the verification link |
 | `auth-resend-verification`, `auth-forgot-password` | `AuthModuleServiceProvider` | 3 | the matching auth route |
-| `ai` | `GroqModuleServiceProvider` | 10 | `POST /api/weather-mood`, `GET /api/movie-recommendations` (both call paid AI APIs) |
+| `ai` | `GroqModuleServiceProvider` | 10 | `POST /api/weather-mood`, `GET /api/movie-recommendations`, `/api/watched-recommendations`, `/api/people-recommendations` (all call paid AI APIs) |
+| `chat` | `GroqModuleServiceProvider` | 10 (and 100 per hour) | `POST /api/chat/messages`, per signed-in user |
+| `me-email-change` | `UserModuleServiceProvider` | 3 (and 10 per hour), per account | `PUT /api/me/email`, `POST /api/me/email/resend` |
+| `me-email-confirm` | `UserModuleServiceProvider` | 20, per IP | the signed email-change links (`me.email.confirm`, `me.email.authorize`, `me.email.cancel`) and the POSTs that confirm them, one shared bucket (opening a link and confirming it spends two) |
+| `me-delete-confirm` | `UserModuleServiceProvider` | 20, per IP | the signed account-deletion links (`me.delete.confirm`, `me.delete.cancel`) and the confirming POST, one shared bucket |
+| `user-search` | `UserModuleServiceProvider` | 60 | `GET /api/users`, per signed-in user |
+| `user-follows` | `UserModuleServiceProvider` | 60 | `POST`/`DELETE /api/users/{username}/follow` and the follow-request accept/decline routes, one shared bucket per signed-in user |
+| `user-avatar` | `UserModuleServiceProvider` | 10 | `POST`/`DELETE /api/me/avatar`, one shared bucket per signed-in user |
+| `user-profile-update` | `UserModuleServiceProvider` | 30 | `PATCH /api/me`, `PATCH /api/me/preferences`, one shared bucket per signed-in user |
 | `weather` | `WeatherModuleServiceProvider` | 30 | `GET /api/weather` |
-| `tmdb` | `AppServiceProvider` | 60 | the five TMDB routes |
+| `tmdb` | `AppServiceProvider` | 60 | the eight TMDB routes (movies, trending, search, discover, movie details, person, collaborators, genres) |
+| `room-messages`, `room-reads`, `room-socket`, `room-invites` | `RoomModuleServiceProvider` | 30, 120, 60, 30 | the matching room routes, per signed-in user |
+| `notification-socket` | `NotificationModuleServiceProvider` | 30 | `POST /api/notifications/socket-auth`, per signed-in user |
 
-Each auth limiter is checked in two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket. The other limiters count per IP.
+Each auth limiter is checked in two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket. `ai`, `weather` and `tmdb` count per IP; the chat, room and notification limiters count per user (`bootstrap/app.php` runs `auth.jwt` and `verified.email` before throttling, so the user is known and an unverified account never spends a slot).
+
+A few routes still use plain `throttle:N,M`: `PUT /api/me/password` and `PUT /api/me/password/set` (6), `PUT /api/ratings/{tmdbId}` (60), `PUT /api/reviews/mine` (20), `POST /api/reviews/{review}/helpful` (60), `POST /api/reviews/{review}/report` (10), `/api/chat/connection` and `/api/chat/auth` (60), `/api/following-recommendations` and `/api/taste-profile` (60), `/api/nearby-cinemas` (30).
 
 The per-email bucket is shared across IPs, so someone who knows an email can block logins for that account for up to a minute. A captcha would remove that (see [Known follow-ups](#known-follow-ups)).
 
@@ -218,17 +257,20 @@ All in `app/Auth/Middleware/`.
 
 | Alias | File | Behavior |
 | --- | --- | --- |
-| `auth.jwt` | `AuthenticateJwt.php` | Requires a logged-in user, otherwise 401 |
+| `auth.jwt` | `AuthenticateJwt.php` | Requires a logged-in user, otherwise 401. Does not look at the email, so `/api/auth/me` works while unverified |
 | `auth.optional` | `AuthenticateOptional.php` | Lets anonymous requests through as a guest |
-| `verified.email` | `EnsureEmailVerified.php` | 403 if the email is unverified |
+| `verified.email` | `EnsureEmailVerified.php` | 401 for a guest, 403 `{"message": "Verify your email address to continue.", "code": "email_unverified"}` if the email is unverified |
 | `role` | `EnsureRole.php` | 403 unless the user has one of the required roles |
+
+**A verified email is required everywhere.** Every route that needs a signed-in user, except `/api/auth/*`, needs a verified email too, admins and moderators included. `routes/api.php` applies `['auth.jwt', 'verified.email']` once, to a group that `require`s the signed-in per-entity files (`user.php`, `lists.php`, `rooms.php`, `chat.php`, `admin.php` and so on, all bare routes with no `auth.jwt` wrapper), so a route in one of those files inherits it. `/api/auth/*` (register, login, refresh, logout, `me`, the verification link, resend, forgot/reset password, social login) stays open so an unverified account can verify, resend the link or sign out; login, register and refresh still issue tokens to it. Public guest routes (TMDB, weather, weather mood, movie recommendations, nearby cinemas, health, documentation) are unchanged. `tests/Feature/Auth/RequireVerifiedEmailTest.php` fails if a route with `auth.jwt` outside `/api/auth` lacks `verified.email`. The OpenAPI spec adds the `EmailUnverified` 403 to every secured operation outside `/api/auth` (`OpenApiSpec::documentEmailVerification`).
 
 ## Form requests
 
 Each module keeps its Laravel form requests in a `FormRequests/` folder:
 
 - `app/Auth/FormRequests/`: `RegisterRequest`, `LoginRequest`, `ForgotPasswordRequest`, `ResetPasswordRequest`, `ResendVerificationRequest`.
-- `app/Movie/FormRequests/`: `MovieListRequest`, `MovieSearchRequest`, `MovieDiscoverRequest`.
+- `app/Movie/FormRequests/`: `MovieListRequest`, `MovieTrendingRequest`, `MovieSearchRequest`, `MovieDiscoverRequest`.
+- Every other module with input does the same (listed in each module's section below).
 
 A form request checks the incoming HTTP request before the controller runs, and turns it into a clean object for the service.
 
@@ -256,6 +298,14 @@ The form request is the only layer that knows about the raw HTTP input. Everythi
 
 Do not confuse `FormRequests/` with `DTOs/Requests/`. The form request validates the HTTP input. The DTO is the plain data object it produces and hands to the service.
 
+**Emails are stored lowercase.** `Ali@Example.com` and `ali@example.com` are one sign-in address everywhere:
+
+- Every write is lowercased and trimmed by set mutators on the models (`User::email`, `User::pending_email`, `PasswordReset::email`), through `App\Support\EmailAddress::normalize()`, so registration, social sign-up, a completed email change, factories and seeders all store the lowercase form.
+- Every form request that takes an `email` uses the `App\Support\NormalizesEmailInput` trait, which lowercases and trims it in `prepareForValidation()`, before the rules run: `RegisterRequest`, `LoginRequest`, `ForgotPasswordRequest`, `ResetPasswordRequest`, `ResendVerificationRequest` here, and `RequestEmailChangeRequest` and `UpdateProfileRequest` in the User module.
+- Uniqueness (`RegisterRequest`, `RequestEmailChangeRequest`) uses the shared `App\Support\UniqueEmail` rule, which compares `LOWER(email)`, so even a row stored before lowercasing (`Ali@Example.com`) blocks `ali@example.com`. The message stays "The email has already been taken.".
+- Lookups (`UserRepository::findByEmail` for login, password reset, verification resend and social linking, and `PasswordResetRepository`) lowercase their input and compare against the column directly, so the unique index still serves them. Social sign-in lowercases the provider's email before looking up or creating the account. The per-email rate-limit bucket uses the same normalisation.
+- Migration `2026_11_11_000004_lowercase_emails` lowercases and trims `users.email`, `users.pending_email` and `password_resets.email` (in chunks of 500, in one transaction). It checks first: when two accounts' emails are equal once lowercased, it throws a `RuntimeException` listing the user ids and stored addresses and changes nothing. Resolve those accounts by hand and run it again. A pending email change to an address another account uses (exactly or in another case) does not stop it: that change could never be applied, so its `pending_email`, `pending_email_nonce`, `pending_email_authorized_at` and `pending_email_link_sent_at` are cleared in the same transaction, and the count is logged (`lowercaseEmails()` returns it). `down()` does nothing (the original casing is not kept). Lowercasing an address that was stored mixed-case invalidates links bound to it (verification `sha1(email)`, account deletion, email change); the member asks for a new one.
+
 ## Email
 
 | File | Purpose |
@@ -263,8 +313,11 @@ Do not confuse `FormRequests/` with `DTOs/Requests/`. The form request validates
 | `Listeners/SendEmailVerification.php` | Sends the verification link when a user registers. Registered in `AuthModuleServiceProvider` |
 | `Mail/VerifyEmailMail.php` | The verification email |
 | `Mail/ResetPasswordMail.php` | The password reset email |
-| `resources/views/mail/verify-email.blade.php` | Template for the verification email |
-| `resources/views/mail/reset-password.blade.php` | Template for the reset email |
+| `Mail/BrevoTransport.php` | The `brevo` mail transport (registered with `Mail::extend` in `AuthModuleServiceProvider`). Posts to `https://api.brevo.com/v3/smtp/email`; its errors never include the email body, links or key |
+| `resources/views/mail/layout.blade.php` | The shared WatchWise-branded HTML layout (images in `public/images/mail/`) |
+| `resources/views/mail/verify-email.blade.php`, `reset-password.blade.php` | HTML templates |
+| `resources/views/mail/text/*.blade.php` | Plain-text versions of both emails |
+| `app/User/Mail/*`, `resources/views/mail/confirm-email-change`, `authorize-email-change`, `email-change-requested`, `email-changed` | The email change emails (User module), on the same layout, with plain-text versions in `resources/views/mail/text/`. The layout takes an optional secondary link (`secondaryPrompt`, `secondaryAction`, `secondaryUrl`), used for the "cancel this change" link |
 
 Emails are sent directly, not queued, so no queue worker is needed. The work for an existing account (creating the token, hashing it, sending the mail) runs after the response is sent using `defer()`. This keeps the response time the same for known and unknown emails, and a broken mail server is logged without failing the request.
 
@@ -285,7 +338,6 @@ Most policies stay in `app/Policies/` because each belongs to the entity it prot
 | Policy | Rule |
 | --- | --- |
 | `ReviewPolicy` | Owner-based access |
-| `UserPreferencePolicy` (`app/User/Policies/`) | Owner-based access |
 | `WatchlistPolicy` (`app/Watchlist/Policies/`) | Owner-based access |
 | `MovieListPolicy`, `MovieListItemPolicy` (`app/MovieList/Policies/`) | Private lists are visible to their owner only |
 | `MovieNightPolicy` (`app/MovieNight/Policies/`) | Organizer and invitees can view a night; only the organizer can change it |
@@ -297,8 +349,8 @@ Most policies stay in `app/Policies/` because each belongs to the entity it prot
 
 | File | Purpose |
 | --- | --- |
-| `bootstrap/app.php` | Registers the API routes and the four middleware aliases |
-| `bootstrap/providers.php` | Registers `AppServiceProvider`, `AuthorizationServiceProvider` and the module service providers, including `GroqModuleServiceProvider` |
+| `bootstrap/app.php` | Registers the API and console routes, the four middleware aliases, runs `AuthenticateJwt` before `ThrottleRequests`, redirects bad verification links to the frontend, sends bad or expired email-change and account-deletion link signatures to the public result page (GET) or answers them with JSON 403/410 (POST), and renders JSON errors for every `api/*` request |
+| `bootstrap/providers.php` | Registers `AppServiceProvider`, `AuthorizationServiceProvider` and all 18 module service providers |
 
 ## Tests
 
@@ -306,6 +358,9 @@ Most policies stay in `app/Policies/` because each belongs to the entity it prot
 | --- | --- |
 | `tests/Feature/Auth/AuthenticationTest.php` | Register, login, refresh, logout, throttling |
 | `tests/Feature/Auth/AccountFlowsTest.php` | Email verification, password reset, social login |
+| `tests/Feature/Auth/LowercaseEmailTest.php` | Emails stored lowercase; registration, login, password reset and social sign-in in any case; legacy mixed-case rows; the `lowercase_emails` migration (aborts on user email collisions, clears pending changes to a taken address) |
+| `tests/Feature/Auth/BrevoVerificationTest.php` | The Brevo transport and the verification email end to end |
+| `tests/Feature/Auth/GooglePhotoTest.php` | Detecting Google's generated placeholder avatar |
 | `tests/Feature/Auth/MiddlewareTest.php` | The four middleware |
 | `tests/Feature/Auth/PolicyTest.php` | The policy rules, including messages |
 | `tests/Feature/Auth/Repository/` | Each repository against the database |
@@ -326,35 +381,63 @@ app/Genre/
   Providers/            GenreModuleServiceProvider (interface bindings)
 app/Movie/
   Controllers/          MovieController
-  FormRequests/         MovieListRequest, MovieSearchRequest, MovieDiscoverRequest
-  InterfaceServices/    MovieServiceInterface
-  Services/             MovieService
-  InterfaceRepository/  MovieRepositoryInterface
-  Repository/           MovieRepository
-  DTOs/Requests/        MovieListQuery, MovieSearchQuery, MovieDiscoverQuery
-  DTOs/Responses/       MovieResponse, MoviePageResponse, MovieDetailsResponse (+ CastMemberResponse, PersonResponse, TrailerResponse)
+  FormRequests/         MovieListRequest, MovieTrendingRequest, MovieSearchRequest, MovieDiscoverRequest
+  InterfaceServices/    MovieServiceInterface, MovieCatalogServiceInterface
+  Services/             MovieService (TMDB), MovieCatalogService (the local `movies` table)
+  InterfaceRepository/  MovieRepositoryInterface, MovieCatalogRepositoryInterface
+  Repository/           MovieRepository (TMDB), MovieCatalogRepository (Eloquent, `LocalMovie`)
+  DTOs/Requests/        MovieListQuery, MovieTrendingQuery, MovieSearchQuery, MovieDiscoverQuery, LocalMovieQuery, UpdateLocalMovieData
+  DTOs/Responses/       MovieResponse, MoviePageResponse, MovieDetailsResponse (+ CastMemberResponse, PersonResponse, TrailerResponse), CatalogSyncResponse
   Exceptions/           MovieNotFound (renders 404 "Movie not found.")
   Providers/            MovieModuleServiceProvider (interface bindings)
-app/Support/            Shared by both: TmdbHttpClient (adds the API key, timeout, wraps failures)
+app/Support/            Shared code: TmdbHttpClient (adds the API key, timeout, optional retry, wraps failures; getPool() runs up to 5 requests in parallel),
+                        MediaType (`movie`/`tv` and the frontend key "550" / "tv-1399"), LikePattern (escaped LIKE search),
+                        EmailAddress (lowercase + trim), NormalizesEmailInput (form request trait), UniqueEmail (`LOWER(email)` uniqueness rule)
   Exceptions/           TmdbUnavailable (renders a fixed 502 so TMDB's own error never reaches the client), TmdbNotFound (TMDB answered 404)
 ```
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/movies?list=&page=` | A page of `popular` (default), `top_rated`, `now_playing` or `upcoming` movies. `upcoming` holds films whose first release date is today in UTC or later, most popular first; Home filters out films already released on the viewer's local date |
-| `GET /api/movies/search?q=&page=&year=` | Search movies by title. `q` is required (max 100 characters) |
-| `GET /api/movies/discover` | Filtered browsing: `genres`, `year_from`, `year_to`, `min_rating` (0 to 5), `runtime_min`, `runtime_max`, `language`, `sort` (`popularity`, `rating`, `release_date`, `title`), `page` |
-| `GET /api/movies/{id}` | One movie with genres, US certification, runtime, original language, directors, top 12 cast, a YouTube trailer, budget, box office and 10 recommended movies (fetched in one TMDB call). Unknown ids return 404 |
+| `GET /api/movies?list=&page=&sort=&release_from=` | A page of `popular` (default), `top_rated`, `now_playing` or `upcoming` movies. `upcoming` uses TMDB Discover for films whose primary release date is `release_from` (default today in UTC) or later, sorted by `popularity` (default) or `release_date`; the frontend sends the viewer's first eligible local date so filtering happens before pagination. Upcoming and trending use a 20 s timeout with one retry |
+| `GET /api/movies/trending?type=movie\|tv` | TMDB's weekly trending titles, cached for an hour |
+| `GET /api/movies/search?q=&page=&year=&type=` | Search by title. `q` is required (max 100 characters). `type` is `movie` (default), `tv` or `all` (movies and shows merged by popularity, up to 10 pages) |
+| `GET /api/movies/discover` | Filtered browsing: `genres`, `tv_genres`, `year_from`, `year_to`, `min_rating` (0 to 5), `runtime_min`, `runtime_max`, `language`, `sort` (`popularity`, `rating`, `release_date`, `title`), `type` (`movie`, `tv`, `all`), `page` |
+| `GET /api/movies/{id}?type=tv` | One movie (or TV show with `type=tv`) with genres, certification, runtime, original language, directors, top 12 cast, a YouTube trailer, budget, box office and 10 related titles (fetched in one TMDB call). Unknown ids return 404 |
 | `GET /api/genres` | The movie genres (id and name), cached for a day |
 
-- All five are public. They share the `tmdb` rate limit: 60 requests per minute per IP (see [Rate limits](#rate-limits)), so one client cannot use up the TMDB quota.
-- Movie details are cached for 6 hours per movie (`tmdb.movie.{id}`); unknown movies and TMDB failures are not cached.
-- List pages are cached for an hour (`tmdb.list.{list}.{page}`); TMDB failures are not cached.
+- All are public. Together with the two Person routes they share the `tmdb` rate limit: 60 requests per minute per IP (see [Rate limits](#rate-limits)), so one client cannot use up the TMDB quota.
+- Movie details are cached for 6 hours per title; unknown titles and TMDB failures are not cached. `credits()` and `metadata()` (used by the recommendations and taste profile) fetch many titles' credits/genres at once through `getPool()` and cache each for 6 hours.
+- List pages are cached for an hour (`tmdb.list.{list}.{sort}.{release_from}.{page}`); TMDB failures are not cached.
+- **Local catalogue:** `MovieCatalogService::remember()` stores a film in the `movies` table (`LocalMovie`, with its first director) the first time someone rates or reviews it. Admins edit, hide or feature these rows (see [Admin module](#admin-module)); hidden films are left out of the app's own lists and stats. TV shows are never stored.
 - Movie lists are paginated with `page` from 1 to 500 and 20 movies per page. Responses include `page`, `total_pages` (capped at 500, TMDB's limit) and `total_results`. Genres are a short fixed list, so they are not paginated.
 - Ratings are converted from TMDB's 0 to 10 scale to 0 to 5. Adult content is always excluded.
 - Setup: set `TMDB_API_KEY` in `.env`. `TMDB_URL` and `TMDB_IMAGE_URL` have working defaults in `config/services.php`.
-- Routes are in `routes/api.php` and the config is the `tmdb` entry in `config/services.php`.
-- Tests: `tests/Feature/Movie/`, `tests/Feature/Genre/` and `tests/Feature/Support/` (the endpoints, repositories and `TmdbHttpClient`), and `tests/Unit/Movie/` and `tests/Unit/Genre/` (the services).
+- Routes are in `routes/movies.php` and the config is the `tmdb` entry in `config/services.php`.
+- Tests: `tests/Feature/Movie/`, `tests/Feature/Genre/` and `tests/Feature/Support/` (the endpoints, repositories, catalogue and `TmdbHttpClient`), `tests/Feature/Social/TvShowsTest.php`, and `tests/Unit/Movie/` and `tests/Unit/Genre/` (the services).
+
+## Person module
+
+`app/Person/` is the person page (actor, director, writer…). Like Movie, its repository calls TMDB instead of the database.
+
+```
+app/Person/
+  Controllers/          PersonController (show, collaborators)
+  InterfaceServices/    PersonServiceInterface
+  Services/             PersonService
+  InterfaceRepository/  PersonRepositoryInterface
+  Repository/           PersonRepository (/person/{id}?append_to_response=movie_credits, /movie/{id}/credits)
+  DTOs/Responses/       PersonDetailsResponse, PersonCreditResponse, CollaboratorsResponse, CollaboratorResponse
+  Exceptions/           PersonNotFound (404)
+  Providers/            PersonModuleServiceProvider
+```
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/people/{id}` | Biography, birth/death, place of birth, department, photo, a "Known for" row (6 most-voted films) and the full filmography (one entry per film, newest first, with every role: `Actor`, `Director`, `Screenplay`…) |
+| `GET /api/people/{id}/collaborators` | The 3 people who share the most films (at least 2) with this person, counted over their 10 most-voted films' top 15 billed actors and key crew jobs. Each has their most frequent role and the shared film count |
+
+- Both are public, under the `tmdb` limiter, and cached for 6 hours (`tmdb.person.{id}`, `tmdb.person.{id}.collaborators`). A TMDB outage makes collaborators an empty list (not cached) rather than an error.
+- Tests: `tests/Feature/Person/`.
 
 ## MovieList and MovieNight modules
 
@@ -363,12 +446,12 @@ app/Support/            Shared by both: TmdbHttpClient (adds the API key, timeou
 ```
 app/MovieList/
   Controllers/          MovieListController
-  FormRequests/         MovieListIndexRequest, StoreMovieListRequest, UpdateMovieListRequest
+  FormRequests/         MovieListIndexRequest, StoreMovieListRequest, UpdateMovieListRequest, AddMovieListItemRequest, RemoveMovieListItemRequest
   InterfaceServices/    MovieListServiceInterface
   Services/             MovieListService (transactions)
   InterfaceRepository/  MovieListRepositoryInterface
   Repository/           MovieListRepository (scopes, search, syncing films)
-  DTOs/Requests/        MovieListSearchQuery, CreateMovieListData, UpdateMovieListData
+  DTOs/Requests/        MovieListSearchQuery, CreateMovieListData, UpdateMovieListData, ListFilmData
   Resources/            MovieListResource
   Policies/             MovieListPolicy, MovieListItemPolicy
   Providers/            MovieListModuleServiceProvider (interface bindings)
@@ -386,7 +469,7 @@ app/MovieNight/
   Providers/            MovieNightModuleServiceProvider (interface bindings)
 ```
 
-- The routes did not change (`/api/lists` and `/api/movie-nights`, in `routes/social.php`).
+- The routes did not change (`/api/lists` and `/api/movie-nights`, in `routes/lists.php` and `routes/movie_nights.php`).
 - The form requests run the policy check in `authorize()`, so a forbidden request is rejected before validation, as before.
 - `GET /api/lists` with an unknown `scope` now fails validation (422 with an `errors` object) instead of returning the message "Unknown scope.".
 - A public list whose owner's profile is followers-only or private is for that owner's followers only: `scope=public` leaves it out for everyone else, and `GET /api/lists/{list}` answers 403 (`MovieListPolicy::view`; the owner and admins always see it). `scope=following` already only lists people you follow.
@@ -410,9 +493,61 @@ app/Watchlist/
   Providers/            WatchlistModuleServiceProvider (interface bindings)
 ```
 
-- The routes did not change (`/api/watchlist`, in `routes/social.php`).
+- The routes did not change (`/api/watchlist`, in `routes/watchlist.php`).
 - `POST /api/watchlist` answers 201 for a new film and 200 when the film was already there.
 - Tests: `tests/Feature/Social/ContentTest.php` and `tests/Feature/Social/WatchlistRulesTest.php`.
+
+## Rating module
+
+`app/Rating/` is the Movie page's "Your rating". A rating is a `reviews` row without text (migration `2026_10_26_000001_allow_rating_only_reviews`), so a rating and a review of the same title share one row.
+
+```
+app/Rating/
+  Controllers/          RatingController (show, update)
+  FormRequests/         ShowRatingRequest, RateMovieRequest
+  InterfaceServices/    RatingServiceInterface
+  Services/             RatingService (also remembers the film in the local catalogue)
+  InterfaceRepository/  RatingRepositoryInterface
+  Repository/           RatingRepository (upsert on user_id, tmdb_id, media_type)
+  Providers/            RatingModuleServiceProvider
+```
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/ratings/{tmdbId}?type=movie\|tv` | `{rating}`, null when you haven't rated the title |
+| `PUT /api/ratings/{tmdbId}` | Body `rating` (1 to 5), `type` (default `movie`). A new rating-only row is approved straight away; an existing review keeps its text and moderation state |
+
+- Tests: `tests/Feature/Social/RatingTest.php`.
+
+## Review module
+
+`app/Review/` holds the Movie page's Reviews section and the review data the Admin module moderates. The `Review`, `ReviewVote` and `ReviewReport` models stay in `app/Models/`, and `ReviewPolicy` in `app/Policies/`.
+
+```
+app/Review/
+  Controllers/          MovieReviewController (index, save, destroy, helpful, unhelpful, report)
+  FormRequests/         MovieReviewIndexRequest, SaveReviewRequest, MyReviewRequest, ReportReviewRequest
+  DTOs/Requests/        MovieReviewQuery (sorts, 10 per page), SaveReviewData (max 2000 characters), ReportReviewData
+  DTOs/Responses/       MovieReviewResponse, ReportReviewResponse
+  InterfaceServices/    MovieReviewServiceInterface (the page), ReviewServiceInterface (admin queue), ReviewModerationServiceInterface
+  Services/             MovieReviewService, ReviewService, ReviewModerationService (Groq labels), SentimentClassifier (Groq sentiment)
+  InterfaceRepository/  MovieReviewRepositoryInterface, ReviewRepositoryInterface
+  Repository/           MovieReviewRepository, ReviewRepository
+  Providers/            ReviewModuleServiceProvider
+```
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/reviews?tmdb_id=&type=&sort=helpful\|newest\|highest\|lowest&page=` | `summary` (average, counts, star distribution and sentiment split as percentages), `mine`, a page of `reviews` and `has_more` |
+| `PUT /api/reviews/mine` | Write or rewrite your review: `tmdb_id`, `type`, `content` (not blank, max 2000), `rating` 1 to 5, `has_spoilers` |
+| `DELETE /api/reviews/mine?tmdb_id=&type=` | Remove the text; the star rating stays |
+| `POST`, `DELETE /api/reviews/{review}/helpful` | Mark or unmark a review helpful; returns the `helpful` count. Not your own review, and only approved text reviews whose author's privacy shows them to you |
+| `POST /api/reviews/{review}/report` | Report with a `reason` (see [Admin module](#admin-module)) |
+
+- **Moderation on save:** `ReviewModerationService` asks Groq (strict JSON schema) for the labels `offensive language`, `spoiler` and `spam`. No labels means the review is approved at once; any label sends it to the admin queue as pending. If Groq fails, the labels are null and the review waits for a moderator. `has_spoilers` is set when the author ticks it or Groq finds a spoiler.
+- **Sentiment:** `SentimentClassifier` asks Groq for positive/neutral/negative and falls back to the star rating (4 to 5 positive, 3 neutral, 1 to 2 negative).
+- Saving a movie review also remembers the film in the local catalogue. Marking helpful sends a `review_helpful` notification; taking it back removes it.
+- Tests: `tests/Feature/Social/MovieReviewsTest.php`, `tests/Feature/Review/ReviewReportTest.php` and `tests/Feature/Admin/AdminReviewsTest.php`.
 
 ## User module
 
@@ -421,22 +556,80 @@ app/Watchlist/
 ```
 app/User/
   Controllers/          UserController (account under /me, profiles and following under /users, and /home)
-  FormRequests/         UpdateProfileRequest, UpdatePreferencesRequest, UpdatePasswordRequest, UploadAvatarRequest, DeleteAccountRequest, UserSearchRequest
-  InterfaceServices/    AccountServiceInterface, ProfileServiceInterface, HomeServiceInterface
-  Services/             AccountService (settings, password, avatar, delete), ProfileService (search, profile page, follow), HomeService, ProfilePrivacy (what a viewer may see of a profile)
-  InterfaceRepository/  AccountRepositoryInterface, ProfileRepositoryInterface, HomeRepositoryInterface
-  Repository/           AccountRepository, ProfileRepository, HomeRepository
-  DTOs/Requests/        UpdateProfileData, UpdatePreferencesData, ChangePasswordData, DeleteAccountData, UserSearchQuery
-  DTOs/Responses/       AccountResponse, ProfileResponse, UserSearchResponse, FollowResponse, HomeResponse
+  FormRequests/         UpdateProfileRequest, UpdatePreferencesRequest, UpdatePasswordRequest, SetPasswordRequest, UploadAvatarRequest, DeleteAccountRequest, UserSearchRequest, RequestEmailChangeRequest
+  InterfaceServices/    AccountServiceInterface, ProfileServiceInterface, HomeServiceInterface, EmailChangeServiceInterface, AccountDeletionServiceInterface
+  Services/             AccountService (settings, password, avatar, social disconnect, the one account-erasing path), ProfileService (search, profile page, follow), HomeService, ProfilePrivacy (what a viewer may see of a profile), EmailChangeService (pending email, confirmation link, notices), AccountDeletionService (password check or emailed confirmation link, then AccountService::deleteAccount)
+  InterfaceRepository/  AccountRepositoryInterface, ProfileRepositoryInterface, HomeRepositoryInterface, AccountDeletionRepositoryInterface
+  Repository/           AccountRepository, ProfileRepository, HomeRepository, AccountDeletionRepository (pending deletion columns, compare-and-set clear)
+  DTOs/Requests/        UpdateProfileData, UpdatePreferencesData, ChangePasswordData, SetPasswordData, DeleteAccountData, UserSearchQuery, RequestEmailChangeData, ConfirmEmailChangeData, AccountDeletionLinkData
+  DTOs/Responses/       AccountResponse, ProfileResponse, UserSearchResponse, FollowResponse, HomeResponse, EmailChangeOutcome (enum: success, check-new-inbox, cancelled, invalid, expired, taken), DeleteAccountResponse (deleted or link sent), AccountDeletionOutcome (enum: deleted, cancelled, invalid, expired)
   Resources/            MemberResource (the small public card of a user, used by many modules)
-  Exceptions/           IncorrectPassword (422 on the wrong field), ProfileSectionHidden (403)
-  Policies/             UserPolicy, UserPreferencePolicy
-  Providers/            UserModuleServiceProvider (interface bindings)
+  Exceptions/           IncorrectPassword (422 on the wrong field), ProfileSectionHidden (403 JSON), NoPendingEmailChange (422), CannotDisconnectLastLogin (422 on `provider`), PasswordAlreadySet (409 `password_already_set`), NoPasswordSet (409 `no_password_set`)
+  Mail/                 ConfirmEmailChangeMail, EmailChangeRequestedMail, EmailChangedMail, PasswordAddedMail, and the SendsMailAfterResponse trait (deferred, rescued sending shared by the two services); account deletion: ConfirmAccountDeletionMail, AccountDeletedMail
+  Policies/             UserPolicy (view, follow)
+  Providers/            UserModuleServiceProvider (interface bindings, the me-email-change and me-email-confirm, me-account-deletion and me-delete-confirm rate limiters, plus user-search, user-follows, user-avatar and user-profile-update)
+  Support/              AccountLink (enum of the emailed email-change and account-deletion links: route name to frontend kind, and the public /account-link pages they land on)
 ```
 
-- The routes did not change (`routes/social.php`).
-- `ProfilePrivacy` decides what a viewer may see of a profile.
-- Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php` and `AccountRulesTest.php`.
+- Routes are in `routes/user.php`: `/api/home`; `/api/me` (show, update, delete), `/me/preferences`, `/me/password` and `/me/password/set` (`me.password.set`; see below), `/me/avatar` (upload/delete, public disk; see below), `/me/social/{google|github|discord}` (disconnect), `/me/follow-requests/{username}` (accept/decline), `/me/email` (see below); `/api/users` (search) and `/api/users/{username}` with `followers`, `following` and `follow`/unfollow. Account deletion adds `routes/account_deletion_signed_in.php` (`DELETE /api/me/delete-request`, in the verified group) and `routes/account_deletion.php` (the two signed links, outside it); see [Deleting the account](#deleting-the-account).
+- Disconnecting a provider (`DELETE /api/me/social/{provider}`, `AccountService::disconnectSocial`) is a no-op when it is not linked. An account without a password (`password` is NULL, `has_password: false`) cannot remove its last linked provider: it would be locked out. It gets 422 `CannotDisconnectLastLogin` (message on `errors.provider`) until it sets a password or links another provider. `AccountRepository::deleteSocialAccountsKeepingAnother` checks and deletes inside a transaction holding a row lock on the user, so two disconnects at once cannot remove both providers. Accounts with a password of their own (including a first one set in Settings) disconnect freely.
+- `ProfilePrivacy` decides what a viewer may see of a profile. The profile page decides `canView` once and reads every section through `sectionsShownTo()`, so a followers-only profile does not repeat the follow query per section. `my_following` still lists everyone the viewer follows: "View all" loads the full followers/following lists and each person there needs a Follow/Following button. The 8 recent followers/following are the newest follows first, and the review count skips empty text like Home does.
+- **Search input** (`GET /api/users?q=&limit=`): nothing is rejected. `UserSearchQuery::fromInput` treats a `q` that is not a string (`q[]=x`) as empty, trims it and cuts it to 100 characters, and clamps `limit` to 1-30 (a non-number falls back to 10).
+- **No password:** `users.password` is nullable and `password IS NULL` is the only signal that an account has none (`User::hasPassword()`, `has_password` in `GET /api/me`). Google, GitHub and Discord sign-ups are created with NULL, and a social sign-in that takes over an unverified local account sets it back to NULL (`UserRepositoryInterface::clearPassword`, which also clears `password_set_without_proof_at`). Password sign-in refuses such an account with the same 401 as a wrong password (no `Hash::check` against NULL). "Forgot password" works for it and sets a first password that counts as proof of the inbox. Migration `2026_11_11_000000_make_users_password_nullable` makes the column nullable; `2026_11_11_000001_clear_social_placeholder_passwords` turns accounts that still held the old shared placeholder into NULL-password accounts (see [Security notes](#security-notes)).
+- **Setting a first password** (`PUT /api/me/password/set`, `SetPasswordRequest` -> `SetPasswordData` -> `AccountService::setPassword`): body `password` + `password_confirmation` (same rules as a change: 8+ characters with letters and numbers). Only while the password is NULL, otherwise 409 `{"message", "code": "password_already_set"}`. `AccountRepository::setFirstPassword` re-checks NULL under a row lock, so two requests at once cannot both set one. It stamps `password_set_without_proof_at`, mails `PasswordAddedMail`, drops a pending email change and rotates the sessions like a change. Same response as a change.
+- **Changing the password** (`PUT /api/me/password`, change only): `current_password` is always required. An account without a password gets 409 `{"message", "code": "no_password_set"}` (after validation) and must use `/me/password/set`. `AccountService::changePassword` revokes every refresh token and calls `AuthServiceInterface::replaceSessions()`, which issues a fresh token pair for the calling request; the controller sets it as the new cookies. The refresh cookie is only sent to `/api/auth`, so the password route cannot tell which session is current, hence the fresh session instead of "revoke all but mine". This device stays signed in, every other device is signed out at once (see `session_version` under [Security notes](#security-notes)). A pending email change is still discarded.
+- **First password notice:** `PUT /api/me/password/set` mails `PasswordAddedMail` to the account address (deferred, errors only logged), saying a password was added and linking to forgot-password if it was not them. An ordinary change sends nothing.
+- **Lowercase usernames:** handles are stored lowercase. The `User` model lowercases `username` on every write (a set mutator; generated handles were already lowercase), `UpdateProfileRequest::prepareForValidation` lowercases (and strips a leading `@`) before the uniqueness check, which compares `LOWER(username)` so even a handle stored before lowercasing (`Mali`) blocks `mali`, while the regex still accepts mixed-case input. `/api/users/{username}` route binding lowercases the value (`User::resolveRouteBindingQuery`) and search lowercases the text it matches against usernames. Migration `2026_11_11_000002_lowercase_usernames` lowercases existing handles; on a case-only collision the oldest account (by `created_at`, then id) keeps it and the others get the first free numeric suffix within 20 characters (`mali2`, `mali3`...).
+- **Lowercase emails:** emails are stored lowercase (see "Form requests" for the Auth side and the migration). `RequestEmailChangeRequest` lowercases the new address before validating it, refuses your own address in any case with "That is already your email address." and checks uniqueness with `App\Support\UniqueEmail` (`LOWER(email)`, ignoring you). `AccountRepository::emailBelongsToAnotherUser`, checked again when the approval and confirmation links are opened, compares `LOWER(email)` too, so a legacy mixed-case row still answers `email_change=taken`. `pending_email` is stored lowercase by the `User` model. `UpdateProfileRequest` lowercases an unchanged `email` before comparing it. Admin user search lowercases the text it matches against emails. Tests: `EmailChangeTest.php` and `tests/Feature/Auth/LowercaseEmailTest.php`.
+- **Avatars:** `users.avatar` holds a path on the public disk (`avatars/<file>`) for uploaded pictures, or the external `http(s)` URL copied by social sign-in. The `User` model's `avatar` accessor returns a full URL for a stored path and leaves external URLs untouched, so every response (`UserResponse`, `MemberResource`, Admin, notifications) shows a full URL and `APP_URL` is never stored. Uploading stores the new file first, updates the row, then deletes the old file (and deletes the new one again if the update fails). Migration `2026_11_10_075004_convert_user_avatars_to_storage_paths` converts old `.../storage/avatars/<file>` URLs to paths (`down()` restores URLs).
+- `/api/home` returns the 3 busiest rooms, your next movie night (accepted guests and the leading vote) and `activity`: the 8 newest items from people you follow (reviews, ratings, public lists, watched titles and watchlist additions), each kind filtered by that person's privacy switches. Spoiler reviews have no excerpt.
+- Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php`, `AccountRulesTest.php` and `tests/Feature/User/HomeActivityTest.php`, `EmailChangeTest.php`, `PasswordProofBackfillTest.php`, `SetPasswordTest.php` (set vs change password), `LowercaseUsernameTest.php`, `ClearPlaceholderPasswordsMigrationTest.php`, `tests/Feature/Auth/NullPasswordTest.php` (login refused, reset sets a password), `AccountSafetyTest.php` (search input, password sessions, first-password notice, avatar storage) and `Repository/AccountRepositoryTest.php` (the compare-and-set email-change writes).
+
+### Changing the sign-in email
+
+`PATCH /api/me` does not change the email: it accepts `email` only when it equals the current one (forms send the whole profile) and rejects a different one with 422. The flow is:
+
+| Method and path | Auth | Purpose |
+| --- | --- | --- |
+| `PUT /api/me/email` | `auth.jwt` + `verified.email`, `throttle:me-email-change` | `email` (+ `current_password` when the account has one). Stores the address in `users.pending_email` with a fresh random `pending_email_nonce`. With a password: sets `pending_email_authorized_at = now()`, mails a signed 60-minute link to the new address (`ConfirmEmailChangeMail`) and warns the current address (`EmailChangeRequestedMail`, new address masked as `j***@example.com`, with a cancel link). Without one (`password` is NULL), or while `password_set_without_proof_at` is set (see below): leaves `pending_email_authorized_at` null and mails only the current address (`AuthorizeEmailChangeMail`: a 60-minute approval link plus the cancel link). `email` and `email_verified_at` are untouched |
+| `POST /api/me/email/resend` | `auth.jwt` + `verified.email`, `throttle:me-email-change` | Mails the link the change is waiting for again: the approval link to the current address while `pending_email_authorized_at` is null, otherwise the confirmation link to the new one (422 `NoPendingEmailChange` when nothing is pending) |
+| `DELETE /api/me/email` | `auth.jwt` + `verified.email` | Clears `pending_email`, `pending_email_nonce` and `pending_email_authorized_at` |
+| `GET /api/me/email/authorize/{id}/{hash}` (`me.email.authorize`) | signed link (no login; declared in `routes/email_change.php`), `throttle:me-email-confirm` | The approval link mailed to the current address. Changes nothing: redirects to the public page `FRONTEND_URL/account-link/email-authorize?id=&hash=&expires=&signature=` (the link's own values), whose button POSTs the same URL |
+| `POST /api/me/email/authorize/{id}/{hash}` (`me.email.authorize.submit`) | same signed URL (no login), `throttle:me-email-confirm` | When the password proves nothing: the current address approves the change. Sets `pending_email_authorized_at` (compare-and-set) and mails the confirmation link to the new address. Answers 200 `{"outcome": "check-new-inbox\|invalid\|taken"}` (approving again, or twice at once, mails the new address only once and answers `check-new-inbox`) |
+| `GET /api/me/email/confirm/{id}/{hash}` (`me.email.confirm`) | signed link (no login; declared in `routes/email_change.php` outside the verified group), `throttle:me-email-confirm` | The link mailed to the new address. Changes nothing: redirects to `FRONTEND_URL/account-link/email-confirm?id=&hash=&expires=&signature=`, whose button POSTs the same URL |
+| `POST /api/me/email/confirm/{id}/{hash}` (`me.email.confirm.submit`) | same signed URL (no login), `throttle:me-email-confirm` | Refused (`invalid`) while `pending_email_authorized_at` is null. Otherwise swaps `email = pending_email`, sets `email_verified_at = now()`, clears the pending columns, revokes every session through `AuthServiceInterface::revokeSessions()` and mails the old address (`EmailChangedMail`). Answers 200 `{"outcome": "success\|invalid\|taken"}` |
+| `GET /api/me/email/cancel/{id}/{hash}` (`me.email.cancel`) | signed link (no login; declared in `routes/email_change.php`), `throttle:me-email-confirm` | The "this wasn't me" link in the mails to the current address (valid 7 days). Cancelling is the safe direction, so it acts on GET: clears the pending columns of that request only and redirects to the public page `FRONTEND_URL/account-link/result?kind=email-cancel&outcome=cancelled\|invalid\|expired` (`expired` also when nothing is pending any more) |
+
+- `current_password` is required unless the account has no password (`has_password: false`). Such accounts approve from their current address instead, so a stolen session alone cannot send a link to another inbox. Accounts with a password keep the single link to the new address.
+- A first password chosen in Settings (`PUT /api/me/password/set`, where no current password exists to ask for) proves nothing, since a stolen session could set it. `AccountService::setPassword` stamps `users.password_set_without_proof_at`, and while it is set the email change takes the approval path even though `current_password` is now required too. It is cleared only when the owner proves the inbox: a password reset through the emailed link (`AccountServiceInterface::passwordResetThroughEmail()`, called by `PasswordResetService::reset`) or a completed email change (`applyPendingEmail`). An ordinary password change with the current password keeps it. Disconnecting the social login does not clear it. The migration backfilled existing accounts, failing closed: a user whose stored password was not the old placeholder (read from `SOCIAL_PLACEHOLDER_PASSWORD` with `env()` inside the migration) was stamped when they have a `social_accounts` row, or when they have none but `email_verified_at` is within 5 minutes of `created_at` (social sign-in verifies at creation, so this catches accounts whose social login was disconnected). The placeholder check was skipped, so these users were stamped regardless, when `SOCIAL_PLACEHOLDER_PASSWORD` was empty. Users on the placeholder (or with a NULL password) and email sign-ups verified later through the emailed link stayed null.
+- The writes are compare-and-set (`AccountRepository::authorizePendingEmail`, `applyPendingEmail`, `clearPendingEmail($user, $nonce)`): one conditional `UPDATE` that only matches while the row still holds the same pending address, nonce and password hash (and, for approve/apply, the expected approval state). A request replaced or cancelled between the link check and the write is therefore never approved, applied or cancelled by an older link; zero affected rows give `invalid` (or `check-new-inbox` when a simultaneous click already approved the same request).
+- The new address must differ from the current one and must not be any account's `email`. It is checked again when the approval or confirmation link is opened; if someone took it meanwhile, the pending change is dropped and the outcome is `taken`.
+- Every link's `hash` is `hash_hmac('sha256', purpose|user id|pending_email|pending_email_nonce|password hash, APP_KEY)`, compared with `hash_equals`. So a link only works for its own purpose (an approval or cancel hash is not a confirmation hash), for the request it was mailed for (the nonce changes on every `PUT`, so asking A, then B, then A again leaves the first link for A dead), and only while the password is unchanged: changing it in Settings, resetting it through forgot-password, setting a first one, or a social sign-in clearing an unverified account's password voids every earlier link without any extra wiring. Expired or tampered signatures are handled in `bootstrap/app.php` for every link (`App\User\Support\AccountLink` maps the route name to its `kind`): a GET redirects to `FRONTEND_URL/account-link/result?kind={kind}&outcome=expired\|invalid`, a POST answers JSON `{"outcome": "expired"}` with 410 or `{"outcome": "invalid"}` with 403.
+- Changing or setting the password (`AccountService::changePassword`, `setPassword`) and resetting it (`Auth\Services\PasswordResetService::reset`, inside its transaction, through `AccountServiceInterface::passwordResetThroughEmail()`) also clear the pending change with `EmailChangeServiceInterface::discardPendingChange()`, so Settings stops showing it. Auth only calls the User module's service interface for this, as module rules require; the password-hash binding is what actually voids the links.
+- Columns: `pending_email` (migration `2026_11_09_000000_add_pending_email_to_users_table`), `pending_email_nonce` and `pending_email_authorized_at` (migration `2026_11_10_000000_add_email_change_state_to_users_table`, which also drops pending changes made with the old `sha1(pending_email)` links), and `password_set_without_proof_at` (migration `2026_11_10_000001_add_password_set_without_proof_to_users_table`). All are in the `User` model's `$hidden`.
+- `pending_email_link_sent_at` (migration `2026_11_10_130000_add_pending_email_link_sent_at_to_users_table`) is the time the link the change waits for was last mailed (request, approval or resend). `users:prune-pending` first stamps pending addresses that have no stamp yet (made before the column existed) with now, one `UPDATE`, so they get a grace window, then clears every change whose stamp is older than `EmailChangeServiceInterface::EXPIRES_MINUTES` (60), plus a leftover nonce or timestamp with no address. The command counts only rows really cleared. Approval and resend refresh the stamp, so a live link is never pruned; `resend` goes through `markPendingEmailLinkSent` (filtered on the nonce) and answers 422 `NoPendingEmailChange` when no row matched, before mailing anything. The links already stop working on their own; this only cleans the columns. The cancel link (7 days) outlives a pruned change: with nothing pending it redirects to the result page with `outcome=expired` (a calm notice) instead of `invalid`, which stays for a wrong hash or a newer request.
+- `GET /api/me` (`AccountResponse`) has a top-level `pending_email` (null when nothing is pending) and `pending_email_awaiting_current` (true while the current address still has to approve).
+- Emails are sent with `defer()` + `rescue()`, like the Auth emails.
+
+### Deleting the account
+
+`AccountDeletionService` decides how `DELETE /api/me` is confirmed. A password of the member's own proves ownership; no password at all (`password` is NULL), or a first password set in Settings without a current one (`password_set_without_proof_at`, which a stolen session could do), does not, so those accounts confirm from their inbox. Both paths end in `AccountService::deleteAccount` (stored avatar file, then the user row; foreign keys cascade), and the address then gets `AccountDeletedMail`.
+
+| Method and path | Auth | Purpose |
+| --- | --- | --- |
+| `DELETE /api/me` | `auth.jwt` + `verified.email`, `throttle:me-account-deletion` | With a password that proves ownership: `password` is required (422 on `password` when missing or wrong), the account is deleted and the cookies cleared (200, `{"message": "Account deleted."}`). Otherwise `password` is ignored: stores `deletion_requested_at = now()` and a fresh random `deletion_nonce`, mails `ConfirmAccountDeletionMail` to the current address (a 60-minute confirmation link plus a "keep my account" link) and answers 202 (`message`, `deletion_pending: true`). Nothing is deleted yet; a new request voids the earlier links |
+| `DELETE /api/me/delete-request` | `auth.jwt` + `verified.email` | Clears the pending deletion (no-op when none). Returns the account |
+| `GET /api/me/delete/confirm/{id}/{hash}` (`me.delete.confirm`) | signed link (no login; `routes/account_deletion.php`), `throttle:me-delete-confirm` | Changes nothing: redirects to the public page `FRONTEND_URL/account-link/delete-confirm?id=&hash=&expires=&signature=`, whose button POSTs the same URL. A bad signature redirects to `FRONTEND_URL/account-link/result?kind=delete-confirm&outcome=invalid\|expired` |
+| `POST /api/me/delete/confirm/{id}/{hash}` (`me.delete.confirm.submit`) | same signed URL (no login), `throttle:me-delete-confirm` | Consumes the request with a compare-and-set (`AccountDeletionRepository::clearDeletionRequest($user, $nonce)`: one conditional `UPDATE` on the same nonce, email and password hash), then deletes the account through `AccountService::deleteAccount`. Answers 200 `{"outcome": "deleted"}`; used, replaced, cancelled or stale links `{"outcome": "invalid"}`. A bad signature answers 403 `invalid`, an expired one 410 `expired` |
+| `GET /api/me/delete/cancel/{id}/{hash}` (`me.delete.cancel`) | signed link (no login), `throttle:me-delete-confirm` | Acts on GET (the safe direction): drops the request it was mailed for only and redirects to the public page `FRONTEND_URL/account-link/result?kind=delete-cancel&outcome=cancelled\|invalid\|expired` |
+
+- `throttle:me-account-deletion` (5 per minute and 10 per hour per account, `UserModuleServiceProvider`) also slows password guessing on the password path. It is applied on the `DELETE /api/me` route in `routes/user.php`. `me-delete-confirm` allows 20 per minute per IP for the two links and the confirming POST, one shared bucket.
+- Every link's `hash` is `hash_hmac('sha256', purpose|user id|deletion_nonce|email|password hash, APP_KEY)`, compared with `hash_equals`, and the request must be younger than 60 minutes (`AccountDeletionServiceInterface::EXPIRES_MINUTES`, also the signed URL's lifetime). So a link only works for its own purpose (a cancel hash is not a confirmation hash, and the purposes differ from the email-change ones), for the request it was mailed for, and only while the email and password are unchanged.
+- Any new password clears the pending deletion through a `saving` hook on the `User` model (whenever `password` is dirty), which covers `PUT /api/me/password`, `PUT /api/me/password/set`, a reset through forgot-password and a social takeover of an unverified account without touching those flows. Writes that bypass Eloquent are still covered by the password-hash binding, which is what actually voids the links.
+- `GET /api/me` (`AccountResponse`) has `deletion_by_email` (true when `DELETE /api/me` mails a link instead of asking for the password) and `deletion_pending` (true while a link is valid: nonce set and requested less than 60 minutes ago).
+- `users:prune-pending` also clears, in one `UPDATE`, every pending deletion whose `deletion_requested_at` is older than `AccountDeletionServiceInterface::EXPIRES_MINUTES` (60), the same lifetime as the confirm link (rule in `PendingAccountCleanupService`, queries in `AccountDeletionRepository::clearExpiredDeletionRequests`).
+- Columns: `deletion_requested_at` and `deletion_nonce` (migration `2026_11_10_120000_add_deletion_request_to_users_table`), both in the `User` model's `$hidden`.
+- Social accounts created before NULL passwords, while `SOCIAL_PLACEHOLDER_PASSWORD` was not configured, got a random password instead of the placeholder. The data migration leaves them alone (intended): they count as having a password (`deletion_by_email: false`) and use "Forgot password" before they can delete their account by password.
 
 ## Room module
 
@@ -585,9 +778,9 @@ An admin cannot demote, deactivate or delete themselves (`CannotModerateSelf`). 
 
 - the notifications API (`/api/notifications`) and the `Notifier` that created notifications when someone followed, invited, voted or mentioned another user, since rebuilt as the [Notification module](#notification-module);
 - the old discussion rooms API (`/api/rooms`), since rebuilt as the [Room module](#room-module);
-- the activity feed (`ActivityFeedService`), so `/api/home` no longer returns `activity` and `/api/users/{username}` no longer returns `activity` or the `reviews` list (the `counts.reviews` number is still there).
+- the activity feed (`ActivityFeedService`), so `/api/users/{username}` no longer returns `activity` or the `reviews` list (the `counts.reviews` number is still there). `/api/home`'s `activity` has since been rebuilt from the reviews, lists and watchlist tables (see [User module](#user-module)); the old `activity_feed` table is unused.
 
-The database tables, models and policies for notifications, rooms, messages, reviews and the activity feed are still in place (`app/Models/`, `app/Policies/`, the migrations), so no data was dropped. `/api/home` still returns the busiest rooms and the next movie night.
+The database tables, models and policies for notifications, rooms, messages, reviews and the activity feed are still in place (`app/Models/`, `app/Policies/`, the migrations), so no data was dropped.
 
 ## Gemini module
 
@@ -598,7 +791,7 @@ app/Gemini/
   InterfaceServices/  GeminiServiceInterface   ask(string $prompt): array
   Services/           GeminiService            sends the prompt, asks for JSON and returns it as an array
   Exceptions/         GeminiUnavailable        thrown on any failure
-  Providers/          GeminiModuleServiceProvider (binding and the `ai` rate limiter)
+  Providers/          GeminiModuleServiceProvider (binding only)
 ```
 
 - Setup: set `GEMINI_API_KEY` and `GEMINI_MODEL` in `.env`. `GEMINI_URL` has a default in `config/services.php`. The key is sent in a header, not in the URL.
@@ -611,14 +804,29 @@ The chatbot extends this module. `GET /api/chat/connection` returns public socke
 
 After installing Composer dependencies, run `php artisan reverb:install --no-interaction` once to generate local Reverb credentials. In the local environment, `php artisan serve` starts Reverb automatically on port `18080` and stops it when the API server exits. Existing local `.env` files should set `REVERB_PORT=18080`; if `REVERB_SERVER_PORT` is set, update that to `18080` too. The browser reads connection settings from the API, so it does not need a copy of the socket key in its own environment file. In production, run Reverb as its own managed process, configure `REVERB_PUBLIC_HOST`, `REVERB_PUBLIC_PORT`, `REVERB_PUBLIC_SCHEME` and the allowed frontend hostname, and proxy secure WebSocket traffic to Reverb. The existing `GROQ_API_KEY` and `GROQ_MODEL` are reused.
 
-`app/Groq/` contains the Groq chat-completions client used by Weather mood and movie recommendations. It sends the API key as a Bearer token and supports strict JSON Schema responses through `GroqStructuredOutputInterface`; the simpler `GroqServiceInterface` uses the weather mood schema.
+`app/Groq/` contains the Groq chat-completions client used by the chatbot, weather mood, recommendations and review moderation/sentiment. One `GroqService` implements three interfaces: `GroqServiceInterface::ask()` (the weather mood schema), `GroqStructuredOutputInterface::askWithSchema()` (strict JSON Schema responses, `reasoning_effort: low`) and `GroqChatServiceInterface::streamChat()` (server-sent events, 60 s and 8000-character reply limits). It sends the API key as a Bearer token.
+
+```
+app/Groq/
+  Controllers/          ChatController (store), ChatSocketController (show = public socket settings, store = channel auth)
+  FormRequests/         ChatMessageRequest (history must be completed user/assistant turns in order), ChatSocketRequest
+  DTOs/Requests/        ChatMessageData (message, history and length limits)
+  DTOs/Responses/       ChatResponse
+  InterfaceServices/    GroqServiceInterface, GroqStructuredOutputInterface, GroqChatServiceInterface, ChatServiceInterface
+  Services/             GroqService (HTTP client), ChatService (system prompt, batches deltas every 64 characters or 80 ms)
+  Events/               ChatDelta (`chat.delta` on `chat.{userId}.{conversationId}`, broadcast now)
+  Exceptions/           GroqUnavailable, ChatUnavailable
+  Providers/            GroqModuleServiceProvider (bindings, the `ai` and `chat` limiters, loads routes/channels.php)
+```
 
 - Setup: set `GROQ_API_KEY` in `.env`. `GROQ_MODEL` defaults to `openai/gpt-oss-20b` and `GROQ_API_URL` defaults to `https://api.groq.com/openai/v1`.
+- **Key profiles:** `askWithSchema(..., keyProfile: 'watched')` uses `GROQ_API_KEY_2` with a longer connect timeout and one retry; everything else uses `'default'` (`GROQ_API_KEY`). This keeps the heavy watched-history calls on a separate Groq quota.
 - `GroqUnavailable` contains only a short failure reason; the provider response body is never returned to clients.
+- Tests: `tests/Feature/Groq/ChatTest.php`, `GroqKeyTest.php`.
 
 ## Weather module
 
-`app/Weather/` reads the current weather from Open-Meteo and turns it into a movie mood.
+`app/Weather/` reads the current weather from WeatherAPI.com and turns it into a movie mood.
 
 ```
 app/Weather/
@@ -627,9 +835,9 @@ app/Weather/
   InterfaceServices/    WeatherServiceInterface, WeatherMoodServiceInterface
   Services/             WeatherService, WeatherMoodService (builds the Groq prompt)
   InterfaceRepository/  WeatherRepositoryInterface
-  Repository/           WeatherRepository (the only code that calls Open-Meteo)
+  Repository/           WeatherRepository (the only code that calls WeatherAPI.com)
   DTOs/Requests/        WeatherQuery, WeatherMoodQuery
-  DTOs/Responses/       WeatherResponse, WeatherMoodResponse
+  DTOs/Responses/       WeatherResponse, CurrentWeatherResponse (maps WeatherAPI.com to the fields below), WeatherMoodResponse
   Exceptions/           WeatherUnavailable, WeatherMoodUnavailable (fixed 502 responses)
   Providers/            WeatherModuleServiceProvider (bindings and the `weather` limiter)
 ```
@@ -639,28 +847,63 @@ app/Weather/
 | `GET /api/weather?latitude=&longitude=` | Current weather. Both coordinates are optional, but if one is sent the other is required. Without them, the default location (Beirut) is used and the response says `is_default: true` |
 | `POST /api/weather-mood` | Body: `condition`, `temperature`, `humidity`, `wind`, `precipitation`. Returns `{"title": "WEATHER MOOD", "mood", "description"}` generated by Groq's `openai/gpt-oss-20b` model |
 
-Setup: the Open-Meteo URL, default location and timezone have defaults in `config/services.php` and can be overridden with the `OPEN_METEO_*` variables.
+- `current` keeps the field names of the earlier Open-Meteo version (`time`, `temperature_2m`, `relative_humidity_2m`, `apparent_temperature`, `precipitation`, `weather_code`, `wind_speed_10m`) so the frontend and recommendations did not change. `CurrentWeatherResponse` translates WeatherAPI.com condition codes to WMO weather codes, and gives `time` in `WEATHERAPI_TIMEZONE`.
+- Setup: set `WEATHERAPI_KEY`. The URL, default location and timezone have defaults in `config/services.php` (`weatherapi`). A missing key or failed request throws `WeatherUnavailable`; failures are logged to `stderr` (visible in Render's logs) without the URL, coordinates, key or body.
+- Tests: `tests/Feature/Weather/` and `tests/Unit/Weather/`.
 
 ## MovieRecommendation module
 
-`app/MovieRecommendation/` retrieves real TMDB candidates in weather-appropriate genres, then asks Groq to select up to 10 that fit the current weather.
+`app/MovieRecommendation/` builds the recommendation shelves and the taste profile. Every AI shelf follows the same rule: real TMDB candidates are gathered first, Groq (strict JSON schema) may only pick candidate ids and add a reason, and unknown ids are discarded.
 
 ```
 app/MovieRecommendation/
-  Controllers/          RecommendationController (index)
+  Controllers/          RecommendationController (index, watched, people, following, taste)
   FormRequests/         RecommendationRequest
-  InterfaceServices/    RecommendationServiceInterface
-  Services/             RecommendationService (weather description, TMDB candidates, Groq selection)
+  InterfaceServices/    RecommendationServiceInterface, FollowingRecommendationServiceInterface, TasteProfileServiceInterface
+  Services/             RecommendationService (weather + watched), PeopleRecommendationService, FollowingRecommendationService, TasteProfileService
+  InterfaceRepository/  FollowingRecommendationRepositoryInterface, TasteProfileRepositoryInterface
+  Repository/           FollowingRecommendationRepository, TasteProfileRepository
+  Support/              WatchedPeople (most-watched director and actor, shared by the taste profile and the people shelf)
   DTOs/Requests/        RecommendationQuery
-  DTOs/Responses/       RecommendationResponse
+  DTOs/Responses/       RecommendationResponse, TasteProfileResponse
   Exceptions/           RecommendationUnavailable (fixed 502 responses)
   Providers/            MovieRecommendationModuleServiceProvider
 ```
 
-- `GET /api/movie-recommendations?latitude=&longitude=` returns up to 10 TMDB movie records with `id`, title, poster, rating, release date and a recommendation reason. The coordinates are validated like `/api/weather` and optional.
-- It reuses `WeatherServiceInterface` for the weather, `MovieServiceInterface` for TMDB candidates and `GroqStructuredOutputInterface` for candidate selection. Groq can only select candidate IDs; unknown IDs are discarded. It has no HTTP code of its own.
+| Endpoint | Auth, limiter | Returns |
+| --- | --- | --- |
+| `GET /api/movie-recommendations?latitude=&longitude=` | public, `ai` | Up to 10 movies that fit the current weather. Candidates come from TMDB Discover in weather-appropriate genres (by WMO weather code); coordinates are optional and validated like `/api/weather` |
+| `GET /api/watched-recommendations` | `auth.jwt`, `ai` | `source` (a random title from your watch history) and 6 similar movies/shows from its TMDB "similar" list plus Discover in the same genres (TV and movie genres translated both ways), excluding what you've watched. Uses the `watched` Groq key; cached for an hour per user and watch-history fingerprint |
+| `GET /api/people-recommendations` | `auth.jwt`, `ai` | Your most-watched `director` and `actor` and 6 unwatched, released films from their filmographies. Same key and caching as above |
+| `GET /api/following-recommendations` | `auth.jwt`, `throttle:60,1` | Up to 6 titles that people you follow rated 5 stars, most raters first, excluding what you've watched. No AI. Re-checks follows, privacy (`ratings` switch, visibility), activity and moderation on every request, so it is never cached |
+| `GET /api/taste-profile` | `auth.jwt`, `throttle:60,1` | Watched movie/show counts, 5-star rating count, following count, top 3 genres with percentages, and the most-watched director and actor |
+
+- An empty watch history returns empty shelves rather than an error.
 - Errors are fixed messages: `{"error": "Could not get the weather"}` or `{"error": "Could not generate recommendations"}`, both with status 502. The real failure is logged.
-- The `ai` rate limiter applies (10 a minute per IP).
+- Tests: `tests/Feature/MovieRecommendation/` and `tests/Unit/MovieRecommendation/`.
+
+## Cinema module
+
+`app/Cinema/` finds cinemas near the viewer with the Google Places API (new).
+
+```
+app/Cinema/
+  Controllers/          NearbyCinemaController (index)
+  FormRequests/         NearbyCinemasRequest (latitude and longitude required)
+  InterfaceServices/    CinemaServiceInterface
+  Services/             CinemaService (calls places:searchNearby, computes the distance)
+  DTOs/Requests/        NearbyCinemasQuery
+  DTOs/Responses/       CinemaResponse (id, name, address, latitude, longitude, distance_meters, website)
+  Exceptions/           CinemaSearchUnavailable (503 when not configured or unreachable, 502 for a bad answer)
+  Providers/            CinemaModuleServiceProvider
+```
+
+- `GET /api/nearby-cinemas?latitude=&longitude=` is public with `throttle:30,1`. It returns up to 20 `movie_theater` places within 30 km, nearest first.
+- Setup: `GOOGLE_PLACES_API_KEY`. The key is sent as the `X-Goog-Api-Key` header with a field mask, so only the fields above are billed.
+
+## Health module
+
+`app/Health/` has a single invokable `HealthController`: `GET /api/health` returns `{"status": "ok"}` with `Cache-Control: no-store`, for uptime checks (Render). Laravel's own `/up` page is also enabled in `bootstrap/app.php`. Tests: `tests/Feature/Health/HealthTest.php`.
 
 ## API documentation (Swagger UI)
 
@@ -675,7 +918,7 @@ How it is built (no extra package is needed):
 | Part | What it does |
 | --- | --- |
 | `openapi/base.json` | The title, security schemes (the `access_token` cookie and a Bearer token) and shared schemas |
-| `openapi/paths/*.json` | One file per module: `auth.json`, `tmdb.json`, `weather.json`, `recommendations.json` |
+| `openapi/paths/*.json` | One file per area: `admin`, `auth`, `chat`, `cinemas`, `health`, `notifications`, `recommendations`, `rooms`, `social`, `tmdb`, `weather` |
 | `app/Docs/Services/OpenApiSpec.php` | Merges those files into one OpenAPI 3 document and fails on a duplicate path |
 | `app/Docs/Controllers/DocumentationController.php` | Serves the page (`/api/documentation`) and the spec (`/api/documentation/openapi.json`) |
 | `resources/views/docs/swagger.blade.php` | The page. Swagger UI 5.17.14 is loaded from a CDN |
@@ -683,13 +926,40 @@ How it is built (no extra package is needed):
 
 - The page and the spec only work when `APP_ENV` is `local` (or `testing`). In any other environment they return 404.
 - When you add an endpoint, add it to the matching `openapi/paths/*.json` file. The coverage test fails until you do.
-- Some endpoints need keys in `.env` to work for real: `TMDB_API_KEY` for the movie endpoints, `GROQ_API_KEY` for weather mood and movie recommendations, and SMTP or `MAIL_MAILER=log` for the account emails (with `log`, the verification link is in `storage/logs/laravel.log`).
+- Some endpoints need keys in `.env` to work for real: `TMDB_API_KEY` for the movie and person endpoints, `GROQ_API_KEY` (and `GROQ_API_KEY_2`) for chat, weather mood and recommendations, `WEATHERAPI_KEY` for weather, `GOOGLE_PLACES_API_KEY` for nearby cinemas, and `BREVO_API_KEY` or `MAIL_MAILER=log` for the account emails (with `log`, the verification link is in `storage/logs/laravel.log`).
+
+## Deployment (Docker / Render)
+
+The backend is deployed to Render from `backend/Dockerfile` (`php:8.4-apache-bookworm`, extensions `bcmath intl mbstring opcache pcntl pdo_mysql zip`, port `10000`, `APP_ENV=production`, logs to `stderr`).
+
+| File | Purpose |
+| --- | --- |
+| `Dockerfile` | Installs Composer dependencies without dev packages, copies the app and the files below, prepares `storage/` and `bootstrap/cache` |
+| `docker/start.sh` | Fails without `APP_KEY`, points Reverb at `127.0.0.1:18080`, sets `REVERB_PUBLIC_*` from `RENDER_EXTERNAL_HOSTNAME` (port 443, https), caches config/routes/views, links storage, then starts supervisord |
+| `docker/supervisord.conf` | Runs two processes: `reverb:start` (private, port 18080) and Apache |
+| `docker/apache.conf` | Serves `public/` and proxies WebSocket traffic on `/app/` to Reverb, so the API and sockets share one public port |
+
+- Migrations are not run by the container; run `php artisan migrate --force` against the production database yourself.
+- The scheduler (`rooms:prune-messages`) is not started by the container either. Opening a room still cleans up its own expired messages, but a cron or worker calling `schedule:run` is needed for full pruning.
+- The frontend (Vercel) calls the API through a same-origin proxy (see the frontend config).
 
 ## Security notes
 
-- Passwords are hashed by the `User` model cast. Refresh tokens and reset tokens are stored hashed. The refresh token is rotated on every use, and presenting an already-used one revokes the whole session chain.
+- Passwords are hashed by the `User` model cast. No new password (register, reset, set, change) may contain a NUL byte (`not_regex:/\x00/`, as at login), since bcrypt ignores everything after one. Refresh tokens and reset tokens are stored hashed. The refresh token is rotated on every use, and presenting an already-used one revokes the whole session chain.
 - Tokens travel in HttpOnly cookies (the access token is also accepted as a Bearer header).
-- Social login refuses emails the provider has not verified. If an unverified local account already uses that email, its password is replaced and its sessions are revoked, so a pre-registered account cannot be taken over.
+- Signing out everywhere ends access tokens too, not only refresh tokens. `users.session_version` (unsigned integer, default 0, in `$hidden`; migration `2026_11_11_000003_add_session_version_to_users_table`) is a per-account counter, and every access token carries the version it was issued with as the `sv` claim (`TokenFactory::issueAccessToken`; refresh-token rotation loads the user inside its transaction and issues the current version). `CurrentUserFactory::fromToken` accepts a token only when `sv` (0 when missing, for tokens issued before the claim) exactly equals the stored version. `RefreshTokenRepository::revokeAllForUser` is the one path behind `TokenFactory::revokeAllForUser`, `AuthService::revokeSessions`/`replaceSessions`, `PasswordResetService::reset` and the social takeover: in one transaction it increments the version with a single `UPDATE`, reads it back while the increment still holds the row lock (so it is this call's value, never a later revocation's), revokes the refresh tokens, sets the new version on the model and returns it. The flows that bump it (password set, change and reset, completed email change, admin deactivation or role change, social takeover of an unverified account) therefore end every earlier access token at once, including one minted in the same second. Set and change pass the returned version to `TokenFactory::issue`, so the calling device's new tokens carry it and that device stays signed in. Logout only revokes its own refresh family and bumps nothing. Refresh-token rotation (`TokenFactory::rotate`) locks the owner's row first (`RefreshTokenRepositoryInterface::findUserForUpdate`, the row the increment locks) and only then re-reads its token under lock, so it cannot interleave with a revocation: a revocation that committed while the rotation waited leaves the token revoked (reuse detection, 401), and one that starts later waits for the rotation to commit and then revokes the refresh token it created too, while the access token it issued carries the old version. `TokenFactoryTest` checks the lock order and the post-lock re-check.
+- Social login refuses emails the provider has not verified. If an unverified local account already uses that email, its password is removed (set to NULL) and its sessions are revoked, including the squatter's still-valid access token (`session_version`), which could otherwise set a password on the now-verified account, so a pre-registered account cannot be taken over.
+- That takeover of an unverified account by social login is intentional (`SocialAuthService::resolveUser`, tested by `AccountFlowsTest::test_social_login_takes_over_unverified_local_account_by_clearing_its_password`). Someone can register an account with another person's email before that person signs up. When the real owner later signs in with Google, GitHub or Discord and the provider vouches for the email, they get the account: it is marked verified, the squatter's password stops working and the squatter's sessions are revoked. Because every signed-in route outside `/api/auth` needs a verified email, an unverified account holds no app data or access, so handing it to the proven owner loses nothing.
+- Unverified accounts can sign in but reach only `/api/auth/*`. Broadcasting channel auth goes only through `/api/chat/auth`, `/api/rooms/socket-auth` and `/api/notifications/socket-auth`, which are in the verified group; there is no `Broadcast::routes()` (`/broadcasting/auth` is a 404), so an unverified account cannot subscribe to any private channel.
+- Changing the sign-in email only takes effect once the signed link mailed to the new address is opened and confirmed; until then the old address keeps working for sign-in and password resets. The old address is told when a change is requested (with a signed link that cancels it without signing in) and when it happens, and confirming revokes every refresh token (see [Changing the sign-in email](#changing-the-sign-in-email)).
+- A stolen session cannot finish an email change on its own. Accounts with a password must type it. Accounts without a password (`password` is NULL) have none to type, so their current address has to approve the change before the new address receives anything, and the confirmation route refuses new-address links until that approval is recorded. The same applies to a first password set in Settings without a current one (which a stolen session could do) until the owner proves the inbox by a password reset through email or a completed email change (`password_set_without_proof_at`). The flag survives disconnecting the social login. Accounts that existed before the flag are backfilled failing closed (social accounts with a non-placeholder password, or every social account when the placeholder was not configured), so their next email change needs current-inbox approval once, or a password reset by email first. Because an earlier disconnect deleted the `social_accounts` row, the backfill also stamps accounts without one whose email was verified within 5 minutes of creation, as social sign-in does. This heuristic is approximate. It also stamps an email sign-up that clicked its verification link within 5 minutes, which costs that member one current-inbox approval. It misses an unverified email sign-up later claimed through social sign-in (verified at that moment, not at creation) that set a first password and then disconnected the social login before this change. An account whose verification time was moved by a completed email change is also missed, but that change already counts as inbox proof. It also misses accounts with no `email_verified_at`, which cannot reach the email-change routes anyway.
+- Opening an emailed link never changes anything. A GET on the approval, confirmation or deletion link only redirects to a public frontend page (`/account-link/{kind}`, no session needed, since confirming an email change signs every device out), and only that page's button POSTs the same signed URL. So a mail scanner, antivirus or link preview that prefetches the link cannot approve an attacker's email change, apply one, or delete the account. The cancel links still act on GET, because cancelling is the safe direction; a prefetch can at worst cancel a pending change or deletion, which the owner can request again. Results land on the public `/account-link/result` page, never on a signed-in page that would bounce a browser without a session to sign-in.
+- Approving, applying and cancelling are compare-and-set updates bound to the exact request, so a request replaced or cancelled while a link is being opened cannot end up approved or applied, and two clicks at once mail the new address once.
+- Email-change links are HMACs over the pending address, a per-request nonce and the password hash. Changing or resetting the password therefore voids any change an attacker started with a stolen session, even though the link needs no login; it also clears the pending change. Before this, the attacker's link stayed valid for up to an hour after the victim changed their password.
+- Remaining trade-offs: (1) A stolen session on a social-only account can still set a first password (`PUT /api/me/password/set`). It is marked, so it does not help with email changes or account deletion, but it gives the attacker password sign-in until the owner resets it; the owner is mailed a "password added" notice with a forgot-password link. (2) The cancel link and the approval link are opened by whoever reads the current inbox, so they are only as safe as that inbox, and an owner who approves without reading defeats the approval step. (3) The cancel link lives 7 days so it outlasts resends; it can only cancel the request it was mailed for. (4) Rotating `APP_KEY` voids every pending email-change link (members resend). (5) `GET /api/me` does not say beforehand that a marked account will go through the approval step, so the hint under the Settings form still promises a link to the new address; once the change is stored, the pending box shows the real next step (`pending_email_awaiting_current`).
+- Accounts made by social sign-in store no password (`password` is NULL; there is no shared placeholder any more). Password sign-in refuses them with the same 401 as a wrong password, `Hash::check` is never run against NULL, and every "has a password" decision reads `User::hasPassword()`. Migration `2026_11_11_000001_clear_social_placeholder_passwords` nulls the password (and `password_set_without_proof_at`, the pending email change and the pending deletion, whose links were bound to the old hash anyway) of users with a `social_accounts` row whose hash matches the old placeholder. It nulls any user whose hash matches, with or without a `social_accounts` row. It reads `SOCIAL_PLACEHOLDER_PASSWORD` from the process environment, falling back to parsing `.env` itself (so a cached config does not hide it); `.env.example` keeps a commented-out line for it. It never skips silently: with no placeholder found while social accounts with a password exist it throws, asking the operator to set the variable and re-run, or to set `SKIP_SOCIAL_PLACEHOLDER_CLEANUP=true` when the environment never used a placeholder. Once it has run, the variable can be removed. `down()` is a no-op.
+- An account without a password of its own cannot disconnect its last social provider (it would have no way left to sign in), and the check runs under a row lock so concurrent disconnects cannot bypass it.
+- A stolen session cannot delete an account on its own. Accounts with a password must type it (the endpoint is rate limited per account). Accounts without a password, or with a first password set in Settings and not yet proven (`password_set_without_proof_at`), confirm through a signed link mailed to the current address (opening it only shows a page; its button POSTs the link); the link is single-use (compare-and-set), expires after 60 minutes and is voided by a newer request, a cancellation, or any email or password change. Remaining trade-offs: (1) the confirmation link is only as safe as the inbox; (2) a stolen session can still trigger the mail (rate limited), which the owner can ignore or cancel; (3) rotating `APP_KEY` voids pending deletion links.
 - Registration ignores any `role` in the request, so every new user is a `user`. Admins and moderators are set in the database or by an admin through `PATCH /api/admin/users/{user}`.
 
 ## Known follow-ups
@@ -699,7 +969,15 @@ How it is built (no extra package is needed):
 - The real SMTP delivery and the Google and GitHub logins have only been tested with fakes and mocks.
 - `MovieNightPolicy` runs a database query (`invites()->exists()`) inside the policy. Leave it until the movie night feature exists, then move that check into a repository.
 - `MessagePolicy::view` follows the room: any logged-in user can read a public room's messages, only members and invitees a private room's.
+- A few places do not follow the module rules in `CLAUDE.md` yet:
+  - `PeopleRecommendationService` has no interface and is injected as a concrete class; it and `RecommendationService` use other modules' repositories (`WatchlistRepositoryInterface`, `PersonRepositoryInterface`) instead of their service interfaces.
+  - `CinemaService` calls Google Places with `Http::` directly instead of through a repository.
+  - `MovieController::show` reads `type` from the raw `Request` instead of a FormRequest.
+  - `PeopleRecommendationService` builds poster URLs with a hard-coded `https://image.tmdb.org/t/p` instead of `TMDB_IMAGE_URL`.
+- `config/services.php` still has unused `postmark`, `resend`, `ses` and `slack` entries from the Laravel skeleton.
 
 ## Adding a new entity
 
 Follow the same layout, for example `app/Review/` with `Controllers/`, `FormRequests/`, `InterfaceServices/`, `Services/`, `InterfaceRepository/`, `Repository/`, and its own `ReviewModuleServiceProvider` registered in `bootstrap/providers.php`. Keep the Eloquent model in `app/Models`.
+
+Give the entity its own routes file under `routes/` (snake_case, for example `routes/reviews.php`) and `require` it from the right group in `routes/api.php`: inside the `['auth.jwt', 'verified.email']` group for signed-in routes (write bare routes, no `auth.jwt` wrapper), or after that group for public guest routes. Do not add entity routes to `api.php` itself.

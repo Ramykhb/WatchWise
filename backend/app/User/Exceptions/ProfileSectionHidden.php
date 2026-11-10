@@ -2,6 +2,7 @@
 
 namespace App\User\Exceptions;
 
+use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /** The owner hides who follows them (and who they follow) from this viewer. Answers 403, like abort(403). */
@@ -9,6 +10,11 @@ class ProfileSectionHidden extends HttpException
 {
     public function __construct()
     {
-        parent::__construct(403);
+        parent::__construct(403, 'This member keeps this list private.');
+    }
+
+    public function render(): JsonResponse
+    {
+        return response()->json(['message' => $this->getMessage()], 403);
     }
 }

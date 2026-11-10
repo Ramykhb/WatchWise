@@ -225,6 +225,28 @@
   color: var(--ink-600);
 }
 
+/* ---------- Sign-in email ---------- */
+.emailForm {
+  padding-top: 28px;
+  border-top: 1.5px solid var(--border-subtle);
+}
+
+.pending {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 18px;
+}
+
+.pendingText {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-900);
+  overflow-wrap: anywhere;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {
   .layout {
