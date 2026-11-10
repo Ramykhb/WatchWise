@@ -13,7 +13,8 @@ class UserSearchRequest extends FormRequest
     }
 
     /**
-     * Nothing is rejected: `q` is free text and `limit` is clamped by the DTO.
+     * Nothing is rejected: UserSearchQuery turns a non-text or over-long `q` into an empty or shortened
+     * one and clamps `limit`.
      *
      * @return array<string, mixed>
      */
