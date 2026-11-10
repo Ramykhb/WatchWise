@@ -20,6 +20,9 @@ use App\User\Exceptions\NoPendingEmailChange;
  */
 interface EmailChangeServiceInterface
 {
+    /** How long the approval and confirmation links (and the pending change) stay valid. */
+    public const EXPIRES_MINUTES = 60;
+
     /**
      * Stores the address as pending (replacing an earlier one, whose links stop working). With a
      * password of its own, the account must type it; the new address then gets its confirmation link
@@ -61,6 +64,9 @@ interface EmailChangeServiceInterface
      */
     public function confirm(EmailChangeLinkData $data): EmailChangeOutcome;
 
-    /** The signed "this wasn't me" link mailed to the current address: drops that pending change. */
+    /**
+     * The signed "this wasn't me" link mailed to the current address: drops that pending change. When nothing
+     * is pending any more (already cancelled, applied or pruned) the outcome is `Expired`, not `Invalid`.
+     */
     public function cancelFromLink(EmailChangeLinkData $data): EmailChangeOutcome;
 }

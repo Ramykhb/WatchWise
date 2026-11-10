@@ -11,6 +11,7 @@ use App\User\InterfaceServices\AccountDeletionServiceInterface;
 use App\User\InterfaceServices\AccountServiceInterface;
 use App\User\InterfaceServices\EmailChangeServiceInterface;
 use App\User\InterfaceServices\HomeServiceInterface;
+use App\User\InterfaceServices\PendingAccountCleanupServiceInterface;
 use App\User\InterfaceServices\ProfileServiceInterface;
 use App\User\Repository\AccountDeletionRepository;
 use App\User\Repository\AccountRepository;
@@ -20,6 +21,7 @@ use App\User\Services\AccountDeletionService;
 use App\User\Services\AccountService;
 use App\User\Services\EmailChangeService;
 use App\User\Services\HomeService;
+use App\User\Services\PendingAccountCleanupService;
 use App\User\Services\ProfileService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -46,6 +48,8 @@ class UserModuleServiceProvider extends ServiceProvider
 
         AccountDeletionRepositoryInterface::class => AccountDeletionRepository::class,
         AccountDeletionServiceInterface::class => AccountDeletionService::class,
+
+        PendingAccountCleanupServiceInterface::class => PendingAccountCleanupService::class,
     ];
 
     public function boot(): void

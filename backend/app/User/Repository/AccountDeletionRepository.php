@@ -4,6 +4,8 @@ namespace App\User\Repository;
 
 use App\Models\User;
 use App\User\InterfaceRepository\AccountDeletionRepositoryInterface;
+use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 
 class AccountDeletionRepository implements AccountDeletionRepositoryInterface
 {
@@ -30,5 +32,14 @@ class AccountDeletionRepository implements AccountDeletionRepositoryInterface
         }
 
         return $updated === 1;
+    }
+
+    public function clearExpiredDeletionRequests(CarbonInterface $cutoff): int
+    {
+        return User::query()
+            ->where(fn (Builder $query) => $query->whereNotNull('deletion_nonce')->orWhereNotNull('deletion_requested_at'))
+            ->where(fn (Builder $query) => $query->whereNull('deletion_requested_at')->orWhere('deletion_requested_at', '<', $cutoff))
+            ->toBase()
+            ->update(['deletion_requested_at' => null, 'deletion_nonce' => null]);
     }
 }
