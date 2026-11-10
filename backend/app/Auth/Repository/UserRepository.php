@@ -4,6 +4,7 @@ namespace App\Auth\Repository;
 
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Models\User;
+use App\Support\EmailAddress;
 
 class UserRepository implements UserRepositoryInterface
 {
@@ -14,7 +15,8 @@ class UserRepository implements UserRepositoryInterface
 
     public function findByEmail(string $email): ?User
     {
-        return User::where('email', $email)->first();
+        // Emails are stored lowercase (the users_email_unique index serves this lookup).
+        return User::where('email', EmailAddress::normalize($email))->first();
     }
 
     public function create(array $attributes): User

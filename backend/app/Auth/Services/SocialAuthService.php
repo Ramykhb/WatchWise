@@ -15,6 +15,7 @@ use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\SocialAuthServiceInterface;
 use App\Auth\Support\DiscordOAuthClient;
 use App\Models\User;
+use App\Support\EmailAddress;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -93,7 +94,8 @@ class SocialAuthService implements SocialAuthServiceInterface
                 return $account->user;
             }
 
-            $email = (string) $data->email;
+            // Providers may report "Ali@Example.com"; accounts are found and created by the lowercase address.
+            $email = EmailAddress::normalize((string) $data->email);
 
             // Never link to or create an account from an email the provider has not verified.
             if (! $this->emailIsVerified($data)) {
