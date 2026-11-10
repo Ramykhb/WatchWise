@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
-    protected $hidden = ['password', 'remember_token', 'last_active_at', 'pending_email', 'pending_email_nonce', 'pending_email_authorized_at', 'password_set_without_proof_at'];
+    protected $hidden = ['password', 'remember_token', 'last_active_at', 'pending_email', 'pending_email_nonce', 'pending_email_authorized_at', 'password_set_without_proof_at', 'deletion_requested_at', 'deletion_nonce'];
 
     protected $fillable = [
         'name',
@@ -31,6 +31,14 @@ class User extends Authenticatable
     {
         static::creating(function (User $user) {
             $user->username ??= static::uniqueUsername($user->name ?: Str::before((string) $user->email, '@'));
+        });
+
+        // Any new password (Settings, reset by email, social takeover) drops a pending account deletion. Its
+        // links are bound to the password hash and stop working anyway; this also clears it from Settings.
+        static::saving(function (User $user) {
+            if ($user->exists && $user->isDirty('password') && $user->deletion_nonce !== null) {
+                $user->forceFill(['deletion_requested_at' => null, 'deletion_nonce' => null]);
+            }
         });
     }
 
@@ -77,6 +85,7 @@ class User extends Authenticatable
             'last_active_at' => 'datetime',
             'pending_email_authorized_at' => 'datetime',
             'password_set_without_proof_at' => 'datetime',
+            'deletion_requested_at' => 'datetime',
         ];
     }
 

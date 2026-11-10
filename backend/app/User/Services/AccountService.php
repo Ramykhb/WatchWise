@@ -6,7 +6,6 @@ use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
 use App\Models\User;
 use App\Support\SocialPlaceholderPassword;
 use App\User\DTOs\Requests\ChangePasswordData;
-use App\User\DTOs\Requests\DeleteAccountData;
 use App\User\DTOs\Requests\UpdatePreferencesData;
 use App\User\DTOs\Requests\UpdateProfileData;
 use App\User\DTOs\Responses\AccountResponse;
@@ -119,12 +118,8 @@ class AccountService implements AccountServiceInterface
         return AccountResponse::fromModel($user);
     }
 
-    public function deleteAccount(User $user, DeleteAccountData $data): void
+    public function deleteAccount(User $user): void
     {
-        if (! Hash::check($data->password, $user->password)) {
-            throw IncorrectPassword::forAccountDeletion();
-        }
-
         $this->deleteStoredAvatar($user);
         $this->accounts->delete($user);
     }

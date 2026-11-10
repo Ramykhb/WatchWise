@@ -4,7 +4,6 @@ namespace App\User\InterfaceServices;
 
 use App\Models\User;
 use App\User\DTOs\Requests\ChangePasswordData;
-use App\User\DTOs\Requests\DeleteAccountData;
 use App\User\DTOs\Requests\UpdatePreferencesData;
 use App\User\DTOs\Requests\UpdateProfileData;
 use App\User\DTOs\Responses\AccountResponse;
@@ -51,9 +50,8 @@ interface AccountServiceInterface
     public function disconnectSocial(User $user, string $provider): AccountResponse;
 
     /**
-     * Removes the account and everything it owns.
-     *
-     * @throws IncorrectPassword
+     * Removes the stored avatar file, the account and everything it owns, with no further check: callers
+     * (AccountDeletionServiceInterface, after a password or an emailed link) prove ownership first.
      */
-    public function deleteAccount(User $user, DeleteAccountData $data): void;
+    public function deleteAccount(User $user): void;
 }

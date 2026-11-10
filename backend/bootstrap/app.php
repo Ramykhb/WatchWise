@@ -4,6 +4,7 @@ use App\Auth\Middleware\AuthenticateJwt;
 use App\Auth\Middleware\AuthenticateOptional;
 use App\Auth\Middleware\EnsureEmailVerified;
 use App\Auth\Middleware\EnsureRole;
+use App\User\DTOs\Responses\AccountDeletionOutcome;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -44,6 +45,13 @@ return Application::configure(basePath: dirname(__DIR__))
                     ? 'expired' : 'invalid';
 
                 return redirect(rtrim(config('services.frontend_url'), '/').'/edit-profile?email_change='.$status);
+            }
+
+            if ($request->routeIs('me.delete.confirm', 'me.delete.cancel')) {
+                $outcome = URL::hasCorrectSignature($request) && ! URL::signatureHasNotExpired($request)
+                    ? AccountDeletionOutcome::Expired : AccountDeletionOutcome::Invalid;
+
+                return redirect(rtrim(config('services.frontend_url'), '/').$outcome->frontendPath());
             }
         });
 
