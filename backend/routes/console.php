@@ -16,3 +16,4 @@ Artisan::command('rooms:prune-messages', function (RoomServiceInterface $rooms) 
 // Runs with `php artisan schedule:work` locally, or a cron entry calling `schedule:run` every minute on a server.
 Schedule::command('rooms:prune-messages')->everyMinute();
 Schedule::command('users:prune-pending')->hourly()->withoutOverlapping();
+Schedule::command('auth:prune-refresh-tokens')->hourly()->withoutOverlapping();

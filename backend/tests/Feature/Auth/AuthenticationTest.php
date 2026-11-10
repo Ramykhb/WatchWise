@@ -76,9 +76,11 @@ class AuthenticationTest extends TestCase
         $jwt = $this->cookieValue($login, 'access_token');
         $claims = app(TokenFactory::class)->parseAccessToken($jwt);
         $this->assertSame((string) $user->id, $claims->sub);
-        $this->assertSame('user', $claims->role);
+        $this->assertSame(config('jwt.issuer'), $claims->iss);
+        $this->assertSame(config('jwt.audience'), $claims->aud);
         $this->assertSame(900, $claims->exp - $claims->iat);
-        $this->assertNotEmpty($claims->jti);
+        $this->assertObjectNotHasProperty('role', $claims);
+        $this->assertObjectNotHasProperty('jti', $claims);
 
         $this->withCredentials()->withUnencryptedCookie('access_token', $jwt)->getJson('/api/auth/me')
             ->assertOk()->assertJsonPath('user.id', $user->id);
@@ -145,6 +147,7 @@ class AuthenticationTest extends TestCase
         $first = $this->cookieValue($login, 'refresh_token');
         $second = $this->cookieValue($this->refreshWith($first)->assertOk(), 'refresh_token');
 
+        $this->travel(config('jwt.refresh_reuse_grace_seconds') + 1)->seconds();
         $this->refreshWith($first)->assertUnauthorized();
 
         $this->assertSame(0, RefreshToken::whereNull('revoked_at')->count());

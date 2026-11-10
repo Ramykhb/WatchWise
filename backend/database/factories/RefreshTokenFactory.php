@@ -18,6 +18,7 @@ class RefreshTokenFactory extends Factory
             'user_id' => User::factory(),
             'token_hash' => hash('sha256', Str::random(64)),
             'family_id' => (string) Str::uuid(),
+            'family_started_at' => now(),
             'expires_at' => now()->addDays(30),
             'user_agent' => 'PHPUnit',
             'ip' => '127.0.0.1',

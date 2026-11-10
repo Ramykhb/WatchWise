@@ -8,6 +8,7 @@ use App\Auth\Support\TokenPair;
 use App\Models\RefreshToken;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Illuminate\Http\Request;
@@ -23,13 +24,13 @@ class TokenFactory
     public function __construct(private readonly RefreshTokenRepositoryInterface $refreshTokens) {}
 
     /**
-     * Issue a new access + refresh token pair (new refresh family unless one is given). The access token
+     * Issue a new access + refresh token pair for a new login (a new refresh family). The access token
      * carries `$sessionVersion` when given (the version a revocation just produced), else the user's.
      */
-    public function issue(User $user, Request $request, ?string $familyId = null, ?int $sessionVersion = null): TokenPair
+    public function issue(User $user, Request $request, ?int $sessionVersion = null): TokenPair
     {
         [$access, $accessExp] = $this->issueAccessToken($user, $sessionVersion);
-        [$plain, $row] = $this->issueRefreshToken($user, $request, $familyId);
+        [$plain, $row] = $this->issueRefreshToken($user, $request, (string) Str::uuid(), now()->toImmutable());
 
         return new TokenPair($user, $access, $accessExp, $plain, $row->expires_at);
     }
@@ -46,35 +47,29 @@ class TokenFactory
 
         $jwt = JWT::encode([
             'iss' => config('jwt.issuer'),
+            'aud' => config('jwt.audience'),
             'sub' => (string) $user->id,
-            'role' => $user->role,
             'iat' => $now->getTimestamp(),
             'exp' => $exp->getTimestamp(),
             'sv' => $sessionVersion ?? (int) ($user->session_version ?? 0),
-            'jti' => (string) Str::uuid(),
         ], $this->secret(), self::ALGO);
 
         return [$jwt, $exp];
     }
 
-    /** @return array{0: string, 1: RefreshToken} plain token and its stored row */
-    public function issueRefreshToken(User $user, Request $request, ?string $familyId = null): array
+    /**
+     * When a refresh token of a family that started at `$familyStartedAt` expires: the sliding window
+     * (`jwt.refresh_ttl_days` from now), but never past the family's absolute end (`jwt.refresh_family_max_days`
+     * after it started). Every refresh token expiry goes through here.
+     */
+    public function refreshExpiresAt(CarbonInterface $familyStartedAt): CarbonImmutable
     {
-        $plain = bin2hex(random_bytes(32));
+        $sliding = now()->toImmutable()->addDays((int) config('jwt.refresh_ttl_days'));
 
-        $row = $this->refreshTokens->create([
-            'user_id' => $user->id,
-            'token_hash' => $this->hash($plain),
-            'family_id' => $familyId ?? (string) Str::uuid(),
-            'expires_at' => now()->addDays(config('jwt.refresh_ttl_days')),
-            'user_agent' => Str::limit((string) $request->userAgent(), 500, ''),
-            'ip' => $request->ip(),
-        ]);
-
-        return [$plain, $row];
+        return $sliding->min($this->familyEndsAt($familyStartedAt));
     }
 
-    /** Verify signature and expiry; null when the token is invalid. */
+    /** Verify signature, algorithm, expiry, issuer and audience; null when the token is invalid. */
     public function parseAccessToken(string $jwt): ?object
     {
         $secret = $this->secret();
@@ -85,15 +80,26 @@ class TokenFactory
             return null;
         }
 
-        return isset($claims->sub) ? $claims : null;
+        if (! isset($claims->sub)
+            || ! $this->claimMatches($claims, 'iss', config('jwt.issuer'))
+            || ! $this->claimMatches($claims, 'aud', config('jwt.audience'))) {
+            return null;
+        }
+
+        return $claims;
     }
 
     /**
      * Exchange a refresh token for a new pair, rotating the old one.
-     * Presenting an already-used or revoked token revokes the whole family.
      *
-     * The owner's row is locked first, as revokeAllForUser() does, and the token is only checked after that:
-     * a revocation that committed while this waited is seen (the token is revoked, so this fails), and one
+     * Presenting an already-used or revoked token revokes the whole family, with one exception (see
+     * isGracedReuse()): a token rotated moments ago, presented again once by the same user agent while its
+     * successor is still valid (two tabs refreshing at once, or a retry after a lost response), gets one sibling
+     * token in the same family and nothing is revoked. A family past its absolute lifetime
+     * (`jwt.refresh_family_max_days`) is revoked too.
+     *
+     * The owner's row is locked first, as revokeAllForUser() and revoke() do, and the token is only checked after
+     * that: a revocation that committed while this waited is seen (the token is revoked, so this fails), and one
      * that starts later waits for this commit and then revokes the token created here too.
      *
      * @throws InvalidRefreshToken
@@ -116,23 +122,30 @@ class TokenFactory
                 return null;
             }
 
-            if ($row->revoked_at !== null) {
-                // Reuse detected: revoke every token of this login chain.
-                $this->revokeFamily($row->family_id);
+            $reusedInGrace = $row->revoked_at !== null && $this->isGracedReuse($row, $request);
+            $familyStartedAt = $this->familyStartedAt($row);
 
-                return null;
-            }
-
-            // Locked above, so the new access token carries the current session version.
-            if ($row->expires_at->isPast() || ! $user || ! $user->is_active) {
-                $this->revokeFamily($row->family_id);
+            // Reuse that is not graced (likely theft), an expired token or family, or a disabled account:
+            // revoke every token of this login chain. Locked above, so the user read here is current.
+            if (($row->revoked_at !== null && ! $reusedInGrace)
+                || $row->expires_at->isPast()
+                || $this->familyEndsAt($familyStartedAt)->isPast()
+                || ! $user
+                || ! $user->is_active) {
+                $this->refreshTokens->revokeFamily($row->family_id);
 
                 return null;
             }
 
             [$access, $accessExp] = $this->issueAccessToken($user);
-            [$newPlain, $new] = $this->issueRefreshToken($user, $request, $row->family_id);
-            $this->refreshTokens->markRotated($row, $new->id);
+            [$newPlain, $new] = $this->issueRefreshToken($user, $request, $row->family_id, $familyStartedAt);
+
+            // A graced token was already rotated: it keeps pointing at its first successor and spends its grace.
+            if ($reusedInGrace) {
+                $this->refreshTokens->markGraceUsed($row);
+            } else {
+                $this->refreshTokens->markRotated($row, $new->id);
+            }
 
             return new TokenPair($user, $access, $accessExp, $newPlain, $new->expires_at);
         });
@@ -140,19 +153,23 @@ class TokenFactory
         return $pair ?? throw new InvalidRefreshToken;
     }
 
-    /** Revoke the family of the given refresh token (logout). */
+    /**
+     * Revoke the family of the given refresh token (logout). Takes the owner's row lock first, in the same order
+     * as rotate(), so a rotation running at the same time either commits first (and its new token is revoked
+     * here) or waits and then finds its token revoked.
+     */
     public function revoke(string $plain): void
     {
-        $row = $this->refreshTokens->findByHash($this->hash($plain));
+        DB::transaction(function () use ($plain): void {
+            $row = $this->refreshTokens->findByHash($this->hash($plain));
 
-        if ($row) {
-            $this->revokeFamily($row->family_id);
-        }
-    }
+            if (! $row) {
+                return;
+            }
 
-    public function revokeFamily(string $familyId): void
-    {
-        $this->refreshTokens->revokeFamily($familyId);
+            $this->refreshTokens->findUserForUpdate($row->user_id);
+            $this->refreshTokens->revokeFamily($row->family_id);
+        });
     }
 
     /** Revoke every session the user holds (refresh tokens and older access tokens); returns the new session version. */
@@ -164,6 +181,84 @@ class TokenFactory
     public function hash(string $plain): string
     {
         return hash('sha256', $plain);
+    }
+
+    /** @return array{0: string, 1: RefreshToken} plain token and its stored row */
+    private function issueRefreshToken(User $user, Request $request, string $familyId, CarbonInterface $familyStartedAt): array
+    {
+        $plain = bin2hex(random_bytes(32));
+
+        $row = $this->refreshTokens->create([
+            'user_id' => $user->id,
+            'token_hash' => $this->hash($plain),
+            'family_id' => $familyId,
+            'family_started_at' => $familyStartedAt,
+            'expires_at' => $this->refreshExpiresAt($familyStartedAt),
+            'user_agent' => $this->userAgent($request),
+            'ip' => $request->ip(),
+        ]);
+
+        return [$plain, $row];
+    }
+
+    /**
+     * A revoked token may be presented again only when all of these hold: rotation revoked it (it has a
+     * successor), less than `jwt.refresh_reuse_grace_seconds` ago; it has not used its one grace yet
+     * (`grace_used_at` is null); the request comes from the same user agent the token was issued to; and the
+     * successor is still unrevoked and unexpired (so it has not been rotated, logged out or revoked since). A token
+     * revoked by logout, by a family revocation or by "sign out everywhere" never qualifies: none of them sets
+     * `replaced_by`, and they revoke the successor too.
+     */
+    private function isGracedReuse(RefreshToken $row, Request $request): bool
+    {
+        if ($row->replaced_by === null
+            || $row->grace_used_at !== null
+            || $row->revoked_at->lt(now()->subSeconds((int) config('jwt.refresh_reuse_grace_seconds')))
+            || (string) $row->user_agent !== $this->userAgent($request)) {
+            return false;
+        }
+
+        $successor = $this->refreshTokens->findByIdForUpdate((int) $row->replaced_by);
+
+        return $successor !== null && $successor->revoked_at === null && $successor->expires_at->isFuture();
+    }
+
+    /**
+     * Rows the migration's backfill did not reach (none expected) fall back to the earliest creation time left in
+     * their family, read only in that case.
+     */
+    private function familyStartedAt(RefreshToken $row): CarbonImmutable
+    {
+        if ($row->family_started_at !== null) {
+            return $row->family_started_at->toImmutable();
+        }
+
+        return $this->refreshTokens->earliestCreatedAtInFamily($row->family_id)
+            ?? ($row->created_at ?? now())->toImmutable();
+    }
+
+    /** The user agent as stored on a refresh token. */
+    private function userAgent(Request $request): string
+    {
+        return Str::limit((string) $request->userAgent(), 500, '');
+    }
+
+    private function familyEndsAt(CarbonInterface $familyStartedAt): CarbonImmutable
+    {
+        return $familyStartedAt->toImmutable()->addDays((int) config('jwt.refresh_family_max_days'));
+    }
+
+    /**
+     * A claim must equal the configured value. A token without the claim is accepted only while
+     * `jwt.require_iss_aud` is off (the deploy transition for tokens issued before the claim was checked).
+     */
+    private function claimMatches(object $claims, string $claim, mixed $expected): bool
+    {
+        if (! property_exists($claims, $claim)) {
+            return ! config('jwt.require_iss_aud');
+        }
+
+        return is_string($claims->{$claim}) && $claims->{$claim} === $expected;
     }
 
     private function secret(): string

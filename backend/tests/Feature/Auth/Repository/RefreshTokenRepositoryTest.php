@@ -81,4 +81,26 @@ class RefreshTokenRepositoryTest extends TestCase
         $this->assertTrue($user->is((new RefreshTokenRepository)->findUserForUpdate($user->id)));
         $this->assertNull((new RefreshTokenRepository)->findUserForUpdate($user->id + 1000));
     }
+
+    public function test_find_by_id_for_update(): void
+    {
+        $token = RefreshToken::factory()->create();
+
+        DB::transaction(function () use ($token): void {
+            $this->assertTrue($token->is((new RefreshTokenRepository)->findByIdForUpdate($token->id)));
+            $this->assertNull((new RefreshTokenRepository)->findByIdForUpdate($token->id + 1000));
+        });
+    }
+
+    public function test_delete_expired_or_revoked_before_deletes_in_chunks_until_none_is_left(): void
+    {
+        $cutoff = now()->subDays(7);
+        RefreshToken::factory()->count(3)->create(['expires_at' => now()->subDays(8)]);
+        RefreshToken::factory()->count(2)->create(['revoked_at' => now()->subDays(8)]);
+        $kept = RefreshToken::factory()->create(['revoked_at' => now()->subDays(6)]);
+
+        $this->assertSame(5, (new RefreshTokenRepository)->deleteExpiredOrRevokedBefore($cutoff, 2));
+        $this->assertSame(0, (new RefreshTokenRepository)->deleteExpiredOrRevokedBefore($cutoff, 2));
+        $this->assertSame([$kept->id], RefreshToken::pluck('id')->all());
+    }
 }
