@@ -5,6 +5,7 @@ namespace App\User\Controllers;
 use App\Auth\CurrentUser\CurrentUser;
 use App\Auth\Support\AuthCookies;
 use App\Models\User;
+use App\User\DTOs\Requests\AccountDeletionLinkData;
 use App\User\DTOs\Requests\EmailChangeLinkData;
 use App\User\FormRequests\DeleteAccountRequest;
 use App\User\FormRequests\RequestEmailChangeRequest;
@@ -13,6 +14,7 @@ use App\User\FormRequests\UpdatePreferencesRequest;
 use App\User\FormRequests\UpdateProfileRequest;
 use App\User\FormRequests\UploadAvatarRequest;
 use App\User\FormRequests\UserSearchRequest;
+use App\User\InterfaceServices\AccountDeletionServiceInterface;
 use App\User\InterfaceServices\AccountServiceInterface;
 use App\User\InterfaceServices\EmailChangeServiceInterface;
 use App\User\InterfaceServices\HomeServiceInterface;
@@ -20,20 +22,34 @@ use App\User\InterfaceServices\ProfileServiceInterface;
 use App\User\Resources\MemberResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Gate;
 
 /**
  * Everything about a user: the signed-in user's own account (/me), other members' profiles and
  * following (/users) and the Home page (/home).
  */
-class UserController
+class UserController implements HasMiddleware
 {
     public function __construct(
         private readonly AccountServiceInterface $account,
         private readonly ProfileServiceInterface $profiles,
         private readonly HomeServiceInterface $home,
         private readonly EmailChangeServiceInterface $emailChange,
+        private readonly AccountDeletionServiceInterface $deletion,
     ) {}
+
+    /**
+     * DELETE /api/me checks a password or mails a confirmation link, so it is rate limited per account
+     * (`me-account-deletion`). Declared here because the route itself lives in routes/user.php.
+     *
+     * @return list<Middleware>
+     */
+    public static function middleware(): array
+    {
+        return [new Middleware('throttle:me-account-deletion', only: ['destroyMe'])];
+    }
 
     /** GET /api/home — the signed-in Home page: busy rooms and your next movie night. */
     public function home(CurrentUser $current): JsonResponse
@@ -130,12 +146,39 @@ class UserController
         return response()->json($this->account->disconnectSocial($current->user(), $provider));
     }
 
-    /** DELETE /api/me — removes the account and everything it owns (FKs cascade). */
+    /**
+     * DELETE /api/me — with a password that proves ownership, removes the account and everything it owns (FKs
+     * cascade) and signs out (200). Otherwise mails a confirmation link to the account's address (202).
+     */
     public function destroyMe(DeleteAccountRequest $request, CurrentUser $current, AuthCookies $cookies): JsonResponse
     {
-        $this->account->deleteAccount($current->user(), $request->toDto());
+        $result = $this->deletion->request($current->user(), $request->toDto());
 
-        return $cookies->clear(response()->json(['message' => 'Account deleted.']));
+        return $result->deleted
+            ? $cookies->clear(response()->json($result))
+            : response()->json($result, 202);
+    }
+
+    /** DELETE /api/me/delete-request — drops the pending deletion, so its emailed links stop working. */
+    public function cancelAccountDeletion(CurrentUser $current): JsonResponse
+    {
+        return response()->json($this->deletion->cancel($current->user()));
+    }
+
+    /** GET /api/me/delete/confirm/{id}/{hash} — signed link to the account's address (no login needed), then back to the frontend. */
+    public function confirmAccountDeletion(int $id, string $hash): RedirectResponse
+    {
+        $outcome = $this->deletion->confirmFromLink(new AccountDeletionLinkData($id, $hash));
+
+        return redirect(rtrim(config('services.frontend_url'), '/').$outcome->frontendPath());
+    }
+
+    /** GET /api/me/delete/cancel/{id}/{hash} — signed "this wasn't me" link in the same email (no login needed). */
+    public function cancelAccountDeletionFromLink(int $id, string $hash): RedirectResponse
+    {
+        $outcome = $this->deletion->cancelFromLink(new AccountDeletionLinkData($id, $hash));
+
+        return redirect(rtrim(config('services.frontend_url'), '/').$outcome->frontendPath());
     }
 
     /**

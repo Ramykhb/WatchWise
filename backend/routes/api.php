@@ -25,6 +25,7 @@ require __DIR__.'/auth_flows.php';
 // (no `auth.jwt` wrapper in the file); RequireVerifiedEmailTest checks it.
 Route::middleware(['auth.jwt', 'verified.email'])->group(function () {
     require __DIR__.'/user.php';
+    require __DIR__.'/account_deletion_signed_in.php';
     require __DIR__.'/lists.php';
     require __DIR__.'/watchlist.php';
     require __DIR__.'/ratings.php';
@@ -37,9 +38,10 @@ Route::middleware(['auth.jwt', 'verified.email'])->group(function () {
     require __DIR__.'/admin.php';
 });
 
-// Public routes, outside the verified group. The signed email-change link needs no session (the signature
-// proves it came from the email).
+// Public routes, outside the verified group. The signed email-change and account-deletion links need no
+// session (the signature proves they came from the email).
 require __DIR__.'/email_change.php';
+require __DIR__.'/account_deletion.php';
 require __DIR__.'/weather.php';
 require __DIR__.'/recommendations_public.php';
 require __DIR__.'/cinemas.php';

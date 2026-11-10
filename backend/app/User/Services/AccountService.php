@@ -7,10 +7,10 @@ use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Models\User;
 use App\Support\SocialPlaceholderPassword;
 use App\User\DTOs\Requests\ChangePasswordData;
-use App\User\DTOs\Requests\DeleteAccountData;
 use App\User\DTOs\Requests\UpdatePreferencesData;
 use App\User\DTOs\Requests\UpdateProfileData;
 use App\User\DTOs\Responses\AccountResponse;
+use App\User\Exceptions\CannotDisconnectLastLogin;
 use App\User\Exceptions\IncorrectPassword;
 use App\User\InterfaceRepository\AccountRepositoryInterface;
 use App\User\InterfaceServices\AccountServiceInterface;
@@ -134,17 +134,19 @@ class AccountService implements AccountServiceInterface
 
     public function disconnectSocial(User $user, string $provider): AccountResponse
     {
-        $this->accounts->deleteSocialAccounts($user, $provider);
+        // With a password of its own the account can always sign in again; without one, the last linked
+        // provider is its only way in, so it stays until a password is set or another provider is linked.
+        if (! SocialPlaceholderPassword::isStoredFor($user)) {
+            $this->accounts->deleteSocialAccounts($user, $provider);
+        } elseif (! $this->accounts->deleteSocialAccountsKeepingAnother($user, $provider)) {
+            throw new CannotDisconnectLastLogin($provider);
+        }
 
         return AccountResponse::fromModel($user);
     }
 
-    public function deleteAccount(User $user, DeleteAccountData $data): void
+    public function deleteAccount(User $user): void
     {
-        if (! Hash::check($data->password, $user->password)) {
-            throw IncorrectPassword::forAccountDeletion();
-        }
-
         $this->deleteStoredAvatar($user);
         $this->accounts->delete($user);
     }
