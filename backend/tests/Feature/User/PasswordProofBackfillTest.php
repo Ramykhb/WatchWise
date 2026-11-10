@@ -35,6 +35,12 @@ class PasswordProofBackfillTest extends TestCase
         return $user;
     }
 
+    /** Registered with email and password, then verified through the emailed link an hour later. */
+    private function passwordSignUp(): User
+    {
+        return User::factory()->create(['created_at' => now()->subHours(2), 'email_verified_at' => now()->subHour()]);
+    }
+
     public function test_down_drops_the_column(): void
     {
         $this->assertFalse(Schema::hasColumn('users', 'password_set_without_proof_at'));
@@ -45,7 +51,7 @@ class PasswordProofBackfillTest extends TestCase
         config(['services.social_password.placeholder' => 'phpunit-placeholder-Xy9#only-for-tests']);
         $withRealPassword = $this->socialUser();
         $onPlaceholder = $this->socialUser(SocialPlaceholderPassword::forNewAccount());
-        $passwordOnly = User::factory()->create();
+        $passwordOnly = $this->passwordSignUp();
 
         $this->migration->up();
 
@@ -54,11 +60,27 @@ class PasswordProofBackfillTest extends TestCase
         $this->assertNull($passwordOnly->refresh()->password_set_without_proof_at);
     }
 
+    public function test_an_account_verified_at_creation_is_stamped_even_after_its_social_login_was_disconnected(): void
+    {
+        config(['services.social_password.placeholder' => 'phpunit-placeholder-Xy9#only-for-tests']);
+        $disconnected = User::factory()->create(['created_at' => now()->subDay(), 'email_verified_at' => now()->subDay()->addMinute()]);
+        $disconnectedOnPlaceholder = User::factory()->create(['password' => SocialPlaceholderPassword::forNewAccount(), 'created_at' => now()->subDay(), 'email_verified_at' => now()->subDay()]);
+        $neverVerified = User::factory()->unverified()->create();
+        $passwordSignUp = $this->passwordSignUp();
+
+        $this->migration->up();
+
+        $this->assertNotNull($disconnected->refresh()->password_set_without_proof_at);
+        $this->assertNull($disconnectedOnPlaceholder->refresh()->password_set_without_proof_at);
+        $this->assertNull($neverVerified->refresh()->password_set_without_proof_at);
+        $this->assertNull($passwordSignUp->refresh()->password_set_without_proof_at);
+    }
+
     public function test_without_a_configured_placeholder_every_social_account_is_stamped(): void
     {
         config(['services.social_password.placeholder' => null]);
         $socialUsers = [$this->socialUser(), $this->socialUser()];
-        $passwordOnly = User::factory()->create();
+        $passwordOnly = $this->passwordSignUp();
 
         $this->migration->up();
 

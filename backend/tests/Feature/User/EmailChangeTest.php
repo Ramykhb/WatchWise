@@ -4,6 +4,7 @@ namespace Tests\Feature\User;
 
 use App\Models\PasswordReset;
 use App\Models\RefreshToken;
+use App\Models\SocialAccount;
 use App\Models\User;
 use App\Support\SocialPlaceholderPassword;
 use App\User\InterfaceRepository\AccountRepositoryInterface;
@@ -195,6 +196,23 @@ class EmailChangeTest extends SocialTestCase
             ->assertOk()
             ->assertJsonPath('pending_email_awaiting_current', true);
         Mail::assertNotSent(ConfirmEmailChangeMail::class);
+    }
+
+    public function test_disconnecting_the_social_login_keeps_the_first_password_unproven(): void
+    {
+        $user = $this->socialOnlyUser();
+        SocialAccount::create(['user_id' => $user->id, 'provider' => 'google', 'provider_id' => 'g1', 'access_token' => 'token']);
+        $this->setFirstPassword($user, 'chosen12345');
+
+        $this->as($user)->deleteJson('/api/me/social/google')->assertOk();
+
+        $this->assertSame(0, $user->socialAccounts()->count());
+        $this->assertNotNull($user->refresh()->password_set_without_proof_at);
+        $this->as($user)->putJson('/api/me/email', ['email' => 'attacker@example.com', 'current_password' => 'chosen12345'])
+            ->assertOk()
+            ->assertJsonPath('pending_email_awaiting_current', true);
+        Mail::assertNotSent(ConfirmEmailChangeMail::class);
+        Mail::assertSent(AuthorizeEmailChangeMail::class, fn (AuthorizeEmailChangeMail $mail) => $mail->hasTo('old@example.com'));
     }
 
     public function test_a_password_reset_through_email_makes_the_password_count_as_proof(): void
