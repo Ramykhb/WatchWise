@@ -19,6 +19,7 @@ import dotMintSm from '../../assets/landing/deco-dot-mint-sm.svg'
 import { AUTH_SWAP_STATE as SWAP, useAuthSwap } from '../../hooks/useAuthSwap.ts'
 import { LAST_LAP, NEON_TIDE, PAPER_MOON } from '../authPosters.ts'
 import { apiErrorMessage, authApi, type AuthPayload } from '../../lib/auth.ts'
+import { returnToFrom } from '../../lib/returnTo.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { accountDeletionNotice } from '../Settings/accountDeletion.ts'
 import styles from './SignIn.module.css'
@@ -55,8 +56,7 @@ export default function SignIn() {
     try {
       const response = await authApi.post<AuthPayload>('/auth/login', { email, password })
       setUser(response.data.user)
-      const state = location.state as { from?: { pathname?: string } } | null
-      navigate(state?.from?.pathname ?? '/home-page', { replace: true })
+      navigate(returnToFrom(location.state), { replace: true })
     } catch (error) {
       setFormError(apiErrorMessage(error, 'Unable to sign in. Please try again.'))
     } finally {

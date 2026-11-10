@@ -44,6 +44,9 @@ export const router = createBrowserRouter([
       // Emailed account links work signed in or out, in any browser; `result` must come before `:kind`.
       { path: 'account-link/result', element: <AccountLinkResult /> },
       { path: 'account-link/:kind', element: <AccountLink /> },
+      // Legal pages are readable without an account.
+      { path: 'terms', element: <Placeholder title="Terms of Service" /> },
+      { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
       { path: 'signup', element: <RequireGuest><SignUp /></RequireGuest> },
       { path: 'forgot-password', element: <RequireGuest><ForgotPassword /></RequireGuest> },
       { path: 'auth/callback', element: <RequireGuest><AuthCallback /></RequireGuest> },
@@ -90,8 +93,6 @@ export const router = createBrowserRouter([
             ],
           },
           { path: 'notifications', element: <Notifications /> },
-          { path: 'terms', element: <Placeholder title="Terms of Service" /> },
-          { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
           { path: 'community', element: <Placeholder title="Community" /> },
           { path: 'movie-nights', element: <MovieNights /> },
           { path: 'movie-nights/:slug', element: <NightDetail /> },
