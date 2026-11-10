@@ -51,6 +51,15 @@ Route::get('me/email/confirm/{id}/{hash}', [UserController::class, 'confirmEmail
     ->middleware(['signed', 'throttle:me-email-confirm'])
     ->whereNumber('id')
     ->name('me.email.confirm');
+// The same, for the links mailed to the current address: approve (accounts without a password) or cancel.
+Route::get('me/email/authorize/{id}/{hash}', [UserController::class, 'authorizeEmailChange'])
+    ->middleware(['signed', 'throttle:me-email-confirm'])
+    ->whereNumber('id')
+    ->name('me.email.authorize');
+Route::get('me/email/cancel/{id}/{hash}', [UserController::class, 'cancelEmailChangeFromLink'])
+    ->middleware(['signed', 'throttle:me-email-confirm'])
+    ->whereNumber('id')
+    ->name('me.email.cancel');
 
 Route::get('/weather', [WeatherController::class, 'show'])->middleware('throttle:weather');
 Route::post('/weather-mood', [WeatherController::class, 'mood'])->middleware('throttle:ai');

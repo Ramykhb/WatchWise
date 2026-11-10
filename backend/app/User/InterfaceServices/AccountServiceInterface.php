@@ -28,6 +28,13 @@ interface AccountServiceInterface
      */
     public function changePassword(User $user, ChangePasswordData $data): void;
 
+    /**
+     * Called by the password-reset flow once a reset through the emailed link succeeded. That proves
+     * control of the inbox, so a password first chosen without proof now counts as proof for email
+     * changes, and any pending email change is dropped.
+     */
+    public function passwordResetThroughEmail(User $user): void;
+
     /** Stores the image on the public disk and replaces the previous one. */
     public function uploadAvatar(User $user, UploadedFile $file): AccountResponse;
 

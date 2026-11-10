@@ -13,6 +13,7 @@ use App\User\DTOs\Responses\AccountResponse;
 use App\User\Exceptions\IncorrectPassword;
 use App\User\InterfaceRepository\AccountRepositoryInterface;
 use App\User\InterfaceServices\AccountServiceInterface;
+use App\User\InterfaceServices\EmailChangeServiceInterface;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -22,6 +23,7 @@ class AccountService implements AccountServiceInterface
     public function __construct(
         private readonly AccountRepositoryInterface $accounts,
         private readonly RefreshTokenRepositoryInterface $tokens,
+        private readonly EmailChangeServiceInterface $emailChange,
     ) {}
 
     public function show(User $user): AccountResponse
@@ -57,7 +59,9 @@ class AccountService implements AccountServiceInterface
     public function changePassword(User $user, ChangePasswordData $data): void
     {
         // Accounts created by social sign-in still hold the placeholder, so they set a first password freely.
-        if (! SocialPlaceholderPassword::isStoredFor($user)) {
+        $firstPassword = SocialPlaceholderPassword::isStoredFor($user);
+
+        if (! $firstPassword) {
             if ($data->currentPassword === null) {
                 throw IncorrectPassword::forMissingCurrentPassword();
             }
@@ -66,9 +70,22 @@ class AccountService implements AccountServiceInterface
             }
         }
 
-        $this->accounts->updatePassword($user, $data->newPassword);
+        // A first password proves nothing (a stolen session could set it), so it is marked until the
+        // owner proves the inbox. A later change keeps the mark: whoever set the first one knows it.
+        $this->accounts->updatePassword($user, $data->newPassword, setWithoutProof: $firstPassword);
+        // Its links already stopped working (they are bound to the password hash); this clears Settings too.
+        $this->emailChange->discardPendingChange($user);
         // The access cookie stays valid until it expires (15 min); every refresh token is gone.
         $this->tokens->revokeAllForUser($user->id);
+    }
+
+    public function passwordResetThroughEmail(User $user): void
+    {
+        if ($user->password_set_without_proof_at !== null) {
+            $this->accounts->clearPasswordSetWithoutProof($user);
+        }
+
+        $this->emailChange->discardPendingChange($user);
     }
 
     public function uploadAvatar(User $user, UploadedFile $file): AccountResponse

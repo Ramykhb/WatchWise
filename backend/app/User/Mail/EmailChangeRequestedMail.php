@@ -15,8 +15,9 @@ class EmailChangeRequestedMail extends Mailable
 
     /**
      * @param  string  $maskedNewEmail  the requested address, partly hidden ("j***@example.com")
+     * @param  string  $cancelUrl  signed link that drops this pending change without signing in
      */
-    public function __construct(public string $name, public string $maskedNewEmail) {}
+    public function __construct(public string $name, public string $maskedNewEmail, public string $cancelUrl) {}
 
     public function envelope(): Envelope
     {
@@ -28,7 +29,7 @@ class EmailChangeRequestedMail extends Mailable
         return new Content(
             view: 'mail.email-change-requested',
             text: 'mail.text.email-change-requested',
-            with: ['url' => rtrim((string) config('services.frontend_url'), '/').'/edit-profile'],
+            with: ['settingsUrl' => rtrim((string) config('services.frontend_url'), '/').'/edit-profile'],
         );
     }
 }

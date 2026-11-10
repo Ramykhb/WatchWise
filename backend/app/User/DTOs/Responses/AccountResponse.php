@@ -46,6 +46,8 @@ final readonly class AccountResponse implements JsonSerializable
             'has_password' => ! SocialPlaceholderPassword::isStoredFor($user),
             // The address waiting for its confirmation link to be opened; `user.email` stays the sign-in email until then.
             'pending_email' => $user->pending_email,
+            // True while an account without a password still has to approve the change from its current address.
+            'pending_email_awaiting_current' => $user->pending_email !== null && $user->pending_email_authorized_at === null,
             'counts' => [
                 // What the bell counts; room read receipts share the table but are not notifications.
                 'unread_notifications' => $user->notifications()->whereIn('type', Notification::FEED_TYPES)->whereNull('read_at')->count(),

@@ -39,7 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 return redirect(rtrim(config('services.frontend_url'), '/').'/verify-email?status='.$status);
             }
 
-            if ($request->routeIs('me.email.confirm')) {
+            if ($request->routeIs('me.email.confirm', 'me.email.authorize', 'me.email.cancel')) {
                 $status = URL::hasCorrectSignature($request) && ! URL::signatureHasNotExpired($request)
                     ? 'expired' : 'invalid';
 
