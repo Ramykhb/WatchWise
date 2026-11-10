@@ -20,6 +20,7 @@ use App\Auth\Services\AuthService;
 use App\Auth\Services\EmailVerificationService;
 use App\Auth\Services\PasswordResetService;
 use App\Auth\Services\SocialAuthService;
+use App\Support\EmailAddress;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -27,7 +28,6 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Str;
 
 /**
  * Binds the Auth module's interfaces to their implementations, registers its event listener
@@ -79,7 +79,8 @@ class AuthModuleServiceProvider extends ServiceProvider
                 $limits = [Limit::perMinute($perMinute)->by('ip:'.$request->ip())];
 
                 // Separate per-account bucket: a rotating email value can only tighten limiting, never reset it.
-                $email = Str::lower(trim((string) $request->input('email')));
+                $value = $request->input('email');
+                $email = EmailAddress::normalize(is_string($value) ? $value : '');
 
                 if ($email !== '') {
                     $limits[] = Limit::perMinute($perMinute)->by('email:'.$email);

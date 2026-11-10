@@ -4,6 +4,7 @@ namespace App\User\Repository;
 
 use App\Models\User;
 use App\Models\UserPreference;
+use App\Support\EmailAddress;
 use App\User\InterfaceRepository\AccountRepositoryInterface;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -23,7 +24,8 @@ class AccountRepository implements AccountRepositoryInterface
 
     public function emailBelongsToAnotherUser(string $email, int $userId): bool
     {
-        return User::where('email', $email)->whereKeyNot($userId)->exists();
+        // LOWER(email): a row stored before emails were lowercased still counts as the same address.
+        return User::query()->whereRaw('LOWER(email) = ?', [EmailAddress::normalize($email)])->whereKeyNot($userId)->exists();
     }
 
     public function storePendingEmail(User $user, string $email, string $nonce, bool $authorized): void

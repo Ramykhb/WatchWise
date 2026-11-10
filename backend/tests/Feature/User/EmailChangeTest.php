@@ -12,6 +12,7 @@ use App\User\Mail\ConfirmEmailChangeMail;
 use App\User\Mail\EmailChangedMail;
 use App\User\Mail\EmailChangeRequestedMail;
 use App\User\Repository\AccountRepository;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
@@ -358,6 +359,45 @@ class EmailChangeTest extends SocialTestCase
             ->assertUnprocessable()->assertJsonValidationErrors('email');
 
         $this->assertNull($user->refresh()->pending_email);
+    }
+
+    public function test_the_new_email_is_compared_case_insensitively(): void
+    {
+        User::factory()->create(['email' => 'taken@example.com']);
+        // A row stored before emails were lowercased, written around the model's mutator.
+        $legacy = User::factory()->create();
+        DB::table('users')->where('id', $legacy->id)->update(['email' => 'Legacy@Example.com']);
+        $user = User::factory()->create(['email' => 'me@example.com']);
+
+        $this->as($user)->putJson('/api/me/email', ['email' => ' Me@Example.COM ', 'current_password' => 'password'])
+            ->assertUnprocessable()->assertJsonValidationErrors(['email' => 'That is already your email address.']);
+        $this->as($user)->putJson('/api/me/email', ['email' => 'TAKEN@example.com', 'current_password' => 'password'])
+            ->assertUnprocessable()->assertJsonValidationErrors(['email' => 'The email has already been taken.']);
+        $this->as($user)->putJson('/api/me/email', ['email' => 'legacy@example.com', 'current_password' => 'password'])
+            ->assertUnprocessable()->assertJsonValidationErrors('email');
+        $this->assertNull($user->refresh()->pending_email);
+    }
+
+    public function test_the_new_email_is_stored_lowercase(): void
+    {
+        $user = User::factory()->create(['email' => 'me@example.com']);
+
+        $this->as($user)->putJson('/api/me/email', ['email' => 'New@Example.com', 'current_password' => 'password'])
+            ->assertOk()->assertJsonPath('pending_email', 'new@example.com');
+
+        Mail::assertSent(ConfirmEmailChangeMail::class, fn (ConfirmEmailChangeMail $mail) => $mail->hasTo('new@example.com'));
+    }
+
+    public function test_the_link_refuses_an_address_another_account_took_in_another_case(): void
+    {
+        $user = $this->socialOnlyUser();
+        $this->as($user)->putJson('/api/me/email', ['email' => 'new@example.com'])->assertOk();
+        $legacy = User::factory()->create();
+        DB::table('users')->where('id', $legacy->id)->update(['email' => 'NEW@example.com']);
+
+        $this->confirmLink($this->lastMailed(AuthorizeEmailChangeMail::class, 'old@example.com')->url, 'taken');
+
+        $this->assertSame('old@example.com', $user->refresh()->email);
     }
 
     public function test_the_link_swaps_verifies_signs_out_and_notifies_the_old_address(): void

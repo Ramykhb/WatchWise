@@ -3,11 +3,14 @@
 namespace App\Auth\FormRequests;
 
 use App\Auth\DTOs\Requests\ResetPasswordData;
+use App\Support\NormalizesEmailInput;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
 
 class ResetPasswordRequest extends FormRequest
 {
+    use NormalizesEmailInput;
+
     public function authorize(): bool
     {
         return true;

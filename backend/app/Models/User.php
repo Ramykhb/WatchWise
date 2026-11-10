@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Support\EmailAddress;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -76,6 +77,26 @@ class User extends Authenticatable
     protected function username(): Attribute
     {
         return Attribute::set(fn (?string $value): ?string => $value === null ? null : Str::lower($value));
+    }
+
+    /**
+     * Emails are stored lowercase and trimmed, so "Ali@Example.com" and "ali@example.com" are one sign-in address.
+     *
+     * @return Attribute<string|null, string|null>
+     */
+    protected function email(): Attribute
+    {
+        return Attribute::set(fn (?string $value): ?string => $value === null ? null : EmailAddress::normalize($value));
+    }
+
+    /**
+     * The address an email change waits on is stored the same way as `email`, which it replaces.
+     *
+     * @return Attribute<string|null, string|null>
+     */
+    protected function pendingEmail(): Attribute
+    {
+        return Attribute::set(fn (?string $value): ?string => $value === null ? null : EmailAddress::normalize($value));
     }
 
     /**
