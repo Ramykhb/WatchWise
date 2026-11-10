@@ -68,7 +68,7 @@ class SocialAuthServiceTest extends TestCase
         $this->accounts->shouldReceive('findByProvider')->with('google', 'pid-1')->andReturnNull();
         $this->users->shouldReceive('findByEmail')->with('ada@example.com')->andReturnNull();
         $this->users->shouldReceive('create')->once()->withArgs(fn ($a) => $a['email'] === 'ada@example.com'
-            && $a['name'] === 'Ada' && strlen($a['password']) === 40 && $a['avatar'] === 'http://a/b.png')->andReturn($user);
+            && $a['name'] === 'Ada' && $a['password'] === null && $a['avatar'] === 'http://a/b.png')->andReturn($user);
         $this->users->shouldReceive('markEmailVerified')->once()->with($user);
         $this->accounts->shouldReceive('create')->once()->with(['user_id' => 1, 'provider' => 'google', 'provider_id' => 'pid-1', 'access_token' => 'tok']);
         $this->tokens->shouldReceive('issue')->once()->with($user, $request)->andReturn($this->pair($user));
@@ -85,7 +85,7 @@ class SocialAuthServiceTest extends TestCase
 
         $this->accounts->shouldReceive('findByProvider')->andReturnNull();
         $this->users->shouldReceive('findByEmail')->andReturn($user);
-        $this->users->shouldNotReceive('updatePassword');
+        $this->users->shouldNotReceive('clearPassword');
         $this->users->shouldNotReceive('create');
         $this->refreshTokens->shouldNotReceive('revokeAllForUser');
         $this->accounts->shouldReceive('create')->once();
@@ -94,7 +94,7 @@ class SocialAuthServiceTest extends TestCase
         $this->service->loginWithProvider($this->socialUser(), Request::create('/'));
     }
 
-    public function test_takeover_of_unverified_local_account_resets_password_and_revokes_tokens(): void
+    public function test_takeover_of_unverified_local_account_clears_password_and_revokes_tokens(): void
     {
         $user = new User;
         $user->id = 3;
@@ -103,7 +103,7 @@ class SocialAuthServiceTest extends TestCase
         $this->accounts->shouldReceive('findByProvider')->andReturnNull();
         $this->users->shouldReceive('findByEmail')->andReturn($user);
         $this->users->shouldReceive('markEmailVerified')->once()->with($user);
-        $this->users->shouldReceive('updatePassword')->once()->withArgs(fn ($u, $p) => $u === $user && strlen($p) === 40);
+        $this->users->shouldReceive('clearPassword')->once()->with($user);
         $this->refreshTokens->shouldReceive('revokeAllForUser')->once()->with(3);
         $this->accounts->shouldReceive('create')->once();
         $this->tokens->shouldReceive('issue')->once()->andReturn($this->pair($user));

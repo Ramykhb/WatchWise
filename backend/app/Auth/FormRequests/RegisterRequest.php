@@ -3,7 +3,6 @@
 namespace App\Auth\FormRequests;
 
 use App\Auth\DTOs\Requests\RegisterData;
-use App\Support\SocialPlaceholderPassword;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
 
@@ -22,7 +21,8 @@ class RegisterRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email:rfc', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'confirmed', Password::min(8)->letters()->numbers(), SocialPlaceholderPassword::rule()],
+            // bcrypt ignores everything after a NUL byte, so a new password may not contain one.
+            'password' => ['required', 'string', 'not_regex:/\x00/', 'confirmed', Password::min(8)->letters()->numbers()],
         ];
     }
 

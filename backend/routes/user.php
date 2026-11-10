@@ -13,6 +13,7 @@ Route::prefix('me')->controller(UserController::class)->group(function () {
     Route::delete('/', 'destroyMe')->middleware('throttle:me-account-deletion');
     Route::patch('preferences', 'updatePreferences')->middleware('throttle:user-profile-update');
     Route::put('password', 'updatePassword')->middleware('throttle:6,1');
+    Route::put('password/set', 'setPassword')->middleware('throttle:6,1')->name('me.password.set');
     Route::put('email', 'requestEmailChange')->middleware('throttle:me-email-change');
     Route::post('email/resend', 'resendEmailChange')->middleware('throttle:me-email-change');
     Route::delete('email', 'cancelEmailChange');

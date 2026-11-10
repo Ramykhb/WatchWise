@@ -5,10 +5,10 @@ namespace Tests\Feature\User;
 use App\Auth\Factories\TokenFactory;
 use App\Models\SocialAccount;
 use App\Models\User;
-use App\Support\SocialPlaceholderPassword;
 use App\User\Mail\ConfirmEmailChangeMail;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -17,6 +17,8 @@ use Tests\TestCase;
 class PasswordProofBackfillTest extends TestCase
 {
     use RefreshDatabase;
+
+    private const PLACEHOLDER = 'phpunit-placeholder-Xy9#only-for-tests';
 
     private Migration $migration;
 
@@ -48,12 +50,11 @@ class PasswordProofBackfillTest extends TestCase
 
     public function test_only_social_accounts_with_a_real_password_are_stamped(): void
     {
-        config(['services.social_password.placeholder' => 'phpunit-placeholder-Xy9#only-for-tests']);
         $withRealPassword = $this->socialUser();
-        $onPlaceholder = $this->socialUser(SocialPlaceholderPassword::forNewAccount());
+        $onPlaceholder = $this->socialUser(Hash::make(self::PLACEHOLDER));
         $passwordOnly = $this->passwordSignUp();
 
-        $this->migration->up();
+        $this->migration->upWithPlaceholder(self::PLACEHOLDER);
 
         $this->assertNotNull($withRealPassword->refresh()->password_set_without_proof_at);
         $this->assertNull($onPlaceholder->refresh()->password_set_without_proof_at);
@@ -62,13 +63,12 @@ class PasswordProofBackfillTest extends TestCase
 
     public function test_an_account_verified_at_creation_is_stamped_even_after_its_social_login_was_disconnected(): void
     {
-        config(['services.social_password.placeholder' => 'phpunit-placeholder-Xy9#only-for-tests']);
         $disconnected = User::factory()->create(['created_at' => now()->subDay(), 'email_verified_at' => now()->subDay()->addMinute()]);
-        $disconnectedOnPlaceholder = User::factory()->create(['password' => SocialPlaceholderPassword::forNewAccount(), 'created_at' => now()->subDay(), 'email_verified_at' => now()->subDay()]);
+        $disconnectedOnPlaceholder = User::factory()->create(['password' => Hash::make(self::PLACEHOLDER), 'created_at' => now()->subDay(), 'email_verified_at' => now()->subDay()]);
         $neverVerified = User::factory()->unverified()->create();
         $passwordSignUp = $this->passwordSignUp();
 
-        $this->migration->up();
+        $this->migration->upWithPlaceholder(self::PLACEHOLDER);
 
         $this->assertNotNull($disconnected->refresh()->password_set_without_proof_at);
         $this->assertNull($disconnectedOnPlaceholder->refresh()->password_set_without_proof_at);
@@ -78,11 +78,10 @@ class PasswordProofBackfillTest extends TestCase
 
     public function test_without_a_configured_placeholder_every_social_account_is_stamped(): void
     {
-        config(['services.social_password.placeholder' => null]);
         $socialUsers = [$this->socialUser(), $this->socialUser()];
         $passwordOnly = $this->passwordSignUp();
 
-        $this->migration->up();
+        $this->migration->upWithPlaceholder(null);
 
         foreach ($socialUsers as $user) {
             $this->assertNotNull($user->refresh()->password_set_without_proof_at);
@@ -93,9 +92,8 @@ class PasswordProofBackfillTest extends TestCase
     public function test_a_stamped_account_goes_through_current_address_approval(): void
     {
         Mail::fake();
-        config(['services.social_password.placeholder' => 'phpunit-placeholder-Xy9#only-for-tests']);
         $user = $this->socialUser();
-        $this->migration->up();
+        $this->migration->upWithPlaceholder(self::PLACEHOLDER);
 
         $this->withHeader('Authorization', 'Bearer '.app(TokenFactory::class)->issueAccessToken($user->refresh())[0])
             ->putJson('/api/me/email', ['email' => 'new@example.com', 'current_password' => 'password'])

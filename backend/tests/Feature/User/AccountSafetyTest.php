@@ -3,7 +3,6 @@
 namespace Tests\Feature\User;
 
 use App\Models\User;
-use App\Support\SocialPlaceholderPassword;
 use App\User\Mail\PasswordAddedMail;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Http\UploadedFile;
@@ -87,10 +86,10 @@ class AccountSafetyTest extends SocialTestCase
     public function test_setting_a_first_password_mails_a_notice(): void
     {
         Mail::fake();
-        config(['services.social_password.placeholder' => 'phpunit-placeholder-Xy9#only-for-tests', 'services.frontend_url' => 'http://front.test']);
-        $user = User::factory()->create(['email' => 'soc@example.com', 'password' => SocialPlaceholderPassword::forNewAccount()]);
+        config(['services.frontend_url' => 'http://front.test']);
+        $user = User::factory()->withoutPassword()->create(['email' => 'soc@example.com']);
 
-        $this->as($user)->putJson('/api/me/password', ['password' => 'mine12345', 'password_confirmation' => 'mine12345'])->assertOk();
+        $this->as($user)->putJson('/api/me/password/set', ['password' => 'mine12345', 'password_confirmation' => 'mine12345'])->assertOk();
 
         Mail::assertSent(PasswordAddedMail::class, fn (PasswordAddedMail $mail) => $mail->hasTo('soc@example.com'));
         $html = (new PasswordAddedMail($user->name))->render();

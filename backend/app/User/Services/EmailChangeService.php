@@ -4,7 +4,6 @@ namespace App\User\Services;
 
 use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Models\User;
-use App\Support\SocialPlaceholderPassword;
 use App\User\DTOs\Requests\EmailChangeLinkData;
 use App\User\DTOs\Requests\RequestEmailChangeData;
 use App\User\DTOs\Responses\AccountResponse;
@@ -44,8 +43,8 @@ class EmailChangeService implements EmailChangeServiceInterface
 
     public function request(User $user, RequestEmailChangeData $data): AccountResponse
     {
-        // Accounts made by social sign-in hold the placeholder, so they have no password to type.
-        $hasPassword = ! SocialPlaceholderPassword::isStoredFor($user);
+        // Accounts made by social sign-in store no password, so they have none to type.
+        $hasPassword = $user->hasPassword();
 
         if ($hasPassword) {
             if ($data->currentPassword === null) {

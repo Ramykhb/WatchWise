@@ -20,5 +20,10 @@ interface RefreshTokenRepositoryInterface
 
     public function revokeFamily(string $familyId): void;
 
+    /**
+     * Revokes every refresh token of the user and stamps `users.sessions_invalidated_at`, so access tokens
+     * issued before that second stop working too (CurrentUserFactory refuses them). Every "sign out
+     * everywhere" path goes through here.
+     */
     public function revokeAllForUser(int $userId): void;
 }

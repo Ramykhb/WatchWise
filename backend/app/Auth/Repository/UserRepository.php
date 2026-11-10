@@ -44,4 +44,9 @@ class UserRepository implements UserRepositoryInterface
         $user->password = $plainPassword; // 'hashed' cast
         $user->save();
     }
+
+    public function clearPassword(User $user): void
+    {
+        $user->forceFill(['password' => null, 'password_set_without_proof_at' => null])->save();
+    }
 }

@@ -3,6 +3,7 @@
 namespace App\User\FormRequests;
 
 use App\Auth\CurrentUser\CurrentUser;
+use App\Models\User;
 use App\User\DTOs\Requests\UpdateProfileData;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
@@ -15,7 +16,7 @@ class UpdateProfileRequest extends FormRequest
         return true;
     }
 
-    /** "@Jane" and "jane" are the same handle. */
+    /** "@Jane" and "jane" are the same handle: it is lowercased before the uniqueness check and stored that way. */
     protected function prepareForValidation(): void
     {
         if ($this->filled('username')) {
@@ -32,7 +33,12 @@ class UpdateProfileRequest extends FormRequest
 
         return [
             'name' => ['sometimes', 'required', 'string', 'min:2', 'max:255'],
-            'username' => ['sometimes', 'required', 'string', 'regex:/^[a-z0-9_.]{3,20}$/i', Rule::unique('users', 'username')->ignore($user->id)],
+            // Compared case-insensitively, so a handle stored before lowercasing ("Mali") still blocks "mali".
+            'username' => ['sometimes', 'required', 'string', 'regex:/^[a-z0-9_.]{3,20}$/i', function (string $attribute, mixed $value, Closure $fail) use ($user): void {
+                if (is_string($value) && User::query()->whereRaw('LOWER(username) = ?', [strtolower($value)])->whereKeyNot($user->id)->exists()) {
+                    $fail('The username has already been taken.');
+                }
+            }],
             // Accepted only unchanged (forms send the whole profile); a new address goes through PUT /api/me/email.
             'email' => ['sometimes', 'required', 'string', function (string $attribute, mixed $value, Closure $fail) use ($user): void {
                 if (! is_string($value) || strcasecmp($value, $user->email) !== 0) {

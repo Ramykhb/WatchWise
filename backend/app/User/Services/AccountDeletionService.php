@@ -3,7 +3,6 @@
 namespace App\User\Services;
 
 use App\Models\User;
-use App\Support\SocialPlaceholderPassword;
 use App\User\DTOs\Requests\AccountDeletionLinkData;
 use App\User\DTOs\Requests\DeleteAccountData;
 use App\User\DTOs\Responses\AccountDeletionOutcome;
@@ -104,12 +103,11 @@ class AccountDeletionService implements AccountDeletionServiceInterface
 
     /**
      * Without a password of its own, or with one chosen in Settings without knowing any earlier one (which a
-     * stolen session could do), the password proves nothing: the inbox confirms instead. The mark is checked
-     * first because the placeholder check costs a bcrypt round.
+     * stolen session could do), the password proves nothing: the inbox confirms instead.
      */
     private function passwordProvesOwnership(User $user): bool
     {
-        return $user->password_set_without_proof_at === null && ! SocialPlaceholderPassword::isStoredFor($user);
+        return $user->hasPassword() && $user->password_set_without_proof_at === null;
     }
 
     /** The one deletion path (avatar file, account and everything it owns), then a notice to the old address. */

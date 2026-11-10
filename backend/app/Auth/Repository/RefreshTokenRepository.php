@@ -4,6 +4,7 @@ namespace App\Auth\Repository;
 
 use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
 use App\Models\RefreshToken;
+use App\Models\User;
 
 class RefreshTokenRepository implements RefreshTokenRepositoryInterface
 {
@@ -34,6 +35,9 @@ class RefreshTokenRepository implements RefreshTokenRepositoryInterface
 
     public function revokeAllForUser(int $userId): void
     {
-        RefreshToken::where('user_id', $userId)->whereNull('revoked_at')->update(['revoked_at' => now()]);
+        $now = now()->startOfSecond();
+
+        RefreshToken::where('user_id', $userId)->whereNull('revoked_at')->update(['revoked_at' => $now]);
+        User::query()->whereKey($userId)->toBase()->update(['sessions_invalidated_at' => $now]);
     }
 }
