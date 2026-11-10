@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\UserPreference;
 use App\User\InterfaceRepository\AccountRepositoryInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class AccountRepository implements AccountRepositoryInterface
 {
@@ -129,6 +130,25 @@ class AccountRepository implements AccountRepositoryInterface
     public function deleteSocialAccounts(User $user, string $provider): void
     {
         $user->socialAccounts()->where('provider', $provider)->delete();
+    }
+
+    public function deleteSocialAccountsKeepingAnother(User $user, string $provider): bool
+    {
+        return DB::transaction(function () use ($user, $provider): bool {
+            // Serialises disconnects for this account, so two at once cannot each see the other's row.
+            User::query()->whereKey($user->id)->lockForUpdate()->first(['id']);
+
+            $connected = $user->socialAccounts()->where('provider', $provider)->exists();
+            $another = $user->socialAccounts()->where('provider', '!=', $provider)->exists();
+
+            if ($connected && ! $another) {
+                return false;
+            }
+
+            $user->socialAccounts()->where('provider', $provider)->delete();
+
+            return true;
+        });
     }
 
     public function delete(User $user): void

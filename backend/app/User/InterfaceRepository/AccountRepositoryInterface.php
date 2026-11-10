@@ -64,6 +64,14 @@ interface AccountRepositoryInterface
 
     public function deleteSocialAccounts(User $user, string $provider): void;
 
+    /**
+     * Deletes the account's rows for this provider unless they are its only linked sign-in, checked and
+     * written under a lock on the user's row so two disconnects at once cannot remove both. Returns false
+     * (deleting nothing) when no other provider would remain; true otherwise, also when the provider was
+     * not linked at all.
+     */
+    public function deleteSocialAccountsKeepingAnother(User $user, string $provider): bool;
+
     /** Removes the account and everything it owns (foreign keys cascade). */
     public function delete(User $user): void;
 }

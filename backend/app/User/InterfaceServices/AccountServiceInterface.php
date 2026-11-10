@@ -8,6 +8,7 @@ use App\User\DTOs\Requests\DeleteAccountData;
 use App\User\DTOs\Requests\UpdatePreferencesData;
 use App\User\DTOs\Requests\UpdateProfileData;
 use App\User\DTOs\Responses\AccountResponse;
+use App\User\Exceptions\CannotDisconnectLastLogin;
 use App\User\Exceptions\IncorrectPassword;
 use Illuminate\Http\UploadedFile;
 
@@ -41,8 +42,11 @@ interface AccountServiceInterface
     public function deleteAvatar(User $user): AccountResponse;
 
     /**
-     * Accounts created through a provider have a random password, so the owner can still get
-     * back in with email and "Forgot password".
+     * Unlinks a provider (nothing happens when it is not linked). An account that never chose a
+     * password of its own (it still holds the social placeholder) cannot unlink its last provider,
+     * since password sign-in refuses the placeholder and nothing else would let it in.
+     *
+     * @throws CannotDisconnectLastLogin
      */
     public function disconnectSocial(User $user, string $provider): AccountResponse;
 
