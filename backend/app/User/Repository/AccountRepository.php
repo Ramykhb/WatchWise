@@ -107,14 +107,23 @@ class AccountRepository implements AccountRepositoryInterface
         $preferences->save();
     }
 
-    public function updatePassword(User $user, string $plainPassword, bool $setWithoutProof = false): void
+    public function updatePassword(User $user, string $plainPassword): void
     {
-        $attributes = ['password' => $plainPassword];
-        if ($setWithoutProof) {
-            $attributes['password_set_without_proof_at'] = now();
-        }
+        $user->forceFill(['password' => $plainPassword])->save();
+    }
 
-        $user->forceFill($attributes)->save();
+    public function setFirstPassword(User $user, string $plainPassword): bool
+    {
+        return DB::transaction(function () use ($user, $plainPassword): bool {
+            if (User::query()->whereKey($user->id)->lockForUpdate()->value('password') !== null) {
+                return false;
+            }
+
+            // Saved through the model: the 'hashed' cast and the hook that drops a pending deletion both apply.
+            $user->forceFill(['password' => $plainPassword, 'password_set_without_proof_at' => now()])->save();
+
+            return true;
+        });
     }
 
     public function clearPasswordSetWithoutProof(User $user): void

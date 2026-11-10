@@ -11,7 +11,6 @@ use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Auth\Support\TokenPair;
 use App\Models\User;
-use App\Support\SocialPlaceholderPassword;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,10 +40,10 @@ class AuthService implements AuthServiceInterface
     {
         $user = $this->users->findByEmail($data->email);
 
-        // Accounts still on the shared social placeholder never chose a password, so password login is refused
-        // for them whatever is typed (bcrypt ignores anything after a NUL byte, so comparing the text is not enough).
+        // Accounts made by social sign-in store no password until they set one, so password login is refused
+        // for them whatever is typed, with the same answer as a wrong password.
         if (! $user
-            || SocialPlaceholderPassword::isStoredFor($user)
+            || ! $user->hasPassword()
             || ! Hash::check($data->password, $user->password)
             || ! $user->is_active) {
             throw new InvalidCredentials;

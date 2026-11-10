@@ -9,6 +9,7 @@ use App\User\DTOs\Requests\AccountDeletionLinkData;
 use App\User\DTOs\Requests\EmailChangeLinkData;
 use App\User\FormRequests\DeleteAccountRequest;
 use App\User\FormRequests\RequestEmailChangeRequest;
+use App\User\FormRequests\SetPasswordRequest;
 use App\User\FormRequests\UpdatePasswordRequest;
 use App\User\FormRequests\UpdatePreferencesRequest;
 use App\User\FormRequests\UpdateProfileRequest;
@@ -62,10 +63,18 @@ class UserController
         return response()->json($this->account->updatePreferences($current->user(), $request->toDto()));
     }
 
-    /** PUT /api/me/password — signs out every other device; this one gets fresh cookies and stays signed in. */
+    /** PUT /api/me/password — changes an existing password; signs out every other device, this one gets fresh cookies. */
     public function updatePassword(UpdatePasswordRequest $request, CurrentUser $current, AuthCookies $cookies): JsonResponse
     {
         $session = $this->account->changePassword($current->user(), $request->toDto(), $request);
+
+        return $cookies->attach(response()->json(['message' => 'Password updated. Other devices have been signed out.']), $session);
+    }
+
+    /** PUT /api/me/password/set — first password of an account without one; sessions rotate as for a change. */
+    public function setPassword(SetPasswordRequest $request, CurrentUser $current, AuthCookies $cookies): JsonResponse
+    {
+        $session = $this->account->setPassword($current->user(), $request->toDto(), $request);
 
         return $cookies->attach(response()->json(['message' => 'Password updated. Other devices have been signed out.']), $session);
     }

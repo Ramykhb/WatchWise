@@ -12,7 +12,7 @@ use App\User\Exceptions\IncorrectPassword;
 
 /**
  * Deleting the signed-in account. A password of the member's own proves ownership and deletes straight away.
- * Accounts without one (the social placeholder), or whose first password was set in Settings without proving
+ * Accounts without one (`password` is null after a social sign-up), or whose first password was set in Settings without proving
  * anything (`password_set_without_proof_at`, which a stolen session could do), confirm from their inbox: a
  * signed link mailed to the current address deletes the account, so a stolen session alone cannot.
  *

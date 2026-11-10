@@ -5,13 +5,15 @@ namespace App\User\Services;
 use App\Auth\DTOs\Responses\AuthResponse;
 use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Models\User;
-use App\Support\SocialPlaceholderPassword;
 use App\User\DTOs\Requests\ChangePasswordData;
+use App\User\DTOs\Requests\SetPasswordData;
 use App\User\DTOs\Requests\UpdatePreferencesData;
 use App\User\DTOs\Requests\UpdateProfileData;
 use App\User\DTOs\Responses\AccountResponse;
 use App\User\Exceptions\CannotDisconnectLastLogin;
 use App\User\Exceptions\IncorrectPassword;
+use App\User\Exceptions\NoPasswordSet;
+use App\User\Exceptions\PasswordAlreadySet;
 use App\User\InterfaceRepository\AccountRepositoryInterface;
 use App\User\InterfaceServices\AccountServiceInterface;
 use App\User\InterfaceServices\EmailChangeServiceInterface;
@@ -65,30 +67,42 @@ class AccountService implements AccountServiceInterface
 
     public function changePassword(User $user, ChangePasswordData $data, Request $request): AuthResponse
     {
-        // Accounts created by social sign-in still hold the placeholder, so they set a first password freely.
-        $firstPassword = SocialPlaceholderPassword::isStoredFor($user);
-
-        if (! $firstPassword) {
-            if ($data->currentPassword === null) {
-                throw IncorrectPassword::forMissingCurrentPassword();
-            }
-            if (! Hash::check($data->currentPassword, $user->password)) {
-                throw IncorrectPassword::forCurrentPassword();
-            }
+        // Social sign-ups have no password to change; they set their first one through setPassword().
+        if (! $user->hasPassword()) {
+            throw new NoPasswordSet;
+        }
+        if (! Hash::check($data->currentPassword, $user->password)) {
+            throw IncorrectPassword::forCurrentPassword();
         }
 
-        // A first password proves nothing (a stolen session could set it), so it is marked until the
-        // owner proves the inbox. A later change keeps the mark: whoever set the first one knows it.
-        $this->accounts->updatePassword($user, $data->newPassword, setWithoutProof: $firstPassword);
-        // Its links already stopped working (they are bound to the password hash); this clears Settings too.
+        // A password first set without proof keeps its mark: whoever set it knows it, which proves nothing more.
+        $this->accounts->updatePassword($user, $data->newPassword);
+
+        return $this->afterNewPassword($user, $request);
+    }
+
+    public function setPassword(User $user, SetPasswordData $data, Request $request): AuthResponse
+    {
+        // Checked again under a row lock in the repository, so two requests at once cannot both set one.
+        if ($user->hasPassword() || ! $this->accounts->setFirstPassword($user, $data->password)) {
+            throw new PasswordAlreadySet;
+        }
+
+        $this->mailLater($user->email, new PasswordAddedMail($user->name));
+
+        return $this->afterNewPassword($user, $request);
+    }
+
+    /**
+     * Drops a pending email change (its links already stopped working, being bound to the password hash; this
+     * clears Settings too), then signs out every device: each loses its refresh token and every access token
+     * issued before now stops working (`sessions_invalidated_at`), while this one gets a fresh session, so the
+     * person stays signed in here.
+     */
+    private function afterNewPassword(User $user, Request $request): AuthResponse
+    {
         $this->emailChange->discardPendingChange($user);
 
-        if ($firstPassword) {
-            $this->mailLater($user->email, new PasswordAddedMail($user->name));
-        }
-
-        // Every device loses its refresh token (other devices' access cookies run out within minutes);
-        // this one gets a fresh session, so changing the password never signs the person out here.
         return $this->auth->replaceSessions($user, $request);
     }
 
@@ -136,7 +150,7 @@ class AccountService implements AccountServiceInterface
     {
         // With a password of its own the account can always sign in again; without one, the last linked
         // provider is its only way in, so it stays until a password is set or another provider is linked.
-        if (! SocialPlaceholderPassword::isStoredFor($user)) {
+        if ($user->hasPassword()) {
             $this->accounts->deleteSocialAccounts($user, $provider);
         } elseif (! $this->accounts->deleteSocialAccountsKeepingAnother($user, $provider)) {
             throw new CannotDisconnectLastLogin($provider);

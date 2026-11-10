@@ -51,11 +51,15 @@ interface AccountRepositoryInterface
 
     public function savePreferences(UserPreference $preferences): void;
 
+    /** Sets the password (hashed by the model cast). */
+    public function updatePassword(User $user, string $plainPassword): void;
+
     /**
-     * Sets the password (hashed by the model cast). With $setWithoutProof, also stamps
-     * `password_set_without_proof_at` (a first password chosen without any current one).
+     * Sets a first password on an account that has none and stamps `password_set_without_proof_at`, checked
+     * and written under a lock on the user's row. Returns false (changing nothing) when the row already holds
+     * a password, e.g. one set by a concurrent request.
      */
-    public function updatePassword(User $user, string $plainPassword, bool $setWithoutProof = false): void;
+    public function setFirstPassword(User $user, string $plainPassword): bool;
 
     /** The owner proved control of the inbox, so a password chosen without proof now counts as proof. */
     public function clearPasswordSetWithoutProof(User $user): void;

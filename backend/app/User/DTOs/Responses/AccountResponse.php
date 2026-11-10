@@ -5,7 +5,6 @@ namespace App\User\DTOs\Responses;
 use App\Auth\DTOs\Responses\UserResponse;
 use App\Models\Notification;
 use App\Models\User;
-use App\Support\SocialPlaceholderPassword;
 use App\User\DTOs\Requests\UpdatePreferencesData;
 use App\User\InterfaceServices\AccountDeletionServiceInterface;
 use JsonSerializable;
@@ -34,7 +33,7 @@ final readonly class AccountResponse implements JsonSerializable
             $notifications[$key] = (bool) ($settings['notifications'][$key] ?? true);
         }
 
-        $hasPassword = ! SocialPlaceholderPassword::isStoredFor($user);
+        $hasPassword = $user->hasPassword();
 
         return new self([
             'user' => UserResponse::fromModel($user),
@@ -45,7 +44,7 @@ final readonly class AccountResponse implements JsonSerializable
                 'notifications' => $notifications,
             ],
             'connected' => $user->socialAccounts->mapWithKeys(fn ($account) => [$account->provider => $account->created_at?->toJSON()]),
-            // False while a social sign-up still has the placeholder password (Settings then disables "current password").
+            // False while the account has no password (a social sign-up that has not set one): Settings offers "set", not "change".
             'has_password' => $hasPassword,
             // True when DELETE /api/me mails a confirmation link instead of asking for the password: no password of
             // its own, or a first one set in Settings without proof (which a stolen session could have done).

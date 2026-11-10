@@ -1,6 +1,5 @@
 <?php
 
-use App\Support\SocialPlaceholderPassword;
 use Carbon\Carbon;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Query\Builder;
@@ -27,14 +26,24 @@ return new class extends Migration
      * emailed link). Accounts still on the placeholder stay null (they are already treated as
      * passwordless). When SOCIAL_PLACEHOLDER_PASSWORD is not configured the placeholder check cannot
      * tell, so those users are stamped either way. It costs one current-inbox approval, or a reset.
+     *
+     * The placeholder is read from the environment here because the app no longer has it: social
+     * sign-ups now store no password at all (see the later clear_social_placeholder_passwords migration).
      */
     public function up(): void
+    {
+        $value = env('SOCIAL_PLACEHOLDER_PASSWORD');
+
+        $this->upWithPlaceholder(is_string($value) && $value !== '' ? $value : null);
+    }
+
+    /** up() with the old placeholder passed in, so tests need no environment variable. */
+    public function upWithPlaceholder(?string $placeholder): void
     {
         Schema::table('users', function (Blueprint $table) {
             $table->timestamp('password_set_without_proof_at')->nullable()->after('password');
         });
 
-        $placeholder = SocialPlaceholderPassword::value();
         $now = now();
 
         DB::table('users')
@@ -43,7 +52,7 @@ return new class extends Migration
             ->chunkById(500, function (Collection $users) use ($placeholder, $now): void {
                 $ids = $users
                     ->filter(fn (object $user) => $user->social_accounts_count > 0 || $this->verifiedAtCreation($user))
-                    ->reject(fn (object $user) => $placeholder !== null && $this->isPlaceholder($placeholder, (string) $user->password))
+                    ->reject(fn (object $user) => $user->password === null || ($placeholder !== null && $this->isPlaceholder($placeholder, (string) $user->password)))
                     ->pluck('id');
 
                 if ($ids->isNotEmpty()) {
@@ -72,7 +81,7 @@ return new class extends Migration
         return abs(Carbon::parse($user->email_verified_at)->diffInSeconds(Carbon::parse($user->created_at))) <= self::VERIFIED_AT_CREATION_SECONDS;
     }
 
-    /** Same check as SocialPlaceholderPassword::isStoredFor(); an unreadable hash counts as a real password. */
+    /** Whether the stored hash is the old shared placeholder; an unreadable hash counts as a real password. */
     private function isPlaceholder(string $placeholder, string $hash): bool
     {
         try {

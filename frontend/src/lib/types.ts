@@ -104,7 +104,7 @@ export type ApiMe = {
   }
   /** Linked providers → when they were connected. */
   connected: Partial<Record<'google' | 'github' | 'discord', string>>
-  /** False while a Google/GitHub/Discord sign-up hasn't chosen its own password (no current password to ask for). */
+  /** False for accounts with no password (Google/GitHub/Discord sign-ups until they set one); true otherwise. */
   has_password: boolean
   /** A new sign-in email waiting for its confirmation link to be opened; `user.email` stays in use until then. */
   pending_email: string | null

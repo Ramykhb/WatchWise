@@ -4,7 +4,6 @@ namespace Tests\Feature\User;
 
 use App\Models\RefreshToken;
 use App\Models\User;
-use App\Support\SocialPlaceholderPassword;
 use App\User\InterfaceRepository\AccountDeletionRepositoryInterface;
 use App\User\Mail\AccountDeletedMail;
 use App\User\Mail\ConfirmAccountDeletionMail;
@@ -21,15 +20,15 @@ class AccountDeletionTest extends SocialTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        config(['services.frontend_url' => self::FRONT, 'services.social_password.placeholder' => 'phpunit-placeholder-Xy9#only-for-tests']);
+        config(['services.frontend_url' => self::FRONT]);
         Mail::fake();
         Storage::fake('public');
     }
 
-    /** An account created by social sign-in, still holding the placeholder password. */
+    /** An account created by social sign-in that never set a password. */
     private function socialOnlyUser(): User
     {
-        return User::factory()->create(['email' => 'me@example.com', 'password' => SocialPlaceholderPassword::forNewAccount()]);
+        return User::factory()->withoutPassword()->create(['email' => 'me@example.com']);
     }
 
     /** Gives the account an avatar file stored by this app and returns its path on the public disk. */
@@ -205,7 +204,7 @@ class AccountDeletionTest extends SocialTestCase
         $user = $this->socialOnlyUser();
         $mail = $this->requestDeletion($user);
 
-        $this->as($user)->putJson('/api/me/password', ['password' => 'chosen12345', 'password_confirmation' => 'chosen12345'])->assertOk();
+        $this->as($user)->putJson('/api/me/password/set', ['password' => 'chosen12345', 'password_confirmation' => 'chosen12345'])->assertOk();
 
         $this->as($user)->getJson('/api/me')->assertJsonPath('deletion_pending', false);
         $this->get($mail->url)->assertRedirect($this->redirectFor('invalid'));
@@ -232,7 +231,7 @@ class AccountDeletionTest extends SocialTestCase
     public function test_a_first_password_set_in_settings_still_confirms_by_email(): void
     {
         $user = $this->socialOnlyUser();
-        $this->as($user)->putJson('/api/me/password', ['password' => 'chosen12345', 'password_confirmation' => 'chosen12345'])->assertOk();
+        $this->as($user)->putJson('/api/me/password/set', ['password' => 'chosen12345', 'password_confirmation' => 'chosen12345'])->assertOk();
         $this->as($user)->getJson('/api/me')->assertJsonPath('has_password', true)->assertJsonPath('deletion_by_email', true);
 
         $this->as($user)->deleteJson('/api/me', ['password' => 'chosen12345'])->assertAccepted();

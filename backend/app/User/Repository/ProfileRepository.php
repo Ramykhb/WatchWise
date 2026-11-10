@@ -127,14 +127,17 @@ class ProfileRepository implements ProfileRepositoryInterface
      */
     private function matching(UserSearchQuery $query, int $exceptUserId): Builder
     {
-        $like = LikePattern::contains(ltrim($query->q, '@'));
+        $text = ltrim($query->q, '@');
+        $like = LikePattern::contains($text);
+        // Handles are stored lowercase, so "@Mali" finds "mali" whatever the database collation.
+        $handleLike = LikePattern::contains(mb_strtolower($text));
 
         return User::query()
             ->where('is_active', true)
             ->whereKeyNot($exceptUserId)
             ->when($query->q !== '', fn ($builder) => $builder->where(fn ($where) => $where
                 ->whereRaw("name LIKE ? ESCAPE '!'", [$like])
-                ->orWhereRaw("username LIKE ? ESCAPE '!'", [$like])));
+                ->orWhereRaw("username LIKE ? ESCAPE '!'", [$handleLike])));
     }
 
     /**

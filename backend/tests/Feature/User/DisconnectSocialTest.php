@@ -4,21 +4,14 @@ namespace Tests\Feature\User;
 
 use App\Models\SocialAccount;
 use App\Models\User;
-use App\Support\SocialPlaceholderPassword;
 use Tests\Feature\Social\SocialTestCase;
 
 class DisconnectSocialTest extends SocialTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-        config(['services.social_password.placeholder' => 'phpunit-placeholder-Xy9#only-for-tests']);
-    }
-
-    /** An account created by social sign-in, still holding the placeholder password. */
+    /** An account created by social sign-in that never set a password. */
     private function socialOnlyUser(string ...$providers): User
     {
-        $user = User::factory()->create(['password' => SocialPlaceholderPassword::forNewAccount()]);
+        $user = User::factory()->withoutPassword()->create();
         foreach ($providers as $provider) {
             $this->link($user, $provider);
         }

@@ -6,7 +6,6 @@ use App\Models\PasswordReset;
 use App\Models\RefreshToken;
 use App\Models\SocialAccount;
 use App\Models\User;
-use App\Support\SocialPlaceholderPassword;
 use App\User\InterfaceRepository\AccountRepositoryInterface;
 use App\User\Mail\AuthorizeEmailChangeMail;
 use App\User\Mail\ConfirmEmailChangeMail;
@@ -37,12 +36,10 @@ class EmailChangeTest extends SocialTestCase
         return $this->lastMailed(ConfirmEmailChangeMail::class, $email)->url;
     }
 
-    /** An account created by social sign-in, still holding the placeholder password. */
+    /** An account created by social sign-in that never set a password. */
     private function socialOnlyUser(string $email = 'old@example.com'): User
     {
-        config(['services.social_password.placeholder' => 'phpunit-placeholder-Xy9#only-for-tests']);
-
-        return User::factory()->create(['email' => $email, 'password' => SocialPlaceholderPassword::forNewAccount()]);
+        return User::factory()->withoutPassword()->create(['email' => $email]);
     }
 
     /**
@@ -145,7 +142,7 @@ class EmailChangeTest extends SocialTestCase
     /** Sets a password in Settings, as a stolen session on a social-only account could (no current password needed). */
     private function setFirstPassword(User $user, string $password): void
     {
-        $this->as($user)->putJson('/api/me/password', ['password' => $password, 'password_confirmation' => $password])->assertOk();
+        $this->as($user)->putJson('/api/me/password/set', ['password' => $password, 'password_confirmation' => $password])->assertOk();
     }
 
     private function resetPasswordByEmail(string $email, string $password): void

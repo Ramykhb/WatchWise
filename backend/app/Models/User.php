@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
-    protected $hidden = ['password', 'remember_token', 'last_active_at', 'pending_email', 'pending_email_nonce', 'pending_email_authorized_at', 'password_set_without_proof_at', 'deletion_requested_at', 'deletion_nonce'];
+    protected $hidden = ['password', 'remember_token', 'last_active_at', 'pending_email', 'pending_email_nonce', 'pending_email_authorized_at', 'password_set_without_proof_at', 'sessions_invalidated_at', 'deletion_requested_at', 'deletion_nonce'];
 
     protected $fillable = [
         'name',
@@ -57,6 +57,42 @@ class User extends Authenticatable
         }
 
         return $username;
+    }
+
+    /**
+     * Whether the member chose a password. Accounts made by Google, GitHub or Discord sign-in store none
+     * (`password` is NULL) until they set one in Settings or through a password reset.
+     */
+    public function hasPassword(): bool
+    {
+        return $this->password !== null;
+    }
+
+    /**
+     * Handles are stored lowercase, so "@Mali" and "@mali" are the same member everywhere.
+     *
+     * @return Attribute<string|null, string|null>
+     */
+    protected function username(): Attribute
+    {
+        return Attribute::set(fn (?string $value): ?string => $value === null ? null : Str::lower($value));
+    }
+
+    /**
+     * `/users/{user:username}` matches whatever case the link uses, since handles are stored lowercase.
+     *
+     * @param  mixed  $query
+     * @param  mixed  $value
+     * @param  string|null  $field
+     * @return mixed
+     */
+    public function resolveRouteBindingQuery($query, $value, $field = null)
+    {
+        if (($field ?? $this->getRouteKeyName()) === 'username' && is_string($value)) {
+            $value = Str::lower($value);
+        }
+
+        return parent::resolveRouteBindingQuery($query, $value, $field);
     }
 
     /**
@@ -116,6 +152,7 @@ class User extends Authenticatable
             'last_active_at' => 'datetime',
             'pending_email_authorized_at' => 'datetime',
             'password_set_without_proof_at' => 'datetime',
+            'sessions_invalidated_at' => 'datetime',
             'deletion_requested_at' => 'datetime',
         ];
     }

@@ -11,7 +11,7 @@ interface UserRepositoryInterface
     public function findByEmail(string $email): ?User;
 
     /**
-     * @param  array{name: string, email: string, password: string, avatar?: string|null}  $attributes  password is hashed by the model cast
+     * @param  array{name: string, email: string, password: string|null, avatar?: string|null}  $attributes  password is hashed by the model cast; null for social sign-ups
      */
     public function create(array $attributes): User;
 
@@ -19,6 +19,9 @@ interface UserRepositoryInterface
 
     /** Sets the password (hashed by the model cast). */
     public function updatePassword(User $user, string $plainPassword): void;
+
+    /** Removes the password (and its "set without proof" mark): the account then signs in only through its social login or a reset. */
+    public function clearPassword(User $user): void;
 
     /** Removes the user's profile photo, so their initials are shown instead. */
     public function clearAvatar(User $user): void;

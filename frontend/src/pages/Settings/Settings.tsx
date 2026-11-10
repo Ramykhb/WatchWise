@@ -1,12 +1,11 @@
 import { SettingsSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import LoadError from '../../components/LoadingState/LoadError.tsx'
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useLenis } from 'lenis/react'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
-import TextField from '../../components/TextField/TextField.tsx'
 import Toggle from '../../components/Toggle/Toggle.tsx'
 import type { SocialProvider } from '../../components/SocialButton/SocialButton.tsx'
 import lockIcon from '../../assets/settings/icon-lock.svg'
@@ -24,12 +23,14 @@ import githubIcon from '../../assets/auth/icon-github.svg'
 import discordIcon from '../../assets/auth/icon-discord.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { INTEGRATIONS, PRIVACY, VISIBILITY, type IntegrationKey, type Visibility } from './settingsData.ts'
+import ChangePasswordForm from './ChangePasswordForm.tsx'
+import SetPasswordForm from './SetPasswordForm.tsx'
 import { accountDeletionNotice, deleteAccountPrompt, pendingDeletionMessage } from './accountDeletion.ts'
 import { FOLLOW_REQUEST_NOTE, NOTIFICATION_GROUPS } from '../Notifications/notificationKinds.ts'
 import styles from './Settings.module.css'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, useApi } from '../../lib/api.ts'
-import { apiErrorMessage, fieldErrors } from '../../lib/auth.ts'
+import { apiErrorMessage } from '../../lib/auth.ts'
 import type { ApiMe } from '../../lib/types.ts'
 
 type Section = 'account' | 'privacy' | 'connected' | 'integrations' | 'notifications'
@@ -58,10 +59,6 @@ const INTEGRATION_ICONS: Record<IntegrationKey, string> = {
   digest: chatIcon,
 }
 
-const PASSWORD_PATTERN = /^(?=.*\d).{8,}$/
-
-type PasswordErrors = Partial<Record<'current' | 'next' | 'confirm', string>>
-
 /** Menu icons are masks filled with the text colour, so they follow the active item. */
 const maskIcon = (icon: string) => ({ '--icon': `url("${icon}")` }) as CSSProperties
 
@@ -83,7 +80,7 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
   const { setUser, logout } = useAuth()
 
   const [active, setActive] = useState<Section>('account')
-  const [passwordErrors, setPasswordErrors] = useState<PasswordErrors>({})
+  // Lives here, not in the forms: a successful set or a 409 swaps the form for the other one.
   const [passwordNote, setPasswordNote] = useState('')
   const [settingsNote, setSettingsNote] = useState('')
   // The panel whose change the note is about.
@@ -104,7 +101,7 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
   const visibility = me.user.profile_visibility
   const privacy = me.preferences.privacy
   const connected = me.connected
-  // Social sign-ups have no password of their own yet, so there is no current one to ask for.
+  // Google/GitHub sign-ups have no password until they set one.
   const hasPassword = me.has_password
   const integrations = me.preferences.integrations
   const notifications = me.preferences.notifications
@@ -171,38 +168,11 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
     return () => cancelAnimationFrame(frame)
   }, [lenis])
 
-  const handlePassword = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const form = event.currentTarget
-    const data = new FormData(form)
-    const current = String(data.get('current') ?? '')
-    const nextPassword = String(data.get('next') ?? '')
-    const confirm = String(data.get('confirm') ?? '')
-    const next: PasswordErrors = {}
-    if (hasPassword && !current) next.current = 'Enter your current password.'
-    if (!PASSWORD_PATTERN.test(nextPassword)) next.next = 'Use at least 8 characters, including a number.'
-    else if (hasPassword && nextPassword === current) next.next = 'Pick a password you have not used here.'
-    if (confirm !== nextPassword) next.confirm = "Passwords don't match."
-    setPasswordErrors(next)
-    if (Object.keys(next).length > 0) {
-      setPasswordNote('')
-      return
-    }
-    setPasswordNote('Saving…')
-    try {
-      await api.put('/me/password', {
-        ...(hasPassword ? { current_password: current } : {}),
-        password: nextPassword,
-        password_confirmation: confirm,
-      })
-      form.reset()
-      setPasswordNote(hasPassword ? 'Password updated. Other devices have been signed out.' : 'Password created. You can now also sign in with your email.')
-      if (!hasPassword) onChange({ ...me, has_password: true })
-    } catch (error) {
-      const errors = fieldErrors(error)
-      setPasswordErrors({ current: errors.current_password, next: errors.password })
-      setPasswordNote(apiErrorMessage(error, "Couldn't update your password."))
-    }
+  /** Re-reads the account so the password card flips between "Set password" and "Change password". */
+  const refreshAccount = async () => {
+    const response = await api.get<ApiMe>('/me')
+    onChange(response.data)
+    setUser(response.data.user)
   }
 
   const toggleProvider = (provider: SocialProvider) => {
@@ -307,38 +277,21 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
             <section id="account" data-section className={styles.panel} aria-labelledby="password-title">
               <PanelHead
                 id="password-title"
-                title={hasPassword ? 'Password' : 'Create a password'}
+                title={hasPassword ? 'Change password' : 'Set password'}
                 text={
                   hasPassword
                     ? "Use at least 8 characters with a number. We'll sign you out of other devices after a change."
-                    : "You signed up with a connected account, so you don't have a password yet. Create one to also sign in with your email."
+                    : "You signed up with a connected account, so this account has no password. Set one to also sign in with your email."
                 }
               />
-              <form className={styles.form} onSubmit={handlePassword} noValidate>
-                <div className={styles.row3}>
-                  <TextField
-                    label="Current password"
-                    name="current"
-                    type="password"
-                    placeholder={hasPassword ? '••••••••••' : 'Not needed yet'}
-                    autoComplete="current-password"
-                    revealable
-                    disabled={!hasPassword}
-                    error={passwordErrors.current}
-                  />
-                  <TextField label="New password" name="next" type="password" placeholder="••••••••••••" autoComplete="new-password" revealable error={passwordErrors.next} />
-                  <TextField label="Confirm new password" name="confirm" type="password" placeholder="••••••••••••" autoComplete="new-password" revealable error={passwordErrors.confirm} />
-                </div>
-                <div className={styles.actions}>
-                  <PillButton type="submit">{hasPassword ? 'Update password' : 'Create password'}</PillButton>
-                  <Link to="/forgot-password" className={styles.textLink}>
-                    Forgot your password?
-                  </Link>
-                  <p className={styles.note} role="status">
-                    {passwordNote}
-                  </p>
-                </div>
-              </form>
+              {hasPassword ? (
+                <ChangePasswordForm onDone={refreshAccount} onNote={setPasswordNote} />
+              ) : (
+                <SetPasswordForm onDone={refreshAccount} onNote={setPasswordNote} />
+              )}
+              <p className={styles.note} role="status">
+                {passwordNote}
+              </p>
               {me.deletion_pending && (
                 <div className={styles.pendingDeletion}>
                   <p className={styles.rowDesc}>{pendingDeletionMessage(me.user.email)}</p>
