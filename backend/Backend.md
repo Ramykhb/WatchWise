@@ -66,7 +66,7 @@ Controller -> InterfaceServices -> Services -> InterfaceRepository -> Repository
 app/Auth/
   Controllers/          HTTP layer
   FormRequests/         Laravel form requests: validate the HTTP input and build the DTOs
-  Middleware/           auth.jwt, auth.optional, verified.email, role
+  Middleware/           auth.jwt, verified.email, role
   InterfaceServices/    Service contracts
   Services/             Business logic
   InterfaceRepository/  Repository contracts
@@ -86,7 +86,7 @@ app/Auth/
 ## How a request flows
 
 1. A request hits a route in one of the per-entity files that `routes/api.php` `require`s (or in `api.php` itself for health and the `/auth` basics).
-2. A middleware (`auth.jwt`, `auth.optional`, `verified.email` or `role`) asks `CurrentUserFactory` who is calling.
+2. A middleware (`auth.jwt`, `verified.email` or `role`) asks `CurrentUserFactory` who is calling.
 3. The factory reads the access token (cookie or Bearer header) and returns a `JwtCurrentUser`, or a `GuestUser` if the token is missing or invalid.
 4. On a signed-in route outside `/api/auth`, `auth.jwt` rejects a guest with 401, then `verified.email` rejects an unverified account with 403 `{"message": "Verify your email address to continue.", "code": "email_unverified"}`. Both run before rate limiting and route model binding (the priority list in `bootstrap/app.php`), so a refused request spends no rate-limit slot and learns nothing about the bound record.
 5. The controller validates the input and calls a service through its interface.
@@ -107,8 +107,9 @@ app/Auth/
 | `routes/weather.php`, `cinemas.php`, `movies.php`, `recommendations_public.php`, `documentation.php` | Public guest routes, outside the verified group: weather and weather mood, nearby cinemas, TMDB movies/people/genres, `GET /api/movie-recommendations`, documentation |
 | `routes/admin.php` | `/api/admin/*`, loaded inside the verified group and adding `role:admin` or `role:admin,moderator` (see [Admin module](#admin-module)) |
 | `routes/channels.php` | Reverb private-channel rules (`chat.*`, `room.*`, `rooms.*`, `notifications.*`). Loaded by `GroqModuleServiceProvider` when broadcasting resolves |
-| `routes/console.php` | The `rooms:prune-messages` command and the schedule: `rooms:prune-messages` every minute, `users:prune-pending` hourly (`withoutOverlapping`) |
+| `routes/console.php` | The `rooms:prune-messages` command and the schedule: `rooms:prune-messages` every minute, `users:prune-pending` and `auth:prune-refresh-tokens` hourly (both `withoutOverlapping`) |
 | `app/Console/Commands/PrunePendingAccountData.php` | `users:prune-pending`: calls `PendingAccountCleanupServiceInterface::pruneExpired()` and prints how many expired pending email changes and account deletion requests it cleared |
+| `app/Console/Commands/PruneRefreshTokens.php` | `auth:prune-refresh-tokens`: calls `RefreshTokenCleanupServiceInterface::pruneStale()` and prints how many refresh tokens it deleted (see [Security notes](#security-notes)) |
 
 All auth endpoints:
 
@@ -131,13 +132,14 @@ All auth endpoints:
 | File | Purpose |
 | --- | --- |
 | `.env.example` | Every variable the app reads, with placeholders (see [Setup](#setup)) |
-| `config/jwt.php` | Signing secret, issuer, access lifetime (15 min), refresh lifetime (30 days), cookie names |
+| `config/jwt.php` | Signing secret, issuer and audience (and `require_iss_aud`), access lifetime (15 min), refresh lifetime (30 days, sliding), the absolute family lifetime (`refresh_family_max_days`, 90), the reuse grace window (`refresh_reuse_grace_seconds`, 20), the prune retention (`refresh_prune_retention_days`, 7), cookie names |
+| `config/trustedproxy.php` | `proxies`: which proxies' `X-Forwarded-For` and `X-Forwarded-Proto` headers are believed (`TRUSTED_PROXIES`), read per request by Laravel's `TrustProxies` middleware. The trusted headers are set in `bootstrap/app.php` (see [Deployment](#deployment-docker--render)) |
 | `config/cors.php` | CORS rules for the frontend |
 | `config/services.php` | Google, GitHub and Discord OAuth credentials, frontend URL, `tmdb`, `groq` (`key`, `watched_key`, `model`, `url`), `gemini`, `weatherapi`, `google_places` |
 | `config/mail.php` | Default mailer `brevo` (HTTP API) and `brevo-smtp` (SMTP relay) |
 | `config/broadcasting.php`, `config/reverb.php` | The Reverb connection, its public host/port/scheme for browsers, and the allowed origins (`REVERB_ALLOWED_ORIGINS`, default the `FRONTEND_URL` host) |
 | `phpunit.xml` | Test-only `JWT_SECRET` and `FRONTEND_URL` |
-| `app/Providers/AppServiceProvider.php` | Defines the `tmdb` limiter, and in the local environment starts Reverb automatically when `php artisan serve` runs. Module bindings, listeners and other limiters live in each module's provider |
+| `app/Providers/AppServiceProvider.php` | Defines the `tmdb` limiter, pins generated URLs to `APP_URL` over https in production (`configureUrlGeneration`), and in the local environment starts Reverb automatically when `php artisan serve` runs. Module bindings, listeners and other limiters live in each module's provider |
 
 ## Setup
 
@@ -148,6 +150,9 @@ Copy `.env.example` to `.env` (it is gitignored) and set:
 | `DB_*` | Database connection. `.env.example` defaults to SQLite (`database/database.sqlite`); the Docker image ships `pdo_mysql` for MySQL |
 | `JWT_SECRET` | Required, at least 32 characters. Generate one with `php -r "echo bin2hex(random_bytes(32));"`. Without it, login and register return a 500 |
 | `JWT_ACCESS_TTL`, `JWT_REFRESH_TTL_DAYS` | Token lifetimes, default 15 minutes and 30 days |
+| `JWT_REFRESH_FAMILY_MAX_DAYS`, `JWT_REFRESH_REUSE_GRACE_SECONDS`, `JWT_REFRESH_PRUNE_RETENTION_DAYS` | Absolute lifetime of a login (default 90 days), the refresh reuse grace window (default 20 seconds), and how long expired or revoked refresh tokens are kept before pruning (default 7 days) |
+| `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_REQUIRE_ISS_AUD` | The `iss` (default `APP_URL`) and `aud` (default the host of `APP_URL`) every access token carries and must match; `JWT_REQUIRE_ISS_AUD=false` also accepts tokens without them (default `true`) |
+| `TRUSTED_PROXIES` | Comma-separated proxy IPs/CIDRs, or `*` for the peer that connects to the app; empty trusts none. Unset: `*` when `APP_ENV=production`, none otherwise. See [Deployment](#deployment-docker--render) before changing it |
 | `FRONTEND_URL` | Where emails link to and where the social login redirects. Also the CORS origin |
 | `MAIL_MAILER`, `BREVO_API_KEY`, `MAIL_FROM_*` | The default mailer is `brevo` (Brevo's transactional HTTP API, `app/Auth/Mail/BrevoTransport.php`); the sender must be verified in Brevo. `MAIL_MAILER=brevo-smtp` uses `BREVO_SMTP_USERNAME`/`BREVO_SMTP_KEY` instead. For local work, `MAIL_MAILER=log` writes emails to `storage/logs/laravel.log` |
 | `GOOGLE_*`, `GITHUB_*`, `DISCORD_*` | OAuth client id, secret and redirect URI. The redirect URI must match the callback route, for example `http://localhost:8000/api/auth/social/google/callback` |
@@ -159,7 +164,7 @@ Copy `.env.example` to `.env` (it is gitignored) and set:
 | `GOOGLE_PLACES_API_KEY` | Needed by `/api/nearby-cinemas` (Google Places API, new) |
 | `REVERB_*` | Socket server credentials (generate with `php artisan reverb:install`), `REVERB_PORT=18080`, and the optional `REVERB_PUBLIC_*` and `REVERB_ALLOWED_ORIGINS` |
 
-Then run `composer install`, `php artisan key:generate` and `php artisan migrate`. `composer run dev` is recommended locally (`PHP_CLI_SERVER_WORKERS=4`) so slow API calls don't block other pages; run `php artisan schedule:work` too for room message pruning.
+Then run `composer install`, `php artisan key:generate` and `php artisan migrate`. `composer run dev` is recommended locally (`PHP_CLI_SERVER_WORKERS=4`) so slow API calls don't block other pages; run `php artisan schedule:work` too for room message, pending account data and refresh token pruning.
 
 ## Rate limits
 
@@ -185,7 +190,7 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `room-messages`, `room-reads`, `room-socket`, `room-invites` | `RoomModuleServiceProvider` | 30, 120, 60, 30 | the matching room routes, per signed-in user |
 | `notification-socket` | `NotificationModuleServiceProvider` | 30 | `POST /api/notifications/socket-auth`, per signed-in user |
 
-Each auth limiter is checked in two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket. `ai`, `weather` and `tmdb` count per IP; the chat, room and notification limiters count per user (`bootstrap/app.php` runs `auth.jwt` and `verified.email` before throttling, so the user is known and an unverified account never spends a slot).
+"Per IP" means `$request->ip()`: the client address from `X-Forwarded-For` when the request comes from a trusted proxy (`TRUSTED_PROXIES`), else the connecting address, so without a trusted proxy every visitor behind the proxy shares one bucket. Each auth limiter is checked in two buckets: one per IP, and one per email when the request contains an email. Changing the email therefore cannot reset the IP bucket. `ai`, `weather` and `tmdb` count per IP; the chat, room and notification limiters count per user (`bootstrap/app.php` runs `auth.jwt` and `verified.email` before throttling, so the user is known and an unverified account never spends a slot).
 
 A few routes still use plain `throttle:N,M`: `PUT /api/me/password` and `PUT /api/me/password/set` (6), `PUT /api/ratings/{tmdbId}` (60), `PUT /api/reviews/mine` (20), `POST /api/reviews/{review}/helpful` (60), `POST /api/reviews/{review}/report` (10), `/api/chat/connection` and `/api/chat/auth` (60), `/api/following-recommendations` and `/api/taste-profile` (60), `/api/nearby-cinemas` (30).
 
@@ -213,6 +218,7 @@ Contracts in `app/Auth/InterfaceServices/`, implementations in `app/Auth/Service
 | Service | Purpose |
 | --- | --- |
 | `AuthService` | Register, login, refresh and logout. Throws `InvalidCredentials` or `InvalidRefreshToken` |
+| `RefreshTokenCleanupService` | `pruneStale()`: deletes refresh tokens that expired more than `jwt.refresh_prune_retention_days` ago, and tokens revoked that long ago other than by rotation (logout, sign-out-everywhere, family revocation); a rotated token is kept until it has been expired that long. The retention is never less than the reuse grace window. 1000 rows per `DELETE`. Run hourly by `auth:prune-refresh-tokens` |
 | `PasswordResetService` | Sends the reset link (deferred until after the response) and resets the password. Revokes all refresh tokens on reset |
 | `EmailVerificationService` | Sends the signed verification link (60 minutes), resends it, and verifies a link |
 | `SocialAuthService` | Builds the provider redirect URL, fetches the provider's user (Discord through `Support/DiscordOAuthClient`), and Google/GitHub/Discord login. Refuses unverified provider emails and takes over unverified local accounts by resetting their password |
@@ -224,7 +230,7 @@ Contracts in `app/Auth/InterfaceRepository/`, implementations in `app/Auth/Repos
 | Repository | Model | Purpose |
 | --- | --- | --- |
 | `UserRepository` | `User` | Find by id or email, create, mark verified, update password |
-| `RefreshTokenRepository` | `RefreshToken` | Create, find (with row lock for rotation), mark rotated, revoke a family or all of a user's tokens |
+| `RefreshTokenRepository` | `RefreshToken` | Create, find (with row lock for rotation, by hash or id), lock the owner's row, mark rotated or grace used, the earliest `created_at` of a family, revoke a family or all of a user's tokens, delete stale tokens in chunks |
 | `PasswordResetRepository` | `PasswordReset` | Replace, find latest and delete the reset row for an email |
 | `SocialAccountRepository` | `SocialAccount` | Find by provider, create, update the access token |
 
@@ -232,13 +238,13 @@ Contracts in `app/Auth/InterfaceRepository/`, implementations in `app/Auth/Repos
 
 | File | Purpose |
 | --- | --- |
-| `Factories/TokenFactory.php` | Issues HS256 access tokens and refresh tokens, rotates and revokes refresh tokens, parses access tokens |
+| `Factories/TokenFactory.php` | Issues HS256 access tokens (`iss`, `aud`, `sub`, `iat`, `exp`, `sv`) and refresh tokens, rotates and revokes refresh tokens, parses access tokens (HS256 with our secret only; `iss` and `aud` must match). `refreshExpiresAt()` is the one place a refresh token's expiry is computed |
 | `Factories/CurrentUserFactory.php` | Resolves the current user once per request, or a guest |
 | `CurrentUser/CurrentUser.php` | Interface that policies and middleware depend on |
-| `CurrentUser/JwtCurrentUser.php` | The logged-in user. The role is read from the database, so a demotion applies immediately |
+| `CurrentUser/JwtCurrentUser.php` | The logged-in user. The role is read from the database (the token carries none), so a demotion applies immediately |
 | `CurrentUser/GuestUser.php` | The anonymous user, never authenticated |
 | `Support/TokenPair.php` | Holds a user's access and refresh tokens with their expiry times |
-| `Support/AuthCookies.php` | Sets and clears the httpOnly access and refresh cookies |
+| `Support/AuthCookies.php` | Sets and clears the httpOnly access and refresh cookies (`Secure` outside local/testing). The refresh cookie expires with its token |
 
 ## Controllers
 
@@ -258,7 +264,6 @@ All in `app/Auth/Middleware/`.
 | Alias | File | Behavior |
 | --- | --- | --- |
 | `auth.jwt` | `AuthenticateJwt.php` | Requires a logged-in user, otherwise 401. Does not look at the email, so `/api/auth/me` works while unverified |
-| `auth.optional` | `AuthenticateOptional.php` | Lets anonymous requests through as a guest |
 | `verified.email` | `EnsureEmailVerified.php` | 401 for a guest, 403 `{"message": "Verify your email address to continue.", "code": "email_unverified"}` if the email is unverified |
 | `role` | `EnsureRole.php` | 403 unless the user has one of the required roles |
 
@@ -349,7 +354,7 @@ Most policies stay in `app/Policies/` because each belongs to the entity it prot
 
 | File | Purpose |
 | --- | --- |
-| `bootstrap/app.php` | Registers the API and console routes, the four middleware aliases, runs `AuthenticateJwt` before `ThrottleRequests`, redirects bad verification links to the frontend, sends bad or expired email-change and account-deletion link signatures to the public result page (GET) or answers them with JSON 403/410 (POST), and renders JSON errors for every `api/*` request |
+| `bootstrap/app.php` | Registers the API and console routes, the three middleware aliases, the trusted proxy headers (only `X-Forwarded-For` and `X-Forwarded-Proto`; the proxies themselves come from `config/trustedproxy.php`), runs `AuthenticateJwt` before `ThrottleRequests`, redirects bad verification links to the frontend, sends bad or expired email-change and account-deletion link signatures to the public result page (GET) or answers them with JSON 403/410 (POST), and renders JSON errors for every `api/*` request |
 | `bootstrap/providers.php` | Registers `AppServiceProvider`, `AuthorizationServiceProvider` and all 18 module service providers |
 
 ## Tests
@@ -361,7 +366,13 @@ Most policies stay in `app/Policies/` because each belongs to the entity it prot
 | `tests/Feature/Auth/LowercaseEmailTest.php` | Emails stored lowercase; registration, login, password reset and social sign-in in any case; legacy mixed-case rows; the `lowercase_emails` migration (aborts on user email collisions, clears pending changes to a taken address) |
 | `tests/Feature/Auth/BrevoVerificationTest.php` | The Brevo transport and the verification email end to end |
 | `tests/Feature/Auth/GooglePhotoTest.php` | Detecting Google's generated placeholder avatar |
-| `tests/Feature/Auth/MiddlewareTest.php` | The four middleware |
+| `tests/Feature/Auth/MiddlewareTest.php` | The three middleware and CORS |
+| `tests/Feature/Auth/RefreshTokenLifecycleTest.php` | Refresh reuse grace (once, same user agent, valid successor, family cap), absolute family lifetime, inactive user and expired token revoking the family |
+| `tests/Feature/Auth/AccessTokenValidationTest.php` | Wrong secret, `alg=none`, another algorithm, wrong or missing `iss`/`aud` |
+| `tests/Feature/Auth/AuthCookiesTest.php` | `Secure` in production, cookie lifetimes |
+| `tests/Feature/Auth/TrustedProxiesTest.php` | Per-client rate-limit buckets behind a trusted proxy, `X-Forwarded-For` ignored otherwise, `X-Forwarded-Proto` honoured, `X-Forwarded-Host`/`-Port` ignored, signed links pinned to `APP_URL` in production and validated through the proxy, the `TRUSTED_PROXIES` defaults |
+| `tests/Feature/Auth/PruneRefreshTokensTest.php`, `FamilyStartedAtMigrationTest.php` | `auth:prune-refresh-tokens` and its schedule; the `family_started_at` backfill |
+| `tests/Feature/Auth/SessionInvalidationTest.php` | `session_version`: revoking sessions (password set, change, reset, social takeover) ends older access tokens |
 | `tests/Feature/Auth/PolicyTest.php` | The policy rules, including messages |
 | `tests/Feature/Auth/Repository/` | Each repository against the database |
 | `tests/Unit/Auth/` | Each service with fake repositories, and `UserResponse` matching the model's JSON |
@@ -939,15 +950,23 @@ The backend is deployed to Render from `backend/Dockerfile` (`php:8.4-apache-boo
 | `docker/supervisord.conf` | Runs two processes: `reverb:start` (private, port 18080) and Apache |
 | `docker/apache.conf` | Serves `public/` and proxies WebSocket traffic on `/app/` to Reverb, so the API and sockets share one public port |
 
-- Migrations are not run by the container; run `php artisan migrate --force` against the production database yourself.
-- The scheduler (`rooms:prune-messages`) is not started by the container either. Opening a room still cleans up its own expired messages, but a cron or worker calling `schedule:run` is needed for full pruning.
+- Migrations are not run by the container; run `php artisan migrate --force` against the production database yourself, and run them **before** the new code serves traffic whenever a release adds columns the code reads (for example `refresh_tokens.family_started_at` and `grace_used_at`). The `family_started_at` migration backfills existing rows; `grace_used_at` starts null (unused) for them.
+- The scheduler (`rooms:prune-messages`, `users:prune-pending`, `auth:prune-refresh-tokens`) is not started by the container either. Opening a room still cleans up its own expired messages, but a cron or worker calling `schedule:run` is needed for full pruning; without it `refresh_tokens` keeps growing (one row per refresh).
 - The frontend (Vercel) calls the API through a same-origin proxy (see the frontend config).
+- **Trusted proxies.** Every request reaches the container through proxies, so without trusted proxies `$request->ip()` is a proxy's address and every IP-keyed limit (`auth-*`, `ai`, `weather`, `tmdb`, the plain `throttle:N,M` routes) and `refresh_tokens.ip` would be one bucket shared by all visitors. `TRUSTED_PROXIES` (via `config/trustedproxy.php`) says which peers are believed, and `bootstrap/app.php` believes only two of their headers: `X-Forwarded-For` (the client address) and `X-Forwarded-Proto` (so `$request->secure()` and incoming signed links see the original `https`). `X-Forwarded-Host` and `X-Forwarded-Port` are ignored on purpose: a caller could otherwise choose the host of URLs built from the request, such as the signed verification, email-change and account-deletion links mailed to a member, and replay the link with the same header. The AWS ELB and RFC 7239 `Forwarded` headers are never read either. On top of that, in production `AppServiceProvider::configureUrlGeneration` pins every generated URL to `APP_URL` over https (`URL::forceRootUrl`, `URL::forceScheme`), so the request's own `Host` header cannot choose a link's host either. Incoming signed links are still checked against the request URL (the `Host` the container receives, plus the scheme from `X-Forwarded-Proto`), so `APP_URL` must be the public backend address the links are opened on (today `https://watchwise-4rit.onrender.com`; the Vercel rewrite forwards to that host too). `TRUSTED_PROXIES` defaults to `*` when `APP_ENV=production`. In Laravel `*` trusts only the address that connected to the container, and Symfony then takes the right-most `X-Forwarded-For` entry that is not a trusted proxy, i.e. the address that peer saw. Two caveats: (1) this is only safe when the edge in front of the app sets `X-Forwarded-For` itself (overwrites it, or appends the address it saw); a proxy that forwards a client-supplied header unchanged lets a client choose its own IP and dodge every per-IP limit. (2) With several hops (browser, Vercel's rewrite, Render's load balancer, the container), `*` yields the address of the hop in front of the last proxy, which may be a Vercel egress address rather than the visitor. In that case list the inner proxies' ranges, or `0.0.0.0/0,::/0` to trust every hop, which makes the left-most entry the client and is only safe when the outermost edge (Vercel) overwrites `X-Forwarded-For` with the visitor's address. Check once in production (log `$request->ip()` and the raw header for a known client) before relying on the per-IP limits.
 
 ## Security notes
 
-- Passwords are hashed by the `User` model cast. No new password (register, reset, set, change) may contain a NUL byte (`not_regex:/\x00/`, as at login), since bcrypt ignores everything after one. Refresh tokens and reset tokens are stored hashed. The refresh token is rotated on every use, and presenting an already-used one revokes the whole session chain.
+- Passwords are hashed by the `User` model cast. No new password (register, reset, set, change) may contain a NUL byte (`not_regex:/\x00/`, as at login), since bcrypt ignores everything after one. Refresh tokens and reset tokens are stored hashed.
+- Refresh tokens are rotated on every use (`TokenFactory::rotate`). Each belongs to a family (one login) and carries `family_started_at` (migration `2026_11_11_120001_add_family_started_at_to_refresh_tokens_table`: set at login, copied on every rotation, backfilled with the earliest `created_at` of each existing family; a row the backfill missed falls back to the earliest `created_at` left in its family, read only in that case). Rules, all checked under the owner's row lock:
+  - Presenting a revoked token revokes the whole family (reuse detection), with **one grace** per rotated token: when all of these hold, a new sibling token of the same family is issued and nothing is revoked (two tabs refreshing with the same cookie, or a retry after a lost response): the token was revoked by rotation (`replaced_by` set) less than `jwt.refresh_reuse_grace_seconds` (20) ago; it has not used its grace yet (`grace_used_at` is null, migration `2026_11_11_120002_add_grace_used_at_to_refresh_tokens_table`); the request's user agent equals the one stored on the token; and its successor is still unrevoked and unexpired (not rotated, logged out or revoked since). The grace is then spent (`grace_used_at` set) and both the successor and the sibling stay valid. Anything else is reuse and revokes the family: a second grace attempt, another user agent, a successor that already rotated, or a token revoked by logout, "sign out everywhere" or a family revocation (none of these sets `replaced_by`, and they revoke the successor too). Remaining trade-off: within the 20 seconds after the owner's refresh, someone holding the old token and sending the same user agent (a header anyone can copy) gets one extra session in the family, which reuse detection does not flag; it ends with the family (logout, sign-out-everywhere, the absolute lifetime). The cost of the rule is that a third concurrent tab, or a second retry, signs the whole login out.
+  - **Absolute lifetime**: a family can be refreshed for at most `jwt.refresh_family_max_days` (90) after `family_started_at`; past that, `rotate` revokes the family and answers 401. Each new token expires at min(now + `jwt.refresh_ttl_days`, `family_started_at` + `jwt.refresh_family_max_days`) (`TokenFactory::refreshExpiresAt`, the one place that computes it, so a "remember me" option can vary it), and the refresh cookie expires with it.
+  - An expired token, or one whose owner is gone or inactive, also revokes the family.
+  - Logout (`TokenFactory::revoke`) takes the owner's row lock before revoking its family, the same order as rotation, so a rotation running at the same time either commits first (and its new token is revoked by the logout) or waits and then finds its token revoked. `TokenFactoryTest` checks the call order.
+  - `auth:prune-refresh-tokens` (hourly) deletes, 1000 rows per `DELETE`: tokens that expired more than `jwt.refresh_prune_retention_days` (7) ago; and tokens revoked that long ago other than by rotation (logout, sign-out-everywhere, family revocation, i.e. `replaced_by` null). A token rotated away (`replaced_by` set) is kept until it has been expired that long, so replaying a stolen old token is detected as reuse for its whole lifetime (up to 30 days) plus the retention. The retention is never less than the grace window. Indexes on `expires_at` and `revoked_at`: migration `2026_11_11_120000_add_prune_indexes_to_refresh_tokens_table`. Only a token presented after its row was pruned gets a plain 401 without revoking its family.
+- Access tokens are HS256 JWTs with `iss` (`jwt.issuer`), `aud` (`jwt.audience`), `sub`, `iat`, `exp` and `sv`. `TokenFactory::parseAccessToken` accepts only HS256 with our secret (`alg=none` and other algorithms are refused) and requires `iss` and `aud` to equal the configured values, so a token minted by another environment that shares the secret is refused. Tokens issued before `aud` existed are refused too while `jwt.require_iss_aud` is `true` (the default): they live at most 15 minutes and the frontend refreshes on a 401, so upgrading costs one silent refresh per signed-in tab. Set `JWT_REQUIRE_ISS_AUD=false` for the deploy if that is not acceptable, and remove it 15 minutes later; a claim that is present must match either way. The token carries no role (`JwtCurrentUser` reads it from the database).
 - Tokens travel in HttpOnly cookies (the access token is also accepted as a Bearer header).
-- Signing out everywhere ends access tokens too, not only refresh tokens. `users.session_version` (unsigned integer, default 0, in `$hidden`; migration `2026_11_11_000003_add_session_version_to_users_table`) is a per-account counter, and every access token carries the version it was issued with as the `sv` claim (`TokenFactory::issueAccessToken`; refresh-token rotation loads the user inside its transaction and issues the current version). `CurrentUserFactory::fromToken` accepts a token only when `sv` (0 when missing, for tokens issued before the claim) exactly equals the stored version. `RefreshTokenRepository::revokeAllForUser` is the one path behind `TokenFactory::revokeAllForUser`, `AuthService::revokeSessions`/`replaceSessions`, `PasswordResetService::reset` and the social takeover: in one transaction it increments the version with a single `UPDATE`, reads it back while the increment still holds the row lock (so it is this call's value, never a later revocation's), revokes the refresh tokens, sets the new version on the model and returns it. The flows that bump it (password set, change and reset, completed email change, admin deactivation or role change, social takeover of an unverified account) therefore end every earlier access token at once, including one minted in the same second. Set and change pass the returned version to `TokenFactory::issue`, so the calling device's new tokens carry it and that device stays signed in. Logout only revokes its own refresh family and bumps nothing. Refresh-token rotation (`TokenFactory::rotate`) locks the owner's row first (`RefreshTokenRepositoryInterface::findUserForUpdate`, the row the increment locks) and only then re-reads its token under lock, so it cannot interleave with a revocation: a revocation that committed while the rotation waited leaves the token revoked (reuse detection, 401), and one that starts later waits for the rotation to commit and then revokes the refresh token it created too, while the access token it issued carries the old version. `TokenFactoryTest` checks the lock order and the post-lock re-check.
+- Signing out everywhere ends access tokens too, not only refresh tokens. `users.session_version` (unsigned integer, default 0, in `$hidden`; migration `2026_11_11_000003_add_session_version_to_users_table`) is a per-account counter, and every access token carries the version it was issued with as the `sv` claim (`TokenFactory::issueAccessToken`; refresh-token rotation loads the user inside its transaction and issues the current version). `CurrentUserFactory::fromToken` accepts a token only when `sv` (0 when missing, for tokens issued before the claim) exactly equals the stored version. `RefreshTokenRepository::revokeAllForUser` is the one path behind `TokenFactory::revokeAllForUser`, `AuthService::revokeSessions`/`replaceSessions`, `PasswordResetService::reset` and the social takeover: in one transaction it increments the version with a single `UPDATE`, reads it back while the increment still holds the row lock (so it is this call's value, never a later revocation's), revokes the refresh tokens, sets the new version on the model and returns it. The flows that bump it (password set, change and reset, completed email change, admin deactivation or deletion, social takeover of an unverified account; a role change does not bump it, since the role is read from the database on every request) therefore end every earlier access token at once, including one minted in the same second. Set and change pass the returned version to `TokenFactory::issue`, so the calling device's new tokens carry it and that device stays signed in. Logout only revokes its own refresh family and bumps nothing. Refresh-token rotation (`TokenFactory::rotate`) locks the owner's row first (`RefreshTokenRepositoryInterface::findUserForUpdate`, the row the increment locks) and only then re-reads its token under lock, so it cannot interleave with a revocation: a revocation that committed while the rotation waited leaves the token revoked (reuse detection, 401), and one that starts later waits for the rotation to commit and then revokes the refresh token it created too, while the access token it issued carries the old version. `TokenFactoryTest` checks the lock order and the post-lock re-check.
 - Social login refuses emails the provider has not verified. If an unverified local account already uses that email, its password is removed (set to NULL) and its sessions are revoked, including the squatter's still-valid access token (`session_version`), which could otherwise set a password on the now-verified account, so a pre-registered account cannot be taken over.
 - That takeover of an unverified account by social login is intentional (`SocialAuthService::resolveUser`, tested by `AccountFlowsTest::test_social_login_takes_over_unverified_local_account_by_clearing_its_password`). Someone can register an account with another person's email before that person signs up. When the real owner later signs in with Google, GitHub or Discord and the provider vouches for the email, they get the account: it is marked verified, the squatter's password stops working and the squatter's sessions are revoked. Because every signed-in route outside `/api/auth` needs a verified email, an unverified account holds no app data or access, so handing it to the proven owner loses nothing.
 - Unverified accounts can sign in but reach only `/api/auth/*`. Broadcasting channel auth goes only through `/api/chat/auth`, `/api/rooms/socket-auth` and `/api/notifications/socket-auth`, which are in the verified group; there is no `Broadcast::routes()` (`/broadcasting/auth` is a 404), so an unverified account cannot subscribe to any private channel.

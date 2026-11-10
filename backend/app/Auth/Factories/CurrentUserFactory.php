@@ -54,7 +54,7 @@ class CurrentUserFactory
             return $this->guest();
         }
 
-        return new JwtCurrentUser($user, $claims);
+        return new JwtCurrentUser($user);
     }
 
     private function sessionStillCurrent(object $claims, User $user): bool

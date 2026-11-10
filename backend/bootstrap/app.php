@@ -1,7 +1,6 @@
 <?php
 
 use App\Auth\Middleware\AuthenticateJwt;
-use App\Auth\Middleware\AuthenticateOptional;
 use App\Auth\Middleware\EnsureEmailVerified;
 use App\Auth\Middleware\EnsureRole;
 use App\User\Support\AccountLink;
@@ -20,9 +19,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Which proxies to trust is read per request from config/trustedproxy.php (TRUSTED_PROXIES). Only the
+        // client address and the scheme are taken from them: X-Forwarded-Host/-Port would let a caller choose the
+        // host of URLs built from the request (signed email links), and the AWS ELB and RFC 7239 `Forwarded`
+        // headers are never read.
+        $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO);
         $middleware->alias([
             'auth.jwt' => AuthenticateJwt::class,
-            'auth.optional' => AuthenticateOptional::class,
             'role' => EnsureRole::class,
             'verified.email' => EnsureEmailVerified::class,
         ]);

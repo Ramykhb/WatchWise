@@ -6,7 +6,7 @@ use App\Models\User;
 
 class JwtCurrentUser implements CurrentUser
 {
-    public function __construct(private readonly User $user, private readonly object $claims) {}
+    public function __construct(private readonly User $user) {}
 
     public function id(): ?int
     {
@@ -37,10 +37,5 @@ class JwtCurrentUser implements CurrentUser
     public function isVerified(): bool
     {
         return $this->user->email_verified_at !== null;
-    }
-
-    public function claims(): object
-    {
-        return $this->claims;
     }
 }

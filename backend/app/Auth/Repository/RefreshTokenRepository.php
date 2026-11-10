@@ -5,6 +5,9 @@ namespace App\Auth\Repository;
 use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
 use App\Models\RefreshToken;
 use App\Models\User;
+use Carbon\CarbonImmutable;
+use DateTimeInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 class RefreshTokenRepository implements RefreshTokenRepositoryInterface
@@ -24,6 +27,11 @@ class RefreshTokenRepository implements RefreshTokenRepositoryInterface
         return RefreshToken::where('token_hash', $tokenHash)->lockForUpdate()->first();
     }
 
+    public function findByIdForUpdate(int $id): ?RefreshToken
+    {
+        return RefreshToken::query()->whereKey($id)->lockForUpdate()->first();
+    }
+
     public function findUserForUpdate(int $userId): ?User
     {
         return User::query()->whereKey($userId)->lockForUpdate()->first();
@@ -32,6 +40,18 @@ class RefreshTokenRepository implements RefreshTokenRepositoryInterface
     public function markRotated(RefreshToken $token, int $replacedById): void
     {
         $token->update(['revoked_at' => now(), 'replaced_by' => $replacedById]);
+    }
+
+    public function markGraceUsed(RefreshToken $token): void
+    {
+        $token->update(['grace_used_at' => now()]);
+    }
+
+    public function earliestCreatedAtInFamily(string $familyId): ?CarbonImmutable
+    {
+        $earliest = RefreshToken::where('family_id', $familyId)->min('created_at');
+
+        return $earliest === null ? null : CarbonImmutable::parse($earliest);
     }
 
     public function revokeFamily(string $familyId): void
@@ -55,5 +75,29 @@ class RefreshTokenRepository implements RefreshTokenRepositoryInterface
 
             return $version;
         });
+    }
+
+    public function deleteExpiredOrRevokedBefore(DateTimeInterface $cutoff, int $chunkSize): int
+    {
+        $deleted = 0;
+
+        do {
+            // Ids first, then delete by key: a bounded DELETE that works the same on MySQL and SQLite.
+            $ids = RefreshToken::query()
+                ->where(fn (Builder $query) => $query
+                    ->where('expires_at', '<', $cutoff)
+                    ->orWhere(fn (Builder $revoked) => $revoked->whereNull('replaced_by')->where('revoked_at', '<', $cutoff)))
+                ->orderBy('id')
+                ->limit($chunkSize)
+                ->pluck('id');
+
+            if ($ids->isEmpty()) {
+                break;
+            }
+
+            $deleted += RefreshToken::query()->whereKey($ids->all())->delete();
+        } while ($ids->count() === $chunkSize);
+
+        return $deleted;
     }
 }

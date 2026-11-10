@@ -9,6 +9,7 @@ use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Auth\InterfaceServices\EmailVerificationServiceInterface;
 use App\Auth\InterfaceServices\PasswordResetServiceInterface;
+use App\Auth\InterfaceServices\RefreshTokenCleanupServiceInterface;
 use App\Auth\InterfaceServices\SocialAuthServiceInterface;
 use App\Auth\Listeners\SendEmailVerification;
 use App\Auth\Mail\BrevoTransport;
@@ -19,6 +20,7 @@ use App\Auth\Repository\UserRepository;
 use App\Auth\Services\AuthService;
 use App\Auth\Services\EmailVerificationService;
 use App\Auth\Services\PasswordResetService;
+use App\Auth\Services\RefreshTokenCleanupService;
 use App\Auth\Services\SocialAuthService;
 use App\Support\EmailAddress;
 use Illuminate\Auth\Events\Registered;
@@ -47,6 +49,7 @@ class AuthModuleServiceProvider extends ServiceProvider
         AuthServiceInterface::class => AuthService::class,
         EmailVerificationServiceInterface::class => EmailVerificationService::class,
         PasswordResetServiceInterface::class => PasswordResetService::class,
+        RefreshTokenCleanupServiceInterface::class => RefreshTokenCleanupService::class,
         SocialAuthServiceInterface::class => SocialAuthService::class,
     ];
 

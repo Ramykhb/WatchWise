@@ -4,9 +4,11 @@ namespace Tests\Feature\Auth;
 
 use App\Auth\Factories\TokenFactory;
 use App\Auth\InterfaceServices\AuthServiceInterface;
+use App\Models\PasswordReset;
 use App\Models\User;
 use Firebase\JWT\JWT;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Testing\TestResponse;
 use Laravel\Socialite\Contracts\Provider;
@@ -42,7 +44,7 @@ class SessionInvalidationTest extends TestCase
         return app(TokenFactory::class)->issueAccessToken($user)[0];
     }
 
-    /** A token signed like ours but issued before the `sv` claim existed. */
+    /** A token signed like ours but issued before the `sv` and `aud` claims existed. */
     private function legacyAccessToken(User $user): string
     {
         return JWT::encode([
@@ -134,6 +136,21 @@ class SessionInvalidationTest extends TestCase
         $this->withAccessToken($otherDevice)->getJson('/api/me')->assertUnauthorized();
     }
 
+    public function test_resetting_the_password_ends_the_access_tokens_issued_before(): void
+    {
+        $user = User::factory()->create();
+        $before = $this->accessToken($user);
+        PasswordReset::create(['email' => $user->email, 'token' => Hash::make('goodtoken')]);
+
+        $this->postJson('/api/auth/reset-password', [
+            'email' => $user->email, 'token' => 'goodtoken', 'password' => 'newsecret99', 'password_confirmation' => 'newsecret99',
+        ])->assertOk();
+
+        $this->withAccessToken($before)->getJson('/api/me')->assertUnauthorized();
+        $this->withAccessToken($before)->getJson('/api/auth/me')->assertUnauthorized();
+        $this->withAccessToken($this->accessToken($user->fresh()))->getJson('/api/me')->assertOk();
+    }
+
     public function test_a_token_minted_in_the_same_second_but_before_the_revocation_is_refused(): void
     {
         $user = User::factory()->create();
@@ -148,6 +165,7 @@ class SessionInvalidationTest extends TestCase
 
     public function test_a_legacy_token_without_a_version_works_only_until_the_first_revocation(): void
     {
+        config(['jwt.require_iss_aud' => false]);
         $user = User::factory()->create();
         $legacy = $this->legacyAccessToken($user);
 

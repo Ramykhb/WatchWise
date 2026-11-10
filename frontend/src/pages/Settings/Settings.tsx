@@ -218,7 +218,8 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
         goTo('account')
         return
       }
-      await logout().catch(() => undefined)
+      // The account is already deleted, so the user is signed out here even if the logout request fails.
+      await logout().catch(() => setUser(null))
       navigate('/signin?account_deletion=deleted', { replace: true })
     } catch (error) {
       window.alert(apiErrorMessage(error, "Couldn't delete your account."))
