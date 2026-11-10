@@ -36,7 +36,7 @@ class AccountDeletionTest extends SocialTestCase
     private function withStoredAvatar(User $user): string
     {
         Storage::disk('public')->put('avatars/me.png', 'image');
-        $user->forceFill(['avatar' => Storage::disk('public')->url('avatars/me.png')])->save();
+        $user->forceFill(['avatar' => 'avatars/me.png'])->save();
 
         return 'avatars/me.png';
     }

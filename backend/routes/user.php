@@ -10,7 +10,7 @@ Route::get('home', [UserController::class, 'home']);
 Route::prefix('me')->controller(UserController::class)->group(function () {
     Route::get('/', 'showMe');
     Route::patch('/', 'updateMe')->middleware('throttle:user-profile-update');
-    Route::delete('/', 'destroyMe');
+    Route::delete('/', 'destroyMe')->middleware('throttle:me-account-deletion');
     Route::patch('preferences', 'updatePreferences')->middleware('throttle:user-profile-update');
     Route::put('password', 'updatePassword')->middleware('throttle:6,1');
     Route::put('email', 'requestEmailChange')->middleware('throttle:me-email-change');

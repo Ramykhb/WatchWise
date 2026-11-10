@@ -22,15 +22,13 @@ use App\User\InterfaceServices\ProfileServiceInterface;
 use App\User\Resources\MemberResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Routing\Controllers\HasMiddleware;
-use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Gate;
 
 /**
  * Everything about a user: the signed-in user's own account (/me), other members' profiles and
  * following (/users) and the Home page (/home).
  */
-class UserController implements HasMiddleware
+class UserController
 {
     public function __construct(
         private readonly AccountServiceInterface $account,
@@ -39,17 +37,6 @@ class UserController implements HasMiddleware
         private readonly EmailChangeServiceInterface $emailChange,
         private readonly AccountDeletionServiceInterface $deletion,
     ) {}
-
-    /**
-     * DELETE /api/me checks a password or mails a confirmation link, so it is rate limited per account
-     * (`me-account-deletion`). Declared here because the route itself lives in routes/user.php.
-     *
-     * @return list<Middleware>
-     */
-    public static function middleware(): array
-    {
-        return [new Middleware('throttle:me-account-deletion', only: ['destroyMe'])];
-    }
 
     /** GET /api/home — the signed-in Home page: busy rooms and your next movie night. */
     public function home(CurrentUser $current): JsonResponse
