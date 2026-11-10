@@ -71,7 +71,8 @@ class UserModuleServiceProvider extends ServiceProvider
             ];
         });
 
-        // The confirmation link is opened without a session, so it counts per IP.
+        // The emailed links are opened without a session, so they count per IP; opening a link (GET) and the
+        // confirming click on its public page (POST) share the bucket, so one confirmation spends two.
         RateLimiter::for('me-email-confirm', fn (Request $request) => Limit::perMinute(20)->by('ip:'.$request->ip()));
 
         // DELETE /api/me checks a password or mails the account's own address, so it is kept low per account.
@@ -84,7 +85,7 @@ class UserModuleServiceProvider extends ServiceProvider
             ];
         });
 
-        // The emailed deletion links are opened without a session, so they count per IP.
+        // The emailed deletion links are opened without a session, so they count per IP (GET and POST share it).
         RateLimiter::for('me-delete-confirm', fn (Request $request) => Limit::perMinute(20)->by('ip:'.$request->ip()));
     }
 }

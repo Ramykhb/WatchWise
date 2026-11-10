@@ -21,8 +21,10 @@ use App\User\InterfaceServices\EmailChangeServiceInterface;
 use App\User\InterfaceServices\HomeServiceInterface;
 use App\User\InterfaceServices\ProfileServiceInterface;
 use App\User\Resources\MemberResource;
+use App\User\Support\AccountLink;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -100,20 +102,35 @@ class UserController
         return response()->json($this->emailChange->cancel($current->user()));
     }
 
-    /** GET /api/me/email/authorize/{id}/{hash} — signed link to the current address (no login needed), then back to the frontend. */
-    public function authorizeEmailChange(int $id, string $hash): RedirectResponse
+    /**
+     * GET /api/me/email/authorize/{id}/{hash} — the approval link mailed to the current address. Changes nothing
+     * and needs no session: it only opens the public page whose click POSTs the same signed URL, so a mail scanner
+     * or link preview that prefetches it approves nothing.
+     */
+    public function openEmailChangeAuthorization(Request $request): RedirectResponse
     {
-        $outcome = $this->emailChange->authorize(new EmailChangeLinkData($id, $hash));
-
-        return redirect(rtrim(config('services.frontend_url'), '/').'/edit-profile?email_change='.$outcome->value);
+        return redirect(AccountLink::EmailAuthorize->confirmationPage($request));
     }
 
-    /** GET /api/me/email/confirm/{id}/{hash} — signed link target (no login needed), then back to the frontend. */
-    public function confirmEmailChange(int $id, string $hash): RedirectResponse
+    /** POST /api/me/email/authorize/{id}/{hash} — the click on that page (signed, no login): approves the change. */
+    public function authorizeEmailChange(int $id, string $hash): JsonResponse
     {
-        $outcome = $this->emailChange->confirm(new EmailChangeLinkData($id, $hash));
+        return response()->json(['outcome' => $this->emailChange->authorize(new EmailChangeLinkData($id, $hash))]);
+    }
 
-        return redirect(rtrim(config('services.frontend_url'), '/').'/edit-profile?email_change='.$outcome->value);
+    /**
+     * GET /api/me/email/confirm/{id}/{hash} — the link mailed to the new address. Changes nothing and needs no
+     * session: it only opens the public page whose click POSTs the same signed URL.
+     */
+    public function openEmailChangeConfirmation(Request $request): RedirectResponse
+    {
+        return redirect(AccountLink::EmailConfirm->confirmationPage($request));
+    }
+
+    /** POST /api/me/email/confirm/{id}/{hash} — the click on that page (signed, no login): swaps the address in. */
+    public function confirmEmailChange(int $id, string $hash): JsonResponse
+    {
+        return response()->json(['outcome' => $this->emailChange->confirm(new EmailChangeLinkData($id, $hash))]);
     }
 
     /** GET /api/me/email/cancel/{id}/{hash} — signed "this wasn't me" link to the current address (no login needed). */
@@ -121,7 +138,7 @@ class UserController
     {
         $outcome = $this->emailChange->cancelFromLink(new EmailChangeLinkData($id, $hash));
 
-        return redirect(rtrim(config('services.frontend_url'), '/').'/edit-profile?email_change='.$outcome->value);
+        return redirect(AccountLink::EmailCancel->resultPage($outcome->value));
     }
 
     /** POST /api/me/avatar — multipart `avatar`, stored on the public disk. */
@@ -161,12 +178,20 @@ class UserController
         return response()->json($this->deletion->cancel($current->user()));
     }
 
-    /** GET /api/me/delete/confirm/{id}/{hash} — signed link to the account's address (no login needed), then back to the frontend. */
-    public function confirmAccountDeletion(int $id, string $hash): RedirectResponse
+    /**
+     * GET /api/me/delete/confirm/{id}/{hash} — the link mailed to the account's address. Changes nothing and needs
+     * no session: it only opens the public page whose click POSTs the same signed URL, so a mail scanner or link
+     * preview that prefetches it deletes nothing.
+     */
+    public function openAccountDeletionConfirmation(Request $request): RedirectResponse
     {
-        $outcome = $this->deletion->confirmFromLink(new AccountDeletionLinkData($id, $hash));
+        return redirect(AccountLink::DeleteConfirm->confirmationPage($request));
+    }
 
-        return redirect(rtrim(config('services.frontend_url'), '/').$outcome->frontendPath());
+    /** POST /api/me/delete/confirm/{id}/{hash} — the click on that page (signed, no login): deletes the account. */
+    public function confirmAccountDeletion(int $id, string $hash): JsonResponse
+    {
+        return response()->json(['outcome' => $this->deletion->confirmFromLink(new AccountDeletionLinkData($id, $hash))]);
     }
 
     /** GET /api/me/delete/cancel/{id}/{hash} — signed "this wasn't me" link in the same email (no login needed). */
@@ -174,7 +199,7 @@ class UserController
     {
         $outcome = $this->deletion->cancelFromLink(new AccountDeletionLinkData($id, $hash));
 
-        return redirect(rtrim(config('services.frontend_url'), '/').$outcome->frontendPath());
+        return redirect(AccountLink::DeleteCancel->resultPage($outcome->value));
     }
 
     /**

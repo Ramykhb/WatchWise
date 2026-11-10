@@ -4,7 +4,7 @@ use App\Auth\Middleware\AuthenticateJwt;
 use App\Auth\Middleware\AuthenticateOptional;
 use App\Auth\Middleware\EnsureEmailVerified;
 use App\Auth\Middleware\EnsureRole;
-use App\User\DTOs\Responses\AccountDeletionOutcome;
+use App\User\Support\AccountLink;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -40,18 +40,17 @@ return Application::configure(basePath: dirname(__DIR__))
                 return redirect(rtrim(config('services.frontend_url'), '/').'/verify-email?status='.$status);
             }
 
-            if ($request->routeIs('me.email.confirm', 'me.email.authorize', 'me.email.cancel')) {
-                $status = URL::hasCorrectSignature($request) && ! URL::signatureHasNotExpired($request)
-                    ? 'expired' : 'invalid';
+            // The emailed email-change and account-deletion links: a browser opening one (GET) lands on the public
+            // result page; the confirmation page's click (POST) gets the outcome as JSON.
+            $link = AccountLink::forRoute($request->route()?->getName());
 
-                return redirect(rtrim(config('services.frontend_url'), '/').'/edit-profile?email_change='.$status);
-            }
+            if ($link !== null) {
+                $expired = URL::hasCorrectSignature($request) && ! URL::signatureHasNotExpired($request);
+                $outcome = $expired ? 'expired' : 'invalid';
 
-            if ($request->routeIs('me.delete.confirm', 'me.delete.cancel')) {
-                $outcome = URL::hasCorrectSignature($request) && ! URL::signatureHasNotExpired($request)
-                    ? AccountDeletionOutcome::Expired : AccountDeletionOutcome::Invalid;
-
-                return redirect(rtrim(config('services.frontend_url'), '/').$outcome->frontendPath());
+                return $request->isMethod('POST')
+                    ? response()->json(['outcome' => $outcome], $expired ? 410 : 403)
+                    : redirect($link->resultPage($outcome));
             }
         });
 

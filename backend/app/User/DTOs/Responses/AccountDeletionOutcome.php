@@ -2,19 +2,14 @@
 
 namespace App\User\DTOs\Responses;
 
-/** What opening an account-deletion link did; the value is the `account_deletion` query flag sent to the frontend. */
+/**
+ * What an account-deletion link did: the `outcome` of the confirmation POST (`deleted`, `invalid`, `expired`), or
+ * of the cancel link on the frontend result page (`cancelled`, `invalid`, `expired`).
+ */
 enum AccountDeletionOutcome: string
 {
     case Deleted = 'deleted';
     case Cancelled = 'cancelled';
     case Invalid = 'invalid';
     case Expired = 'expired';
-
-    /** Where the link lands on the frontend: Sign in once the account is gone, Settings otherwise. */
-    public function frontendPath(): string
-    {
-        $page = $this === self::Deleted ? '/signin' : '/settings';
-
-        return $page.'?account_deletion='.$this->value;
-    }
 }

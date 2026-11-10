@@ -18,6 +18,8 @@ use Tests\Feature\Social\SocialTestCase;
 
 class PrunePendingAccountDataTest extends SocialTestCase
 {
+    use OpensAccountLinks;
+
     private const FRONT = 'http://front.test';
 
     private const EMAIL_MINUTES = EmailChangeServiceInterface::EXPIRES_MINUTES;
@@ -126,7 +128,7 @@ class PrunePendingAccountDataTest extends SocialTestCase
         $authorizeUrl = Mail::sent(AuthorizeEmailChangeMail::class)->last()->url;
 
         $this->travel(self::EMAIL_MINUTES - 1)->minutes();
-        $this->get($authorizeUrl)->assertRedirect(self::FRONT.'/edit-profile?email_change=check-new-inbox');
+        $this->confirmLink($authorizeUrl, 'check-new-inbox');
         Mail::assertSent(ConfirmEmailChangeMail::class, 1);
 
         // Minute 61 after the request: the approval link is gone, the confirmation link sent at 59 is not.
@@ -177,8 +179,7 @@ class PrunePendingAccountDataTest extends SocialTestCase
 
         $applied = User::factory()->create();
         $this->requestChange($applied, 'applied@example.com');
-        $this->get(Mail::sent(ConfirmEmailChangeMail::class)->last()->url)
-            ->assertRedirect(self::FRONT.'/edit-profile?email_change=success');
+        $this->confirmLink(Mail::sent(ConfirmEmailChangeMail::class)->last()->url, 'success');
         $this->assertNothingPending($applied);
         $this->assertSame('applied@example.com', $applied->email);
 
@@ -204,7 +205,7 @@ class PrunePendingAccountDataTest extends SocialTestCase
         $this->travel(self::EMAIL_MINUTES + 1)->minutes();
         $this->artisan('users:prune-pending')->assertSuccessful();
 
-        $this->get($cancelUrl)->assertRedirect(self::FRONT.'/edit-profile?email_change=expired');
+        $this->get($cancelUrl)->assertRedirect($this->resultPage('email-cancel', 'expired'));
     }
 
     public function test_a_resend_after_pruning_is_refused_and_mails_nothing(): void
