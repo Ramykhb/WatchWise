@@ -70,9 +70,9 @@ class AuthService implements AuthServiceInterface
     public function replaceSessions(User $user, Request $request): AuthResponse
     {
         $pair = DB::transaction(function () use ($user, $request): TokenPair {
-            $this->tokens->revokeAllForUser($user);
+            $version = $this->tokens->revokeAllForUser($user);
 
-            return $this->tokens->issue($user, $request);
+            return $this->tokens->issue($user, $request, sessionVersion: $version);
         });
 
         return AuthResponse::fromTokenPair($pair);

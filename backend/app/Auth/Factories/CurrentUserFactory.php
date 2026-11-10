@@ -36,9 +36,9 @@ class CurrentUserFactory
     }
 
     /**
-     * Build from a verified access token; guest if invalid, the user is gone/inactive, or the token was
-     * issued before the user's sessions were last revoked (`sessions_invalidated_at`, whole seconds: the
-     * fresh token a password change gives the calling device is issued after the stamp, so it still works).
+     * Build from a verified access token; guest if invalid, the user is gone/inactive, or the token's session
+     * version (`sv`, 0 for tokens issued before the claim existed) is not exactly the user's current one, i.e.
+     * the user's sessions were revoked after it was issued.
      */
     public function fromToken(string $jwt): CurrentUser
     {
@@ -50,18 +50,18 @@ class CurrentUserFactory
 
         $user = $this->users->findById((int) $claims->sub);
 
-        if (! $user || ! $user->is_active || $this->issuedBeforeInvalidation($claims, $user)) {
+        if (! $user || ! $user->is_active || ! $this->sessionStillCurrent($claims, $user)) {
             return $this->guest();
         }
 
         return new JwtCurrentUser($user, $claims);
     }
 
-    private function issuedBeforeInvalidation(object $claims, User $user): bool
+    private function sessionStillCurrent(object $claims, User $user): bool
     {
-        $invalidatedAt = $user->sessions_invalidated_at;
+        $claimed = $claims->sv ?? 0;
 
-        return $invalidatedAt !== null && (int) ($claims->iat ?? 0) < $invalidatedAt->getTimestamp();
+        return is_int($claimed) && $claimed === (int) $user->session_version;
     }
 
     public function guest(): CurrentUser

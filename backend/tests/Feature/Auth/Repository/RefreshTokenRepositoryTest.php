@@ -64,9 +64,21 @@ class RefreshTokenRepositoryTest extends TestCase
         $mine = RefreshToken::factory()->count(2)->create(['user_id' => $user->id]);
         $theirs = RefreshToken::factory()->create();
 
-        (new RefreshTokenRepository)->revokeAllForUser($user->id);
+        $this->assertSame(1, (new RefreshTokenRepository)->revokeAllForUser($user));
+        $this->assertSame(2, (new RefreshTokenRepository)->revokeAllForUser($user));
 
         $mine->each(fn ($t) => $this->assertNotNull($t->fresh()->revoked_at));
         $this->assertNull($theirs->fresh()->revoked_at);
+        $this->assertSame(2, $user->session_version);
+        $this->assertSame(2, $user->fresh()->session_version);
+        $this->assertSame(0, $theirs->user->fresh()->session_version);
+    }
+
+    public function test_find_user_for_update_returns_the_owner_or_null(): void
+    {
+        $user = User::factory()->create();
+
+        $this->assertTrue($user->is((new RefreshTokenRepository)->findUserForUpdate($user->id)));
+        $this->assertNull((new RefreshTokenRepository)->findUserForUpdate($user->id + 1000));
     }
 }

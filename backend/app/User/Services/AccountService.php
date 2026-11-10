@@ -96,7 +96,7 @@ class AccountService implements AccountServiceInterface
     /**
      * Drops a pending email change (its links already stopped working, being bound to the password hash; this
      * clears Settings too), then signs out every device: each loses its refresh token and every access token
-     * issued before now stops working (`sessions_invalidated_at`), while this one gets a fresh session, so the
+     * issued before now stops working (`session_version`), while this one gets a fresh session, so the
      * person stays signed in here.
      */
     private function afterNewPassword(User $user, Request $request): AuthResponse
