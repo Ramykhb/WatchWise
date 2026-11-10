@@ -9,25 +9,25 @@ Route::get('home', [UserController::class, 'home']);
 
 Route::prefix('me')->controller(UserController::class)->group(function () {
     Route::get('/', 'showMe');
-    Route::patch('/', 'updateMe');
+    Route::patch('/', 'updateMe')->middleware('throttle:user-profile-update');
     Route::delete('/', 'destroyMe');
-    Route::patch('preferences', 'updatePreferences');
+    Route::patch('preferences', 'updatePreferences')->middleware('throttle:user-profile-update');
     Route::put('password', 'updatePassword')->middleware('throttle:6,1');
     Route::put('email', 'requestEmailChange')->middleware('throttle:me-email-change');
     Route::post('email/resend', 'resendEmailChange')->middleware('throttle:me-email-change');
     Route::delete('email', 'cancelEmailChange');
-    Route::post('avatar', 'uploadAvatar');
-    Route::delete('avatar', 'deleteAvatar');
+    Route::post('avatar', 'uploadAvatar')->middleware('throttle:user-avatar');
+    Route::delete('avatar', 'deleteAvatar')->middleware('throttle:user-avatar');
     Route::delete('social/{provider}', 'disconnectSocial')->where('provider', 'google|github|discord');
-    Route::post('follow-requests/{user:username}/accept', 'acceptFollowRequest');
-    Route::delete('follow-requests/{user:username}', 'declineFollowRequest');
+    Route::post('follow-requests/{user:username}/accept', 'acceptFollowRequest')->middleware('throttle:user-follows');
+    Route::delete('follow-requests/{user:username}', 'declineFollowRequest')->middleware('throttle:user-follows');
 });
 
-Route::get('users', [UserController::class, 'index']);
+Route::get('users', [UserController::class, 'index'])->middleware('throttle:user-search');
 Route::prefix('users/{user:username}')->controller(UserController::class)->group(function () {
     Route::get('/', 'show');
     Route::get('followers', 'followers');
     Route::get('following', 'following');
-    Route::post('follow', 'follow');
-    Route::delete('follow', 'unfollow');
+    Route::post('follow', 'follow')->middleware('throttle:user-follows');
+    Route::delete('follow', 'unfollow')->middleware('throttle:user-follows');
 });

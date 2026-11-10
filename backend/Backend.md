@@ -175,6 +175,10 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `chat` | `GroqModuleServiceProvider` | 10 (and 100 per hour) | `POST /api/chat/messages`, per signed-in user |
 | `me-email-change` | `UserModuleServiceProvider` | 3 (and 10 per hour), per account | `PUT /api/me/email`, `POST /api/me/email/resend` |
 | `me-email-confirm` | `UserModuleServiceProvider` | 20, per IP | the three signed email-change links (`me.email.confirm`, `me.email.authorize`, `me.email.cancel`), one shared bucket |
+| `user-search` | `UserModuleServiceProvider` | 60 | `GET /api/users`, per signed-in user |
+| `user-follows` | `UserModuleServiceProvider` | 60 | `POST`/`DELETE /api/users/{username}/follow` and the follow-request accept/decline routes, one shared bucket per signed-in user |
+| `user-avatar` | `UserModuleServiceProvider` | 10 | `POST`/`DELETE /api/me/avatar`, one shared bucket per signed-in user |
+| `user-profile-update` | `UserModuleServiceProvider` | 30 | `PATCH /api/me`, `PATCH /api/me/preferences`, one shared bucket per signed-in user |
 | `weather` | `WeatherModuleServiceProvider` | 30 | `GET /api/weather` |
 | `tmdb` | `AppServiceProvider` | 60 | the eight TMDB routes (movies, trending, search, discover, movie details, person, collaborators, genres) |
 | `room-messages`, `room-reads`, `room-socket`, `room-invites` | `RoomModuleServiceProvider` | 30, 120, 60, 30 | the matching room routes, per signed-in user |
@@ -553,11 +557,11 @@ app/User/
   Exceptions/           IncorrectPassword (422 on the wrong field), ProfileSectionHidden (403), NoPendingEmailChange (422)
   Mail/                 ConfirmEmailChangeMail, EmailChangeRequestedMail, EmailChangedMail
   Policies/             UserPolicy, UserPreferencePolicy
-  Providers/            UserModuleServiceProvider (interface bindings, the me-email-change and me-email-confirm rate limiters)
+  Providers/            UserModuleServiceProvider (interface bindings, the me-email-change and me-email-confirm rate limiters, plus user-search, user-follows, user-avatar and user-profile-update)
 ```
 
 - Routes are in `routes/user.php`: `/api/home`; `/api/me` (show, update, delete), `/me/preferences`, `/me/password` (revokes the other devices' sessions), `/me/avatar` (upload/delete, public disk), `/me/social/{google|github|discord}` (disconnect), `/me/follow-requests/{username}` (accept/decline), `/me/email` (see below); `/api/users` (search) and `/api/users/{username}` with `followers`, `following` and `follow`/unfollow.
-- `ProfilePrivacy` decides what a viewer may see of a profile.
+- `ProfilePrivacy` decides what a viewer may see of a profile. The profile page decides `canView` once and reads every section through `sectionsShownTo()`, so a followers-only profile does not repeat the follow query per section. `my_following` still lists everyone the viewer follows: "View all" loads the full followers/following lists and each person there needs a Follow/Following button. The 8 recent followers/following are the newest follows first, and the review count skips empty text like Home does.
 - `/api/home` returns the 3 busiest rooms, your next movie night (accepted guests and the leading vote) and `activity`: the 8 newest items from people you follow (reviews, ratings, public lists, watched titles and watchlist additions), each kind filtered by that person's privacy switches. Spoiler reviews have no excerpt.
 - Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php`, `AccountRulesTest.php`, `PlaceholderPasswordTest.php` and `tests/Feature/User/HomeActivityTest.php`, `EmailChangeTest.php`, `PasswordProofBackfillTest.php` and `Repository/AccountRepositoryTest.php` (the compare-and-set email-change writes).
 
