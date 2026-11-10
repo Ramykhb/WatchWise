@@ -121,9 +121,9 @@ class AccountRepository implements AccountRepositoryInterface
         $user->forceFill(['password_set_without_proof_at' => null])->save();
     }
 
-    public function updateAvatar(User $user, ?string $url): void
+    public function updateAvatar(User $user, ?string $avatar): void
     {
-        $user->forceFill(['avatar' => $url])->save();
+        $user->forceFill(['avatar' => $avatar])->save();
     }
 
     public function deleteSocialAccounts(User $user, string $provider): void

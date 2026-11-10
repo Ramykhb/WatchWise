@@ -9,10 +9,12 @@ use App\Auth\Exceptions\InvalidCredentials;
 use App\Auth\Factories\TokenFactory;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\AuthServiceInterface;
+use App\Auth\Support\TokenPair;
 use App\Models\User;
 use App\Support\SocialPlaceholderPassword;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class AuthService implements AuthServiceInterface
@@ -64,5 +66,16 @@ class AuthService implements AuthServiceInterface
     public function revokeSessions(User $user): void
     {
         $this->tokens->revokeAllForUser($user);
+    }
+
+    public function replaceSessions(User $user, Request $request): AuthResponse
+    {
+        $pair = DB::transaction(function () use ($user, $request): TokenPair {
+            $this->tokens->revokeAllForUser($user);
+
+            return $this->tokens->issue($user, $request);
+        });
+
+        return AuthResponse::fromTokenPair($pair);
     }
 }

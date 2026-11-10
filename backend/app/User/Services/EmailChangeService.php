@@ -17,14 +17,15 @@ use App\User\Mail\AuthorizeEmailChangeMail;
 use App\User\Mail\ConfirmEmailChangeMail;
 use App\User\Mail\EmailChangedMail;
 use App\User\Mail\EmailChangeRequestedMail;
+use App\User\Mail\SendsMailAfterResponse;
 use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 
 class EmailChangeService implements EmailChangeServiceInterface
 {
+    use SendsMailAfterResponse;
+
     public const EXPIRES_MINUTES = 60;
 
     /** The "this wasn't me" link stays usable for as long as a pending change can realistically wait. */
@@ -242,12 +243,6 @@ class EmailChangeService implements EmailChangeServiceInterface
             && $user->pending_email !== null
             && $user->pending_email_nonce !== null
             && hash_equals($this->linkHash($purpose, $user), $hash);
-    }
-
-    /** After the response is sent, so a slow or broken mail server is logged without failing the request. */
-    private function mailLater(string $to, Mailable $mail): void
-    {
-        defer(fn () => rescue(fn () => Mail::to($to)->send($mail)));
     }
 
     /** "jane.doe@example.com" becomes "j***@example.com", enough to recognise without revealing it. */

@@ -4,8 +4,10 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class User extends Authenticatable
@@ -47,6 +49,35 @@ class User extends Authenticatable
         }
 
         return $username;
+    }
+
+    /**
+     * The column holds either a path on the public disk (a picture uploaded here, e.g. "avatars/x.png")
+     * or an external URL copied from Google, GitHub or Discord. Reading it always yields a full URL, so
+     * the stored value never bakes in this server's address.
+     *
+     * @return Attribute<string|null, string|null>
+     */
+    protected function avatar(): Attribute
+    {
+        return Attribute::get(fn (?string $stored): ?string => match (true) {
+            $stored === null || $stored === '' => null,
+            $this->isExternalAvatar($stored) => $stored,
+            default => Storage::disk('public')->url($stored),
+        });
+    }
+
+    /** The path of the uploaded picture on the public disk, or null when there is none (or it is external). */
+    public function storedAvatarPath(): ?string
+    {
+        $stored = $this->getRawOriginal('avatar');
+
+        return is_string($stored) && $stored !== '' && ! $this->isExternalAvatar($stored) ? $stored : null;
+    }
+
+    private function isExternalAvatar(string $stored): bool
+    {
+        return str_starts_with($stored, 'http://') || str_starts_with($stored, 'https://');
     }
 
     /** A privacy toggle from Settings (ratings, reviews, lists, watchlist, history, following). */
