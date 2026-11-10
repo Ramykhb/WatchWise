@@ -23,7 +23,7 @@
 
 WatchWise is a Web Programming II university project built around discovering what to watch and sharing the experience with others. A React single-page application communicates with a Laravel REST API, with TMDB supplying movie and TV metadata, Groq powering AI features, and Laravel Reverb supporting live conversations.
 
-This README describes the implemented application, its local setup, and the remaining integration boundaries. External features require the corresponding credentials listed below.
+This README documents the completed core application, local setup, provider configuration, deployment, and validation. External features require the corresponding credentials listed below; supporting placeholder pages are listed under [scope notes](#scope-notes).
 
 ## Features
 
@@ -31,7 +31,7 @@ This README describes the implemented application, its local setup, and the rema
 
 - Email and password registration, sign-in, sign-out, and automatic session refresh.
 - JWT access tokens and rotating refresh tokens delivered through HttpOnly cookies.
-- Email verification, verification resends, and password recovery/reset flows.
+- Email verification, verification resends, and password recovery/reset flows with branded WatchWise emails delivered through Brevo.
 - Google, GitHub, and Discord OAuth sign-in and connected-account management.
 - Editable display name, username, email, location, biography, and profile photo.
 - Avatar upload/removal, password changes, and account deletion.
@@ -45,6 +45,7 @@ This README describes the implemented application, its local setup, and the rema
 - Discovery views for movies, TV shows, people, and public lists.
 - Movie and TV detail pages with posters, descriptions, genres, ratings, credits, and available trailers.
 - Actor and director pages with biographies, filmography, and collaborators.
+- Upcoming movie releases grouped by month, with release dates, popularity ranking, and links to title details.
 - Nearby cinema search using browser geolocation, Google Places results, and an interactive Mapbox map.
 
 ### Recommendations and AI assistant
@@ -76,9 +77,11 @@ This README describes the implemented application, its local setup, and the rema
 ### Profiles and community
 
 - Member search, follow/unfollow actions, and follower/following lists.
+- Follow requests for private profiles, with accept/decline controls and request-status notifications.
 - Profiles with activity, reviews, lists, watched titles, and favorite genres, subject to privacy settings.
 - Share links to profiles, lists, and watchlists.
-- A notification-center interface with category/unread filters, read/dismiss controls, follow-back actions, and notification preferences. See [current boundaries](#current-boundaries) for its API status.
+- A persistent notification center and header bell with live Reverb updates, category/unread filters, individual and bulk read controls, dismissal, follow-back actions, and notification preferences.
+- Notifications for follows and follow requests, room invitations/messages/mentions, movie-night invitations/RSVPs/votes/updates, and helpful review votes.
 
 ### Collaborative movie nights
 
@@ -86,13 +89,15 @@ This README describes the implemented application, its local setup, and the rema
 - Upcoming, invitation, and past-night views.
 - Accept or decline invitations, review participants and RSVP states, and vote on shortlisted movies.
 - Host controls for updating the event, closing/reopening voting, selecting a winning film, and canceling the night.
-- Add an event to Google Calendar through a prefilled calendar link.
+- Add an event to Google Calendar or Outlook through prefilled links, or download an `.ics` event for Apple Calendar and other compatible apps.
 
 ### Live discussion rooms
 
-- Create film discussion rooms, join rooms, and invite followed members.
+- Create public or private movie/TV discussion rooms, join rooms, and invite followed members.
+- Open a member card from a message author to follow them or visit their profile.
+- Room deletion for creators and administrators, with notifications for affected members.
 - Accept room invitations by joining or decline them.
-- Live messages through authenticated Reverb channels, with synchronization and connection feedback.
+- Live messages through authenticated Reverb channels, with synchronization, connection feedback, and retry controls for failed sends and room loads.
 - Unread counts and read tracking.
 - Scheduled cleanup of messages older than 24 hours once no member still needs to read them.
 
@@ -194,7 +199,7 @@ Edit `backend/.env` before starting the app:
 
 - Set `JWT_SECRET` to a random value of at least 32 characters. Generate a value locally with `php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'` and copy it into the environment file.
 - Keep `APP_URL=http://localhost:8000` and `FRONTEND_URL=http://localhost:5173` for the default local setup.
-- Replace the service placeholders needed for your demo. For local email inspection without SMTP, set `MAIL_MAILER=log`; messages are written to `backend/storage/logs/laravel.log`.
+- Replace the service placeholders needed for your demo. Email defaults to `MAIL_MAILER=brevo`: set `BREVO_API_KEY`, a verified `MAIL_FROM_ADDRESS`, and `MAIL_FROM_NAME=WatchWise`. For local email inspection, set `MAIL_MAILER=log`; messages are written to `backend/storage/logs/laravel.log`.
 - Set `REVERB_APP_ID`, `REVERB_APP_KEY`, and `REVERB_APP_SECRET` for chat and room sockets. A local app ID can be `watchwise-local`; generate independent random values for the key and secret. Keep the example's local Reverb host, port, and scheme settings.
 
 Then, from `backend/`:
@@ -282,22 +287,24 @@ Use `moderator` instead of `admin` to test the restricted moderation role. The a
 | `GOOGLE_PLACES_API_KEY` | Nearby cinema lookup. |
 | Mapbox client configuration | The public access token is currently configured in `frontend/src/pages/Cinemas/Cinemas.tsx`; `VITE_MAPBOX_STYLE_URL` optionally overrides the map style. |
 | `GOOGLE_*`, `GITHUB_*`, `DISCORD_*` | OAuth client IDs, client secrets, and redirect URIs. |
-| `MAIL_*` | SMTP delivery for verification and password resets, or the local `log` mailer. |
+| `MAIL_MAILER`, `BREVO_API_KEY`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Brevo transactional API delivery for verification and password resets; use a verified sender. Set `MAIL_MAILER=log` for local inspection. |
+| `BREVO_SMTP_USERNAME`, `BREVO_SMTP_KEY` | Optional Brevo SMTP relay credentials with `MAIL_MAILER=brevo-smtp`; these are separate from the API key. |
+| Other `MAIL_*` variables | Generic SMTP configuration when using `MAIL_MAILER=smtp`. |
 | `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_HOST`, `REVERB_PORT`, `REVERB_SCHEME` | Reverb application credentials and internal socket connection. |
 | `REVERB_PUBLIC_HOST`, `REVERB_PUBLIC_PORT`, `REVERB_PUBLIC_SCHEME`, `REVERB_ALLOWED_ORIGINS` | Browser-facing socket address and allowed hostnames when different from local defaults. |
 | `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_URL` | Optional backend Gemini client configuration. |
 
-OAuth callback URLs follow `http://localhost:8000/api/auth/social/{provider}/callback`, where the provider is `google`, `github`, or `discord`. Register the matching URL in each provider's developer console.
+For direct backend access, OAuth callback URLs follow `http://localhost:8000/api/auth/social/{provider}/callback`, where the provider is `google`, `github`, or `discord`. When using the Vite or Vercel API proxy, use the frontend origin with the same callback path instead, as described above. Register the matching URL in each provider's developer console.
 
 Use [backend/.env.example](backend/.env.example) and [frontend/.env.example](frontend/.env.example) as the configuration reference. Keep private credentials out of version control. Restart Vite after changing frontend environment variables; run `php artisan config:clear` after changing cached backend configuration.
 
-## Deploy the backend on Render
+## Deployment: Vercel and Render
 
 For the frontend on Vercel, set the project's **Root Directory** to `frontend`. The committed `frontend/vercel.json` selects Vite, builds into `dist`, proxies `/api` to Render, and serves `index.html` for frontend routes so refreshes and direct links work. Its build command clears `VITE_BACKEND_URL` so API requests and social-login navigation use the Vercel origin even if an environment variable points to Render. Keep the project's Build Command override disabled so this command is used. Include this configuration in the deployed commit and redeploy after changing it.
 
 On Render, set `FRONTEND_URL` to the production Vercel origin and leave `SESSION_DOMAIN` unset (or `null`) so cookies have no explicit domain. Set each provider's redirect URI to `https://YOUR-VERCEL-DOMAIN/api/auth/social/{provider}/callback` in both Render's environment and the provider's developer console. OAuth must start and finish on the same frontend hostname that owns the state cookie. Redeploy Render after changing its environment.
 
-Create a **Web Service** using the repository's `dev` branch and these settings:
+Create a **Web Service** using the repository's `main` branch and these settings:
 
 | Setting | Value |
 | --- | --- |
@@ -317,7 +324,8 @@ Set environment variables in Render rather than copying `.env` into the image:
 - `APP_URL`: the backend's public HTTPS URL. `FRONTEND_URL`: the deployed frontend's origin, with no trailing slash.
 - `DB_CONNECTION=mysql` and the existing database's `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, and `DB_PASSWORD`.
 - `WEATHERAPI_KEY`: your WeatherAPI.com account key. Weather requests use the Realtime Weather API (`/v1/current.json`), preserving Celsius, km/h, and the existing application weather codes. See [WeatherAPI.com documentation](https://www.weatherapi.com/docs/realtime-api/).
-- `JWT_SECRET` and the API keys and OAuth configuration needed by your enabled features. OAuth redirect URIs must use the deployed backend URL.
+- `JWT_SECRET` and the API keys and OAuth configuration needed by your enabled features. With the Vercel proxy described above, OAuth redirect URIs must use the deployed frontend origin followed by `/api/auth/social/{provider}/callback`.
+- `MAIL_MAILER=brevo`, `BREVO_API_KEY`, `MAIL_FROM_ADDRESS` (a verified sender), and `MAIL_FROM_NAME=WatchWise` for account verification and password-reset emails.
 
 Configuration, routes and views are cached at container startup so they use Render's environment. Database migrations are not run automatically; run `php artisan migrate --force` in a Render pre-deploy command (paid services) or the service shell when schema changes are needed.
 
@@ -353,6 +361,7 @@ With the backend running:
 | `/api/weather`, `/api/weather-mood`, recommendation endpoints, `/api/taste-profile` | Weather, AI recommendations, social recommendations, and taste insights. |
 | `/api/movie-nights/*` | Events, invitations, RSVPs, voting, and host updates. |
 | `/api/rooms/*`, `/api/chat/*` | Room membership/messages and AI chat with socket authentication. |
+| `/api/notifications/*` | Notification feed, read/unread state, mark-all-read, dismissal, and socket authentication. |
 | `/api/admin/*` | Staff statistics, users, review moderation, and movie management. |
 
 Most member and staff endpoints require authenticated cookies. External-service routes also apply rate limits. Route definitions are in [api.php](backend/routes/api.php), [auth_flows.php](backend/routes/auth_flows.php), [social.php](backend/routes/social.php), and [admin.php](backend/routes/admin.php).
@@ -364,6 +373,7 @@ Most member and staff endpoints require authenticated cookies. External-service 
 npm run dev       # Development server
 npm run build     # TypeScript project build and production assets
 npm run lint      # ESLint
+npm test          # Frontend regression tests
 npm run preview   # Serve the production build locally
 
 # Backend, from backend/
@@ -373,15 +383,16 @@ vendor/bin/pint --test
 php artisan route:list --path=api
 ```
 
-Backend tests cover authentication, authorization, profiles/privacy, lists, watchlists, ratings/reviews, moderation, movie nights, rooms, catalog/people, recommendations, weather, chat, and OpenAPI coverage. PHPUnit is configured to use an in-memory SQLite database and isolated test settings.
+Frontend regression tests cover API refresh handling, the local proxy, notification sockets, room send retries, calendar exports, upcoming releases, and the cached tonight pick.
+
+Backend tests cover authentication and Brevo verification emails, authorization, profiles/privacy, lists, watchlists, ratings/reviews, moderation, movie nights, rooms, catalog/people, recommendations, weather, chat, and OpenAPI coverage. PHPUnit is configured to use an in-memory SQLite database and isolated test settings.
 
 GitHub Actions runs the [frontend TypeScript/build checks](.github/workflows/frontend-ci.yml) and a [backend dependency-install/boot check](.github/workflows/backend-ci.yml). The backend workflow does not currently run the full PHPUnit suite. Existing frontend lint findings are separate from the production build check.
 
-## Current boundaries
+## Scope notes
 
-- Terms, privacy policy, community, releases, full credits, and full video-gallery routes still use placeholder screens. Core movie details include credits and available trailers.
-- The notification screen, shared frontend store, preferences, and model exist, but `/api/notifications` read/update/dismiss routes are not currently registered in the backend.
-- Google Calendar support opens a prefilled event link; it does not synchronize calendars in the background. Saved integration/digest preferences do not by themselves implement delivery jobs.
+- Terms, privacy policy, community, full credits, and full video-gallery routes use supporting placeholder screens. Core movie details include credits and available trailers; upcoming releases have a dedicated page.
+- Calendar support uses Google/Outlook event links and downloadable `.ics` files. Background calendar synchronization and scheduled digest delivery are outside the implemented scope.
 - External catalog, AI, email, map, OAuth, and socket functionality depends on valid provider configuration.
 
 ## Contributing
