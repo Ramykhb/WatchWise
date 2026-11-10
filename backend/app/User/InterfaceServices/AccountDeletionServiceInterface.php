@@ -37,8 +37,9 @@ interface AccountDeletionServiceInterface
     public function cancel(User $user): AccountResponse;
 
     /**
-     * The signed link mailed to the account: deletes it (once, and only for the request it was mailed for),
-     * through the same path as a password-confirmed deletion.
+     * The signed link mailed to the account, once its public page POSTs it (opening the link changes nothing):
+     * deletes it (once, and only for the request it was mailed for), through the same path as a password-confirmed
+     * deletion.
      */
     public function confirmFromLink(AccountDeletionLinkData $data): AccountDeletionOutcome;
 

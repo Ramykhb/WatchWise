@@ -1,7 +1,7 @@
 import { SettingsSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import LoadError from '../../components/LoadingState/LoadError.tsx'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { useLenis } from 'lenis/react'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
@@ -85,18 +85,7 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
   const [settingsNote, setSettingsNote] = useState('')
   // The panel whose change the note is about.
   const [notePanel, setNotePanel] = useState<'privacy' | 'connected' | 'notifications'>('privacy')
-  // An account-deletion link lands here with ?account_deletion=…; show it once, then drop it from the URL.
-  const [params, setParams] = useSearchParams()
-  const [deletionNote, setDeletionNote] = useState(() => accountDeletionNotice(params.get('account_deletion')) ?? '')
-  useEffect(() => {
-    if (params.has('account_deletion')) {
-      setParams((current) => {
-        const next = new URLSearchParams(current)
-        next.delete('account_deletion')
-        return next
-      }, { replace: true })
-    }
-  }, [params, setParams])
+  const [deletionNote, setDeletionNote] = useState('')
   const [locationNote, setLocationNote] = useState('')
   const visibility = me.user.profile_visibility
   const privacy = me.preferences.privacy

@@ -52,15 +52,16 @@ interface EmailChangeServiceInterface
     public function discardPendingChange(User $user): void;
 
     /**
-     * The signed link mailed to the current address when the password proves nothing: approves the
-     * change (once, and only for the request it was made for) and mails the confirmation link to the
-     * new address.
+     * The signed link mailed to the current address when the password proves nothing, once its public
+     * page POSTs it (opening the link changes nothing): approves the change (once, and only for the
+     * request it was made for) and mails the confirmation link to the new address.
      */
     public function authorize(EmailChangeLinkData $data): EmailChangeOutcome;
 
     /**
-     * The signed link mailed to the new address: swaps it in, marks it verified, signs out every
-     * session and tells the previous address. Refused until the current address has approved.
+     * The signed link mailed to the new address, once its public page POSTs it (opening the link
+     * changes nothing): swaps it in, marks it verified, signs out every session and tells the previous
+     * address. Refused until the current address has approved.
      */
     public function confirm(EmailChangeLinkData $data): EmailChangeOutcome;
 

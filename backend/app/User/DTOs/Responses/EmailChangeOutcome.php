@@ -2,7 +2,10 @@
 
 namespace App\User\DTOs\Responses;
 
-/** What opening an email-change link did; the value is the `email_change` query flag sent to the frontend. */
+/**
+ * What an email-change link did: the `outcome` of the confirmation POSTs (`success` or `check-new-inbox`, else
+ * `invalid`, `expired`, `taken`), or of the cancel link on the frontend result page (`cancelled`, `invalid`, `expired`).
+ */
 enum EmailChangeOutcome: string
 {
     case Success = 'success';

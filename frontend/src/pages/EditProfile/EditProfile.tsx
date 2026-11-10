@@ -1,7 +1,7 @@
 import { EditProfileSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import LoadError from '../../components/LoadingState/LoadError.tsx'
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { Link } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import AvatarImage from '../../components/AvatarImage/AvatarImage.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
@@ -17,7 +17,7 @@ import { colorOf, initialsOf } from '../../lib/format.ts'
 import type { ApiMe } from '../../lib/types.ts'
 import settingsStyles from '../Settings/Settings.module.css'
 import styles from './EditProfile.module.css'
-import { emailChangeNotice, pendingEmailMessage } from './emailChange.ts'
+import { pendingEmailMessage } from './emailChange.ts'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const USERNAME_PATTERN = /^@?[a-z0-9_.]{3,20}$/i
@@ -56,19 +56,6 @@ function EditProfilePage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) =>
   const [saving, setSaving] = useState(false)
   const [photoNote, setPhotoNote] = useState('')
   const photo = me.user.avatar ?? undefined
-
-  // The email confirmation link lands here with ?email_change=…; show it once, then drop it from the URL.
-  const [params, setParams] = useSearchParams()
-  const [returnedNotice] = useState(() => emailChangeNotice(params.get('email_change')))
-  useEffect(() => {
-    if (params.has('email_change')) {
-      setParams((current) => {
-        const next = new URLSearchParams(current)
-        next.delete('email_change')
-        return next
-      }, { replace: true })
-    }
-  }, [params, setParams])
 
   const dirty = (Object.keys(fields) as (keyof Fields)[]).some((key) => fields[key].trim() !== saved[key].trim())
   const handle = fields.username.trim().replace(/^@/, '').toLowerCase()
@@ -273,7 +260,7 @@ function EditProfilePage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) =>
               </div>
             </form>
 
-            <EmailSection me={me} apply={apply} returned={returnedNotice} />
+            <EmailSection me={me} apply={apply} />
           </section>
         </div>
       </main>
@@ -285,11 +272,11 @@ function EditProfilePage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) =>
  * The sign-in email. A new address needs the current password (accounts made by social sign-in have
  * no password) and only replaces the old one once the link mailed to it is opened.
  */
-function EmailSection({ me, apply, returned }: { me: ApiMe; apply: Apply; returned: string | null }) {
+function EmailSection({ me, apply }: { me: ApiMe; apply: Apply }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState<EmailErrors>({})
-  const [note, setNote] = useState(returned ?? '')
+  const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const pending = me.pending_email
 
