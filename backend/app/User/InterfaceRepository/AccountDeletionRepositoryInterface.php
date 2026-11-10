@@ -3,6 +3,7 @@
 namespace App\User\InterfaceRepository;
 
 use App\Models\User;
+use Carbon\CarbonInterface;
 
 /** The pending account deletion an account confirms from its inbox (`deletion_requested_at`, `deletion_nonce`). */
 interface AccountDeletionRepositoryInterface
@@ -16,4 +17,10 @@ interface AccountDeletionRepositoryInterface
      * that consumes a confirmation link once. Returns whether a row was updated.
      */
     public function clearDeletionRequest(User $user, ?string $nonce = null): bool;
+
+    /**
+     * Clears, in one UPDATE, every pending deletion requested before the cutoff (or at an unknown time).
+     * Returns how many accounts were cleared.
+     */
+    public function clearExpiredDeletionRequests(CarbonInterface $cutoff): int;
 }

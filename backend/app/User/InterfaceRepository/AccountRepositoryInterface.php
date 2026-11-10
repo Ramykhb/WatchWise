@@ -4,6 +4,7 @@ namespace App\User\InterfaceRepository;
 
 use App\Models\User;
 use App\Models\UserPreference;
+use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 
 interface AccountRepositoryInterface
@@ -36,6 +37,20 @@ interface AccountRepositoryInterface
      * holds that exact request (and the same password). Returns whether a row was updated.
      */
     public function clearPendingEmail(User $user, ?string $nonce = null): bool;
+
+    /**
+     * Records that a link for the pending change was just mailed again (a resend), so it counts as freshly
+     * requested. Only while the row still holds this pending address and nonce; false when it does not.
+     */
+    public function markPendingEmailLinkSent(User $user): bool;
+
+    /**
+     * Clears every pending email change whose last mailed link (`pending_email_link_sent_at`) is older than
+     * the cutoff, plus leftover nonce or timestamps without an address. A pending address with no stamp (made
+     * before the column existed) is first stamped with now, one UPDATE, so it gets a grace window instead of
+     * being cleared. Returns how many accounts were cleared (not the stamped ones).
+     */
+    public function clearExpiredPendingEmails(CarbonInterface $cutoff): int;
 
     /**
      * Makes the pending address the sign-in email, marks it verified, and clears the pending change and

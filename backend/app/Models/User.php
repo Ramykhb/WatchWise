@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
-    protected $hidden = ['password', 'remember_token', 'last_active_at', 'pending_email', 'pending_email_nonce', 'pending_email_authorized_at', 'password_set_without_proof_at', 'deletion_requested_at', 'deletion_nonce'];
+    protected $hidden = ['password', 'remember_token', 'last_active_at', 'pending_email', 'pending_email_nonce', 'pending_email_authorized_at', 'pending_email_link_sent_at', 'password_set_without_proof_at', 'deletion_requested_at', 'deletion_nonce'];
 
     protected $fillable = [
         'name',
@@ -115,6 +115,7 @@ class User extends Authenticatable
             'is_active' => 'boolean',
             'last_active_at' => 'datetime',
             'pending_email_authorized_at' => 'datetime',
+            'pending_email_link_sent_at' => 'datetime',
             'password_set_without_proof_at' => 'datetime',
             'deletion_requested_at' => 'datetime',
         ];

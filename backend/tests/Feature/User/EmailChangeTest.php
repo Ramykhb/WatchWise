@@ -473,7 +473,7 @@ class EmailChangeTest extends SocialTestCase
         $this->assertNull($user->pending_email_nonce);
         $this->get($confirmUrl)->assertRedirect($this->redirectFor('invalid'));
         // Nothing is pending any more, so the same link is now a harmless no-op.
-        $this->get($cancelUrl)->assertRedirect($this->redirectFor('invalid'));
+        $this->get($cancelUrl)->assertRedirect($this->redirectFor('expired'));
         $this->assertSame('old@example.com', $user->refresh()->email);
     }
 

@@ -26,8 +26,6 @@ class EmailChangeService implements EmailChangeServiceInterface
 {
     use SendsMailAfterResponse;
 
-    public const EXPIRES_MINUTES = 60;
-
     /** The "this wasn't me" link stays usable for as long as a pending change can realistically wait. */
     public const CANCEL_EXPIRES_MINUTES = 7 * 24 * 60;
 
@@ -75,6 +73,11 @@ class EmailChangeService implements EmailChangeServiceInterface
     public function resend(User $user): AccountResponse
     {
         if ($user->pending_email === null) {
+            throw new NoPendingEmailChange;
+        }
+
+        // Refreshes the expiry window; fails when the change was cleared (or replaced) since it was loaded.
+        if (! $this->accounts->markPendingEmailLinkSent($user)) {
             throw new NoPendingEmailChange;
         }
 
@@ -180,6 +183,12 @@ class EmailChangeService implements EmailChangeServiceInterface
     public function cancelFromLink(EmailChangeLinkData $data): EmailChangeOutcome
     {
         $user = $this->accounts->findById($data->userId);
+
+        // Nothing waiting any more (cancelled, applied, or cleared once its links expired): calm, not an alarm.
+        // The route already checked the link's signature, so it was issued for this account.
+        if ($user !== null && $user->pending_email === null && $user->pending_email_nonce === null) {
+            return EmailChangeOutcome::Expired;
+        }
 
         if (! $this->linkMatches(self::LINK_CANCEL, $user, $data->hash)) {
             return EmailChangeOutcome::Invalid;
