@@ -2,11 +2,13 @@
 
 namespace Tests\Feature\User;
 
+use App\Models\DiscussionRoom;
 use App\Models\MovieList;
 use App\Models\Review;
 use App\Models\User;
 use App\Models\UserPreference;
 use App\Models\Watchlist;
+use Illuminate\Support\Facades\DB;
 use Tests\Feature\Social\SocialTestCase;
 
 class HomeActivityTest extends SocialTestCase
@@ -149,5 +151,22 @@ class HomeActivityTest extends SocialTestCase
             'user_id' => $user->id, 'tmdb_id' => 1, 'media_type' => 'movie',
             'rating' => 4, 'content' => null, 'is_approved' => true,
         ], $attributes));
+    }
+
+    public function test_home_rooms_report_their_member_counts_without_a_query_per_room(): void
+    {
+        $viewer = User::factory()->create();
+        foreach ([2, 3, 1] as $index => $members) {
+            $room = DiscussionRoom::create(['tmdb_id' => 600 + $index, 'name' => "Room {$index}"]);
+            $room->members()->attach(User::factory()->count($members)->create()->modelKeys());
+        }
+
+        DB::enableQueryLog();
+        $response = $this->as($viewer)->getJson('/api/home')->assertOk();
+        $memberQueries = array_filter(array_column(DB::getQueryLog(), 'query'), fn (string $sql) => str_contains($sql, 'room_members') && ! str_contains($sql, 'select "discussion_rooms".*'));
+        DB::disableQueryLog();
+
+        $this->assertEqualsCanonicalizing([1, 2, 3], array_column($response->json('rooms'), 'members'));
+        $this->assertCount(0, $memberQueries);
     }
 }

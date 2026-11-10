@@ -17,14 +17,11 @@ interface HomeRepositoryInterface
     public function recentActivity(User $viewer, int $limit): array;
 
     /**
-     * The rooms with the most recent message, newest first: public rooms and the private ones the user is in.
+     * The rooms with the most recent message, newest first: public rooms and the private ones the user is in, each with its `members_count`.
      *
      * @return Collection<int, DiscussionRoom>
      */
     public function busiestRooms(int $limit, int $userId): Collection;
-
-    /** How many members the room has (its creator and everyone who has joined). */
-    public function roomMemberCount(DiscussionRoom $room): int;
 
     /** The soonest upcoming night the user hosts or has not declined, with its guests and votes. */
     public function nextNightFor(User $user): ?MovieNight;
