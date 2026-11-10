@@ -43,6 +43,13 @@ class UserModuleServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Per signed-in user (auth.jwt runs before throttling).
+        $limits = ['user-search' => 60, 'user-follows' => 60, 'user-avatar' => 10, 'user-profile-update' => 30];
+
+        foreach ($limits as $name => $perMinute) {
+            RateLimiter::for($name, fn () => Limit::perMinute($perMinute)->by($name.':'.app(CurrentUser::class)->id()));
+        }
+
         // Each request mails an address the member typed, so it is kept low per account (auth.jwt runs first).
         RateLimiter::for('me-email-change', function (): array {
             $userId = app(CurrentUser::class)->id();
