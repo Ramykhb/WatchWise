@@ -2,27 +2,34 @@
 
 namespace App\User\Services;
 
-use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
+use App\Auth\DTOs\Responses\AuthResponse;
+use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Models\User;
 use App\Support\SocialPlaceholderPassword;
 use App\User\DTOs\Requests\ChangePasswordData;
-use App\User\DTOs\Requests\DeleteAccountData;
 use App\User\DTOs\Requests\UpdatePreferencesData;
 use App\User\DTOs\Requests\UpdateProfileData;
 use App\User\DTOs\Responses\AccountResponse;
+use App\User\Exceptions\CannotDisconnectLastLogin;
 use App\User\Exceptions\IncorrectPassword;
 use App\User\InterfaceRepository\AccountRepositoryInterface;
 use App\User\InterfaceServices\AccountServiceInterface;
 use App\User\InterfaceServices\EmailChangeServiceInterface;
+use App\User\Mail\PasswordAddedMail;
+use App\User\Mail\SendsMailAfterResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 class AccountService implements AccountServiceInterface
 {
+    use SendsMailAfterResponse;
+
     public function __construct(
         private readonly AccountRepositoryInterface $accounts,
-        private readonly RefreshTokenRepositoryInterface $tokens,
+        private readonly AuthServiceInterface $auth,
         private readonly EmailChangeServiceInterface $emailChange,
     ) {}
 
@@ -56,7 +63,7 @@ class AccountService implements AccountServiceInterface
         return AccountResponse::fromModel($user->refresh());
     }
 
-    public function changePassword(User $user, ChangePasswordData $data): void
+    public function changePassword(User $user, ChangePasswordData $data, Request $request): AuthResponse
     {
         // Accounts created by social sign-in still hold the placeholder, so they set a first password freely.
         $firstPassword = SocialPlaceholderPassword::isStoredFor($user);
@@ -75,8 +82,14 @@ class AccountService implements AccountServiceInterface
         $this->accounts->updatePassword($user, $data->newPassword, setWithoutProof: $firstPassword);
         // Its links already stopped working (they are bound to the password hash); this clears Settings too.
         $this->emailChange->discardPendingChange($user);
-        // The access cookie stays valid until it expires (15 min); every refresh token is gone.
-        $this->tokens->revokeAllForUser($user->id);
+
+        if ($firstPassword) {
+            $this->mailLater($user->email, new PasswordAddedMail($user->name));
+        }
+
+        // Every device loses its refresh token (other devices' access cookies run out within minutes);
+        // this one gets a fresh session, so changing the password never signs the person out here.
+        return $this->auth->replaceSessions($user, $request);
     }
 
     public function passwordResetThroughEmail(User $user): void
@@ -90,9 +103,23 @@ class AccountService implements AccountServiceInterface
 
     public function uploadAvatar(User $user, UploadedFile $file): AccountResponse
     {
-        $this->deleteStoredAvatar($user);
+        $previous = $user->storedAvatarPath();
+
+        // The new file lands first and the old one goes only after the row points at the new one,
+        // so a failed store or update never leaves the member without their current picture.
         $path = $file->store('avatars', 'public');
-        $this->accounts->updateAvatar($user, Storage::disk('public')->url($path));
+
+        try {
+            $this->accounts->updateAvatar($user, $path);
+        } catch (Throwable $e) {
+            Storage::disk('public')->delete($path);
+
+            throw $e;
+        }
+
+        if ($previous !== null) {
+            Storage::disk('public')->delete($previous);
+        }
 
         return AccountResponse::fromModel($user);
     }
@@ -107,17 +134,19 @@ class AccountService implements AccountServiceInterface
 
     public function disconnectSocial(User $user, string $provider): AccountResponse
     {
-        $this->accounts->deleteSocialAccounts($user, $provider);
+        // With a password of its own the account can always sign in again; without one, the last linked
+        // provider is its only way in, so it stays until a password is set or another provider is linked.
+        if (! SocialPlaceholderPassword::isStoredFor($user)) {
+            $this->accounts->deleteSocialAccounts($user, $provider);
+        } elseif (! $this->accounts->deleteSocialAccountsKeepingAnother($user, $provider)) {
+            throw new CannotDisconnectLastLogin($provider);
+        }
 
         return AccountResponse::fromModel($user);
     }
 
-    public function deleteAccount(User $user, DeleteAccountData $data): void
+    public function deleteAccount(User $user): void
     {
-        if (! Hash::check($data->password, $user->password)) {
-            throw IncorrectPassword::forAccountDeletion();
-        }
-
         $this->deleteStoredAvatar($user);
         $this->accounts->delete($user);
     }
@@ -125,9 +154,9 @@ class AccountService implements AccountServiceInterface
     /** Only files this app stored are removed; an avatar copied from Google or GitHub is just a URL. */
     private function deleteStoredAvatar(User $user): void
     {
-        $prefix = Storage::disk('public')->url('avatars/');
-        if ($user->avatar && str_starts_with($user->avatar, $prefix)) {
-            Storage::disk('public')->delete('avatars/'.substr($user->avatar, strlen($prefix)));
+        $path = $user->storedAvatarPath();
+        if ($path !== null) {
+            Storage::disk('public')->delete($path);
         }
     }
 }

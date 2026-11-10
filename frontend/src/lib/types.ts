@@ -110,6 +110,10 @@ export type ApiMe = {
   pending_email: string | null
   /** True while the current address still has to approve the change (no password, or a first one not yet proven); the new one is not mailed yet. */
   pending_email_awaiting_current: boolean
+  /** True when deleting the account mails a confirmation link instead of asking for the password (no password of its own, or a first one not yet proven). */
+  deletion_by_email: boolean
+  /** True while a deletion confirmation link mailed to the account is still valid. */
+  deletion_pending: boolean
   counts: { unread_notifications: number; followers: number; following: number }
 }
 

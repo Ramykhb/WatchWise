@@ -19,7 +19,7 @@ class UpdatePreferencesRequest extends FormRequest
     {
         return [
             'favorite_genres' => ['sometimes', 'array', 'max:10'],
-            'favorite_genres.*' => ['string', 'max:40'],
+            'favorite_genres.*' => ['string', 'max:40', 'distinct'],
             'privacy' => ['sometimes', 'array'],
             'privacy.*' => ['boolean'],
             'integrations' => ['sometimes', 'array'],

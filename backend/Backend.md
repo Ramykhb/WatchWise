@@ -175,6 +175,10 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `chat` | `GroqModuleServiceProvider` | 10 (and 100 per hour) | `POST /api/chat/messages`, per signed-in user |
 | `me-email-change` | `UserModuleServiceProvider` | 3 (and 10 per hour), per account | `PUT /api/me/email`, `POST /api/me/email/resend` |
 | `me-email-confirm` | `UserModuleServiceProvider` | 20, per IP | the three signed email-change links (`me.email.confirm`, `me.email.authorize`, `me.email.cancel`), one shared bucket |
+| `user-search` | `UserModuleServiceProvider` | 60 | `GET /api/users`, per signed-in user |
+| `user-follows` | `UserModuleServiceProvider` | 60 | `POST`/`DELETE /api/users/{username}/follow` and the follow-request accept/decline routes, one shared bucket per signed-in user |
+| `user-avatar` | `UserModuleServiceProvider` | 10 | `POST`/`DELETE /api/me/avatar`, one shared bucket per signed-in user |
+| `user-profile-update` | `UserModuleServiceProvider` | 30 | `PATCH /api/me`, `PATCH /api/me/preferences`, one shared bucket per signed-in user |
 | `weather` | `WeatherModuleServiceProvider` | 30 | `GET /api/weather` |
 | `tmdb` | `AppServiceProvider` | 60 | the eight TMDB routes (movies, trending, search, discover, movie details, person, collaborators, genres) |
 | `room-messages`, `room-reads`, `room-socket`, `room-invites` | `RoomModuleServiceProvider` | 30, 120, 60, 30 | the matching room routes, per signed-in user |
@@ -325,7 +329,6 @@ Most policies stay in `app/Policies/` because each belongs to the entity it prot
 | Policy | Rule |
 | --- | --- |
 | `ReviewPolicy` | Owner-based access |
-| `UserPreferencePolicy` (`app/User/Policies/`) | Owner-based access |
 | `WatchlistPolicy` (`app/Watchlist/Policies/`) | Owner-based access |
 | `MovieListPolicy`, `MovieListItemPolicy` (`app/MovieList/Policies/`) | Private lists are visible to their owner only |
 | `MovieNightPolicy` (`app/MovieNight/Policies/`) | Organizer and invitees can view a night; only the organizer can change it |
@@ -543,23 +546,28 @@ app/Review/
 app/User/
   Controllers/          UserController (account under /me, profiles and following under /users, and /home)
   FormRequests/         UpdateProfileRequest, UpdatePreferencesRequest, UpdatePasswordRequest, UploadAvatarRequest, DeleteAccountRequest, UserSearchRequest, RequestEmailChangeRequest
-  InterfaceServices/    AccountServiceInterface, ProfileServiceInterface, HomeServiceInterface, EmailChangeServiceInterface
-  Services/             AccountService (settings, password, avatar, delete), ProfileService (search, profile page, follow), HomeService, ProfilePrivacy (what a viewer may see of a profile), EmailChangeService (pending email, confirmation link, notices)
-  InterfaceRepository/  AccountRepositoryInterface, ProfileRepositoryInterface, HomeRepositoryInterface
-  Repository/           AccountRepository, ProfileRepository, HomeRepository
-  DTOs/Requests/        UpdateProfileData, UpdatePreferencesData, ChangePasswordData, DeleteAccountData, UserSearchQuery, RequestEmailChangeData, ConfirmEmailChangeData
-  DTOs/Responses/       AccountResponse, ProfileResponse, UserSearchResponse, FollowResponse, HomeResponse, EmailChangeOutcome (enum: success, invalid, expired, taken)
+  InterfaceServices/    AccountServiceInterface, ProfileServiceInterface, HomeServiceInterface, EmailChangeServiceInterface, AccountDeletionServiceInterface
+  Services/             AccountService (settings, password, avatar, social disconnect, the one account-erasing path), ProfileService (search, profile page, follow), HomeService, ProfilePrivacy (what a viewer may see of a profile), EmailChangeService (pending email, confirmation link, notices), AccountDeletionService (password check or emailed confirmation link, then AccountService::deleteAccount)
+  InterfaceRepository/  AccountRepositoryInterface, ProfileRepositoryInterface, HomeRepositoryInterface, AccountDeletionRepositoryInterface
+  Repository/           AccountRepository, ProfileRepository, HomeRepository, AccountDeletionRepository (pending deletion columns, compare-and-set clear)
+  DTOs/Requests/        UpdateProfileData, UpdatePreferencesData, ChangePasswordData, DeleteAccountData, UserSearchQuery, RequestEmailChangeData, ConfirmEmailChangeData, AccountDeletionLinkData
+  DTOs/Responses/       AccountResponse, ProfileResponse, UserSearchResponse, FollowResponse, HomeResponse, EmailChangeOutcome (enum: success, invalid, expired, taken), DeleteAccountResponse (deleted or link sent), AccountDeletionOutcome (enum: deleted, cancelled, invalid, expired)
   Resources/            MemberResource (the small public card of a user, used by many modules)
-  Exceptions/           IncorrectPassword (422 on the wrong field), ProfileSectionHidden (403), NoPendingEmailChange (422)
-  Mail/                 ConfirmEmailChangeMail, EmailChangeRequestedMail, EmailChangedMail
-  Policies/             UserPolicy, UserPreferencePolicy
-  Providers/            UserModuleServiceProvider (interface bindings, the me-email-change and me-email-confirm rate limiters)
+  Exceptions/           IncorrectPassword (422 on the wrong field), ProfileSectionHidden (403 JSON), NoPendingEmailChange (422), CannotDisconnectLastLogin (422 on `provider`)
+  Mail/                 ConfirmEmailChangeMail, EmailChangeRequestedMail, EmailChangedMail, PasswordAddedMail, and the SendsMailAfterResponse trait (deferred, rescued sending shared by the two services); account deletion: ConfirmAccountDeletionMail, AccountDeletedMail
+  Policies/             UserPolicy (view, follow)
+  Providers/            UserModuleServiceProvider (interface bindings, the me-email-change and me-email-confirm, me-account-deletion and me-delete-confirm rate limiters, plus user-search, user-follows, user-avatar and user-profile-update)
 ```
 
-- Routes are in `routes/user.php`: `/api/home`; `/api/me` (show, update, delete), `/me/preferences`, `/me/password` (revokes the other devices' sessions), `/me/avatar` (upload/delete, public disk), `/me/social/{google|github|discord}` (disconnect), `/me/follow-requests/{username}` (accept/decline), `/me/email` (see below); `/api/users` (search) and `/api/users/{username}` with `followers`, `following` and `follow`/unfollow.
-- `ProfilePrivacy` decides what a viewer may see of a profile.
+- Routes are in `routes/user.php`: `/api/home`; `/api/me` (show, update, delete), `/me/preferences`, `/me/password` (see below), `/me/avatar` (upload/delete, public disk; see below), `/me/social/{google|github|discord}` (disconnect), `/me/follow-requests/{username}` (accept/decline), `/me/email` (see below); `/api/users` (search) and `/api/users/{username}` with `followers`, `following` and `follow`/unfollow. Account deletion adds `routes/account_deletion_signed_in.php` (`DELETE /api/me/delete-request`, in the verified group) and `routes/account_deletion.php` (the two signed links, outside it); see [Deleting the account](#deleting-the-account).
+- Disconnecting a provider (`DELETE /api/me/social/{provider}`, `AccountService::disconnectSocial`) is a no-op when it is not linked. An account still holding the social placeholder password (`has_password: false`) cannot remove its last linked provider: password sign-in refuses the placeholder, so it would be locked out. It gets 422 `CannotDisconnectLastLogin` (message on `errors.provider`) until it creates a password or links another provider. `AccountRepository::deleteSocialAccountsKeepingAnother` checks and deletes inside a transaction holding a row lock on the user, so two disconnects at once cannot remove both providers. Accounts with a password of their own (including a first one set in Settings) disconnect freely.
+- `ProfilePrivacy` decides what a viewer may see of a profile. The profile page decides `canView` once and reads every section through `sectionsShownTo()`, so a followers-only profile does not repeat the follow query per section. `my_following` still lists everyone the viewer follows: "View all" loads the full followers/following lists and each person there needs a Follow/Following button. The 8 recent followers/following are the newest follows first, and the review count skips empty text like Home does.
+- **Search input** (`GET /api/users?q=&limit=`): nothing is rejected. `UserSearchQuery::fromInput` treats a `q` that is not a string (`q[]=x`) as empty, trims it and cuts it to 100 characters, and clamps `limit` to 1-30 (a non-number falls back to 10).
+- **Changing the password** (`PUT /api/me/password`): `AccountService::changePassword` revokes every refresh token and calls `AuthServiceInterface::replaceSessions()`, which issues a fresh token pair for the calling request; the controller sets it as the new cookies. The refresh cookie is only sent to `/api/auth`, so the password route cannot tell which session is current, hence the fresh session instead of "revoke all but mine". This device stays signed in, every other device is signed out (their access cookies run out within 15 minutes). A pending email change is still discarded.
+- **First password notice:** when the password set was the first one (the account held the social placeholder), `PasswordAddedMail` goes to the account address (deferred, errors only logged), saying a password was added and linking to forgot-password if it was not them. An ordinary change sends nothing.
+- **Avatars:** `users.avatar` holds a path on the public disk (`avatars/<file>`) for uploaded pictures, or the external `http(s)` URL copied by social sign-in. The `User` model's `avatar` accessor returns a full URL for a stored path and leaves external URLs untouched, so every response (`UserResponse`, `MemberResource`, Admin, notifications) shows a full URL and `APP_URL` is never stored. Uploading stores the new file first, updates the row, then deletes the old file (and deletes the new one again if the update fails). Migration `2026_11_10_075004_convert_user_avatars_to_storage_paths` converts old `.../storage/avatars/<file>` URLs to paths (`down()` restores URLs).
 - `/api/home` returns the 3 busiest rooms, your next movie night (accepted guests and the leading vote) and `activity`: the 8 newest items from people you follow (reviews, ratings, public lists, watched titles and watchlist additions), each kind filtered by that person's privacy switches. Spoiler reviews have no excerpt.
-- Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php`, `AccountRulesTest.php`, `PlaceholderPasswordTest.php` and `tests/Feature/User/HomeActivityTest.php`, `EmailChangeTest.php`, `PasswordProofBackfillTest.php` and `Repository/AccountRepositoryTest.php` (the compare-and-set email-change writes).
+- Tests: `tests/Feature/Social/ProfileTest.php`, `PrivacyTest.php`, `SearchTest.php`, `AccountRulesTest.php`, `PlaceholderPasswordTest.php` and `tests/Feature/User/HomeActivityTest.php`, `EmailChangeTest.php`, `PasswordProofBackfillTest.php`, `AccountSafetyTest.php` (search input, password sessions, first-password notice, avatar storage) and `Repository/AccountRepositoryTest.php` (the compare-and-set email-change writes).
 
 ### Changing the sign-in email
 
@@ -583,6 +591,24 @@ app/User/
 - Columns: `pending_email` (migration `2026_11_09_000000_add_pending_email_to_users_table`), `pending_email_nonce` and `pending_email_authorized_at` (migration `2026_11_10_000000_add_email_change_state_to_users_table`, which also drops pending changes made with the old `sha1(pending_email)` links), and `password_set_without_proof_at` (migration `2026_11_10_000001_add_password_set_without_proof_to_users_table`). All are in the `User` model's `$hidden`.
 - `GET /api/me` (`AccountResponse`) has a top-level `pending_email` (null when nothing is pending) and `pending_email_awaiting_current` (true while the current address still has to approve).
 - Emails are sent with `defer()` + `rescue()`, like the Auth emails.
+
+### Deleting the account
+
+`AccountDeletionService` decides how `DELETE /api/me` is confirmed. A password of the member's own proves ownership; a social placeholder, or a first password set in Settings without a current one (`password_set_without_proof_at`, which a stolen session could do), does not, so those accounts confirm from their inbox. Both paths end in `AccountService::deleteAccount` (stored avatar file, then the user row; foreign keys cascade), and the address then gets `AccountDeletedMail`.
+
+| Method and path | Auth | Purpose |
+| --- | --- | --- |
+| `DELETE /api/me` | `auth.jwt` + `verified.email`, `throttle:me-account-deletion` | With a password that proves ownership: `password` is required (422 on `password` when missing or wrong), the account is deleted and the cookies cleared (200, `{"message": "Account deleted."}`). Otherwise `password` is ignored: stores `deletion_requested_at = now()` and a fresh random `deletion_nonce`, mails `ConfirmAccountDeletionMail` to the current address (a 60-minute confirmation link plus a "keep my account" link) and answers 202 (`message`, `deletion_pending: true`). Nothing is deleted yet; a new request voids the earlier links |
+| `DELETE /api/me/delete-request` | `auth.jwt` + `verified.email` | Clears the pending deletion (no-op when none). Returns the account |
+| `GET /api/me/delete/confirm/{id}/{hash}` (`me.delete.confirm`) | signed link (no login; `routes/account_deletion.php`), `throttle:me-delete-confirm` | Consumes the request with a compare-and-set (`AccountDeletionRepository::clearDeletionRequest($user, $nonce)`: one conditional `UPDATE` on the same nonce, email and password hash), then deletes the account through `AccountService::deleteAccount`. Redirects to `FRONTEND_URL/signin?account_deletion=deleted`; used, replaced, cancelled, tampered or stale links go to `FRONTEND_URL/settings?account_deletion=invalid`, correctly signed expired ones to `...=expired` (handled in `bootstrap/app.php`) |
+| `GET /api/me/delete/cancel/{id}/{hash}` (`me.delete.cancel`) | signed link (no login), `throttle:me-delete-confirm` | Drops the request it was mailed for only. Redirects to `FRONTEND_URL/settings?account_deletion=cancelled\|invalid\|expired` |
+
+- `throttle:me-account-deletion` (5 per minute and 10 per hour per account, `UserModuleServiceProvider`) also slows password guessing on the password path. It is applied on the `DELETE /api/me` route in `routes/user.php`. `me-delete-confirm` allows 20 per minute per IP for the two links.
+- Every link's `hash` is `hash_hmac('sha256', purpose|user id|deletion_nonce|email|password hash, APP_KEY)`, compared with `hash_equals`, and the request must be younger than 60 minutes (`AccountDeletionServiceInterface::EXPIRES_MINUTES`, also the signed URL's lifetime). So a link only works for its own purpose (a cancel hash is not a confirmation hash, and the purposes differ from the email-change ones), for the request it was mailed for, and only while the email and password are unchanged.
+- Any new password clears the pending deletion through a `saving` hook on the `User` model (whenever `password` is dirty), which covers `PUT /api/me/password`, a reset through forgot-password and a social takeover of an unverified account without touching those flows. Writes that bypass Eloquent are still covered by the password-hash binding, which is what actually voids the links.
+- `GET /api/me` (`AccountResponse`) has `deletion_by_email` (true when `DELETE /api/me` mails a link instead of asking for the password) and `deletion_pending` (true while a link is valid: nonce set and requested less than 60 minutes ago).
+- Columns: `deletion_requested_at` and `deletion_nonce` (migration `2026_11_10_120000_add_deletion_request_to_users_table`), both in the `User` model's `$hidden`.
+- When `SOCIAL_PLACEHOLDER_PASSWORD` is not configured, social sign-ups get a random password instead of the placeholder, so they count as having a password (`deletion_by_email: false`) and need "Forgot password" before they can delete their account or set a password.
 
 ## Room module
 
@@ -908,6 +934,8 @@ The backend is deployed to Render from `backend/Dockerfile` (`php:8.4-apache-boo
 - Approving, applying and cancelling are compare-and-set updates bound to the exact request, so a request replaced or cancelled while a link is being opened cannot end up approved or applied, and two clicks at once mail the new address once.
 - Email-change links are HMACs over the pending address, a per-request nonce and the password hash. Changing or resetting the password therefore voids any change an attacker started with a stolen session, even though the link needs no login; it also clears the pending change. Before this, the attacker's link stayed valid for up to an hour after the victim changed their password.
 - Remaining trade-offs: (1) A stolen session on a social-only account can still set a first password. It is marked, so it does not help with email changes, but it gives the attacker password sign-in until the owner resets it, and the owner is not mailed about it (a "password set" notice would close the gap). (2) The cancel link and the approval link are opened by whoever reads the current inbox, so they are only as safe as that inbox, and an owner who approves without reading defeats the approval step. (3) The cancel link lives 7 days so it outlasts resends; it can only cancel the request it was mailed for. (4) Rotating `APP_KEY` voids every pending email-change link (members resend). (5) `GET /api/me` does not say beforehand that a marked account will go through the approval step, so the hint under the Settings form still promises a link to the new address; once the change is stored, the pending box shows the real next step (`pending_email_awaiting_current`).
+- An account without a password of its own cannot disconnect its last social provider (it would have no way left to sign in), and the check runs under a row lock so concurrent disconnects cannot bypass it.
+- A stolen session cannot delete an account on its own. Accounts with a password must type it (the endpoint is rate limited per account). Accounts on the placeholder, or with a first password set in Settings and not yet proven (`password_set_without_proof_at`), confirm through a signed link mailed to the current address; the link is single-use (compare-and-set), expires after 60 minutes and is voided by a newer request, a cancellation, or any email or password change. Remaining trade-offs: (1) the confirmation link is only as safe as the inbox; (2) a stolen session can still trigger the mail (rate limited), which the owner can ignore or cancel; (3) rotating `APP_KEY` voids pending deletion links.
 - Registration ignores any `role` in the request, so every new user is a `user`. Admins and moderators are set in the database or by an admin through `PATCH /api/admin/users/{user}`.
 
 ## Known follow-ups

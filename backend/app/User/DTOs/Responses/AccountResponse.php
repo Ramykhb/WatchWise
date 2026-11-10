@@ -7,6 +7,7 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Support\SocialPlaceholderPassword;
 use App\User\DTOs\Requests\UpdatePreferencesData;
+use App\User\InterfaceServices\AccountDeletionServiceInterface;
 use JsonSerializable;
 
 /** The signed-in user's own account: details, settings, linked sign-ins and header counts. */
@@ -33,6 +34,8 @@ final readonly class AccountResponse implements JsonSerializable
             $notifications[$key] = (bool) ($settings['notifications'][$key] ?? true);
         }
 
+        $hasPassword = ! SocialPlaceholderPassword::isStoredFor($user);
+
         return new self([
             'user' => UserResponse::fromModel($user),
             'preferences' => [
@@ -43,7 +46,13 @@ final readonly class AccountResponse implements JsonSerializable
             ],
             'connected' => $user->socialAccounts->mapWithKeys(fn ($account) => [$account->provider => $account->created_at?->toJSON()]),
             // False while a social sign-up still has the placeholder password (Settings then disables "current password").
-            'has_password' => ! SocialPlaceholderPassword::isStoredFor($user),
+            'has_password' => $hasPassword,
+            // True when DELETE /api/me mails a confirmation link instead of asking for the password: no password of
+            // its own, or a first one set in Settings without proof (which a stolen session could have done).
+            'deletion_by_email' => ! $hasPassword || $user->password_set_without_proof_at !== null,
+            // True while a deletion link mailed to the account is still valid (not expired, used or cancelled).
+            'deletion_pending' => $user->deletion_nonce !== null
+                && $user->deletion_requested_at?->isAfter(now()->subMinutes(AccountDeletionServiceInterface::EXPIRES_MINUTES)) === true,
             // The address waiting for its confirmation link to be opened; `user.email` stays the sign-in email until then.
             'pending_email' => $user->pending_email,
             // True while an account without a password still has to approve the change from its current address.

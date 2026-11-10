@@ -161,6 +161,12 @@
   font-size: 14px;
 }
 
+.notice {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--ground-violet);
+}
+
 /* ---------- Artboard (720 x 942, origin = top-left of the right half) ---------- */
 .cardLastLap,
 .cardPaperMoon,

@@ -60,17 +60,12 @@ class HomeRepository implements HomeRepositoryInterface
 
     public function busiestRooms(int $limit, int $userId): Collection
     {
-        return DiscussionRoom::withCount('messages')
+        return DiscussionRoom::withCount(['messages', 'members'])
             ->where(fn ($rooms) => $rooms->where('is_private', false)->orWhereHas('members', fn ($members) => $members->whereKey($userId)))
             ->withMax('messages', 'created_at')
             ->orderByDesc('messages_max_created_at')
             ->limit($limit)
             ->get();
-    }
-
-    public function roomMemberCount(DiscussionRoom $room): int
-    {
-        return $room->members()->count();
     }
 
     public function nextNightFor(User $user): ?MovieNight

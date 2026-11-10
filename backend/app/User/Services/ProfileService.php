@@ -62,13 +62,16 @@ class ProfileService implements ProfileServiceInterface
             'is_me' => $isMe,
             'is_following' => $isFollowing,
             // Waiting for a followers-only or private profile to accept.
-            'is_requested' => ! $isMe && ! $isFollowing && $me !== null && $this->notifications->hasRequestedFollow($me, $user),
-            'follows_you' => ! $isMe && $me !== null && $me->isFollowedBy($user->id),
-            'my_following' => $me !== null ? $this->profiles->followingIds($me) : [],
+            'is_requested' => ! $isMe && ! $isFollowing && $this->notifications->hasRequestedFollow($me, $user),
+            'follows_you' => ! $isMe && $me->isFollowedBy($user->id),
+            'my_following' => $this->profiles->followingIds($me),
         ];
 
+        // Decided once: a followers-only profile checks the follow with a query.
+        $canView = $this->privacy->canView($user, $viewer);
+
         // A profile the viewer may not open shows only the name and handle (enough to follow them).
-        if (! $this->privacy->canView($user, $viewer)) {
+        if (! $canView) {
             return new ProfileResponse([
                 ...$relation,
                 'user' => [
@@ -86,7 +89,7 @@ class ProfileService implements ProfileServiceInterface
             ]);
         }
 
-        $shows = fn (string $section) => $this->privacy->shows($user, $viewer, $section);
+        $shows = $this->privacy->sectionsShownTo($user, $viewer, $canView);
         $approvedOnly = ! $this->privacy->seesUnapprovedReviews($user, $viewer);
         $publicListsOnly = ! $isMe;
         // Sections the owner hid come back as null (counts) or empty (content).

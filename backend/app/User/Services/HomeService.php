@@ -25,7 +25,7 @@ class HomeService implements HomeServiceInterface
             ->map(fn (DiscussionRoom $room) => [
                 'id' => $room->id,
                 'name' => $room->name,
-                'members' => $this->home->roomMemberCount($room),
+                'members' => $room->members_count,
             ])->values()->all();
 
         $night = $this->home->nextNightFor($user);

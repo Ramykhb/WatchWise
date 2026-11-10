@@ -1,7 +1,7 @@
 import { SettingsSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import LoadError from '../../components/LoadingState/LoadError.tsx'
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useLenis } from 'lenis/react'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
@@ -24,6 +24,7 @@ import githubIcon from '../../assets/auth/icon-github.svg'
 import discordIcon from '../../assets/auth/icon-discord.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { INTEGRATIONS, PRIVACY, VISIBILITY, type IntegrationKey, type Visibility } from './settingsData.ts'
+import { accountDeletionNotice, deleteAccountPrompt, pendingDeletionMessage } from './accountDeletion.ts'
 import { FOLLOW_REQUEST_NOTE, NOTIFICATION_GROUPS } from '../Notifications/notificationKinds.ts'
 import styles from './Settings.module.css'
 import { useAuth } from '../../contexts/useAuth.ts'
@@ -86,7 +87,19 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
   const [passwordNote, setPasswordNote] = useState('')
   const [settingsNote, setSettingsNote] = useState('')
   // The panel whose change the note is about.
-  const [notePanel, setNotePanel] = useState<'privacy' | 'notifications'>('privacy')
+  const [notePanel, setNotePanel] = useState<'privacy' | 'connected' | 'notifications'>('privacy')
+  // An account-deletion link lands here with ?account_deletion=…; show it once, then drop it from the URL.
+  const [params, setParams] = useSearchParams()
+  const [deletionNote, setDeletionNote] = useState(() => accountDeletionNotice(params.get('account_deletion')) ?? '')
+  useEffect(() => {
+    if (params.has('account_deletion')) {
+      setParams((current) => {
+        const next = new URLSearchParams(current)
+        next.delete('account_deletion')
+        return next
+      }, { replace: true })
+    }
+  }, [params, setParams])
   const [locationNote, setLocationNote] = useState('')
   const visibility = me.user.profile_visibility
   const privacy = me.preferences.privacy
@@ -194,9 +207,11 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
 
   const toggleProvider = (provider: SocialProvider) => {
     if (connected[provider]) {
-      apply(api.delete(`/me/social/${provider}`)).catch(() => {
-        setNotePanel('privacy')
-        setSettingsNote(`Couldn't disconnect ${provider}.`)
+      setSettingsNote('')
+      apply(api.delete(`/me/social/${provider}`)).catch((error) => {
+        setNotePanel('connected')
+        // The API refuses to remove the last way to sign in of an account without a password, and says why.
+        setSettingsNote(apiErrorMessage(error, `Couldn't disconnect ${provider}.`))
       })
       return
     }
@@ -230,17 +245,32 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
     apply(api.patch('/me', { profile_visibility: value })).catch(() => setSettingsNote("Couldn't change who can see your profile."))
   }
 
+  // Accounts whose password proves nothing confirm from their inbox: the API mails a link (202) instead.
   const handleDelete = async () => {
-    if (!window.confirm('Delete your WatchWise account? Your reviews, lists and history will be removed. This cannot be undone.')) return
-    const password = window.prompt('Enter your password to delete your account.')
-    if (!password) return
+    const byEmail = me.deletion_by_email
+    if (!window.confirm(deleteAccountPrompt(byEmail, me.user.email))) return
+    const password = byEmail ? null : window.prompt('Enter your password to delete your account.')
+    if (!byEmail && !password) return
     try {
-      await api.delete('/me', { data: { password } })
+      const response = await api.delete<{ message: string }>('/me', { data: byEmail ? {} : { password } })
+      if (response.status === 202) {
+        onChange({ ...me, deletion_pending: true })
+        setDeletionNote('')
+        goTo('account')
+        return
+      }
       await logout().catch(() => undefined)
-      navigate('/signin', { replace: true })
+      navigate('/signin?account_deletion=deleted', { replace: true })
     } catch (error) {
       window.alert(apiErrorMessage(error, "Couldn't delete your account."))
     }
+  }
+
+  const keepAccount = () => {
+    setDeletionNote('')
+    apply(api.delete('/me/delete-request'))
+      .then(() => setDeletionNote(accountDeletionNotice('cancelled') ?? ''))
+      .catch((error) => setDeletionNote(apiErrorMessage(error, "Couldn't cancel the deletion. Please try again.")))
   }
 
   return (
@@ -309,6 +339,17 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
                   </p>
                 </div>
               </form>
+              {me.deletion_pending && (
+                <div className={styles.pendingDeletion}>
+                  <p className={styles.rowDesc}>{pendingDeletionMessage(me.user.email)}</p>
+                  <PillButton variant="outline" onClick={keepAccount}>
+                    Keep my account
+                  </PillButton>
+                </div>
+              )}
+              <p className={styles.note} role="status">
+                {deletionNote}
+              </p>
             </section>
 
             <section id="privacy" data-section className={styles.panel} aria-labelledby="privacy-title">
@@ -371,6 +412,9 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
                   )
                 })}
               </ul>
+              <p className={styles.note} role="status">
+                {notePanel === 'connected' ? settingsNote : ''}
+              </p>
             </section>
 
             <section id="integrations" data-section className={styles.panel} aria-labelledby="integrations-title">

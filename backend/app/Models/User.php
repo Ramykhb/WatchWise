@@ -4,13 +4,15 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
-    protected $hidden = ['password', 'remember_token', 'last_active_at', 'pending_email', 'pending_email_nonce', 'pending_email_authorized_at', 'password_set_without_proof_at'];
+    protected $hidden = ['password', 'remember_token', 'last_active_at', 'pending_email', 'pending_email_nonce', 'pending_email_authorized_at', 'password_set_without_proof_at', 'deletion_requested_at', 'deletion_nonce'];
 
     protected $fillable = [
         'name',
@@ -32,6 +34,14 @@ class User extends Authenticatable
         static::creating(function (User $user) {
             $user->username ??= static::uniqueUsername($user->name ?: Str::before((string) $user->email, '@'));
         });
+
+        // Any new password (Settings, reset by email, social takeover) drops a pending account deletion. Its
+        // links are bound to the password hash and stop working anyway; this also clears it from Settings.
+        static::saving(function (User $user) {
+            if ($user->exists && $user->isDirty('password') && $user->deletion_nonce !== null) {
+                $user->forceFill(['deletion_requested_at' => null, 'deletion_nonce' => null]);
+            }
+        });
     }
 
     /** Handles are at most 20 characters (Settings validates the same), suffix included. */
@@ -47,6 +57,35 @@ class User extends Authenticatable
         }
 
         return $username;
+    }
+
+    /**
+     * The column holds either a path on the public disk (a picture uploaded here, e.g. "avatars/x.png")
+     * or an external URL copied from Google, GitHub or Discord. Reading it always yields a full URL, so
+     * the stored value never bakes in this server's address.
+     *
+     * @return Attribute<string|null, string|null>
+     */
+    protected function avatar(): Attribute
+    {
+        return Attribute::get(fn (?string $stored): ?string => match (true) {
+            $stored === null || $stored === '' => null,
+            $this->isExternalAvatar($stored) => $stored,
+            default => Storage::disk('public')->url($stored),
+        });
+    }
+
+    /** The path of the uploaded picture on the public disk, or null when there is none (or it is external). */
+    public function storedAvatarPath(): ?string
+    {
+        $stored = $this->getRawOriginal('avatar');
+
+        return is_string($stored) && $stored !== '' && ! $this->isExternalAvatar($stored) ? $stored : null;
+    }
+
+    private function isExternalAvatar(string $stored): bool
+    {
+        return str_starts_with($stored, 'http://') || str_starts_with($stored, 'https://');
     }
 
     /** A privacy toggle from Settings (ratings, reviews, lists, watchlist, history, following). */
@@ -77,6 +116,7 @@ class User extends Authenticatable
             'last_active_at' => 'datetime',
             'pending_email_authorized_at' => 'datetime',
             'password_set_without_proof_at' => 'datetime',
+            'deletion_requested_at' => 'datetime',
         ];
     }
 

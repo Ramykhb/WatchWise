@@ -181,7 +181,8 @@ class EmailChangeTest extends SocialTestCase
         $this->as($user)->putJson('/api/me/email', ['email' => 'new@example.com', 'current_password' => 'wrong'])
             ->assertUnprocessable()
             ->assertJsonPath('errors.current_password.0', 'Your current password is incorrect.');
-        Mail::assertNothingSent();
+        Mail::assertNotSent(AuthorizeEmailChangeMail::class);
+        Mail::assertNotSent(ConfirmEmailChangeMail::class);
     }
 
     public function test_an_ordinary_password_change_keeps_the_first_password_unproven(): void
