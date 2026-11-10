@@ -71,11 +71,12 @@ function EditProfilePage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) =>
   }, [params, setParams])
 
   const dirty = (Object.keys(fields) as (keyof Fields)[]).some((key) => fields[key].trim() !== saved[key].trim())
-  const handle = fields.username.trim().replace(/^@/, '')
+  const handle = fields.username.trim().replace(/^@/, '').toLowerCase()
   const bioLeft = BIO_MAX - fields.bio.length
 
   const update = (key: keyof Fields) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const value = event.target.value
+    // Usernames are always saved in lowercase, so they are typed that way too.
+    const value = key === 'username' ? event.target.value.toLowerCase() : event.target.value
     setFields((current) => ({ ...current, [key]: value }))
     setNote('')
     if (key in errors) setErrors((current) => ({ ...current, [key]: undefined }))
@@ -116,7 +117,7 @@ function EditProfilePage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) =>
     event.preventDefault()
     if (saving) return
     const name = fields.name.trim()
-    const username = fields.username.trim()
+    const username = fields.username.trim().toLowerCase()
     const next: ProfileErrors = {}
     if (name.length < 2) next.name = 'Tell us your name.'
     if (!USERNAME_PATTERN.test(username)) next.username = '3–20 letters, numbers, dots or underscores.'
@@ -220,7 +221,7 @@ function EditProfilePage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) =>
                     value={fields.username}
                     onChange={update('username')}
                     autoComplete="username"
-                    hint={errors.username ? undefined : `Your profile link: /profile/${handle || 'username'}`}
+                    hint={errors.username ? undefined : `Lowercase only. Your profile link: /profile/${handle || 'username'}`}
                     error={errors.username}
                   />
                 </div>
@@ -282,7 +283,7 @@ function EditProfilePage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) =>
 
 /**
  * The sign-in email. A new address needs the current password (accounts made by social sign-in have
- * none yet) and only replaces the old one once the link mailed to it is opened.
+ * no password) and only replaces the old one once the link mailed to it is opened.
  */
 function EmailSection({ me, apply, returned }: { me: ApiMe; apply: Apply; returned: string | null }) {
   const [email, setEmail] = useState('')
