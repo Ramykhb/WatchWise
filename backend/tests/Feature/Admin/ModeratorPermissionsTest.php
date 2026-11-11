@@ -90,6 +90,7 @@ class ModeratorPermissionsTest extends AdminTestCase
         $this->as($moderator)->deleteJson("/api/admin/users/{$member->id}")->assertForbidden();
         $this->as($moderator)->getJson('/api/admin/movies')->assertForbidden();
         $this->as($moderator)->patchJson('/api/admin/movies/550', ['is_hidden' => true])->assertForbidden();
+        $this->as($moderator)->getJson('/api/admin/audit-log')->assertForbidden();
 
         $this->assertModelExists($member);
     }

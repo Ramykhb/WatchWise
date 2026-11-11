@@ -21,6 +21,16 @@ class ReviewService implements ReviewServiceInterface
         return $this->reviews->moderationTotals();
     }
 
+    public function lockForUpdate(Review $review): Review
+    {
+        return $this->reviews->lockForUpdate($review);
+    }
+
+    public function openReportsCount(Review $review): int
+    {
+        return $this->reviews->openReportsCount($review);
+    }
+
     public function approve(Review $review): Review
     {
         return $this->reviews->markApproved($review);

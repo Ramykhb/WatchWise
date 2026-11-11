@@ -23,6 +23,7 @@ class AdminAccessTest extends AdminTestCase
             'delete review' => ['deleteJson', '/api/admin/reviews/1'],
             'list movies' => ['getJson', '/api/admin/movies'],
             'update movie' => ['patchJson', '/api/admin/movies/550'],
+            'audit log' => ['getJson', '/api/admin/audit-log'],
         ];
     }
 

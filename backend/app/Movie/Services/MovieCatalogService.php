@@ -58,11 +58,11 @@ class MovieCatalogService implements MovieCatalogServiceInterface
 
     public function update(int $tmdbId, UpdateLocalMovieData $data): LocalMovie
     {
-        $movie = $this->catalog->findByTmdbId($tmdbId) ?? throw new MovieNotFound($tmdbId);
+        $movie = $this->catalog->findByTmdbId($tmdbId, lockForUpdate: true) ?? throw new MovieNotFound($tmdbId);
 
-        $changes = $data->changes();
+        $changes = $data->changesFrom($movie);
 
-        if ($data->editsContent()) {
+        if (UpdateLocalMovieData::editsContent($changes)) {
             $changes['edited_at'] = now();
         }
 

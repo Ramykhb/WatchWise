@@ -22,9 +22,9 @@ class MovieCatalogRepository implements MovieCatalogRepositoryInterface
             ->paginate($query->perPage, ['*'], 'page', $query->page);
     }
 
-    public function findByTmdbId(int $tmdbId): ?LocalMovie
+    public function findByTmdbId(int $tmdbId, bool $lockForUpdate = false): ?LocalMovie
     {
-        return LocalMovie::where('tmdb_id', $tmdbId)->first();
+        return LocalMovie::where('tmdb_id', $tmdbId)->when($lockForUpdate, fn ($query) => $query->lockForUpdate())->first();
     }
 
     public function create(array $attributes): LocalMovie

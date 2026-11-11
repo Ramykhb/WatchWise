@@ -26,7 +26,8 @@ interface AdminServiceInterface
     public function users(AdminUserQuery $query): AdminPageResponse;
 
     /**
-     * Deactivating an account also signs it out everywhere.
+     * Deactivating an account also signs it out everywhere. A role change and an active-state change are each
+     * recorded in the audit log (one entry apiece), but only when the value really changed.
      *
      * @throws CannotModerateSelf when `$admin` removes their own admin role or deactivates themselves
      */
@@ -37,12 +38,20 @@ interface AdminServiceInterface
 
     public function reviews(ReviewModerationQuery $query): AdminPageResponse;
 
-    public function moderateReview(Review $review, ModerateReviewData $data): AdminReviewResponse;
+    /**
+     * Recorded in the audit log as approved or rejected, with the review's status before and after and how many
+     * open reports the decision closed; a decision that changes neither records nothing.
+     */
+    public function moderateReview(User $moderator, Review $review, ModerateReviewData $data): AdminReviewResponse;
 
-    public function deleteReview(Review $review): void;
+    public function deleteReview(User $moderator, Review $review): void;
 
     public function movies(LocalMovieQuery $query): AdminPageResponse;
 
-    /** @throws MovieNotFound */
-    public function updateMovie(int $tmdbId, UpdateLocalMovieData $data): AdminMovieResponse;
+    /**
+     * Recorded in the audit log when a submitted field really changed, with old and new values (an overview is only marked changed).
+     *
+     * @throws MovieNotFound
+     */
+    public function updateMovie(User $admin, int $tmdbId, UpdateLocalMovieData $data): AdminMovieResponse;
 }
