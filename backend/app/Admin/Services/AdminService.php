@@ -35,6 +35,8 @@ use App\Support\MediaType;
 use App\User\InterfaceServices\AccountServiceInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use JsonSerializable;
 
 class AdminService implements AdminServiceInterface
@@ -46,6 +48,15 @@ class AdminService implements AdminServiceInterface
     private const MIN_RATINGS_TO_RANK = 3;
 
     private const GENRE_LIMIT = 8;
+
+    /** Seconds a built stats response is reused before it is worked out again. */
+    private const STATS_CACHE_TTL = 60;
+
+    /** Cache key of one stats response: version, day, number of days and named range of the window. */
+    private const STATS_CACHE_KEY = 'admin:stats:%s:%s:%d:%s';
+
+    /** Cache key of the token that is part of every stats key; replacing it retires all cached windows at once. */
+    private const STATS_VERSION_KEY = 'admin:stats:version';
 
     /** How many of the most engaged films the genre share is worked out from. */
     private const GENRE_SAMPLE = 1000;
@@ -61,6 +72,33 @@ class AdminService implements AdminServiceInterface
     ) {}
 
     public function stats(AdminStatsQuery $query): AdminStatsResponse
+    {
+        $key = sprintf(
+            self::STATS_CACHE_KEY,
+            Cache::get(self::STATS_VERSION_KEY, 'initial'),
+            today()->toDateString(),
+            $query->days,
+            $query->range ?? 'none',
+        );
+
+        $payload = Cache::remember(
+            $key,
+            self::STATS_CACHE_TTL,
+            fn (): array => json_decode(json_encode($this->buildStats($query), JSON_THROW_ON_ERROR), true, flags: JSON_THROW_ON_ERROR),
+        );
+
+        return AdminStatsResponse::fromPayload($payload);
+    }
+
+    /**
+     * Retires every cached stats window, so the next request counts afresh.
+     */
+    private function forgetStats(): void
+    {
+        Cache::forever(self::STATS_VERSION_KEY, (string) Str::uuid());
+    }
+
+    private function buildStats(AdminStatsQuery $query): AdminStatsResponse
     {
         $hidden = $this->catalog->hiddenTmdbIds();
         $lastWeek = now()->subDays(7);
@@ -167,6 +205,7 @@ class AdminService implements AdminServiceInterface
 
         $this->auth->revokeSessions($target);
         $this->accounts->deleteAccount($target);
+        $this->forgetStats();
     }
 
     public function reviews(ReviewModerationQuery $query): AdminPageResponse
@@ -183,6 +222,7 @@ class AdminService implements AdminServiceInterface
     public function moderateReview(Review $review, ModerateReviewData $data): AdminReviewResponse
     {
         $moderated = $data->isApproval() ? $this->reviews->approve($review) : $this->reviews->reject($review);
+        $this->forgetStats();
 
         $moderated->loadMissing(['user', 'reports']);
 
@@ -192,6 +232,7 @@ class AdminService implements AdminServiceInterface
     public function deleteReview(Review $review): void
     {
         $this->reviews->delete($review);
+        $this->forgetStats();
     }
 
     public function movies(LocalMovieQuery $query): AdminPageResponse
@@ -202,7 +243,10 @@ class AdminService implements AdminServiceInterface
 
     public function updateMovie(int $tmdbId, UpdateLocalMovieData $data): AdminMovieResponse
     {
-        return AdminMovieResponse::fromModel($this->catalog->update($tmdbId, $data));
+        $movie = $this->catalog->update($tmdbId, $data);
+        $this->forgetStats();
+
+        return AdminMovieResponse::fromModel($movie);
     }
 
     /**

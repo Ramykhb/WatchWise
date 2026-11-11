@@ -33,6 +33,30 @@ final readonly class AdminStatsResponse implements JsonSerializable
     ) {}
 
     /**
+     * Rebuilds the response from its JSON form, which is what the service keeps in the cache.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public static function fromPayload(array $payload): self
+    {
+        return new self(
+            usersTotal: $payload['users_total'],
+            newUsers: $payload['new_users'],
+            reviewsTotal: $payload['reviews_total'],
+            reviewsPending: $payload['reviews_pending'],
+            newReviews: $payload['new_reviews'],
+            activeToday: $payload['active_today'],
+            activeYesterday: $payload['active_yesterday'],
+            flaggedReviews: $payload['flagged_reviews'],
+            range: $payload['range'],
+            mostWatched: array_map(fn (array $row): RankedMovieResponse => new RankedMovieResponse($row['tmdb_id'], $row['title'], $row['poster_path'], $row['count'], $row['average']), $payload['most_watched']),
+            topRated: array_map(fn (array $row): RankedMovieResponse => new RankedMovieResponse($row['tmdb_id'], $row['title'], $row['poster_path'], $row['count'], $row['average']), $payload['top_rated']),
+            popularGenres: array_map(fn (array $row): GenreShareResponse => new GenreShareResponse($row['id'], $row['name'], $row['count'], (float) $row['share']), $payload['popular_genres']),
+            activity: array_map(fn (array $row): ActivityPointResponse => new ActivityPointResponse($row['date'], $row['signups'], $row['ratings'], $row['reviews'], $row['lists'], $row['watches'], $row['messages']), $payload['activity']),
+        );
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function jsonSerialize(): array
