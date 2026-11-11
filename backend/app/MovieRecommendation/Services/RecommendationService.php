@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Movie\DTOs\Requests\MovieDiscoverQuery;
 use App\Movie\DTOs\Responses\MovieResponse;
 use App\Movie\Exceptions\MovieNotFound;
+use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Movie\InterfaceServices\MovieServiceInterface;
 use App\MovieRecommendation\DTOs\Requests\RecommendationQuery;
 use App\MovieRecommendation\DTOs\Responses\RecommendationResponse;
@@ -31,6 +32,7 @@ class RecommendationService implements RecommendationServiceInterface
         private readonly MovieServiceInterface $movies,
         private readonly WatchlistRepositoryInterface $watchlist,
         private readonly GroqStructuredOutputInterface $groq,
+        private readonly MovieCatalogServiceInterface $catalog,
     ) {}
 
     public function forWatched(User $user): RecommendationResponse
@@ -46,7 +48,7 @@ class RecommendationService implements RecommendationServiceInterface
 
         $payload = Cache::remember($cacheKey, now()->addHour(), fn (): array => $this->generateForWatched($watched)->payload);
 
-        return new RecommendationResponse($payload);
+        return (new RecommendationResponse($payload))->without($this->catalog->hiddenMovies());
     }
 
     private function generateForWatched(Collection $watched): RecommendationResponse

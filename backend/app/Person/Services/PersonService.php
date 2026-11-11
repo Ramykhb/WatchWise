@@ -2,6 +2,7 @@
 
 namespace App\Person\Services;
 
+use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Person\DTOs\Responses\CollaboratorResponse;
 use App\Person\DTOs\Responses\CollaboratorsResponse;
 use App\Person\DTOs\Responses\PersonCreditResponse;
@@ -9,6 +10,7 @@ use App\Person\DTOs\Responses\PersonDetailsResponse;
 use App\Person\InterfaceRepository\PersonRepositoryInterface;
 use App\Person\InterfaceServices\PersonServiceInterface;
 use App\Support\Exceptions\TmdbUnavailable;
+use App\Support\MediaType;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -33,19 +35,19 @@ class PersonService implements PersonServiceInterface
     /** Crew jobs that make someone a collaborator (not assistants, drivers, …). */
     private const COLLABORATOR_JOBS = ['Director', 'Screenplay', 'Writer', 'Producer', 'Original Music Composer', 'Director of Photography', 'Editor'];
 
-    public function __construct(private readonly PersonRepositoryInterface $people) {}
+    public function __construct(
+        private readonly PersonRepositoryInterface $people,
+        private readonly MovieCatalogServiceInterface $catalog,
+    ) {}
 
     public function find(int $id): PersonDetailsResponse
     {
-        // A person's details rarely change, so repeat visits don't spend the TMDB quota.
-        // Only successful answers are cached: PersonNotFound and TmdbUnavailable pass straight through.
-        $person = Cache::remember(self::CACHE_PREFIX.$id, now()->addHours(self::CACHE_HOURS), fn () => $this->people->find($id));
+        $person = $this->cachedPerson($id);
 
-        // One entry per film, even when the person acted in it and also directed or wrote it.
-        $credits = collect([...($person['movie_credits']['cast'] ?? []), ...($person['movie_credits']['crew'] ?? [])])
-            ->groupBy('id')
-            ->map(fn (Collection $entries): PersonCreditResponse => $this->toCredit($entries))
-            ->sortByDesc(fn (PersonCreditResponse $credit): int => $credit->year ?? 0)
+        // Hidden films are left out after the cache, so hiding or showing one applies at once.
+        $hidden = $this->catalog->hiddenMovies();
+        $credits = $this->credits($person)
+            ->reject(fn (PersonCreditResponse $credit): bool => $hidden->hides(MediaType::MOVIE, $credit->id))
             ->values();
 
         return new PersonDetailsResponse(
@@ -94,7 +96,7 @@ class PersonService implements PersonServiceInterface
      */
     private function findCollaborators(int $id): array
     {
-        $films = collect($this->find($id)->credits)
+        $films = $this->credits($this->cachedPerson($id))
             ->sortByDesc(fn (PersonCreditResponse $credit): int => $credit->voteCount)
             ->take(self::COLLABORATOR_FILMS);
 
@@ -137,6 +139,32 @@ class PersonService implements PersonServiceInterface
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * A person's details rarely change, so repeat visits don't spend the TMDB quota.
+     * Only successful answers are cached: PersonNotFound and TmdbUnavailable pass straight through.
+     *
+     * @return array<string, mixed>
+     */
+    private function cachedPerson(int $id): array
+    {
+        return Cache::remember(self::CACHE_PREFIX.$id, now()->addHours(self::CACHE_HOURS), fn () => $this->people->find($id));
+    }
+
+    /**
+     * One entry per film, even when the person acted in it and also directed or wrote it, newest first.
+     *
+     * @param  array<string, mixed>  $person
+     * @return Collection<int, PersonCreditResponse>
+     */
+    private function credits(array $person): Collection
+    {
+        return collect([...($person['movie_credits']['cast'] ?? []), ...($person['movie_credits']['crew'] ?? [])])
+            ->groupBy('id')
+            ->map(fn (Collection $entries): PersonCreditResponse => $this->toCredit($entries))
+            ->sortByDesc(fn (PersonCreditResponse $credit): int => $credit->year ?? 0)
+            ->values();
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Models\Message;
 use App\Models\Notification;
 use App\Models\User;
 use App\Room\InterfaceRepository\RoomRepositoryInterface;
+use App\Support\HiddenMovies;
 use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,14 +18,14 @@ use Illuminate\Support\Facades\DB;
 
 class RoomRepository implements RoomRepositoryInterface
 {
-    public function visibleTo(int $userId, CarbonInterface $sentAfter): Collection
+    public function visibleTo(int $userId, CarbonInterface $sentAfter, HiddenMovies $hidden): Collection
     {
         $shown = $this->shownTo($userId, $sentAfter);
 
         return DiscussionRoom::with($this->detail($shown))
             ->withCount(['messages' => $shown])
             ->where(fn (Builder $rooms) => $rooms
-                ->where('is_private', false)
+                ->where(fn (Builder $open) => $hidden->exclude($open->where('is_private', false)))
                 ->orWhereHas('members', fn (Builder $members) => $members->whereKey($userId))
                 ->orWhereHas('invitees', fn (Builder $invitees) => $invitees->whereKey($userId)))
             ->get();

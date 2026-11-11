@@ -6,6 +6,7 @@ use App\Models\DiscussionRoom;
 use App\Models\Message;
 use App\Models\Notification;
 use App\Models\User;
+use App\Support\HiddenMovies;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -23,7 +24,7 @@ interface RoomRepositoryInterface
      *
      * @return Collection<int, DiscussionRoom>
      */
-    public function visibleTo(int $userId, CarbonInterface $sentAfter): Collection;
+    public function visibleTo(int $userId, CarbonInterface $sentAfter, HiddenMovies $hidden): Collection;
 
     /**
      * @param  array{name: string, tmdb_id: int, created_by: int, spoilers: bool, is_private: bool}  $attributes

@@ -11,6 +11,7 @@ use App\Movie\InterfaceRepository\MovieCatalogRepositoryInterface;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Movie\InterfaceServices\MovieServiceInterface;
 use App\Support\Exceptions\TmdbUnavailable;
+use App\Support\HiddenMovies;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
@@ -83,5 +84,15 @@ class MovieCatalogService implements MovieCatalogServiceInterface
     public function hiddenTmdbIds(): array
     {
         return $this->catalog->hiddenTmdbIds();
+    }
+
+    public function hiddenMovies(): HiddenMovies
+    {
+        return $this->catalog->hidden();
+    }
+
+    public function featured(int $limit): Collection
+    {
+        return $this->catalog->featured($limit);
     }
 }

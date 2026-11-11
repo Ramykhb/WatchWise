@@ -4,6 +4,7 @@ namespace App\User\Repository;
 
 use App\Models\Review;
 use App\Models\User;
+use App\Support\HiddenMovies;
 use App\Support\LikePattern;
 use App\User\DTOs\Requests\UserSearchQuery;
 use App\User\InterfaceRepository\ProfileRepositoryInterface;
@@ -64,10 +65,10 @@ class ProfileRepository implements ProfileRepositoryInterface
         return $this->reviews($user, $approvedOnly)->withText()->count();
     }
 
-    public function topRatedTmdbIds(User $user, bool $approvedOnly, int $limit): SupportCollection
+    public function topRatedTmdbIds(User $user, bool $approvedOnly, int $limit, HiddenMovies $hidden): SupportCollection
     {
         // Movies only: the profile shows these ids as movie posters (a TV show can share the id).
-        return $this->reviews($user, $approvedOnly)->where('media_type', 'movie')->orderByDesc('rating')->latest()->limit($limit)->pluck('tmdb_id');
+        return $hidden->exclude($this->reviews($user, $approvedOnly)->where('media_type', 'movie'))->orderByDesc('rating')->latest()->limit($limit)->pluck('tmdb_id');
     }
 
     public function listsCount(User $user, bool $publicOnly): int
@@ -75,21 +76,23 @@ class ProfileRepository implements ProfileRepositoryInterface
         return $user->movieLists()->when($publicOnly, fn ($builder) => $builder->where('is_public', true))->count();
     }
 
-    public function lists(User $user, bool $publicOnly): Collection
+    public function lists(User $user, bool $publicOnly, HiddenMovies $hidden): Collection
     {
+        $visibleItems = fn ($items) => $hidden->exclude($items);
+
         return $user->movieLists()->when($publicOnly, fn ($builder) => $builder->where('is_public', true))
-            ->with(['user', 'items'])->withCount('items')->latest('updated_at')->get();
+            ->with(['user', 'items' => $visibleItems])->withCount(['items' => $visibleItems])->latest('updated_at')->get();
     }
 
-    public function watchedCount(User $user): int
+    public function watchedCount(User $user, HiddenMovies $hidden): int
     {
-        return $user->watchlists()->where('status', 'watched')->count();
+        return $hidden->exclude($user->watchlists()->where('status', 'watched'))->count();
     }
 
-    public function watchedTmdbIds(User $user, int $limit): SupportCollection
+    public function watchedTmdbIds(User $user, int $limit, HiddenMovies $hidden): SupportCollection
     {
         // Movies only, like top 4 (shown as movie tiles).
-        return $user->watchlists()->where('status', 'watched')->where('media_type', 'movie')->latest('watched_at')->limit($limit)->pluck('tmdb_id');
+        return $hidden->exclude($user->watchlists()->where('status', 'watched')->where('media_type', 'movie'))->latest('watched_at')->limit($limit)->pluck('tmdb_id');
     }
 
     public function recentFollowers(User $user, int $limit): Collection

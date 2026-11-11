@@ -4,6 +4,7 @@ namespace App\User\InterfaceRepository;
 
 use App\Models\MovieList;
 use App\Models\User;
+use App\Support\HiddenMovies;
 use App\User\DTOs\Requests\UserSearchQuery;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
@@ -50,25 +51,25 @@ interface ProfileRepositoryInterface
     public function reviewsCount(User $user, bool $approvedOnly): int;
 
     /**
-     * Highest-rated films first; ties go to the most recent review.
+     * Highest-rated movies first, without the hidden ones; ties go to the most recent review.
      *
      * @return SupportCollection<int, int>
      */
-    public function topRatedTmdbIds(User $user, bool $approvedOnly, int $limit): SupportCollection;
+    public function topRatedTmdbIds(User $user, bool $approvedOnly, int $limit, HiddenMovies $hidden): SupportCollection;
 
     public function listsCount(User $user, bool $publicOnly): int;
 
     /**
-     * @return Collection<int, MovieList> latest activity first, with owner, films and film count
+     * @return Collection<int, MovieList> latest activity first, with owner, films and film count, without the hidden movies
      */
-    public function lists(User $user, bool $publicOnly): Collection;
+    public function lists(User $user, bool $publicOnly, HiddenMovies $hidden): Collection;
 
-    public function watchedCount(User $user): int;
+    public function watchedCount(User $user, HiddenMovies $hidden): int;
 
     /**
-     * @return SupportCollection<int, int> the most recently watched films
+     * @return SupportCollection<int, int> the most recently watched movies, without the hidden ones
      */
-    public function watchedTmdbIds(User $user, int $limit): SupportCollection;
+    public function watchedTmdbIds(User $user, int $limit, HiddenMovies $hidden): SupportCollection;
 
     /**
      * @return Collection<int, User>

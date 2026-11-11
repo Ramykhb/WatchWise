@@ -5,6 +5,7 @@ namespace App\Movie\Repository;
 use App\Models\LocalMovie;
 use App\Movie\DTOs\Requests\LocalMovieQuery;
 use App\Movie\InterfaceRepository\MovieCatalogRepositoryInterface;
+use App\Support\HiddenMovies;
 use App\Support\LikePattern;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -57,5 +58,20 @@ class MovieCatalogRepository implements MovieCatalogRepositoryInterface
     public function hiddenTmdbIds(): array
     {
         return LocalMovie::where('is_hidden', true)->pluck('tmdb_id')->map(fn ($id): int => (int) $id)->all();
+    }
+
+    public function hidden(): HiddenMovies
+    {
+        return new HiddenMovies($this->hiddenTmdbIds());
+    }
+
+    public function featured(int $limit): Collection
+    {
+        return LocalMovie::where('is_featured', true)
+            ->where('is_hidden', false)
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
     }
 }

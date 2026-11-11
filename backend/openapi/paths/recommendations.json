@@ -31,7 +31,7 @@
     "/api/following-recommendations": {
       "get": {
         "summary": "Get titles loved by people you follow",
-        "description": "Returns up to six unwatched movies or TV shows rated five stars by active people the viewer follows. Requires public or followers-only profiles and shared ratings; pending or removed reviews do not contribute. Titles are ranked by distinct followed rater count, then most recent rating, media type and TMDB ID. Removed TMDB titles are skipped. Social data is recomputed on every request so follow, rating, privacy and watched-history changes take effect immediately; TMDB details reuse their existing cache. No AI provider is used.",
+        "description": "Returns up to six unwatched movies or TV shows rated five stars by active people the viewer follows. Requires public or followers-only profiles and shared ratings; pending or removed reviews do not contribute. Titles are ranked by distinct followed rater count, then most recent rating, media type and TMDB ID. Removed TMDB titles and movies an admin hid from browsing are skipped. Social data is recomputed on every request so follow, rating, privacy and watched-history changes take effect immediately; TMDB details reuse their existing cache. No AI provider is used.",
         "tags": [
           "Recommendations"
         ],
@@ -95,7 +95,7 @@
     "/api/people-recommendations": {
       "get": {
         "summary": "Get six films from your most-watched actor and director",
-        "description": "Counts each person once per watched title using full TMDB cast and Director crew credits. Ties use the lowest TMDB person ID. Groq uses GROQ_API_KEY_2 to choose six released, unwatched films from those people’s verified movie credits (fewer only when fewer candidates exist). TV cast and Director crew credits contribute to counts; TV creators are not counted as directors. Returns director and actor objects with id, name and watched_count (nullable), plus movies with recommendation reasons. Empty history returns null people and no movies. Results are cached per user and watched-history fingerprint for one hour; TMDB credits for six hours.",
+        "description": "Counts each person once per watched title using full TMDB cast and Director crew credits. Ties use the lowest TMDB person ID. Groq uses GROQ_API_KEY_2 to choose six released, unwatched films from those people’s verified movie credits (fewer only when fewer candidates exist). TV cast and Director crew credits contribute to counts; TV creators are not counted as directors. Returns director and actor objects with id, name and watched_count (nullable), plus movies with recommendation reasons. Empty history returns null people and no movies. Results are cached per user and watched-history fingerprint for one hour; TMDB credits for six hours. Movies an admin hid from browsing are left out of a cached result on every request.",
         "tags": [
           "Recommendations"
         ],
@@ -123,7 +123,7 @@
     "/api/watched-recommendations": {
       "get": {
         "summary": "Get recommendations based on your watched history",
-        "description": "Picks a random movie or TV show marked watched by the authenticated user. Groq selects six matching titles from verified TMDB candidates, excluding watched titles and other editions with the same title as the watched source. Fewer are returned only when fewer candidates exist. Empty history returns source null and an empty movies array. Successful results are cached per user for one hour and invalidated when the watched list changes. Requires TMDB_API_KEY and the separate GROQ_API_KEY_2 for watched-history recommendations (same GROQ_MODEL and GROQ_API_URL). Counts against the AI limit of 10 requests per minute.",
+        "description": "Picks a random movie or TV show marked watched by the authenticated user. Groq selects six matching titles from verified TMDB candidates, excluding watched titles and other editions with the same title as the watched source. Fewer are returned only when fewer candidates exist. Empty history returns source null and an empty movies array. Successful results are cached per user for one hour and invalidated when the watched list changes. Movies an admin hid from browsing are left out of a cached result on every request. Requires TMDB_API_KEY and the separate GROQ_API_KEY_2 for watched-history recommendations (same GROQ_MODEL and GROQ_API_URL). Counts against the AI limit of 10 requests per minute.",
         "tags": [
           "Recommendations"
         ],
@@ -181,7 +181,7 @@
     "/api/movie-recommendations": {
       "get": {
         "summary": "Get movie recommendations for the current weather",
-        "description": "Fetches the current weather, retrieves popular TMDB candidates in weather-appropriate genres, then asks Groq to select up to 10 candidates. Only verified TMDB movies are returned. Send latitude and longitude together, or neither to use the default location. Requires TMDB_API_KEY and GROQ_API_KEY in .env. Counts against the AI limit of 10 requests per minute.",
+        "description": "Fetches the current weather, retrieves popular TMDB candidates in weather-appropriate genres, then asks Groq to select up to 10 candidates. Only verified TMDB movies are returned, never ones an admin hid from browsing. Send latitude and longitude together, or neither to use the default location. Requires TMDB_API_KEY and GROQ_API_KEY in .env. Counts against the AI limit of 10 requests per minute.",
         "tags": ["Recommendations"],
         "parameters": [
           {"name": "latitude", "in": "query", "required": false, "description": "Required if longitude is sent.", "schema": {"type": "number", "minimum": -90, "maximum": 90}, "example": 33.8938},

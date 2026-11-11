@@ -5,17 +5,18 @@ namespace App\MovieRecommendation\Repository;
 use App\Models\Review;
 use App\Models\User;
 use App\MovieRecommendation\InterfaceRepository\FollowingRecommendationRepositoryInterface;
+use App\Support\HiddenMovies;
 use App\Support\MediaType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 
 class FollowingRecommendationRepository implements FollowingRecommendationRepositoryInterface
 {
-    public function candidates(User $viewer): array
+    public function candidates(User $viewer, HiddenMovies $hidden): array
     {
         // Recheck follows, privacy and moderation on every request. Caching this aggregate
         // would continue exposing ratings after an unfollow or a privacy change.
-        return Review::query()
+        return $hidden->exclude(Review::query())
             ->where('rating', 5)
             ->where('is_approved', true)
             ->whereNull('removed_at')

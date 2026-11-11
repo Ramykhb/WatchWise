@@ -19,8 +19,11 @@ interface MovieListServiceInterface
 
     public function create(CreateMovieListData $data, User $owner): MovieList;
 
-    /** The list with its owner, films and film count loaded. */
+    /** The list with its owner, films and film count loaded, for the person who changes it. */
     public function detail(MovieList $list): MovieList;
+
+    /** The list as the viewer sees it: other members do not see the movies admins hid from browsing. */
+    public function show(MovieList $list, User $viewer): MovieList;
 
     /** Replaces the movies and TV shows in the given order when `films` is set (add, remove, reorder). */
     public function update(MovieList $list, UpdateMovieListData $data): MovieList;

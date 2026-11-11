@@ -6,6 +6,7 @@ use App\Groq\Exceptions\GroqUnavailable;
 use App\Groq\InterfaceServices\GroqStructuredOutputInterface;
 use App\Movie\DTOs\Responses\MoviePageResponse;
 use App\Movie\DTOs\Responses\MovieResponse;
+use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Movie\InterfaceServices\MovieServiceInterface;
 use App\MovieRecommendation\DTOs\Requests\RecommendationQuery;
 use App\MovieRecommendation\Exceptions\RecommendationUnavailable;
@@ -37,7 +38,7 @@ class RecommendationServiceTest extends TestCase
         $this->weather = Mockery::mock(WeatherServiceInterface::class);
         $this->groq = Mockery::mock(GroqStructuredOutputInterface::class);
         $this->movies = Mockery::mock(MovieServiceInterface::class);
-        $this->service = new RecommendationService($this->weather, $this->movies, Mockery::mock(WatchlistRepositoryInterface::class), $this->groq);
+        $this->service = new RecommendationService($this->weather, $this->movies, Mockery::mock(WatchlistRepositoryInterface::class), $this->groq, Mockery::mock(MovieCatalogServiceInterface::class));
     }
 
     /**
