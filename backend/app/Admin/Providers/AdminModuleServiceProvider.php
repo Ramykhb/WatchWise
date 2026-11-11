@@ -8,10 +8,13 @@ use App\Admin\InterfaceServices\AdminServiceInterface;
 use App\Admin\Repository\AdminStatsRepository;
 use App\Admin\Repository\AdminUserRepository;
 use App\Admin\Services\AdminService;
+use App\Auth\CurrentUser\CurrentUser;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 /**
- * Binds the Admin module's interfaces to their implementations.
+ * Binds the Admin module's interfaces to their implementations and defines its rate limiter.
  */
 class AdminModuleServiceProvider extends ServiceProvider
 {
@@ -23,4 +26,10 @@ class AdminModuleServiceProvider extends ServiceProvider
         AdminUserRepositoryInterface::class => AdminUserRepository::class,
         AdminServiceInterface::class => AdminService::class,
     ];
+
+    public function boot(): void
+    {
+        // Per signed-in staff member: auth.jwt runs before throttling, so a guest never reaches the limiter.
+        RateLimiter::for('admin', fn () => Limit::perMinute(120)->by('admin:'.app(CurrentUser::class)->id()));
+    }
 }

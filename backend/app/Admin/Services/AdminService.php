@@ -32,6 +32,7 @@ use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Review\InterfaceServices\ReviewServiceInterface;
 use App\Support\Exceptions\TmdbUnavailable;
 use App\Support\MediaType;
+use App\User\InterfaceServices\AccountServiceInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use JsonSerializable;
@@ -56,6 +57,7 @@ class AdminService implements AdminServiceInterface
         private readonly ReviewServiceInterface $reviews,
         private readonly MovieCatalogServiceInterface $catalog,
         private readonly GenreServiceInterface $genres,
+        private readonly AccountServiceInterface $accounts,
     ) {}
 
     public function stats(AdminStatsQuery $query): AdminStatsResponse
@@ -141,14 +143,14 @@ class AdminService implements AdminServiceInterface
         return AdminUserResponse::fromModel($updated);
     }
 
-    /** A moderator may only suspend or reinstate plain members. */
+    /** A moderator may only suspend or reinstate plain members; sending the role the member already has changes nothing, so it is allowed. */
     private function assertModeratorMayUpdate(User $moderator, User $target, UpdateUserData $data): void
     {
         if ($moderator->is($target)) {
             throw CannotModerateSelf::forDeactivation();
         }
 
-        if ($data->role !== null) {
+        if ($data->role !== null && $data->role !== $target->role) {
             throw CannotModerateStaff::forRoleChange();
         }
 
@@ -164,7 +166,7 @@ class AdminService implements AdminServiceInterface
         }
 
         $this->auth->revokeSessions($target);
-        $this->users->delete($target);
+        $this->accounts->deleteAccount($target);
     }
 
     public function reviews(ReviewModerationQuery $query): AdminPageResponse
