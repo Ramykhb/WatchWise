@@ -2,11 +2,14 @@
 
 namespace Tests\Feature\Movie;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class DiscoverTest extends TestCase
 {
+    use RefreshDatabase;
+
     /**
      * A one-movie TMDB page to answer every faked request with.
      *

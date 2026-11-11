@@ -41,11 +41,11 @@ class MovieListController
     }
 
     /** GET /api/lists/{list} */
-    public function show(MovieList $list): JsonResponse
+    public function show(MovieList $list, CurrentUser $current): JsonResponse
     {
         Gate::authorize('view', $list);
 
-        return response()->json(['list' => $this->present($this->lists->detail($list))]);
+        return response()->json(['list' => $this->present($this->lists->show($list, $current->user()))]);
     }
 
     /** PATCH /api/lists/{list} — `tmdb_ids` replaces the films in that order (add, remove, reorder). */

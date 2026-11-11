@@ -1,6 +1,8 @@
 // Shapes returned by the Laravel API (backend/app/Http/Controllers, backend/app/Http/Resources).
 // Films are TMDB ids; lib/movies.ts turns them into the poster data the components draw.
 
+import type { TmdbMovie } from '../pages/Discover/discoverApi.ts'
+
 /** Small public card of a user (MemberResource). */
 export type ApiMember = { id: number; username: string; name: string; avatar: string | null }
 
@@ -236,6 +238,8 @@ export type ApiHomeActivity = {
 
 export type ApiHome = {
   activity: ApiHomeActivity[]
+  /** Films the admins feature on Home (visible ones only, most recently edited first, at most 10). */
+  featured: TmdbMovie[]
   rooms: { id: number; name: string; members: number }[]
   next_night: {
     id: number

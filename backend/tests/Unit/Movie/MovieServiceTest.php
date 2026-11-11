@@ -5,8 +5,10 @@ namespace Tests\Unit\Movie;
 use App\Movie\DTOs\Requests\MovieDiscoverQuery;
 use App\Movie\DTOs\Requests\MovieListQuery;
 use App\Movie\DTOs\Requests\MovieSearchQuery;
+use App\Movie\InterfaceRepository\MovieCatalogRepositoryInterface;
 use App\Movie\InterfaceRepository\MovieRepositoryInterface;
 use App\Movie\Services\MovieService;
+use App\Support\HiddenMovies;
 use Mockery;
 use Mockery\MockInterface;
 use Tests\TestCase;
@@ -22,7 +24,11 @@ class MovieServiceTest extends TestCase
         $repository = Mockery::mock(MovieRepositoryInterface::class);
         $repository->shouldReceive($method)->once()->andReturn($payload);
 
-        return new MovieService($repository);
+        /** @var MovieCatalogRepositoryInterface&MockInterface $catalog */
+        $catalog = Mockery::mock(MovieCatalogRepositoryInterface::class);
+        $catalog->shouldReceive('hidden')->andReturn(HiddenMovies::none());
+
+        return new MovieService($repository, $catalog);
     }
 
     /**

@@ -3,7 +3,7 @@
         "/api/rooms": {
             "get": {
                 "summary": "List discussion rooms",
-                "description": "The rooms you can see: every public room, and the private rooms you are a member of or invited to. Yours come first, then invitations, then the other public rooms, newest activity first. `members` are the creator and everyone who joined; `message_count` and `last_message` describe the messages you can still see (a message is shown for 24 hours after it is sent, then only to the members who have yet to read it), and `unread` counts the ones waiting for you. The list is kept current over the private channels `rooms.public` and `rooms.user.{your id}`: `message.sent` carries a new message, `rooms.changed` (`room_id`) means reload.",
+                "description": "The rooms you can see: every public room, and the private rooms you are a member of or invited to. Yours come first, then invitations, then the other public rooms, newest activity first. A public room about a movie an admin hid from browsing is left out for everyone who is not a member of it or invited to it. `members` are the creator and everyone who joined; `message_count` and `last_message` describe the messages you can still see (a message is shown for 24 hours after it is sent, then only to the members who have yet to read it), and `unread` counts the ones waiting for you. The list is kept current over the private channels `rooms.public` and `rooms.user.{your id}`: `message.sent` carries a new message, `rooms.changed` (`room_id`) means reload.",
                 "tags": ["Rooms"],
                 "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
                 "responses": {

@@ -3,7 +3,7 @@
     "/api/movies/trending": {
       "get": {
         "summary": "Weekly trending movies or TV shows",
-        "description": "Returns TMDB weekly trending titles in their original rank order. Results are cached separately per media type for one hour. Requires TMDB_API_KEY.",
+        "description": "Returns TMDB weekly trending titles in their original rank order. Results are cached separately per media type for one hour. Movies an admin hid from browsing are left out after the cache, so hiding or showing one applies on the next request. Requires TMDB_API_KEY.",
         "tags": [
           "Movies"
         ],
@@ -47,7 +47,7 @@
     "/api/movies": {
       "get": {
         "summary": "List movies (popular, top rated, now playing, upcoming)",
-        "description": "Returns one page of a TMDB movie list. Each page is cached for one hour. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
+        "description": "Returns one page of a TMDB movie list. Each page is cached for one hour. Movies an admin hid from browsing are left out after the cache, so hiding or showing one applies on the next request. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
         "tags": ["Movies"],
         "parameters": [
           {"name": "list", "in": "query", "required": false, "description": "Which list to fetch. upcoming holds films whose first release date is today in UTC or later, most popular first. Home filters out films already released on the viewer's local date (TMDB's own upcoming list counts a release in any country, so most of it is already out).", "schema": {"type": "string", "enum": ["popular", "top_rated", "now_playing", "upcoming"], "default": "popular"}},
@@ -69,7 +69,7 @@
     "/api/movies/search": {
       "get": {
         "summary": "Search movies by title",
-        "description": "Searches TMDB movies by title. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
+        "description": "Searches TMDB movies by title. Movies an admin hid from browsing are left out after the cache, so hiding or showing one applies on the next request. A page can hold fewer titles than usual, and `total_results` goes down by the hidden titles dropped from it (never below 0) while `total_pages` stays TMDB's. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
         "tags": ["Movies"],
         "parameters": [
           {"name": "q", "in": "query", "required": true, "description": "Search text.", "schema": {"type": "string", "minLength": 1, "maxLength": 100}, "example": "inception"},
@@ -91,7 +91,7 @@
     "/api/movies/discover": {
       "get": {
         "summary": "Browse movies with filters",
-        "description": "Browses TMDB movies with Discover filters. All filters are optional. year_to must be >= year_from and runtime_max >= runtime_min when both are sent. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
+        "description": "Browses TMDB movies with Discover filters. All filters are optional. Movies an admin hid from browsing are left out after the cache, so hiding or showing one applies on the next request. A page can hold fewer titles than usual, and `total_results` goes down by the hidden titles dropped from it (never below 0) while `total_pages` stays TMDB's. year_to must be >= year_from and runtime_max >= runtime_min when both are sent. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
         "tags": ["Movies"],
         "parameters": [
           {"name": "genres", "in": "query", "required": false, "description": "Comma separated TMDB genre ids (see GET /api/genres).", "schema": {"type": "string", "pattern": "^\\d+(,\\d+)*$"}, "example": "28,12"},
@@ -120,7 +120,7 @@
     "/api/movies/{id}": {
       "get": {
         "summary": "Get movie details",
-        "description": "Returns a movie with its genres, cast, directors, trailer, certification and recommended movies. Successful responses are cached for six hours. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
+        "description": "Returns a movie with its genres, cast, directors, trailer, certification and recommended movies. Successful responses are cached for six hours. The movie opens even when an admin hid it from browsing, but hidden movies are left out of its recommended movies. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
         "tags": ["Movies"],
         "parameters": [
           {"name": "id", "in": "path", "required": true, "description": "TMDB movie id (or TV show id with type=tv).", "schema": {"type": "integer", "minimum": 1}, "example": 27205},
@@ -137,7 +137,7 @@
     "/api/people/{id}": {
       "get": {
         "summary": "Get person details",
-        "description": "Returns an actor, director or other crew member with their biography, best-known films and full movie filmography (one entry per film, newest first, with every role they had on it). Successful responses are cached for six hours. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
+        "description": "Returns an actor, director or other crew member with their biography, best-known films and full movie filmography (one entry per film, newest first, with every role they had on it), without the movies an admin hid from browsing (left out after the cache). Successful responses are cached for six hours. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
         "tags": ["People"],
         "parameters": [
           {"name": "id", "in": "path", "required": true, "description": "TMDB person id.", "schema": {"type": "integer", "minimum": 1}, "example": 525}

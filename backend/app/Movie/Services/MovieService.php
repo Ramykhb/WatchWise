@@ -13,8 +13,10 @@ use App\Movie\DTOs\Responses\MoviePageResponse;
 use App\Movie\DTOs\Responses\MovieResponse;
 use App\Movie\DTOs\Responses\PersonResponse;
 use App\Movie\DTOs\Responses\TrailerResponse;
+use App\Movie\InterfaceRepository\MovieCatalogRepositoryInterface;
 use App\Movie\InterfaceRepository\MovieRepositoryInterface;
 use App\Movie\InterfaceServices\MovieServiceInterface;
+use App\Support\HiddenMovies;
 use App\Support\MediaType;
 use Closure;
 use Illuminate\Support\Facades\Cache;
@@ -39,14 +41,20 @@ class MovieService implements MovieServiceInterface
 
     private const MERGED_MAX_PAGES = 10;
 
-    public function __construct(private readonly MovieRepositoryInterface $movies) {}
+    /**
+     * Uses the catalogue's repository rather than its service, which already depends on this one.
+     */
+    public function __construct(
+        private readonly MovieRepositoryInterface $movies,
+        private readonly MovieCatalogRepositoryInterface $catalog,
+    ) {}
 
     public function trending(MovieTrendingQuery $query): MoviePageResponse
     {
         $payload = Cache::remember('tmdb.trending.week.'.$query->type, now()->addHour(),
             fn (): array => $this->movies->trending($query));
 
-        return $this->toPage($payload, ['time_window' => 'week'], $query->type);
+        return $this->toPage($payload, ['time_window' => 'week'], $this->catalog->hidden(), $query->type);
     }
 
     public function list(MovieListQuery $query): MoviePageResponse
@@ -55,15 +63,16 @@ class MovieService implements MovieServiceInterface
         $payload = Cache::remember('tmdb.list.'.$query->list.'.'.$query->sort.'.'.$releaseFrom.'.'.$query->page, now()->addHour(),
             fn (): array => $this->movies->list($query));
 
-        return $this->toPage($payload, ['list' => $query->list]);
+        return $this->toPage($payload, ['list' => $query->list], $this->catalog->hidden());
     }
 
     public function search(MovieSearchQuery $query): MoviePageResponse
     {
         $meta = ['query' => $query->query];
+        $hidden = $this->catalog->hidden();
 
         return match ($query->type) {
-            'tv' => $this->toPage($this->movies->searchTv($query), $meta, 'tv'),
+            'tv' => $this->toPage($this->movies->searchTv($query), $meta, $hidden, 'tv'),
             // TMDB gives no relevance score to merge on, so a combined search is ordered by popularity.
             'all' => $this->mergedPage(
                 fn (int $page): array => $this->movies->search($query->withPage($page)),
@@ -71,25 +80,28 @@ class MovieService implements MovieServiceInterface
                 $query->page,
                 'popularity',
                 $meta,
+                $hidden,
             ),
-            default => $this->toPage($this->movies->search($query), $meta),
+            default => $this->toPage($this->movies->search($query), $meta, $hidden),
         };
     }
 
     public function discover(MovieDiscoverQuery $query): MoviePageResponse
     {
         $meta = ['sort' => $query->sort];
+        $hidden = $this->catalog->hidden();
 
         return match ($query->type) {
-            'tv' => $this->toPage($this->movies->discoverTv($query), $meta, 'tv'),
+            'tv' => $this->toPage($this->movies->discoverTv($query), $meta, $hidden, 'tv'),
             'all' => $this->mergedPage(
                 fn (int $page): array => $this->movies->discover($query->withPage($page)),
                 fn (int $page): array => $this->movies->discoverTv($query->withPage($page)),
                 $query->page,
                 $query->sort,
                 $meta,
+                $hidden,
             ),
-            default => $this->toPage($this->movies->discover($query), $meta),
+            default => $this->toPage($this->movies->discover($query), $meta, $hidden),
         };
     }
 
@@ -161,6 +173,8 @@ class MovieService implements MovieServiceInterface
 
         // TMDB's recommendations match far better than its "similar" list, which is only the fallback.
         $related = ($movie['recommendations']['results'] ?? []) ?: ($movie['similar']['results'] ?? []);
+        // Only movies can be hidden, so the catalogue is asked only when there are related movies to check.
+        $hidden = $type === MediaType::MOVIE && $related !== [] ? $this->catalog->hidden() : HiddenMovies::none();
 
         return new MovieDetailsResponse(
             movie: $this->toMovie($movie, $type),
@@ -199,7 +213,7 @@ class MovieService implements MovieServiceInterface
                 ->values()
                 ->all(),
             trailer: $this->trailer($movie),
-            similar: array_values(array_map(fn (array $item): MovieResponse => $this->toMovie($item, $type), array_slice($related, 0, self::SIMILAR_LIMIT))),
+            similar: $this->visibleMovies($related, $type, $hidden, self::SIMILAR_LIMIT),
         );
     }
 
@@ -265,19 +279,36 @@ class MovieService implements MovieServiceInterface
     }
 
     /**
+     * Hidden movies are dropped from the page, so it can hold fewer titles than TMDB sent; `total_results` goes
+     * down by as many, while `total_pages` stays TMDB's.
+     *
      * @param  array<string, mixed>  $payload
      * @param  array<string, string>  $meta
      */
-    private function toPage(array $payload, array $meta, string $type = 'movie'): MoviePageResponse
+    private function toPage(array $payload, array $meta, HiddenMovies $hidden, string $type = 'movie'): MoviePageResponse
     {
+        $results = $payload['results'] ?? [];
+        $movies = $this->visibleMovies($results, $type, $hidden);
+
         return new MoviePageResponse(
             page: (int) ($payload['page'] ?? 1),
             // TMDB never serves more than 500 pages, even when it reports more.
             totalPages: min((int) ($payload['total_pages'] ?? 0), 500),
-            totalResults: (int) ($payload['total_results'] ?? 0),
-            movies: array_values(array_map(fn (array $item): MovieResponse => $this->toMovie($item, $type), $payload['results'] ?? [])),
+            totalResults: max(0, (int) ($payload['total_results'] ?? 0) - (count($results) - count($movies))),
+            movies: $movies,
             meta: $meta,
         );
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items  TMDB titles of one media type
+     * @return list<MovieResponse>
+     */
+    private function visibleMovies(array $items, string $type, HiddenMovies $hidden, ?int $limit = null): array
+    {
+        $visible = array_filter($items, fn (array $item): bool => ! $hidden->hides($type, $item['id']));
+
+        return array_values(array_map(fn (array $item): MovieResponse => $this->toMovie($item, $type), array_slice($visible, 0, $limit)));
     }
 
     /**
@@ -290,19 +321,26 @@ class MovieService implements MovieServiceInterface
      * @param  Closure(int): array<string, mixed>  $fetchMovies  TMDB's page payload of movies, by page number
      * @param  Closure(int): array<string, mixed>  $fetchShows  TMDB's page payload of tv shows, by page number
      * @param  array<string, string>  $meta
+     * @param  HiddenMovies  $hidden  dropped before the merge, so a page stays full; `total_results` goes down by the
+     *                                hidden titles found on the fetched pages, total pages stay as TMDB's
      */
-    private function mergedPage(Closure $fetchMovies, Closure $fetchShows, int $page, string $sort, array $meta): MoviePageResponse
+    private function mergedPage(Closure $fetchMovies, Closure $fetchShows, int $page, string $sort, array $meta, HiddenMovies $hidden): MoviePageResponse
     {
         $page = min($page, self::MERGED_MAX_PAGES);
         $items = [];
         $totalResults = 0;
+        $dropped = 0;
 
         foreach (['movie' => $fetchMovies, 'tv' => $fetchShows] as $type => $fetch) {
             for ($number = 1; $number <= $page; $number++) {
                 $payload = $fetch($number);
 
                 foreach ($payload['results'] ?? [] as $item) {
-                    $items[] = ['type' => $type, 'item' => $item];
+                    if ($hidden->hides($type, $item['id'])) {
+                        $dropped++;
+                    } else {
+                        $items[] = ['type' => $type, 'item' => $item];
+                    }
                 }
 
                 if ($number === 1) {
@@ -315,12 +353,14 @@ class MovieService implements MovieServiceInterface
             }
         }
 
+        $totalPages = min((int) ceil($totalResults / self::MERGED_PAGE_SIZE), self::MERGED_MAX_PAGES);
+
         usort($items, fn (array $a, array $b): int => $this->compareForSort($a['item'], $b['item'], $sort));
 
         return new MoviePageResponse(
             page: $page,
-            totalPages: min((int) ceil($totalResults / self::MERGED_PAGE_SIZE), self::MERGED_MAX_PAGES),
-            totalResults: $totalResults,
+            totalPages: $totalPages,
+            totalResults: max(0, $totalResults - $dropped),
             movies: array_map(
                 fn (array $entry): MovieResponse => $this->toMovie($entry['item'], $entry['type']),
                 array_slice($items, ($page - 1) * self::MERGED_PAGE_SIZE, self::MERGED_PAGE_SIZE),

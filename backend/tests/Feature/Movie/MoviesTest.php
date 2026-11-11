@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Movie;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Sleep;
@@ -9,6 +10,8 @@ use Tests\TestCase;
 
 class MoviesTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_movies_returns_popular_movies_by_default(): void
     {
         config(['services.tmdb.key' => 'test-key']);

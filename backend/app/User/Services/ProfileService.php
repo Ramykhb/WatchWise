@@ -4,8 +4,10 @@ namespace App\User\Services;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\User;
+use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\MovieList\Resources\MovieListResource;
 use App\Notification\InterfaceServices\NotificationServiceInterface;
+use App\Support\HiddenMovies;
 use App\User\DTOs\Requests\UserSearchQuery;
 use App\User\DTOs\Responses\FollowResponse;
 use App\User\DTOs\Responses\ProfileResponse;
@@ -23,6 +25,7 @@ class ProfileService implements ProfileServiceInterface
         private readonly ProfileRepositoryInterface $profiles,
         private readonly ProfilePrivacy $privacy,
         private readonly NotificationServiceInterface $notifications,
+        private readonly MovieCatalogServiceInterface $catalog,
     ) {}
 
     public function search(UserSearchQuery $query, CurrentUser $viewer): UserSearchResponse
@@ -92,6 +95,8 @@ class ProfileService implements ProfileServiceInterface
         $shows = $this->privacy->sectionsShownTo($user, $viewer, $canView);
         $approvedOnly = ! $this->privacy->seesUnapprovedReviews($user, $viewer);
         $publicListsOnly = ! $isMe;
+        // Hidden movies stay on your own profile; other members' profiles leave them out.
+        $hidden = $isMe ? HiddenMovies::none() : $this->catalog->hiddenMovies();
         // Sections the owner hid come back as null (counts) or empty (content).
         $count = fn (string $section, callable $count) => $shows($section) ? $count() : null;
 
@@ -110,13 +115,13 @@ class ProfileService implements ProfileServiceInterface
                 'following' => $count('following', fn () => $this->profiles->followingCount($user)),
                 'reviews' => $count('reviews', fn () => $this->profiles->reviewsCount($user, $approvedOnly)),
                 'lists' => $count('lists', fn () => $this->profiles->listsCount($user, $publicListsOnly)),
-                'films' => $count('history', fn () => $this->profiles->watchedCount($user)),
+                'films' => $count('history', fn () => $this->profiles->watchedCount($user, $hidden)),
             ],
             'restricted' => false,
-            'lists' => MovieListResource::collection($shows('lists') ? $this->profiles->lists($user, $publicListsOnly) : []),
-            'watched' => $shows('history') ? $this->profiles->watchedTmdbIds($user, 24) : [],
+            'lists' => MovieListResource::collection($shows('lists') ? $this->profiles->lists($user, $publicListsOnly, $hidden) : []),
+            'watched' => $shows('history') ? $this->profiles->watchedTmdbIds($user, 24, $hidden) : [],
             // Highest-rated films first; ties go to the most recent review.
-            'top4' => $shows('ratings') ? $this->profiles->topRatedTmdbIds($user, $approvedOnly, 4) : [],
+            'top4' => $shows('ratings') ? $this->profiles->topRatedTmdbIds($user, $approvedOnly, 4, $hidden) : [],
             'genres' => $user->preferences?->favorite_genres ?? [],
             'followers' => $shows('following') ? MemberResource::collection($this->profiles->recentFollowers($user, 8)) : [],
             'following' => $shows('following') ? MemberResource::collection($this->profiles->recentFollowing($user, 8)) : [],
