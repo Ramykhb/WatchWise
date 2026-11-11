@@ -2,6 +2,7 @@
 
 namespace App\Auth\Support;
 
+use App\Auth\InterfaceServices\GooglePhotoInterface;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
@@ -10,9 +11,8 @@ use Throwable;
  * photo's. Only the People API says which it is (`photos[].default`), so ask it with the user's
  * access token. Needs the People API enabled in the Google Cloud project.
  */
-class GooglePhoto
+class GooglePhoto implements GooglePhotoInterface
 {
-    /** true = generated placeholder, false = a real photo, null = could not tell (API off or down). */
     public function isPlaceholder(?string $accessToken): ?bool
     {
         if (! $accessToken) {

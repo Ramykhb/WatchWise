@@ -2,36 +2,41 @@
 
 namespace App\Auth\InterfaceServices;
 
-use App\Auth\DTOs\Requests\SocialLoginData;
+use App\Auth\DTOs\Requests\SocialCallbackData;
 use App\Auth\DTOs\Responses\AuthResponse;
 use App\Auth\Exceptions\AccountDisabled;
 use App\Auth\Exceptions\EmailRequired;
+use App\Auth\Exceptions\InvalidOAuthState;
+use App\Auth\Exceptions\SocialAccountNotSaved;
+use App\Auth\Exceptions\SocialLoginCancelled;
 use App\Auth\Exceptions\SocialLoginNotConfigured;
 use App\Auth\Exceptions\SocialProviderFailed;
 use App\Auth\Exceptions\UnverifiedProviderEmail;
-use Illuminate\Http\Request;
 
 interface SocialAuthServiceInterface
 {
     /**
      * Where to send the browser to sign in with the provider. `$state` comes back on the callback.
      *
-     * @throws SocialLoginNotConfigured when the provider has no real OAuth credentials
+     * @throws SocialLoginNotConfigured when the provider has no real OAuth client id, secret or redirect URI
      */
     public function redirectUrl(string $provider, string $state): string;
 
     /**
-     * Exchanges the callback for the provider's user. `$code` is the authorization code Discord sends
-     * back; the Socialite providers read it from the current request themselves.
+     * Completes the provider's callback: checks the state, exchanges the code for the provider's user, then finds,
+     * links or creates the account and issues a session. A rejected sign-in changes nothing.
      *
-     * @throws SocialProviderFailed when Discord answers with something unusable (a failed Socialite or HTTP call throws its own error)
-     */
-    public function providerUser(string $provider, ?string $code): SocialLoginData;
-
-    /**
-     * @throws EmailRequired when the provider gave no email
+     * Every expected outcome other than success is a `SocialLoginFailure`; anything else (including
+     * `SocialProviderFailed`, `SocialAccountNotSaved` and a failed Socialite or HTTP call) is a real failure.
+     *
+     * @throws InvalidOAuthState when the state is missing, wrong or issued for another provider
+     * @throws SocialLoginNotConfigured when the provider has no real OAuth client id, secret or redirect URI
+     * @throws SocialLoginCancelled when the user declined the consent screen
+     * @throws SocialProviderFailed when the provider answers with something unusable (no code, token or user id)
+     * @throws EmailRequired when the provider identity is not linked yet and the provider gave no email
      * @throws UnverifiedProviderEmail when the provider has not verified the email
-     * @throws AccountDisabled when the user is inactive
+     * @throws AccountDisabled when the account is inactive
+     * @throws SocialAccountNotSaved when writing the account fails (a database error, or still colliding with concurrent sign-ins)
      */
-    public function loginWithProvider(SocialLoginData $data, Request $request): AuthResponse;
+    public function loginWithProvider(SocialCallbackData $callback): AuthResponse;
 }

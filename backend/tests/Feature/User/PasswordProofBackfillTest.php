@@ -32,7 +32,7 @@ class PasswordProofBackfillTest extends TestCase
     private function socialUser(?string $password = null): User
     {
         $user = User::factory()->create($password === null ? [] : ['password' => $password]);
-        SocialAccount::create(['user_id' => $user->id, 'provider' => 'google', 'provider_id' => 'g'.$user->id, 'access_token' => 'token']);
+        SocialAccount::create(['user_id' => $user->id, 'provider' => 'google', 'provider_id' => 'g'.$user->id]);
 
         return $user;
     }

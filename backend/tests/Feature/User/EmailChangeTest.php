@@ -199,7 +199,7 @@ class EmailChangeTest extends SocialTestCase
     public function test_disconnecting_the_social_login_keeps_the_first_password_unproven(): void
     {
         $user = $this->socialOnlyUser();
-        SocialAccount::create(['user_id' => $user->id, 'provider' => 'google', 'provider_id' => 'g1', 'access_token' => 'token']);
+        SocialAccount::create(['user_id' => $user->id, 'provider' => 'google', 'provider_id' => 'g1']);
         $this->setFirstPassword($user, 'chosen12345');
 
         $this->as($user)->deleteJson('/api/me/social/google')->assertOk();

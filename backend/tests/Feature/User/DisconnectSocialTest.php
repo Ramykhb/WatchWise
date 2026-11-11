@@ -21,7 +21,7 @@ class DisconnectSocialTest extends SocialTestCase
 
     private function link(User $user, string $provider): void
     {
-        SocialAccount::create(['user_id' => $user->id, 'provider' => $provider, 'provider_id' => $provider.'-'.$user->id, 'access_token' => 'token']);
+        SocialAccount::create(['user_id' => $user->id, 'provider' => $provider, 'provider_id' => $provider.'-'.$user->id]);
     }
 
     /** @return list<string> */

@@ -16,9 +16,4 @@ class SocialAccountRepository implements SocialAccountRepositoryInterface
     {
         return SocialAccount::create($attributes);
     }
-
-    public function updateAccessToken(SocialAccount $account, ?string $accessToken): void
-    {
-        $account->update(['access_token' => $accessToken]);
-    }
 }

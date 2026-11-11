@@ -7,7 +7,9 @@ use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
 use App\Auth\InterfaceRepository\SocialAccountRepositoryInterface;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\AuthServiceInterface;
+use App\Auth\InterfaceServices\DiscordOAuthClientInterface;
 use App\Auth\InterfaceServices\EmailVerificationServiceInterface;
+use App\Auth\InterfaceServices\GooglePhotoInterface;
 use App\Auth\InterfaceServices\PasswordResetServiceInterface;
 use App\Auth\InterfaceServices\RefreshTokenCleanupServiceInterface;
 use App\Auth\InterfaceServices\SocialAuthServiceInterface;
@@ -22,9 +24,13 @@ use App\Auth\Services\EmailVerificationService;
 use App\Auth\Services\PasswordResetService;
 use App\Auth\Services\RefreshTokenCleanupService;
 use App\Auth\Services\SocialAuthService;
+use App\Auth\Support\DiscordOAuthClient;
+use App\Auth\Support\GooglePhoto;
+use App\Auth\Support\SocialLoginRedirect;
 use App\Support\EmailAddress;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
@@ -51,6 +57,8 @@ class AuthModuleServiceProvider extends ServiceProvider
         PasswordResetServiceInterface::class => PasswordResetService::class,
         RefreshTokenCleanupServiceInterface::class => RefreshTokenCleanupService::class,
         SocialAuthServiceInterface::class => SocialAuthService::class,
+        DiscordOAuthClientInterface::class => DiscordOAuthClient::class,
+        GooglePhotoInterface::class => GooglePhoto::class,
     ];
 
     public function boot(): void
@@ -91,6 +99,19 @@ class AuthModuleServiceProvider extends ServiceProvider
 
                 return $limits;
             });
+        }
+
+        // The social routes take no email, so they are limited per IP only. They are browser navigations in the
+        // middle of an OAuth round trip, so a refusal is a redirect to the frontend failure page, not a JSON 429.
+        $socialLimits = [
+            'auth-social-redirect' => 30,
+            'auth-social-callback' => 30,
+        ];
+
+        foreach ($socialLimits as $name => $perMinute) {
+            RateLimiter::for($name, fn (Request $request): Limit => Limit::perMinute($perMinute)
+                ->by('ip:'.$request->ip())
+                ->response(fn (Request $request, array $headers): RedirectResponse => SocialLoginRedirect::failure('too_many_attempts')->withHeaders($headers)));
         }
     }
 }
