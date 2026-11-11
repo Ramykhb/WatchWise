@@ -7,10 +7,16 @@ use Illuminate\Support\Facades\Route;
 
 // Loaded from routes/api.php (already under the /api prefix).
 Route::prefix('auth')->group(function () {
-    Route::get('verify-email/{id}/{hash}', [EmailVerificationController::class, 'verify'])
+    // The signed link in the verification email. A GET only redirects to the public frontend page, whose click POSTs
+    // the same signed URL: mail scanners and link previews that prefetch it verify nothing.
+    Route::get('verify-email/{id}/{hash}', [EmailVerificationController::class, 'open'])
         ->middleware(['signed', 'throttle:auth-verify-email'])
         ->whereNumber('id')
         ->name('auth.verify-email');
+    Route::post('verify-email/{id}/{hash}', [EmailVerificationController::class, 'verify'])
+        ->middleware(['signed', 'throttle:auth-verify-email'])
+        ->whereNumber('id')
+        ->name('auth.verify-email.submit');
     Route::post('resend-verification', [EmailVerificationController::class, 'resend'])->middleware('throttle:auth-resend-verification');
 
     Route::post('forgot-password', [PasswordResetController::class, 'forgot'])->middleware('throttle:auth-forgot-password');

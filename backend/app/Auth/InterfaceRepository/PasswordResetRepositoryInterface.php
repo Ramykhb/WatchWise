@@ -6,10 +6,15 @@ use App\Models\PasswordReset;
 
 interface PasswordResetRepositoryInterface
 {
-    /** Deletes any existing reset for the email and stores the new (already hashed) token. */
+    /**
+     * Deletes any existing reset for the email and stores the new (already hashed) token, in one transaction, so two
+     * requests at once cannot both leave a row behind.
+     */
     public function replaceFor(string $email, string $hashedToken): PasswordReset;
 
-    public function latestFor(string $email): ?PasswordReset;
+    /** The email's newest reset row, locked until the transaction ends (call inside one). */
+    public function latestForUpdate(string $email): ?PasswordReset;
 
-    public function deleteFor(string $email): void;
+    /** Deletes every reset row of the email; returns how many were deleted. */
+    public function deleteFor(string $email): int;
 }

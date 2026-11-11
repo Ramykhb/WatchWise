@@ -10,6 +10,7 @@ use App\Auth\Exceptions\InvalidRefreshToken;
 use App\Auth\Factories\TokenFactory;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\Services\AuthService;
+use App\Auth\Support\DummyPassword;
 use App\Auth\Support\TokenPair;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
@@ -53,6 +54,11 @@ class AuthServiceTest extends TestCase
         return Mockery::mock(TokenFactory::class);
     }
 
+    private function dummy(): DummyPassword
+    {
+        return new DummyPassword;
+    }
+
     public function test_login_rejects_unknown_email(): void
     {
         $users = $this->users();
@@ -60,7 +66,7 @@ class AuthServiceTest extends TestCase
 
         $this->expectException(InvalidCredentials::class);
 
-        (new AuthService($users, $this->tokens()))->login(new LoginData('a@example.com', 'secret-pass'), Request::create('/'));
+        (new AuthService($users, $this->tokens(), $this->dummy()))->login(new LoginData('a@example.com', 'secret-pass'), Request::create('/'));
     }
 
     public function test_login_rejects_wrong_password(): void
@@ -70,7 +76,7 @@ class AuthServiceTest extends TestCase
 
         $this->expectException(InvalidCredentials::class);
 
-        (new AuthService($users, $this->tokens()))->login(new LoginData('a@example.com', 'nope'), Request::create('/'));
+        (new AuthService($users, $this->tokens(), $this->dummy()))->login(new LoginData('a@example.com', 'nope'), Request::create('/'));
     }
 
     public function test_login_rejects_inactive_user(): void
@@ -80,7 +86,7 @@ class AuthServiceTest extends TestCase
 
         $this->expectException(InvalidCredentials::class);
 
-        (new AuthService($users, $this->tokens()))->login(new LoginData('a@example.com', 'secret-pass'), Request::create('/'));
+        (new AuthService($users, $this->tokens(), $this->dummy()))->login(new LoginData('a@example.com', 'secret-pass'), Request::create('/'));
     }
 
     public function test_login_issues_tokens(): void
@@ -91,9 +97,9 @@ class AuthServiceTest extends TestCase
         $users = $this->users();
         $users->shouldReceive('findByEmail')->andReturn($user);
         $tokens = $this->tokens();
-        $tokens->shouldReceive('issue')->once()->with($user, $request)->andReturn($pair);
+        $tokens->shouldReceive('issue')->once()->with($user, $request, null, true)->andReturn($pair);
 
-        $result = (new AuthService($users, $tokens))->login(new LoginData('a@example.com', 'secret-pass'), $request);
+        $result = (new AuthService($users, $tokens, $this->dummy()))->login(new LoginData('a@example.com', 'secret-pass'), $request);
 
         $this->assertInstanceOf(AuthResponse::class, $result);
         $this->assertSame('a', $result->accessToken);
@@ -104,8 +110,7 @@ class AuthServiceTest extends TestCase
     public function test_register_fires_registered_and_issues_tokens(): void
     {
         Event::fake([Registered::class]);
-        $user = Mockery::mock(User::class)->makePartial();
-        $user->shouldReceive('refresh')->once()->andReturnSelf();
+        $user = $this->fakeUser();
         $request = Request::create('/');
         $pair = $this->fakePair($this->fakeUser());
         $users = $this->users();
@@ -115,7 +120,7 @@ class AuthServiceTest extends TestCase
         $tokens = $this->tokens();
         $tokens->shouldReceive('issue')->once()->with($user, $request)->andReturn($pair);
 
-        $result = (new AuthService($users, $tokens))->register(
+        $result = (new AuthService($users, $tokens, $this->dummy()))->register(
             new RegisterData('A', 'a@example.com', 'secret-pass'),
             $request,
         );
@@ -131,7 +136,7 @@ class AuthServiceTest extends TestCase
         $tokens = $this->tokens();
         $tokens->shouldReceive('rotate')->with('good', $request)->andReturn($pair);
         $tokens->shouldReceive('rotate')->with('bad', $request)->andThrow(new InvalidRefreshToken);
-        $service = new AuthService($this->users(), $tokens);
+        $service = new AuthService($this->users(), $tokens, $this->dummy());
 
         $this->assertSame('r', $service->refresh('good', $request)->refreshToken);
 
@@ -144,7 +149,7 @@ class AuthServiceTest extends TestCase
         $tokens = $this->tokens();
         $tokens->shouldReceive('revoke')->once()->with('tok');
 
-        (new AuthService($this->users(), $tokens))->logout('tok');
+        (new AuthService($this->users(), $tokens, $this->dummy()))->logout('tok');
 
         $this->addToAssertionCount(1);
     }

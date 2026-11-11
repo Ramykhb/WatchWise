@@ -3,7 +3,7 @@
 use App\Auth\Middleware\AuthenticateJwt;
 use App\Auth\Middleware\EnsureEmailVerified;
 use App\Auth\Middleware\EnsureRole;
-use App\User\Support\AccountLink;
+use App\Support\AccountLink;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -36,15 +36,8 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (InvalidSignatureException $exception, Request $request) {
-            if ($request->routeIs('auth.verify-email')) {
-                $status = URL::hasCorrectSignature($request) && ! URL::signatureHasNotExpired($request)
-                    ? 'expired' : 'invalid';
-
-                return redirect(rtrim(config('services.frontend_url'), '/').'/verify-email?status='.$status);
-            }
-
-            // The emailed email-change and account-deletion links: a browser opening one (GET) lands on the public
-            // result page; the confirmation page's click (POST) gets the outcome as JSON.
+            // The emailed verification, email-change and account-deletion links: a browser opening one (GET) lands on
+            // the public result page; the confirmation page's click (POST) gets the outcome as JSON.
             $link = AccountLink::forRoute($request->route()?->getName());
 
             if ($link !== null) {

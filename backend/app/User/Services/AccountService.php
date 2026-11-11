@@ -5,6 +5,7 @@ namespace App\User\Services;
 use App\Auth\DTOs\Responses\AuthResponse;
 use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Models\User;
+use App\Support\SendsMailAfterResponse;
 use App\User\DTOs\Requests\ChangePasswordData;
 use App\User\DTOs\Requests\SetPasswordData;
 use App\User\DTOs\Requests\UpdatePreferencesData;
@@ -18,7 +19,6 @@ use App\User\InterfaceRepository\AccountRepositoryInterface;
 use App\User\InterfaceServices\AccountServiceInterface;
 use App\User\InterfaceServices\EmailChangeServiceInterface;
 use App\User\Mail\PasswordAddedMail;
-use App\User\Mail\SendsMailAfterResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -110,6 +110,12 @@ class AccountService implements AccountServiceInterface
     {
         if ($user->password_set_without_proof_at !== null) {
             $this->accounts->clearPasswordSetWithoutProof($user);
+        }
+
+        // The emailed token proves the inbox as well as the verification link would, so the owner is not sent to
+        // the verify-email wall after resetting.
+        if ($user->email_verified_at === null) {
+            $this->accounts->markEmailVerified($user);
         }
 
         $this->emailChange->discardPendingChange($user);

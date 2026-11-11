@@ -13,14 +13,14 @@ class RefreshToken extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id', 'token_hash', 'family_id', 'family_started_at', 'expires_at', 'revoked_at', 'replaced_by', 'grace_used_at', 'user_agent', 'ip',
+        'user_id', 'token_hash', 'family_id', 'family_started_at', 'remember', 'expires_at', 'revoked_at', 'replaced_by', 'grace_used_at', 'user_agent', 'ip',
     ];
 
     protected $hidden = ['token_hash'];
 
     protected function casts(): array
     {
-        return ['family_started_at' => 'datetime', 'expires_at' => 'datetime', 'revoked_at' => 'datetime', 'grace_used_at' => 'datetime'];
+        return ['family_started_at' => 'datetime', 'remember' => 'boolean', 'expires_at' => 'datetime', 'revoked_at' => 'datetime', 'grace_used_at' => 'datetime'];
     }
 
     public function user(): BelongsTo

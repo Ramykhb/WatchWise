@@ -49,7 +49,7 @@ interface AccountServiceInterface
     /**
      * Called by the password-reset flow once a reset through the emailed link succeeded. That proves
      * control of the inbox, so a password first chosen without proof now counts as proof for email
-     * changes, and any pending email change is dropped.
+     * changes, an unverified address becomes verified, and any pending email change is dropped.
      */
     public function passwordResetThroughEmail(User $user): void;
 

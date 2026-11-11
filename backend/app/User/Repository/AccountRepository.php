@@ -174,6 +174,11 @@ class AccountRepository implements AccountRepositoryInterface
         $user->forceFill(['password_set_without_proof_at' => null])->save();
     }
 
+    public function markEmailVerified(User $user): void
+    {
+        $user->forceFill(['email_verified_at' => now()])->save();
+    }
+
     public function updateAvatar(User $user, ?string $avatar): void
     {
         $user->forceFill(['avatar' => $avatar])->save();

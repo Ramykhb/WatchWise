@@ -24,6 +24,13 @@ return [
     // Absolute lifetime of a login (refresh family) in days, however often it is refreshed.
     'refresh_family_max_days' => (int) env('JWT_REFRESH_FAMILY_MAX_DAYS', 90),
 
+    // A login without "Remember me": its refresh token lasts this many hours (sliding: each rotation starts a new
+    // window), up to refresh_session_family_max_days, and both cookies are session cookies (gone when the browser closes).
+    'refresh_session_hours' => (int) env('JWT_REFRESH_SESSION_HOURS', 24),
+
+    // Absolute lifetime in days of a login without "Remember me", however often it is refreshed.
+    'refresh_session_family_max_days' => (int) env('JWT_REFRESH_SESSION_FAMILY_MAX_DAYS', 7),
+
     // A token rotated less than this many seconds ago may be presented again ONCE, by the same user agent (two
     // tabs, a retried request), and gets a sibling token instead of revoking the family, as long as the token
     // that replaced it is still valid. Any other reuse revokes the family.

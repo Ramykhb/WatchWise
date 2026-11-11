@@ -2,9 +2,9 @@
 
 namespace App\User\FormRequests;
 
+use App\Support\NewPasswordRules;
 use App\User\DTOs\Requests\ChangePasswordData;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
 
 class UpdatePasswordRequest extends FormRequest
 {
@@ -20,8 +20,7 @@ class UpdatePasswordRequest extends FormRequest
     {
         return [
             'current_password' => ['required', 'string'],
-            // bcrypt ignores everything after a NUL byte, so a new password may not contain one.
-            'password' => ['required', 'string', 'not_regex:/\x00/', 'confirmed', 'different:current_password', Password::min(8)->letters()->numbers()],
+            'password' => [...NewPasswordRules::rules(), 'different:current_password'],
         ];
     }
 

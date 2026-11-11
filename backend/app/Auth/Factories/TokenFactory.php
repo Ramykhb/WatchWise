@@ -26,21 +26,24 @@ class TokenFactory
     /**
      * Issue a new access + refresh token pair for a new login (a new refresh family). The access token
      * carries `$sessionVersion` when given (the version a revocation just produced), else the user's.
+     * `$remember` is the login's "Remember me" choice, stored on the refresh token and kept by every rotation.
      */
-    public function issue(User $user, Request $request, ?int $sessionVersion = null): TokenPair
+    public function issue(User $user, Request $request, ?int $sessionVersion = null, bool $remember = true): TokenPair
     {
-        [$access, $accessExp] = $this->issueAccessToken($user, $sessionVersion);
-        [$plain, $row] = $this->issueRefreshToken($user, $request, (string) Str::uuid(), now()->toImmutable());
+        [$access, $accessExp] = $this->issueAccessToken($user, $sessionVersion, $remember);
+        [$plain, $row] = $this->issueRefreshToken($user, $request, (string) Str::uuid(), now()->toImmutable(), $remember);
 
-        return new TokenPair($user, $access, $accessExp, $plain, $row->expires_at);
+        return new TokenPair($user, $access, $accessExp, $plain, $row->expires_at, $remember);
     }
 
     /**
-     * The `sv` claim is the account's session version; the token only works while it is still current.
+     * The `sv` claim is the account's session version; the token only works while it is still current. `rem` is
+     * the login's "Remember me" choice, so a flow outside /api/auth (where the refresh cookie is not sent) can
+     * re-issue a session of the same kind (see rememberedBy()).
      *
      * @return array{0: string, 1: CarbonImmutable}
      */
-    public function issueAccessToken(User $user, ?int $sessionVersion = null): array
+    public function issueAccessToken(User $user, ?int $sessionVersion = null, bool $remember = true): array
     {
         $now = now()->toImmutable();
         $exp = $now->addMinutes(config('jwt.access_ttl'));
@@ -52,21 +55,39 @@ class TokenFactory
             'iat' => $now->getTimestamp(),
             'exp' => $exp->getTimestamp(),
             'sv' => $sessionVersion ?? (int) ($user->session_version ?? 0),
+            'rem' => $remember,
         ], $this->secret(), self::ALGO);
 
         return [$jwt, $exp];
     }
 
     /**
-     * When a refresh token of a family that started at `$familyStartedAt` expires: the sliding window
-     * (`jwt.refresh_ttl_days` from now), but never past the family's absolute end (`jwt.refresh_family_max_days`
-     * after it started). Every refresh token expiry goes through here.
+     * When a refresh token of a family that started at `$familyStartedAt` expires: the sliding window, but never past
+     * the family's absolute end. A remembered login slides `jwt.refresh_ttl_days` up to `jwt.refresh_family_max_days`
+     * after it started; one without "Remember me" slides `jwt.refresh_session_hours` up to
+     * `jwt.refresh_session_family_max_days`. Every refresh token expiry goes through here.
      */
-    public function refreshExpiresAt(CarbonInterface $familyStartedAt): CarbonImmutable
+    public function refreshExpiresAt(CarbonInterface $familyStartedAt, bool $remember = true): CarbonImmutable
     {
-        $sliding = now()->toImmutable()->addDays((int) config('jwt.refresh_ttl_days'));
+        $now = now()->toImmutable();
+        $sliding = $remember
+            ? $now->addDays((int) config('jwt.refresh_ttl_days'))
+            : $now->addHours((int) config('jwt.refresh_session_hours'));
 
-        return $sliding->min($this->familyEndsAt($familyStartedAt));
+        return $sliding->min($this->familyEndsAt($familyStartedAt, $remember));
+    }
+
+    /**
+     * Whether the session presenting this request asked to be remembered, read from the `rem` claim of its access
+     * token (cookie or Bearer). True when there is no valid token or it has no claim (issued before the option
+     * existed), the behaviour every session had then.
+     */
+    public function rememberedBy(Request $request): bool
+    {
+        $jwt = $request->bearerToken() ?: $request->cookie(config('jwt.access_cookie'));
+        $claims = is_string($jwt) && $jwt !== '' ? $this->parseAccessToken($jwt) : null;
+
+        return ! (isset($claims->rem) && $claims->rem === false);
     }
 
     /** Verify signature, algorithm, expiry, issuer and audience; null when the token is invalid. */
@@ -124,12 +145,13 @@ class TokenFactory
 
             $reusedInGrace = $row->revoked_at !== null && $this->isGracedReuse($row, $request);
             $familyStartedAt = $this->familyStartedAt($row);
+            $remember = $row->remember !== false;
 
             // Reuse that is not graced (likely theft), an expired token or family, or a disabled account:
             // revoke every token of this login chain. Locked above, so the user read here is current.
             if (($row->revoked_at !== null && ! $reusedInGrace)
                 || $row->expires_at->isPast()
-                || $this->familyEndsAt($familyStartedAt)->isPast()
+                || $this->familyEndsAt($familyStartedAt, $remember)->isPast()
                 || ! $user
                 || ! $user->is_active) {
                 $this->refreshTokens->revokeFamily($row->family_id);
@@ -137,8 +159,8 @@ class TokenFactory
                 return null;
             }
 
-            [$access, $accessExp] = $this->issueAccessToken($user);
-            [$newPlain, $new] = $this->issueRefreshToken($user, $request, $row->family_id, $familyStartedAt);
+            [$access, $accessExp] = $this->issueAccessToken($user, remember: $remember);
+            [$newPlain, $new] = $this->issueRefreshToken($user, $request, $row->family_id, $familyStartedAt, $remember);
 
             // A graced token was already rotated: it keeps pointing at its first successor and spends its grace.
             if ($reusedInGrace) {
@@ -147,7 +169,7 @@ class TokenFactory
                 $this->refreshTokens->markRotated($row, $new->id);
             }
 
-            return new TokenPair($user, $access, $accessExp, $newPlain, $new->expires_at);
+            return new TokenPair($user, $access, $accessExp, $newPlain, $new->expires_at, $remember);
         });
 
         return $pair ?? throw new InvalidRefreshToken;
@@ -184,7 +206,7 @@ class TokenFactory
     }
 
     /** @return array{0: string, 1: RefreshToken} plain token and its stored row */
-    private function issueRefreshToken(User $user, Request $request, string $familyId, CarbonInterface $familyStartedAt): array
+    private function issueRefreshToken(User $user, Request $request, string $familyId, CarbonInterface $familyStartedAt, bool $remember): array
     {
         $plain = bin2hex(random_bytes(32));
 
@@ -193,7 +215,8 @@ class TokenFactory
             'token_hash' => $this->hash($plain),
             'family_id' => $familyId,
             'family_started_at' => $familyStartedAt,
-            'expires_at' => $this->refreshExpiresAt($familyStartedAt),
+            'remember' => $remember,
+            'expires_at' => $this->refreshExpiresAt($familyStartedAt, $remember),
             'user_agent' => $this->userAgent($request),
             'ip' => $request->ip(),
         ]);
@@ -243,9 +266,11 @@ class TokenFactory
         return Str::limit((string) $request->userAgent(), 500, '');
     }
 
-    private function familyEndsAt(CarbonInterface $familyStartedAt): CarbonImmutable
+    private function familyEndsAt(CarbonInterface $familyStartedAt, bool $remember): CarbonImmutable
     {
-        return $familyStartedAt->toImmutable()->addDays((int) config('jwt.refresh_family_max_days'));
+        $maxDays = $remember ? config('jwt.refresh_family_max_days') : config('jwt.refresh_session_family_max_days');
+
+        return $familyStartedAt->toImmutable()->addDays((int) $maxDays);
     }
 
     /**

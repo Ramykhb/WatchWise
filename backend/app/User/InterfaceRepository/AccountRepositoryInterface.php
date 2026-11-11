@@ -79,6 +79,9 @@ interface AccountRepositoryInterface
     /** The owner proved control of the inbox, so a password chosen without proof now counts as proof. */
     public function clearPasswordSetWithoutProof(User $user): void;
 
+    /** Stamps `email_verified_at` with now (the owner proved control of the inbox). */
+    public function markEmailVerified(User $user): void;
+
     /** `$avatar` is a path on the public disk for an uploaded picture, or null to remove it. */
     public function updateAvatar(User $user, ?string $avatar): void;
 

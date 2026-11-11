@@ -3,6 +3,7 @@
 namespace App\User\Services;
 
 use App\Models\User;
+use App\Support\SendsMailAfterResponse;
 use App\User\DTOs\Requests\AccountDeletionLinkData;
 use App\User\DTOs\Requests\DeleteAccountData;
 use App\User\DTOs\Responses\AccountDeletionOutcome;
@@ -15,13 +16,13 @@ use App\User\InterfaceServices\AccountDeletionServiceInterface;
 use App\User\InterfaceServices\AccountServiceInterface;
 use App\User\Mail\AccountDeletedMail;
 use App\User\Mail\ConfirmAccountDeletionMail;
-use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 
 class AccountDeletionService implements AccountDeletionServiceInterface
 {
+    use SendsMailAfterResponse;
+
     private const LINK_CONFIRM = 'account-deletion-confirm';
 
     private const LINK_CANCEL = 'account-deletion-cancel';
@@ -150,11 +151,5 @@ class AccountDeletionService implements AccountDeletionServiceInterface
             && $user->deletion_nonce !== null
             && $user->deletion_requested_at?->isAfter(now()->subMinutes(self::EXPIRES_MINUTES)) === true
             && hash_equals($this->linkHash($purpose, $user), $hash);
-    }
-
-    /** After the response is sent, so a slow or broken mail server is logged without failing the request. */
-    private function mailLater(string $to, Mailable $mail): void
-    {
-        defer(fn () => rescue(fn () => Mail::to($to)->send($mail)));
     }
 }

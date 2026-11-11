@@ -9,19 +9,23 @@ use Symfony\Component\HttpFoundation\Cookie;
 
 class AuthCookies
 {
+    /**
+     * A remembered login gets cookies that expire with their tokens. Without "Remember me" both are session cookies
+     * (no Expires/Max-Age), so the browser drops them when it closes; the tokens still expire on the server.
+     */
     public function attach(JsonResponse $response, AuthResponse $pair): JsonResponse
     {
         return $response
             ->withCookie($this->make(
                 config('jwt.access_cookie'),
                 $pair->accessToken,
-                (int) config('jwt.access_ttl'),
+                $pair->remember ? (int) config('jwt.access_ttl') : 0,
                 '/',
             ))
             ->withCookie($this->make(
                 config('jwt.refresh_cookie'),
                 $pair->refreshToken,
-                $this->minutesUntil($pair->refreshExpiresAt),
+                $pair->remember ? $this->minutesUntil($pair->refreshExpiresAt) : 0,
                 config('jwt.refresh_cookie_path'),
             ));
     }
@@ -39,6 +43,7 @@ class AuthCookies
         return max(1, (int) ceil(now()->diffInSeconds($expiresAt) / 60));
     }
 
+    /** `$minutes` 0 makes a session cookie. */
     private function make(string $name, string $value, int $minutes, string $path): Cookie
     {
         return cookie($name, $value, $minutes, $path, null, ! app()->environment('local', 'testing'), true, false, 'lax');
