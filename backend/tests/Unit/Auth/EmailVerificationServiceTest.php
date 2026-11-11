@@ -4,11 +4,14 @@ namespace Tests\Unit\Auth;
 
 use App\Auth\DTOs\Requests\ResendVerificationData;
 use App\Auth\DTOs\Requests\VerifyEmailData;
+use App\Auth\DTOs\Responses\VerifyEmailOutcome;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\Mail\VerifyEmailMail;
 use App\Auth\Services\EmailVerificationService;
 use App\Models\User;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Defer\DeferredCallbackCollection;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Mockery;
 use Mockery\MockInterface;
@@ -87,26 +90,30 @@ class EmailVerificationServiceTest extends TestCase
     {
         $this->users->shouldReceive('findById')->with(1)->andReturnNull();
         $this->users->shouldReceive('findById')->with(3)->andReturn($this->user());
-        $this->users->shouldNotReceive('markEmailVerified');
+        $this->users->shouldNotReceive('markEmailVerifiedIfUnverified');
 
-        $this->assertFalse($this->service->verify(new VerifyEmailData(1, 'x')));
-        $this->assertFalse($this->service->verify(new VerifyEmailData(3, 'bad')));
+        $this->assertSame(VerifyEmailOutcome::Invalid, $this->service->verify(new VerifyEmailData(1, 'x')));
+        $this->assertSame(VerifyEmailOutcome::Invalid, $this->service->verify(new VerifyEmailData(3, 'bad')));
     }
 
     public function test_verify_marks_unverified_user(): void
     {
+        Event::fake([Verified::class]);
         $user = $this->user();
         $this->users->shouldReceive('findById')->with(3)->andReturn($user);
-        $this->users->shouldReceive('markEmailVerified')->once()->with($user);
+        $this->users->shouldReceive('markEmailVerifiedIfUnverified')->once()->with($user)->andReturnTrue();
 
-        $this->assertTrue($this->service->verify(new VerifyEmailData(3, sha1('ada@example.com'))));
+        $this->assertSame(VerifyEmailOutcome::Success, $this->service->verify(new VerifyEmailData(3, sha1('ada@example.com'))));
+        Event::assertDispatched(Verified::class);
     }
 
-    public function test_verify_does_not_remark_verified_user(): void
+    public function test_verifying_an_already_verified_address_changes_nothing(): void
     {
+        Event::fake([Verified::class]);
         $this->users->shouldReceive('findById')->andReturn($this->user(true));
-        $this->users->shouldNotReceive('markEmailVerified');
+        $this->users->shouldReceive('markEmailVerifiedIfUnverified')->once()->andReturnFalse();
 
-        $this->assertTrue($this->service->verify(new VerifyEmailData(3, sha1('ada@example.com'))));
+        $this->assertSame(VerifyEmailOutcome::AlreadyVerified, $this->service->verify(new VerifyEmailData(3, sha1('ada@example.com'))));
+        Event::assertNotDispatched(Verified::class);
     }
 }

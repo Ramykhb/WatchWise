@@ -4,6 +4,7 @@ namespace App\User\FormRequests;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\User;
+use App\Support\DisplayName;
 use App\Support\EmailAddress;
 use App\Support\NormalizesEmailInput;
 use App\User\DTOs\Requests\UpdateProfileData;
@@ -38,7 +39,7 @@ class UpdateProfileRequest extends FormRequest
         $user = app(CurrentUser::class)->user();
 
         return [
-            'name' => ['sometimes', 'required', 'string', 'min:2', 'max:255'],
+            'name' => ['sometimes', 'required', 'string', 'min:2', 'max:255', new DisplayName],
             // Compared case-insensitively, so a handle stored before lowercasing ("Mali") still blocks "mali".
             'username' => ['sometimes', 'required', 'string', 'regex:/^[a-z0-9_.]{3,20}$/i', function (string $attribute, mixed $value, Closure $fail) use ($user): void {
                 if (is_string($value) && User::query()->whereRaw('LOWER(username) = ?', [strtolower($value)])->whereKeyNot($user->id)->exists()) {

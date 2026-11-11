@@ -8,7 +8,6 @@ import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
 import bgPeach from '../../assets/auth/signin-bg-peach-blob.svg'
 import arrowLeft from '../../assets/forgot/icon-arrow-left.svg'
-import arrowIcon from '../../assets/landing/icon-arrow.svg'
 import lockIcon from '../../assets/forgot/icon-lock.svg'
 import mailIcon from '../../assets/forgot/icon-mail.svg'
 import { AUTH_SWAP_STATE as SWAP, useAuthSwap } from '../../hooks/useAuthSwap.ts'
@@ -16,7 +15,7 @@ import styles from './ForgotPassword.module.css'
 import { apiErrorMessage, authApi } from '../../lib/auth.ts'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const STEPS = ['Request', 'Check email', 'New password']
+const STEPS = ['Request', 'Check email']
 
 export default function ForgotPassword() {
   const swapped = useAuthSwap()
@@ -66,45 +65,19 @@ export default function ForgotPassword() {
       }
       artboard={
         <>
-          {/* Previews of steps 2 and 3 (decorative, from the Figma frame). */}
+          {/* Preview of the check-your-inbox step (decorative). */}
           <div className={`${styles.card} ${styles.inboxCard} vt-forgot-inbox`} data-enter data-enter-delay="0.3" data-enter-rise="60">
             <span className={styles.mailBadge}>
               <img src={mailIcon} width={25} height={25} alt="" />
             </span>
             <p className={styles.cardTitle}>Check your inbox</p>
             <p className={styles.cardText}>
-              We sent a reset link to <strong>{sentTo ?? 'maya@watchwise.app'}</strong>
+              If an account exists for <strong>{sentTo ?? 'maya@watchwise.app'}</strong>, we sent a reset link
             </p>
             <div className={styles.cardActions}>
               <span className={styles.softPill}>Open email app</span>
               <span className={styles.cardMuted}>Resend in 0:42</span>
             </div>
-          </div>
-          <div className={`${styles.card} ${styles.resetCard} vt-forgot-reset`} data-enter data-enter-delay="0.5" data-enter-rise="60">
-            <p className={styles.resetTitle}>Create a new password</p>
-            <div className={styles.mockField}>
-              <span className={styles.mockLabel}>New password</span>
-              <span className={styles.mockControl}>
-                ••••••••••••<span className={styles.mockToggle}>Show</span>
-              </span>
-            </div>
-            <div className={styles.strength}>
-              <span className={styles.barOn} />
-              <span className={styles.barOn} />
-              <span className={styles.barOn} />
-              <span className={styles.barOff} />
-              <span className={styles.strengthLabel}>Strong</span>
-            </div>
-            <div className={styles.mockField}>
-              <span className={styles.mockLabel}>Confirm password</span>
-              <span className={styles.mockControl}>••••••••••••</span>
-            </div>
-            <span className={styles.mockButton}>
-              Update password
-              <span className={styles.mockButtonIcon}>
-                <img src={arrowIcon} width={22} height={22} alt="" />
-              </span>
-            </span>
           </div>
         </>
       }
@@ -154,12 +127,12 @@ export default function ForgotPassword() {
 
         {sentTo ? (
           <p className={styles.sent} role="status">
-            Reset link sent to <strong>{sentTo}</strong>. Check your inbox.
+            If an account exists for <strong>{sentTo}</strong>, we sent a reset link. Check your inbox and spam folder.
           </p>
         ) : (
           <p className={styles.note}>
             <img src={lockIcon} width={16} height={16} alt="" />
-            Reset links expire after 30 minutes for your security.
+            Reset links expire after 60 minutes for your security.
           </p>
         )}
       </div>

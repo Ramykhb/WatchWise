@@ -22,6 +22,8 @@ import { apiErrorMessage, authApi, type AuthPayload } from '../../lib/auth.ts'
 import { returnToFrom } from '../../lib/returnTo.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { accountDeletionNotice } from '../Settings/accountDeletion.ts'
+import { loginPayload } from '../../lib/loginPayload.ts'
+import { socialAuthUrl } from '../../lib/backendUrl.ts'
 import styles from './SignIn.module.css'
 
 const PROVIDERS: SocialProvider[] = ['google', 'github', 'discord']
@@ -54,7 +56,7 @@ export default function SignIn() {
     if (Object.keys(next).length > 0) return
     setSubmitting(true)
     try {
-      const response = await authApi.post<AuthPayload>('/auth/login', { email, password })
+      const response = await authApi.post<AuthPayload>('/auth/login', loginPayload(email, password, data.get('remember') !== null))
       setUser(response.data.user)
       navigate(returnToFrom(location.state), { replace: true })
     } catch (error) {
@@ -65,7 +67,7 @@ export default function SignIn() {
   }
 
   const handleSocial = (provider: SocialProvider) => {
-    window.location.assign(`${import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000'}/api/auth/social/${provider}`)
+    window.location.assign(socialAuthUrl(provider))
   }
 
   return (

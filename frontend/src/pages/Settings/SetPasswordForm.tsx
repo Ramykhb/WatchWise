@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import PillButton from '../../components/PillButton/PillButton.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
-import { PASSWORD_PATTERN, setPassword, settlePassword } from '../../lib/password.ts'
+import { passwordRuleError, setPassword, settlePassword } from '../../lib/password.ts'
 import styles from './Settings.module.css'
 
 type Errors = Partial<Record<'next' | 'confirm', string>>
@@ -17,7 +17,7 @@ export default function SetPasswordForm({ onDone, onNote }: { onDone: () => Prom
     const next = String(data.get('next') ?? '')
     const confirm = String(data.get('confirm') ?? '')
     const found: Errors = {}
-    if (!PASSWORD_PATTERN.test(next)) found.next = 'Use at least 8 characters, including a number.'
+    if (passwordRuleError(next)) found.next = passwordRuleError(next) ?? undefined
     if (confirm !== next) found.confirm = "Passwords don't match."
     setErrors(found)
     if (Object.keys(found).length > 0) {

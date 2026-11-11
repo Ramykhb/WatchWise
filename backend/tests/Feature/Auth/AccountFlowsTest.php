@@ -9,7 +9,9 @@ use App\Models\RefreshToken;
 use App\Models\SocialAccount;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
@@ -17,10 +19,12 @@ use Illuminate\Support\Facades\URL;
 use Laravel\Socialite\Contracts\Provider;
 use Laravel\Socialite\Facades\Socialite;
 use Mockery;
+use Tests\Feature\User\OpensAccountLinks;
 use Tests\TestCase;
 
 class AccountFlowsTest extends TestCase
 {
+    use OpensAccountLinks;
     use RefreshDatabase;
     use SignsInWithProviders;
 
@@ -50,32 +54,48 @@ class AccountFlowsTest extends TestCase
         Mail::assertSent(VerifyEmailMail::class, fn ($m) => $m->hasTo('jane@example.com'));
     }
 
-    public function test_signed_link_verifies_email(): void
+    public function test_opening_the_link_changes_nothing_and_the_confirming_post_verifies_once(): void
     {
+        Event::fake([Verified::class]);
         $user = User::factory()->unverified()->create();
         $url = URL::temporarySignedRoute('auth.verify-email', now()->addMinutes(60), [
             'id' => $user->id, 'hash' => sha1($user->email),
         ]);
 
-        $this->get($url)->assertRedirect('http://front.test/verify-email?status=success');
-        $this->assertNotNull($user->fresh()->email_verified_at);
+        // A mail scanner or link preview that prefetches the link only gets the redirect.
+        $this->assertOpensConfirmationPage($url, 'verify-email');
+        $this->assertOpensConfirmationPage($url, 'verify-email');
+        $this->assertNull($user->fresh()->email_verified_at);
+
+        $this->confirmLink($url, 'success');
+        $verifiedAt = $user->fresh()->email_verified_at;
+        $this->assertNotNull($verifiedAt);
+
+        // A second click is harmless: same answer family, nothing changes.
+        $this->travel(1)->minutes();
+        $this->confirmLink($url, 'already-verified');
+        $this->assertTrue($verifiedAt->equalTo($user->fresh()->email_verified_at));
+        Event::assertDispatchedTimes(Verified::class, 1);
     }
 
     public function test_unsigned_expired_or_wrong_hash_links_do_not_verify(): void
     {
         $user = User::factory()->unverified()->create();
+        $unsigned = "/api/auth/verify-email/{$user->id}/".sha1($user->email);
 
-        $this->get("/api/auth/verify-email/{$user->id}/".sha1($user->email))->assertRedirect('http://front.test/verify-email?status=invalid');
+        $this->get($unsigned)->assertRedirect($this->resultPage('verify-email', 'invalid'));
+        $this->submitLink($unsigned)->assertForbidden()->assertExactJson(['outcome' => 'invalid']);
 
         $expired = URL::temporarySignedRoute('auth.verify-email', now()->subMinute(), [
             'id' => $user->id, 'hash' => sha1($user->email),
         ]);
-        $this->get($expired)->assertRedirect('http://front.test/verify-email?status=expired');
+        $this->get($expired)->assertRedirect($this->resultPage('verify-email', 'expired'));
+        $this->submitLink($expired)->assertStatus(410)->assertExactJson(['outcome' => 'expired']);
 
         $wrong = URL::temporarySignedRoute('auth.verify-email', now()->addMinutes(5), [
             'id' => $user->id, 'hash' => sha1('other@example.com'),
         ]);
-        $this->get($wrong)->assertRedirect('http://front.test/verify-email?status=invalid');
+        $this->confirmLink($wrong, 'invalid');
 
         $this->assertNull($user->fresh()->email_verified_at);
     }

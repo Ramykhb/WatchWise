@@ -3,11 +3,15 @@
 namespace Tests\Feature\Auth;
 
 use App\Auth\Factories\TokenFactory;
+use App\Auth\Services\AuthService;
 use App\Models\RefreshToken;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -179,32 +183,142 @@ class AuthenticationTest extends TestCase
         $this->refreshWith($refresh)->assertUnauthorized();
     }
 
+    public function test_a_login_upgrades_a_hash_made_with_an_older_cost(): void
+    {
+        $user = User::factory()->create(['email' => 'a@example.com', 'password' => 'secret1234']);
+        $this->assertSame(4, Hash::info($user->password)['options']['cost']);
+        Hash::driver('bcrypt')->setRounds(5);
+
+        $this->postJson('/api/auth/login', ['email' => 'a@example.com', 'password' => 'secret1234'])->assertOk();
+
+        $stored = $user->fresh()->password;
+        $this->assertSame(5, Hash::info($stored)['options']['cost']);
+        $this->assertTrue(Hash::check('secret1234', $stored));
+        $this->postJson('/api/auth/login', ['email' => 'a@example.com', 'password' => 'secret1234'])->assertOk();
+    }
+
+    public function test_the_upgrade_waits_while_a_link_bound_to_the_hash_is_pending(): void
+    {
+        $user = User::factory()->create(['email' => 'a@example.com', 'password' => 'secret1234']);
+        $user->forceFill(['deletion_nonce' => 'n', 'deletion_requested_at' => now()])->save();
+        $before = $user->fresh()->password;
+        Hash::driver('bcrypt')->setRounds(5);
+
+        $this->postJson('/api/auth/login', ['email' => 'a@example.com', 'password' => 'secret1234'])->assertOk();
+
+        $this->assertSame($before, $user->fresh()->password);
+        $this->assertSame('n', $user->fresh()->deletion_nonce);
+    }
+
+    /** @param  array<string, mixed>  $body */
+    private function loginFrom(string $ip, array $body): TestResponse
+    {
+        return $this->withServerVariables(['REMOTE_ADDR' => $ip])->postJson('/api/auth/login', $body);
+    }
+
     public function test_login_throttle_cannot_be_bypassed_by_rotating_the_email(): void
     {
-        for ($i = 0; $i < 5; $i++) {
+        // Every request counts in the per-IP bucket (20 per minute), whatever email it names.
+        for ($i = 0; $i < 20; $i++) {
             $this->postJson('/api/auth/login', ['email' => "user{$i}@example.com", 'password' => 'x'])->assertUnauthorized();
         }
 
-        $this->postJson('/api/auth/login', ['email' => 'fresh@example.com', 'password' => 'x'])->assertStatus(429);
+        $this->postJson('/api/auth/login', ['email' => 'fresh@example.com', 'password' => 'x'])->assertTooManyRequests();
     }
 
-    public function test_login_throttle_is_per_account_across_ips(): void
+    public function test_failed_logins_for_one_account_from_one_ip_are_throttled(): void
     {
-        for ($i = 0; $i < 5; $i++) {
-            $this->withServerVariables(['REMOTE_ADDR' => "10.0.0.{$i}"])
-                ->postJson('/api/auth/login', ['email' => 'Victim@Example.com ', 'password' => 'x'])->assertUnauthorized();
+        for ($i = 0; $i < AuthService::LOGIN_FAILURES_PER_MINUTE; $i++) {
+            $this->loginFrom('10.0.0.1', ['email' => 'Victim@Example.com ', 'password' => 'x'])->assertUnauthorized();
         }
 
-        $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.99'])
-            ->postJson('/api/auth/login', ['email' => 'victim@example.com', 'password' => 'x'])->assertStatus(429);
+        $this->loginFrom('10.0.0.1', ['email' => 'victim@example.com', 'password' => 'x'])->assertTooManyRequests();
+        // Another address from the same IP still gets its own failure bucket.
+        $this->loginFrom('10.0.0.1', ['email' => 'other@example.com', 'password' => 'x'])->assertUnauthorized();
     }
 
-    public function test_login_is_throttled(): void
+    public function test_failures_from_other_ips_do_not_lock_the_owner_out(): void
     {
-        for ($i = 0; $i < 5; $i++) {
-            $this->postJson('/api/auth/login', ['email' => 'a@example.com', 'password' => 'x'])->assertUnauthorized();
+        User::factory()->create(['email' => 'victim@example.com', 'password' => 'secret1234']);
+
+        // A distributed attacker fills every bucket it can reach for the victim's address...
+        for ($ip = 1; $ip <= 3; $ip++) {
+            for ($i = 0; $i < AuthService::LOGIN_FAILURES_PER_MINUTE; $i++) {
+                $this->loginFrom("203.0.113.{$ip}", ['email' => 'victim@example.com', 'password' => 'wrong'])->assertUnauthorized();
+            }
+            $this->loginFrom("203.0.113.{$ip}", ['email' => 'victim@example.com', 'password' => 'wrong'])->assertTooManyRequests();
         }
 
-        $this->postJson('/api/auth/login', ['email' => 'a@example.com', 'password' => 'x'])->assertStatus(429);
+        // ...but the owner, from their own IP, signs in at once.
+        $this->loginFrom('198.51.100.7', ['email' => 'victim@example.com', 'password' => 'secret1234'])->assertOk();
+    }
+
+    public function test_a_successful_login_clears_the_failure_counter(): void
+    {
+        User::factory()->create(['email' => 'a@example.com', 'password' => 'secret1234']);
+
+        for ($i = 0; $i < AuthService::LOGIN_FAILURES_PER_MINUTE - 1; $i++) {
+            $this->loginFrom('10.0.0.1', ['email' => 'a@example.com', 'password' => 'typo'])->assertUnauthorized();
+        }
+        $this->loginFrom('10.0.0.1', ['email' => 'a@example.com', 'password' => 'secret1234'])->assertOk();
+
+        // The counter started again: as many failures as the limit allows are answered 401 before a 429.
+        for ($i = 0; $i < AuthService::LOGIN_FAILURES_PER_MINUTE; $i++) {
+            $this->loginFrom('10.0.0.1', ['email' => 'a@example.com', 'password' => 'typo'])->assertUnauthorized();
+        }
+        $this->loginFrom('10.0.0.1', ['email' => 'a@example.com', 'password' => 'typo'])->assertTooManyRequests();
+    }
+
+    public function test_addresses_of_one_ipv6_64_share_the_per_ip_bucket(): void
+    {
+        for ($i = 1; $i <= 20; $i++) {
+            $this->loginFrom('2001:db8:1:2::'.dechex($i), ['email' => "u{$i}@example.com", 'password' => 'x'])->assertUnauthorized();
+        }
+
+        $this->loginFrom('2001:db8:1:2:ffff::99', ['email' => 'z@example.com', 'password' => 'x'])->assertTooManyRequests();
+        $this->loginFrom('2001:db8:1:3::1', ['email' => 'z@example.com', 'password' => 'x'])->assertUnauthorized();
+    }
+
+    public function test_addresses_of_one_ipv6_64_share_the_failure_bucket(): void
+    {
+        for ($i = 1; $i <= AuthService::LOGIN_FAILURES_PER_MINUTE; $i++) {
+            $this->loginFrom('2001:db8:1:2::'.dechex($i), ['email' => 'victim@example.com', 'password' => 'x'])->assertUnauthorized();
+        }
+
+        $this->loginFrom('2001:db8:1:2::abcd', ['email' => 'victim@example.com', 'password' => 'x'])->assertTooManyRequests();
+    }
+
+    public function test_the_failure_key_is_short_whatever_the_email(): void
+    {
+        $email = str_repeat('a', 243).'@example.com';
+        $this->assertSame(255, strlen($email));
+
+        $this->loginFrom('10.0.0.1', ['email' => $email, 'password' => 'x'])->assertUnauthorized();
+
+        $key = AuthService::loginFailuresKey($email, '10.0.0.1');
+        $this->assertSame('auth-login:'.hash('sha256', $email.'|10.0.0.1'), $key);
+        $this->assertSame(1, RateLimiter::attempts($key));
+    }
+
+    public function test_the_failure_429_looks_like_the_route_limiters_429(): void
+    {
+        for ($i = 0; $i < AuthService::LOGIN_FAILURES_PER_MINUTE; $i++) {
+            $this->loginFrom('10.0.0.1', ['email' => 'a@example.com', 'password' => 'x']);
+        }
+        $failures = $this->loginFrom('10.0.0.1', ['email' => 'a@example.com', 'password' => 'x'])->assertTooManyRequests();
+
+        for ($i = 0; $i < 20; $i++) {
+            $this->loginFrom('10.0.0.2', ['email' => "u{$i}@example.com", 'password' => 'x']);
+        }
+        $perIp = $this->loginFrom('10.0.0.2', ['email' => 'z@example.com', 'password' => 'x'])->assertTooManyRequests();
+
+        $this->assertSame('Too Many Attempts.', $failures->json('message'));
+        $this->assertSame($perIp->json('message'), $failures->json('message'));
+        foreach (['Retry-After', 'X-RateLimit-Reset', 'X-RateLimit-Limit', 'X-RateLimit-Remaining'] as $header) {
+            $failures->assertHeader($header);
+            $perIp->assertHeader($header);
+        }
+        $this->assertGreaterThan(0, (int) $failures->headers->get('Retry-After'));
+        $this->assertLessThanOrEqual(60, (int) $failures->headers->get('Retry-After'));
     }
 }

@@ -49,7 +49,7 @@ class TrustedProxiesTest extends TestCase
         $this->app->getProvider(AppServiceProvider::class)->configureUrlGeneration();
     }
 
-    /** No email in the body, so only the per-IP bucket of `auth-login` (5 per minute) counts; validation answers 422. */
+    /** `auth-login` counts every request per IP (20 per minute); with no body, validation answers 422. */
     private function loginFrom(string $client): TestResponse
     {
         return $this->withServerVariables(['REMOTE_ADDR' => self::PROXY])
@@ -61,7 +61,7 @@ class TrustedProxiesTest extends TestCase
     {
         config(['trustedproxy.proxies' => '*']);
 
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 20; $i++) {
             $this->loginFrom('203.0.113.5')->assertUnprocessable();
         }
 
@@ -73,7 +73,7 @@ class TrustedProxiesTest extends TestCase
     {
         config(['trustedproxy.proxies' => '10.0.0.0/8, 192.168.0.1']);
 
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 20; $i++) {
             $this->loginFrom('203.0.113.5')->assertUnprocessable();
         }
 
@@ -84,7 +84,7 @@ class TrustedProxiesTest extends TestCase
     {
         config(['trustedproxy.proxies' => null]);
 
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 20; $i++) {
             $this->loginFrom("203.0.113.{$i}")->assertUnprocessable();
         }
 
@@ -95,7 +95,7 @@ class TrustedProxiesTest extends TestCase
     {
         config(['trustedproxy.proxies' => '192.168.0.1']);
 
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 20; $i++) {
             $this->loginFrom("203.0.113.{$i}")->assertUnprocessable();
         }
 

@@ -2,9 +2,9 @@
 
 namespace App\User\FormRequests;
 
+use App\Support\NewPasswordRules;
 use App\User\DTOs\Requests\SetPasswordData;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
 
 class SetPasswordRequest extends FormRequest
 {
@@ -20,8 +20,7 @@ class SetPasswordRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // bcrypt ignores everything after a NUL byte, so a new password may not contain one.
-            'password' => ['required', 'string', 'not_regex:/\x00/', 'confirmed', Password::min(8)->letters()->numbers()],
+            'password' => NewPasswordRules::rules(),
         ];
     }
 

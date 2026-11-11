@@ -50,6 +50,27 @@ class UserRepositoryTest extends TestCase
         $this->assertNull($user->fresh()->avatar);
     }
 
+    public function test_rehash_writes_only_while_the_verified_hash_is_still_stored(): void
+    {
+        $user = User::factory()->create(['password' => 'secret1234']);
+        $verified = $user->password;
+        $repo = new UserRepository;
+
+        // A reset committed between the login's check and its upgrade: the upgrade must not bring the old password back.
+        User::query()->whereKey($user->id)->update(['password' => Hash::make('changed999')]);
+        $this->assertFalse($repo->rehashPassword($user, $verified, 'secret1234'));
+        $this->assertTrue(Hash::check('changed999', $user->fresh()->password));
+        $this->assertSame($verified, $user->password);
+
+        $fresh = $user->fresh();
+        $current = $fresh->password;
+        $this->assertTrue($repo->rehashPassword($fresh, $current, 'changed999'));
+        $stored = User::query()->whereKey($user->id)->value('password');
+        $this->assertNotSame($current, $stored);
+        $this->assertSame($stored, $fresh->password);
+        $this->assertTrue(Hash::check('changed999', $fresh->password));
+    }
+
     public function test_update_password_hashes(): void
     {
         $user = User::factory()->create();

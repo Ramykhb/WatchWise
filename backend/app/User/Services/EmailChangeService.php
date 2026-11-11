@@ -4,6 +4,7 @@ namespace App\User\Services;
 
 use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Models\User;
+use App\Support\SendsMailAfterResponse;
 use App\User\DTOs\Requests\EmailChangeLinkData;
 use App\User\DTOs\Requests\RequestEmailChangeData;
 use App\User\DTOs\Responses\AccountResponse;
@@ -16,7 +17,6 @@ use App\User\Mail\AuthorizeEmailChangeMail;
 use App\User\Mail\ConfirmEmailChangeMail;
 use App\User\Mail\EmailChangedMail;
 use App\User\Mail\EmailChangeRequestedMail;
-use App\User\Mail\SendsMailAfterResponse;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\URL;

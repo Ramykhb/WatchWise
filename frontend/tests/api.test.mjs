@@ -149,6 +149,9 @@ test('signed confirm POSTs and auth endpoints never trigger a refresh', () => {
     assert.equal(shouldSkipRefresh(`/me/${kind}/7/${'b'.repeat(64)}${query}`), true, kind)
     assert.equal(shouldSkipRefresh(`https://api.test/api/me/${kind}/7/x${query}`), true, kind)
   }
+  assert.equal(shouldSkipRefresh(`/auth/verify-email/7/${'b'.repeat(64)}${query}`), true)
+  assert.equal(shouldSkipRefresh(`https://api.test/api/auth/verify-email/7/x${query}`), true)
+  assert.equal(isGuestRoute('/reset-password'), true)
   assert.equal(shouldSkipRefresh('/auth/login'), true)
   assert.equal(shouldSkipRefresh('/me'), false)
   assert.equal(shouldSkipRefresh('/me/email/cancel/7/x'), false)

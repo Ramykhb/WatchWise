@@ -3,9 +3,9 @@
 namespace App\Auth\FormRequests;
 
 use App\Auth\DTOs\Requests\ResetPasswordData;
+use App\Support\NewPasswordRules;
 use App\Support\NormalizesEmailInput;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
 
 class ResetPasswordRequest extends FormRequest
 {
@@ -20,9 +20,8 @@ class ResetPasswordRequest extends FormRequest
     {
         return [
             'email' => ['required', 'string', 'email', 'max:255'],
-            'token' => ['required', 'string'],
-            // bcrypt ignores everything after a NUL byte, so a new password may not contain one.
-            'password' => ['required', 'string', 'not_regex:/\x00/', 'confirmed', Password::min(8)],
+            'token' => ['required', 'string', 'max:255'],
+            'password' => NewPasswordRules::rules(),
         ];
     }
 

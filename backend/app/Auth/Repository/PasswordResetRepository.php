@@ -5,27 +5,30 @@ namespace App\Auth\Repository;
 use App\Auth\InterfaceRepository\PasswordResetRepositoryInterface;
 use App\Models\PasswordReset;
 use App\Support\EmailAddress;
+use Illuminate\Support\Facades\DB;
 
 class PasswordResetRepository implements PasswordResetRepositoryInterface
 {
     public function replaceFor(string $email, string $hashedToken): PasswordReset
     {
-        $this->deleteFor($email);
+        return DB::transaction(function () use ($email, $hashedToken): PasswordReset {
+            $this->deleteFor($email);
 
-        $record = new PasswordReset(['email' => $email, 'token' => $hashedToken]);
-        $record->created_at = now();
-        $record->save();
+            $record = new PasswordReset(['email' => $email, 'token' => $hashedToken]);
+            $record->created_at = now();
+            $record->save();
 
-        return $record;
+            return $record;
+        });
     }
 
-    public function latestFor(string $email): ?PasswordReset
+    public function latestForUpdate(string $email): ?PasswordReset
     {
-        return PasswordReset::where('email', EmailAddress::normalize($email))->latest('id')->first();
+        return PasswordReset::where('email', EmailAddress::normalize($email))->latest('id')->lockForUpdate()->first();
     }
 
-    public function deleteFor(string $email): void
+    public function deleteFor(string $email): int
     {
-        PasswordReset::where('email', EmailAddress::normalize($email))->delete();
+        return PasswordReset::where('email', EmailAddress::normalize($email))->delete();
     }
 }

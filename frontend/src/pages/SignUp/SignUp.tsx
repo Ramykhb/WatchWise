@@ -21,13 +21,15 @@ import dotYellow from '../../assets/auth/deco-dot-yellow-md.svg'
 import infoIcon from '../../assets/auth/icon-info.svg'
 import { AUTH_SWAP_STATE as SWAP, useAuthSwap } from '../../hooks/useAuthSwap.ts'
 import { LAST_LAP, NEON_TIDE, PAPER_MOON } from '../authPosters.ts'
+import { passwordRuleError } from '../../lib/password.ts'
+import { nameRuleError } from '../../lib/nameRule.ts'
+import { socialAuthUrl } from '../../lib/backendUrl.ts'
 import styles from './SignUp.module.css'
 import { apiErrorMessage, authApi, type AuthPayload } from '../../lib/auth.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 
 const PROVIDERS: SocialProvider[] = ['google', 'github', 'discord']
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const PASSWORD_PATTERN = /^(?=.*\d).{8,}$/
 
 type Errors = Partial<Record<'name' | 'email' | 'password' | 'password_confirmation' | 'terms', string>>
 
@@ -47,9 +49,11 @@ export default function SignUp() {
     const password = String(data.get('password') ?? '')
     const passwordConfirmation = String(data.get('password_confirmation') ?? '')
     const next: Errors = {}
-    if (name.length < 2) next.name = 'Tell us your name.'
+    const nameError = nameRuleError(name)
+    if (nameError) next.name = nameError
     if (!EMAIL_PATTERN.test(email)) next.email = 'Enter a valid email address.'
-    if (!PASSWORD_PATTERN.test(password)) next.password = 'Use at least 8 characters, including a number.'
+    const passwordError = passwordRuleError(password)
+    if (passwordError) next.password = passwordError
     if (passwordConfirmation !== password) next.password_confirmation = 'Passwords do not match.'
     if (!data.get('terms')) next.terms = 'Please accept the Terms and Privacy Policy.'
     setErrors(next)
@@ -70,7 +74,7 @@ export default function SignUp() {
   }
 
   const handleSocial = (provider: SocialProvider) => {
-    window.location.assign(`${import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000'}/api/auth/social/${provider}`)
+    window.location.assign(socialAuthUrl(provider))
   }
 
   return (

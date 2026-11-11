@@ -2,7 +2,7 @@ import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestCo
 import { useCallback, useEffect, useState } from 'react'
 import { decideRefresh, refreshAcrossTabs, shouldEndSession } from './sessionRefresh.ts'
 
-const backendUrl = (import.meta.env?.VITE_BACKEND_URL ?? 'http://localhost:8000').replace(/\/$/, '')
+import { backendUrl } from './backendUrl.ts'
 
 /** The shared Laravel API client (`/api/...`) for both application and auth requests. */
 export const api = axios.create({
@@ -33,7 +33,7 @@ const publicAuthEndpoints = [
   '/auth/reset-password',
   '/auth/resend-verification',
 ]
-const guestRoutes = ['/', '/signin', '/signup', '/forgot-password', '/auth/callback', '/verify-email', '/terms', '/privacy']
+const guestRoutes = ['/', '/signin', '/signup', '/forgot-password', '/auth/callback', '/verify-email', '/terms', '/privacy', '/reset-password']
 /** Pages that work without a session; a failed session check there must not bounce the visitor to the landing page. */
 export function isGuestRoute(pathname: string): boolean {
   return guestRoutes.includes(pathname) || pathname === '/account-link' || pathname.startsWith('/account-link/')
@@ -51,7 +51,7 @@ export function isEmailUnverified(error: unknown): boolean {
 }
 
 /** The emailed-link confirmations are authorised by their signature alone, so a 403/410 there is never a session problem. */
-const signedLinkPaths = /^\/me\/(email\/(confirm|authorize)|delete\/confirm)\//
+const signedLinkPaths = /^\/(me\/(email\/(confirm|authorize)|delete\/confirm)|auth\/verify-email)\//
 
 export function shouldSkipRefresh(url?: string): boolean {
   if (!url) return false
