@@ -31,6 +31,7 @@ import Placeholder from './pages/Placeholder/Placeholder.tsx'
 import Releases from './pages/Releases/Releases.tsx'
 import { RequireAdmin, RequireAuth, RequireGuest } from './components/RouteGuards/RouteGuards.tsx'
 import AccountLink, { AccountLinkResult } from './pages/AccountLink/AccountLink.tsx'
+import ResetPassword from './pages/ResetPassword/ResetPassword.tsx'
 import AuthCallback from './pages/AuthCallback/AuthCallback.tsx'
 
 export const router = createBrowserRouter([
@@ -41,6 +42,8 @@ export const router = createBrowserRouter([
       { index: true, element: <RequireGuest><Landing /></RequireGuest> },
       { path: 'signin', element: <RequireGuest><SignIn /></RequireGuest> },
       { path: 'verify-email', element: <VerifyEmail /> },
+      // The emailed reset link works signed in or out.
+      { path: 'reset-password', element: <ResetPassword /> },
       // Emailed account links work signed in or out, in any browser; `result` must come before `:kind`.
       { path: 'account-link/result', element: <AccountLinkResult /> },
       { path: 'account-link/:kind', element: <AccountLink /> },

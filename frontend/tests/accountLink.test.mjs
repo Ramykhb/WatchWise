@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { test } from 'node:test'
 import {
   buildConfirmRequest, confirmRequestUrl, outcomeFromResponse, resolveOutcome, resultPath,
@@ -99,4 +100,24 @@ test('crafted or malformed values never build a request', () => {
     const partial = make({}).slice(1).split('&').filter((part) => !part.startsWith(`${missing}=`)).join('&')
     assert.equal(buildConfirmRequest('delete-confirm', `?${partial}`), null)
   }
+})
+
+const SHA1 = createHash('sha1').update('maya@example.com').digest('hex')
+
+test('verify-email builds its POST under /auth with a real sha1 hash and has its own outcomes', () => {
+  const verifySearch = `?id=7&hash=${SHA1}&expires=1900000000&signature=${SIG}`
+  assert.equal(SHA1.length, 40)
+  assert.equal(confirmRequestUrl(buildConfirmRequest('verify-email', verifySearch)), `/auth/verify-email/7/${SHA1}?expires=1900000000&signature=${SIG}`)
+  assert.equal(buildConfirmRequest('verify-email', search), null, '64-hex hash rejected for verify-email')
+  for (const kind of ['email-confirm', 'email-authorize', 'delete-confirm']) assert.equal(buildConfirmRequest(kind, verifySearch), null, `40-hex rejected for ${kind}`)
+  assert.equal(buildConfirmRequest('verify-email', `?id=x&hash=${SHA1}&expires=1&signature=${SIG}`), null)
+  assert.equal(buildConfirmRequest('verify-email', `?id=7&hash=${SHA1.toUpperCase()}&expires=1&signature=${SIG}`), null)
+  const ok = resolveOutcome('verify-email', 'success')
+  assert.equal(ok.title, 'Email verified.')
+  assert.equal(ok.refreshesSession, true)
+  assert.equal(resolveOutcome('verify-email', 'already-verified').refreshesSession, true)
+  for (const outcome of ['invalid', 'expired']) assert.equal(resolveOutcome('verify-email', outcome).next, 'verify-email')
+  assert.equal(resolveOutcome('verify-email', 'deleted').title, 'Link not valid.')
+  assert.equal(outcomeFromResponse(410, {}), 'expired')
+  assert.equal(outcomeFromResponse(200, { outcome: 'already-verified' }), 'already-verified')
 })
