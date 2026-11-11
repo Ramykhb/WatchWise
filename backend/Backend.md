@@ -185,6 +185,7 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `me-email-change` | `UserModuleServiceProvider` | 3 (and 10 per hour), per account | `PUT /api/me/email`, `POST /api/me/email/resend` |
 | `me-email-confirm` | `UserModuleServiceProvider` | 20, per IP | the signed email-change links (`me.email.confirm`, `me.email.authorize`, `me.email.cancel`) and the POSTs that confirm them, one shared bucket (opening a link and confirming it spends two) |
 | `me-delete-confirm` | `UserModuleServiceProvider` | 20, per IP | the signed account-deletion links (`me.delete.confirm`, `me.delete.cancel`) and the confirming POST, one shared bucket |
+| `admin` | `AdminModuleServiceProvider` | 120 | every `/api/admin/*` route, per signed-in staff member |
 | `user-search` | `UserModuleServiceProvider` | 60 | `GET /api/users`, per signed-in user |
 | `user-follows` | `UserModuleServiceProvider` | 60 | `POST`/`DELETE /api/users/{username}/follow` and the follow-request accept/decline routes, one shared bucket per signed-in user |
 | `user-avatar` | `UserModuleServiceProvider` | 10 | `POST`/`DELETE /api/me/avatar`, one shared bucket per signed-in user |
@@ -666,7 +667,7 @@ app/User/
 
 ### Deleting the account
 
-`AccountDeletionService` decides how `DELETE /api/me` is confirmed. A password of the member's own proves ownership; no password at all (`password` is NULL), or a first password set in Settings without a current one (`password_set_without_proof_at`, which a stolen session could do), does not, so those accounts confirm from their inbox. Both paths end in `AccountService::deleteAccount` (stored avatar file, then the user row; foreign keys cascade), and the address then gets `AccountDeletedMail`.
+`AccountDeletionService` decides how `DELETE /api/me` is confirmed. A password of the member's own proves ownership; no password at all (`password` is NULL), or a first password set in Settings without a current one (`password_set_without_proof_at`, which a stolen session could do), does not, so those accounts confirm from their inbox. Both paths, and an admin deleting a member, end in `AccountService::deleteAccount` (stored avatar file, then the user row; foreign keys cascade), and the address then gets `AccountDeletedMail`.
 
 | Method and path | Auth | Purpose |
 | --- | --- | --- |
@@ -780,7 +781,7 @@ app/Notification/
 
 ## Admin module
 
-`app/Admin/` is the administrator and moderator dashboard API (brief objective 11). It uses the same layers as Auth. One `AdminController` serves the dashboard, users, reviews and movies, and the routes are in `routes/admin.php` under `/api/admin` with `auth.jwt` and `role:admin,moderator`. The `reviews`, `movies` and `users` data stay in their own modules and tables: Admin calls `ReviewServiceInterface` and `MovieCatalogServiceInterface`, and only its two repositories (`AdminStatsRepository`, `AdminUserRepository`) read the `users` and statistics tables.
+`app/Admin/` is the administrator and moderator dashboard API (brief objective 11). It uses the same layers as Auth. One `AdminController` serves the dashboard, users, reviews and movies, and the routes are in `routes/admin.php` under `/api/admin` with `auth.jwt` and `role:admin,moderator`. The `reviews`, `movies` and `users` data stay in their own modules and tables: Admin calls `ReviewServiceInterface`, `MovieCatalogServiceInterface` and `AccountServiceInterface` (to delete a user), and only its two repositories (`AdminStatsRepository`, `AdminUserRepository`) read the `users` and statistics tables.
 
 ```
 app/Admin/
@@ -808,7 +809,7 @@ app/Admin/
 | `GET`, `PATCH`, `DELETE /api/admin/reviews*` | yes | yes |
 | `GET /api/admin/movies`, `PATCH /api/admin/movies/{tmdbId}` | yes | no |
 
-An admin cannot demote, deactivate or delete themselves (`CannotModerateSelf`). A moderator who targets themselves, an admin or another moderator, or sends `role`, gets `CannotModerateStaff`. Deactivating a user revokes their sessions (`AuthServiceInterface::revokeSessions()`), so login, refresh and existing access tokens stop working. The gates `admin.dashboard`, `admin.users`, `admin.reviews`, `admin.movies` and `admin.users.manage` (admin-only: delete users) are defined in `AuthorizationServiceProvider` and backed by `AdminPolicy`.
+An admin cannot demote, deactivate or delete themselves (`CannotModerateSelf`). A moderator who targets themselves, an admin or another moderator, or sends a `role` that differs from the target's current one, gets `CannotModerateStaff` (sending the role the member already has changes nothing and is accepted). Deactivating a user revokes their sessions (`AuthServiceInterface::revokeSessions()`), so login, refresh and existing access tokens stop working. Deleting a user revokes their sessions and then calls `AccountServiceInterface::deleteAccount()`, the same removal the member's own account deletion uses, so the stored avatar file goes too (an external Google or GitHub avatar URL is just skipped). Every admin route sits behind `throttle:admin`, a per-user limiter of 120 requests a minute (keyed by user id) defined in `AdminModuleServiceProvider`; over the limit the API answers 429 and every admin operation documents it. The gates `admin.dashboard`, `admin.users`, `admin.reviews`, `admin.movies` and `admin.users.manage` (admin-only: delete users) are defined in `AuthorizationServiceProvider` and backed by `AdminPolicy`.
 
 **What the endpoints return:**
 
@@ -823,7 +824,7 @@ An admin cannot demote, deactivate or delete themselves (`CannotModerateSelf`). 
 - `users.role` accepts `moderator` besides `user` and `admin` (migration `2026_10_29_000001`). `role` is guarded against mass assignment.
 - `review_reports` (migration `2026_10_29_000002`) holds one report per member per review with a reason (`Spam`, `Links`, `Spoilers`, `Offensive language`) and `resolved_at`. The same migration adds `reviews.removed_at`. A member reports a review with `POST /api/reviews/{review}/report` (`throttle:10,1`, in the Review module). It is refused (403) for your own review, an unapproved, text-less or removed review, and a review whose author's privacy hides it from you. Re-reporting changes the reason and returns 200; a new report returns 201. When the author rewrites the review, its reports and `removed_at` are cleared.
 - `movies.director` and `movies.edited_at` (migration `2026_10_29_000003`). The director is filled from TMDB when a film is first cached.
-- Tests: `tests/Feature/Admin/` (every route for guest, member, moderator and admin; stats windows; user insights; moderation; moderator permissions) and `tests/Feature/Review/ReviewReportTest.php`. The API paths are in `openapi/paths/admin.json` and `openapi/paths/social.json`.
+- Tests: `tests/Feature/Admin/` (every route for guest, member, moderator and admin; stats windows; user insights; moderation; moderator permissions; the rate limit in `AdminRateLimitTest`) and `tests/Feature/Review/ReviewReportTest.php`. The API paths are in `openapi/paths/admin.json` and `openapi/paths/social.json`.
 
 ## Removed code
 

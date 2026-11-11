@@ -65,9 +65,4 @@ class AdminUserRepository implements AdminUserRepositoryInterface
 
         return $user->loadCount(['reviews' => fn (Builder $reviews) => $reviews->withText()]);
     }
-
-    public function delete(User $user): void
-    {
-        $user->delete();
-    }
 }

@@ -27,6 +27,4 @@ interface AdminUserRepositoryInterface
      * @param  array{role?: string, is_active?: bool}  $changes
      */
     public function update(User $user, array $changes): User;
-
-    public function delete(User $user): void;
 }

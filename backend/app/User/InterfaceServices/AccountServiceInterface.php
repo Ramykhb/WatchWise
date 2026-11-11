@@ -68,7 +68,7 @@ interface AccountServiceInterface
 
     /**
      * Removes the stored avatar file, the account and everything it owns, with no further check: callers
-     * (AccountDeletionServiceInterface, after a password or an emailed link) prove ownership first.
+     * (AccountDeletionServiceInterface, after a password or an emailed link; AdminService, which only an admin reaches) authorize it first.
      */
     public function deleteAccount(User $user): void;
 }
