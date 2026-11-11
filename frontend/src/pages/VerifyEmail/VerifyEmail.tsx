@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link } from 'react-router'
 import AuthShell from '../../components/AuthShell/AuthShell.tsx'
 import AuthWaves from '../../components/AuthWaves/AuthWaves.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
@@ -12,7 +12,6 @@ import mailIcon from '../../assets/forgot/icon-mail.svg'
 import styles from './VerifyEmail.module.css'
 
 export default function VerifyEmail() {
-  const [params] = useSearchParams()
   const { user, loading, setUser, logout } = useAuth()
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
@@ -22,7 +21,6 @@ export default function VerifyEmail() {
   const [error, setError] = useState('')
   const checkingRef = useRef(false)
   const statusRequest = useRef<AbortController | null>(null)
-  const status = params.get('status')
   const verified = Boolean(user?.email_verified_at)
 
   const checkStatus = useCallback(async (manual = false) => {
@@ -90,16 +88,10 @@ export default function VerifyEmail() {
     }
   }
 
-  const title = verified ? 'Email verified.' : status === 'expired' ? 'Link expired.' : status === 'invalid' ? 'Invalid link.' : status === 'success' ? 'Check verification.' : 'Check your inbox.'
+  const title = verified ? 'Email verified.' : 'Check your inbox.'
   const description = verified
     ? 'Your email address is verified. You’re ready to start your film diary.'
-    : status === 'expired'
-      ? 'This verification link has expired. Request a fresh link below.'
-      : status === 'invalid'
-        ? 'This verification link is invalid or has been changed. Request a fresh link below.'
-        : status === 'success'
-          ? 'The link was processed. Sign in to check your account’s verification status. If you are signed into a different account, sign out below.'
-          : 'Open the verification link in your email to finish setting up your WatchWise account. Links expire after 60 minutes.'
+    : 'Open the verification link in your email to finish setting up your WatchWise account. Links expire after 60 minutes.'
 
   return (
     <AuthShell
