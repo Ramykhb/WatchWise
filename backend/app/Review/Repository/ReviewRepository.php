@@ -64,6 +64,16 @@ class ReviewRepository implements ReviewRepositoryInterface
         ];
     }
 
+    public function lockForUpdate(Review $review): Review
+    {
+        return Review::query()->whereKey($review->getKey())->lockForUpdate()->firstOrFail();
+    }
+
+    public function openReportsCount(Review $review): int
+    {
+        return $review->reports()->whereNull('resolved_at')->count();
+    }
+
     public function markApproved(Review $review): Review
     {
         $review->update(['is_approved' => true]);

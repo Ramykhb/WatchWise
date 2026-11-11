@@ -20,6 +20,12 @@ interface ReviewServiceInterface
      */
     public function moderationTotals(): array;
 
+    /** A fresh copy of the review, row-locked until the surrounding transaction ends (call inside one). */
+    public function lockForUpdate(Review $review): Review;
+
+    /** How many reports on the review are still open; approving or rejecting it closes them all. */
+    public function openReportsCount(Review $review): int;
+
     /** Makes the review visible to everyone and closes its reports. */
     public function approve(Review $review): Review;
 

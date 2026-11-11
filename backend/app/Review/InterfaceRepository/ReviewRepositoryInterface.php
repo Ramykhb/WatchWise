@@ -24,6 +24,12 @@ interface ReviewRepositoryInterface
      */
     public function moderationTotals(): array;
 
+    /** A fresh copy of the review, row-locked until the surrounding transaction ends (call inside one). */
+    public function lockForUpdate(Review $review): Review;
+
+    /** How many reports on the review are still open. */
+    public function openReportsCount(Review $review): int;
+
     /** Approves the review and closes its open reports. */
     public function markApproved(Review $review): Review;
 

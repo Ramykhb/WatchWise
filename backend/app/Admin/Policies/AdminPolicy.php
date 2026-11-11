@@ -38,6 +38,12 @@ class AdminPolicy
         return $current->isAdmin();
     }
 
+    /** The log of what staff did is for admins only. */
+    public function viewAuditLog(CurrentUser $current): bool
+    {
+        return $current->isAdmin();
+    }
+
     private function isStaff(CurrentUser $current): bool
     {
         return $current->isAdmin() || $current->role() === 'moderator';

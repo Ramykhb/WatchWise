@@ -14,7 +14,8 @@ interface MovieCatalogRepositoryInterface
     /** @return LengthAwarePaginator<int, LocalMovie> */
     public function paginate(LocalMovieQuery $query): LengthAwarePaginator;
 
-    public function findByTmdbId(int $tmdbId): ?LocalMovie;
+    /** With `$lockForUpdate` the row stays locked until the surrounding transaction ends (call inside one). */
+    public function findByTmdbId(int $tmdbId, bool $lockForUpdate = false): ?LocalMovie;
 
     /**
      * @param  array<string, mixed>  $attributes

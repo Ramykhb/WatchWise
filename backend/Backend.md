@@ -790,13 +790,14 @@ app/Notification/
 ```
 app/Admin/
   Controllers/          AdminController
-  FormRequests/         AdminStatsRequest, AdminUserIndexRequest, UpdateUserRequest, AdminReviewIndexRequest, ModerateReviewRequest, AdminMovieIndexRequest, UpdateLocalMovieRequest
-  DTOs/Requests/        AdminStatsQuery, AdminUserQuery, UpdateUserData, ReviewModerationQuery, ModerateReviewData
-  DTOs/Responses/       AdminStatsResponse, RankedMovieResponse, GenreShareResponse, ActivityPointResponse, AdminUserResponse, AdminReviewResponse, AdminMovieResponse, AdminPageResponse
-  InterfaceServices/    AdminServiceInterface
-  Services/             AdminService
-  InterfaceRepository/  AdminStatsRepositoryInterface, AdminUserRepositoryInterface
-  Repository/           AdminStatsRepository, AdminUserRepository
+  FormRequests/         AdminStatsRequest, AdminUserIndexRequest, UpdateUserRequest, AdminReviewIndexRequest, ModerateReviewRequest, AdminMovieIndexRequest, UpdateLocalMovieRequest, AdminAuditIndexRequest
+  DTOs/Requests/        AdminStatsQuery, AdminUserQuery, UpdateUserData, ReviewModerationQuery, ModerateReviewData, AdminAuditQuery
+  DTOs/Responses/       AdminStatsResponse, RankedMovieResponse, GenreShareResponse, ActivityPointResponse, AdminUserResponse, AdminReviewResponse, AdminMovieResponse, AdminAuditLogResponse, AdminPageResponse
+  InterfaceServices/    AdminServiceInterface, AdminAuditServiceInterface
+  Services/             AdminService, AdminAuditService
+  InterfaceRepository/  AdminStatsRepositoryInterface, AdminUserRepositoryInterface, AdminAuditRepositoryInterface
+  Repository/           AdminStatsRepository, AdminUserRepository, AdminAuditRepository
+  Support/              AdminAction, AdminSubjectType (backed enums of the audit log)
   Exceptions/           CannotModerateSelf, CannotModerateStaff (both render a 403)
   Policies/             AdminPolicy
   Providers/            AdminModuleServiceProvider
@@ -812,8 +813,9 @@ app/Admin/
 | `DELETE /api/admin/users/{user}` | yes | no |
 | `GET`, `PATCH`, `DELETE /api/admin/reviews*` | yes | yes |
 | `GET /api/admin/movies`, `PATCH /api/admin/movies/{tmdbId}` | yes | no |
+| `GET /api/admin/audit-log` | yes (read-only) | no |
 
-An admin cannot demote, deactivate or delete themselves (`CannotModerateSelf`). A moderator who targets themselves, an admin or another moderator, or sends a `role` that differs from the target's current one, gets `CannotModerateStaff` (sending the role the member already has changes nothing and is accepted). Deactivating a user revokes their sessions (`AuthServiceInterface::revokeSessions()`), so login, refresh and existing access tokens stop working. Deleting a user revokes their sessions and then calls `AccountServiceInterface::deleteAccount()`, the same removal the member's own account deletion uses, so the stored avatar file goes too (an external Google or GitHub avatar URL is just skipped). Every admin route sits behind `throttle:admin`, a per-user limiter of 120 requests a minute (keyed by user id) defined in `AdminModuleServiceProvider`; over the limit the API answers 429 and every admin operation documents it. The gates `admin.dashboard`, `admin.users`, `admin.reviews`, `admin.movies` and `admin.users.manage` (admin-only: delete users) are defined in `AuthorizationServiceProvider` and backed by `AdminPolicy`.
+An admin cannot demote, deactivate or delete themselves (`CannotModerateSelf`). A moderator who targets themselves, an admin or another moderator, or sends a `role` that differs from the target's current one, gets `CannotModerateStaff` (sending the role the member already has changes nothing and is accepted). Deactivating a user revokes their sessions (`AuthServiceInterface::revokeSessions()`), so login, refresh and existing access tokens stop working. Deleting a user revokes their sessions and then calls `AccountServiceInterface::deleteAccount()`, the same removal the member's own account deletion uses, so the stored avatar file goes too (an external Google or GitHub avatar URL is just skipped). Every admin route sits behind `throttle:admin`, a per-user limiter of 120 requests a minute (keyed by user id) defined in `AdminModuleServiceProvider`; over the limit the API answers 429 and every admin operation documents it. The gates `admin.dashboard`, `admin.users`, `admin.reviews`, `admin.movies`, `admin.users.manage` (admin-only: delete users) and `admin.audit` (admin-only: the audit log) are defined in `AuthorizationServiceProvider` and backed by `AdminPolicy`.
 
 **What the endpoints return:**
 
@@ -822,7 +824,28 @@ An admin cannot demote, deactivate or delete themselves (`CannotModerateSelf`). 
 - `popular_genres` is worked out from `AdminStatsRepository::engagementWeights()`, which ranks in SQL: watched movie entries and approved movie reviews are counted per `tmdb_id` in two grouped queries, joined with `UNION ALL` in a subquery, summed, ordered by weight (then `tmdb_id`, so ties are stable) and limited to the 1000 heaviest films. Only plain `count`, `sum` and `UNION ALL`, so it behaves the same on MySQL, PostgreSQL and SQLite.
 - `users`: filters `q`, `role` (`user`, `moderator`, `admin`), `status` (`active`, `unverified`, `inactive`), `page`, `per_page`. Each row has `status`, `reviews_count` (reviews with text only) and `last_active_at`. A `summary` gives site-wide totals whatever the filters.
 - `reviews`: `?status=pending|approved|flagged|removed` (default `pending`; the four never overlap). A row's `status` is `removed` if `removed_at` is set, else `flagged` if it has an open report, else `approved` if `is_approved`, else `pending`. Rows carry `reports_count`, `reasons`, the author and the film (`movie.title` is null for TV and films not in the catalogue). A `summary` gives the flagged and removed totals and the sentiment split. Approving or rejecting closes the review's open reports; rejecting clears the text and sentiment, keeps the stars and sets `removed_at`.
-- `movies`: local catalogue rows (`title`, `overview`, `director`, `runtime`, `release_date`, `genre_ids`, `is_hidden`, `is_featured`, `is_edited`, `synced_at`, `edited_at`) and a `summary.sync` block (`cached`, `overrides`, `last_synced_at`). `PATCH` takes any of those editable fields; `null` clears `director`, `runtime`, `release_date` and `overview`, and an empty `genre_ids` clears the genres. Editing content sets `edited_at`; hiding or featuring does not. `is_hidden` hides the film from members' browsing and `is_featured` puts it in the Home page's Featured row (see [Genre and Movie modules](#genre-and-movie-modules)); the admin endpoints themselves always list every row.
+- `movies`: local catalogue rows (`title`, `overview`, `director`, `runtime`, `release_date`, `genre_ids`, `is_hidden`, `is_featured`, `is_edited`, `synced_at`, `edited_at`) and a `summary.sync` block (`cached`, `overrides`, `last_synced_at`). `PATCH` takes any of those editable fields; `null` clears `director`, `runtime`, `release_date` and `overview`, and an empty `genre_ids` clears the genres. Editing content sets `edited_at` only when a submitted content field (`title`, `overview`, `director`, `runtime`, `release_date`, `genre_ids`) differs from what is stored (`UpdateLocalMovieData::changesFrom()`; a stored `null` genre list equals an empty one), so resending the same values changes nothing; hiding or featuring never sets it. `is_hidden` hides the film from members' browsing and `is_featured` puts it in the Home page's Featured row (see [Genre and Movie modules](#genre-and-movie-modules)); the admin endpoints themselves always list every row.
+- `audit-log`: admins only (`admin.audit` gate in `AdminPolicy`, checked in `AdminAuditIndexRequest::authorize()`). Filters `action` (an `AdminAction` value), `actor_id`, `subject_type` (`user`, `review`, `movie`), `subject_id` (needs `subject_type`, since user 5 and review 5 are different records), `page`, `per_page` (at most 50). Newest first, ties broken by id; actors are eager-loaded, so the query count does not grow with the page. Entries use the same `data` + `meta` page as the other lists and carry `id`, `action`, `actor {id, name, username, role}`, `subject {type, id, label}`, `changes` and `created_at`.
+
+**Audit log**
+
+Staff actions are recorded in `admin_audit_logs` (`AdminAuditLog` model and factory, migration `2026_11_11_225656`) by `AdminAuditServiceInterface::record()`, which `AdminService` calls only after a role, active-state, review or film change went through, inside the same `DB::transaction` as that change, so a refused or failed attempt (self-moderation, a moderator touching staff, validation failure, unknown user, review or film) leaves nothing, and if the audit insert itself fails the change is rolled back. The old values are read inside that transaction from a row-locked copy (`lockForUpdate()`, through the user, review and catalogue repositories; the lock only has an effect on databases that support it, such as MySQL and PostgreSQL), so two identical concurrent requests cannot both log the same `from -> to`. Deleting a user writes its entry first and then removes the account, so a failing insert leaves the account and its avatar file alone; the avatar file removal itself cannot be rolled back, and a concurrent double delete or double review delete is not de-duplicated.
+
+| Action (`AdminAction`) | Subject (`subject_id`, `subject_label`) | `changes` |
+| --- | --- | --- |
+| `user.role_changed` | user (id, username) | `role: {from, to}` |
+| `user.suspended`, `user.reinstated` | user (id, username) | `is_active: {from, to}` |
+| `user.deleted` | user (id, username) | none |
+| `review.approved`, `review.rejected` | review (id, "Review by username") | `status: {from, to}` (`pending`, `approved` or `removed`; open reports only make a review show as `flagged`, so they are not a state here) and `reports_resolved`, the number of open reports the decision closed (0 when there were none) |
+| `review.deleted` | review (id, "Review by username") | none |
+| `movie.updated` | movie (`tmdb_id`, title after the edit) | each submitted field that really changed as `{from, to}`; `overview` is only `{changed: true}`, never the text |
+
+- One update that changes both the role and the active state writes two entries. Sending a value the target already has (a moderator sending the member's current role, `is_active: true` for an active member, a movie field set to what it is) changes nothing and records nothing. A stored `null` genre list and an empty `genre_ids` count as the same. An approve or reject records nothing when the status stays the same and no open report was closed (approving an approved review with no open reports, rejecting a removed one); approving a flagged review whose status stays `approved` is recorded, with `reports_resolved` above 0.
+- Each row keeps `actor_role`, the role the staff member had at the time, and `subject_label`, a username or title, so it stays readable after the subject is deleted. Emails are never stored. `subject_id` has no foreign key.
+- `actor_id` is a foreign key with `nullOnDelete`: deleting the staff account keeps its rows and the API then returns `null` for the actor's id, name and username (the recorded role stays).
+- The log is append-only. The table has `created_at` only; `AdminAuditLog` has `$guarded = ['*']` (the repository inserts with `forceCreate`), saving a changed row or deleting one through the model throws a `LogicException`, and neither the repository interface nor the service has an update or delete method. Rows can still be removed by hand in the database.
+- There is no retention: the log is not pruned, so the table grows with every staff action (a few rows per action, indexed by `created_at`, `action`, `actor_id` and subject). A prune command would be a delete path, so it was left out until a retention period is agreed.
+- Not recorded: reads (the dashboard, lists and the log itself), anything members do to their own account, and review or user changes made outside `/api/admin/*` (a member editing or deleting their own review, deleting their own account).
 
 **Supporting changes**
 
@@ -830,7 +853,7 @@ An admin cannot demote, deactivate or delete themselves (`CannotModerateSelf`). 
 - `users.role` accepts `moderator` besides `user` and `admin` (migration `2026_10_29_000001`). `role` is guarded against mass assignment.
 - `review_reports` (migration `2026_10_29_000002`) holds one report per member per review with a reason (`Spam`, `Links`, `Spoilers`, `Offensive language`) and `resolved_at`. The same migration adds `reviews.removed_at`. A member reports a review with `POST /api/reviews/{review}/report` (`throttle:10,1`, in the Review module). It is refused (403) for your own review, an unapproved, text-less or removed review, and a review whose author's privacy hides it from you. Re-reporting changes the reason and returns 200; a new report returns 201. When the author rewrites the review, its reports and `removed_at` are cleared.
 - `movies.director` and `movies.edited_at` (migration `2026_10_29_000003`). The director is filled from TMDB when a film is first cached.
-- Tests: `tests/Feature/Admin/` (every route for guest, member, moderator and admin; stats windows and caching; film ranking; user insights; moderation; moderator permissions; the rate limit in `AdminRateLimitTest`) and `tests/Feature/Review/ReviewReportTest.php`. The API paths are in `openapi/paths/admin.json` and `openapi/paths/social.json`.
+- Tests: `tests/Feature/Admin/` (every route for guest, member, moderator and admin; stats windows and caching; film ranking; user insights; moderation; moderator permissions; the rate limit in `AdminRateLimitTest`; `AdminAuditRecordingTest` for what is and is not recorded and the row's immutability, `AdminAuditLogTest` for the endpoint: access, shape, ordering, filters, paging and a constant query count) and `tests/Feature/Review/ReviewReportTest.php`. The API paths are in `openapi/paths/admin.json` and `openapi/paths/social.json`.
 
 ## Removed code
 

@@ -12,6 +12,8 @@ Route::prefix('admin')->middleware('throttle:admin')->controller(AdminController
 
         Route::get('movies', 'movies');
         Route::patch('movies/{tmdbId}', 'updateMovie')->whereNumber('tmdbId');
+
+        Route::get('audit-log', 'auditLog');
     });
 
     // Moderators get read-only stats and users, may suspend or reinstate plain members, and moderate reviews.

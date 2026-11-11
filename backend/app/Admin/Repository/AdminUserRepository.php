@@ -58,6 +58,11 @@ class AdminUserRepository implements AdminUserRepositoryInterface
         ];
     }
 
+    public function lockForUpdate(User $user): User
+    {
+        return User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+    }
+
     public function update(User $user, array $changes): User
     {
         // Role and active state are not mass-assignable on purpose; only admin code sets them.
