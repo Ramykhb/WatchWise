@@ -13,6 +13,9 @@ use JsonSerializable;
  */
 final readonly class NotificationResponse implements JsonSerializable
 {
+    /** Who a notice from the WatchWise team shows as, so it never names the staff member behind it. */
+    private const TEAM = ['id' => 0, 'username' => 'watchwise', 'name' => 'WatchWise', 'avatar' => null];
+
     /**
      * @param  array{id: int, username: string, name: string, avatar: string|null}  $actor
      * @param  array{tmdb_id: int, media_type: string}|null  $film
@@ -35,14 +38,17 @@ final readonly class NotificationResponse implements JsonSerializable
 
     /**
      * Null when the notification can't be shown any more: its actor deleted their account, or it is a type
-     * (or an older row) without the fields its sentence needs.
+     * (or an older row) without the fields its sentence needs. A removed-review notice has no actor and shows
+     * as from the WatchWise team.
      *
      * @param  bool  $actorFollowed  whether the reader follows the actor
      * @param  bool  $actorRequested  whether the reader has asked to follow the actor
      */
     public static function fromModel(Notification $notification, ?User $actor, bool $actorFollowed, bool $actorRequested): ?self
     {
-        if ($actor === null) {
+        $fromTeam = $notification->type === Notification::REVIEW_REMOVED;
+
+        if ($actor === null && ! $fromTeam) {
             return null;
         }
 
@@ -62,6 +68,7 @@ final readonly class NotificationResponse implements JsonSerializable
             Notification::NIGHT_VOTE => self::night($data, 'voted in', 'See the votes', self::film($data, 'movie')),
             Notification::NIGHT_UPDATE => self::night($data, self::updateText($data), 'View night', ($data['change'] ?? null) === 'confirmed' ? self::film($data, 'movie') : null),
             Notification::REVIEW_HELPFUL => self::review($data),
+            Notification::REVIEW_REMOVED => self::removedReview($data),
             default => null,
         };
 
@@ -69,13 +76,10 @@ final readonly class NotificationResponse implements JsonSerializable
             return null;
         }
 
-        // Only the avatar of a profile the reader may open (the name and handle are public).
-        $avatarVisible = $actor->profile_visibility === 'public' || ($actor->profile_visibility === 'followers' && $actorFollowed);
-
         return new self(
             id: $notification->id,
             kind: $notification->type,
-            actor: ['id' => $actor->id, 'username' => $actor->username, 'name' => $actor->name, 'avatar' => $avatarVisible ? $actor->avatar : null],
+            actor: $actor === null ? self::TEAM : self::member($actor, $actorFollowed),
             actorFollowed: $actorFollowed,
             actorRequested: $actorRequested,
             text: $parts['text'],
@@ -87,6 +91,18 @@ final readonly class NotificationResponse implements JsonSerializable
             read: $notification->read_at !== null,
             createdAt: $notification->created_at->toJSON(),
         );
+    }
+
+    /**
+     * Only the avatar of a profile the reader may open is shown (the name and handle are public).
+     *
+     * @return array{id: int, username: string, name: string, avatar: string|null}
+     */
+    private static function member(User $actor, bool $followed): array
+    {
+        $avatarVisible = $actor->profile_visibility === 'public' || ($actor->profile_visibility === 'followers' && $followed);
+
+        return ['id' => $actor->id, 'username' => $actor->username, 'name' => $actor->name, 'avatar' => $avatarVisible ? $actor->avatar : null];
     }
 
     /**
@@ -137,6 +153,21 @@ final readonly class NotificationResponse implements JsonSerializable
         $key = ($film['media_type'] === 'tv' ? 'tv-' : '').$film['tmdb_id'];
 
         return ['text' => 'found your review helpful', 'film' => $film, 'to' => "/movies/{$key}#reviews", 'action' => 'View review'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{text: string, film: array{tmdb_id: int, media_type: string}, to: string, action: string}|null
+     */
+    private static function removedReview(array $data): ?array
+    {
+        $film = self::film($data, (string) ($data['media_type'] ?? 'movie'));
+        if ($film === null) {
+            return null;
+        }
+        $key = ($film['media_type'] === 'tv' ? 'tv-' : '').$film['tmdb_id'];
+
+        return ['text' => 'removed your review', 'film' => $film, 'to' => "/movies/{$key}", 'action' => 'View film'];
     }
 
     /**

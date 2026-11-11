@@ -67,8 +67,15 @@ class Notification extends Model
     public const REVIEW_HELPFUL = 'review_helpful';
 
     /**
+     * Staff removed your review, by rejecting or deleting it (`data`: tmdb_id, media_type, action `removed`). It
+     * carries no actor and never the review's text. It is a notice about your own content, so it has no switch
+     * and always arrives.
+     */
+    public const REVIEW_REMOVED = 'review_removed';
+
+    /**
      * The types a member can switch off (the keys of `settings.notifications`, all on by default). Follow
-     * requests are not among them: they wait for an answer, so they always arrive.
+     * requests and removed-review notices are not among them: they always arrive.
      *
      * @var list<string>
      */
@@ -84,7 +91,7 @@ class Notification extends Model
      *
      * @var list<string>
      */
-    public const FEED_TYPES = [self::FOLLOW_REQUEST, ...self::OPTIONAL_TYPES];
+    public const FEED_TYPES = [self::FOLLOW_REQUEST, self::REVIEW_REMOVED, ...self::OPTIONAL_TYPES];
 
     protected function casts(): array
     {

@@ -26,7 +26,7 @@ import { INTEGRATIONS, PRIVACY, VISIBILITY, type IntegrationKey, type Visibility
 import ChangePasswordForm from './ChangePasswordForm.tsx'
 import SetPasswordForm from './SetPasswordForm.tsx'
 import { accountDeletionNotice, deleteAccountPrompt, pendingDeletionMessage } from './accountDeletion.ts'
-import { FOLLOW_REQUEST_NOTE, NOTIFICATION_GROUPS } from '../Notifications/notificationKinds.ts'
+import { ALWAYS_ON_NOTE, NOTIFICATION_GROUPS } from '../Notifications/notificationKinds.ts'
 import styles from './Settings.module.css'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, useApi } from '../../lib/api.ts'
@@ -414,7 +414,7 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
                   </ul>
                 </div>
               ))}
-              <p className={styles.rowDesc}>{FOLLOW_REQUEST_NOTE}</p>
+              <p className={styles.rowDesc}>{ALWAYS_ON_NOTE}</p>
               <div className={styles.actions}>
                 <Link to="/notifications" className={styles.textLink}>
                   See your notifications →

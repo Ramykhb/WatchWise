@@ -87,4 +87,10 @@ interface NotificationServiceInterface
 
     /** Taking the vote back takes its notification back too. */
     public function reviewUnmarkedHelpful(Review $review, User $voter): void;
+
+    /**
+     * Staff removed the review (rejected or deleted it) and its author is told which film it was about. The
+     * notice carries neither the review's text nor who removed it, and ignores the author's notification settings.
+     */
+    public function reviewRemoved(Review $review): void;
 }

@@ -210,6 +210,15 @@ class NotificationService implements NotificationServiceInterface
         }
     }
 
+    public function reviewRemoved(Review $review): void
+    {
+        $this->live->push($this->notifications->create((int) $review->user_id, Notification::REVIEW_REMOVED, [
+            'tmdb_id' => (int) $review->tmdb_id,
+            'media_type' => $review->media_type ?? 'movie',
+            'action' => 'removed',
+        ]));
+    }
+
     /**
      * Stores the notification for each of `$userIds` who wants this type (never the actor) and pushes it.
      *

@@ -11,7 +11,7 @@ use Throwable;
 /**
  * Sends account emails after the response, so mail latency never shows in a response time (which could reveal
  * whether an account exists) and a broken mail server never fails the request. Mail is sent directly, not queued:
- * production runs no queue worker. Shared by the Auth and User services.
+ * production runs no queue worker. Shared by the Auth, User and Admin services.
  */
 trait SendsMailAfterResponse
 {
