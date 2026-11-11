@@ -18,7 +18,7 @@ import {
   useNotifications,
   type AppNotification,
 } from './notificationsStore.ts'
-import { FOLLOW_REQUEST_NOTE, KIND_STYLE, NOTIFICATION_GROUPS, TAB_KINDS, maskIcon, type NotifyKey } from './notificationKinds.ts'
+import { ALWAYS_ON_NOTE, KIND_STYLE, NOTIFICATION_GROUPS, TAB_KINDS, maskIcon, type NotifyKey } from './notificationKinds.ts'
 import { api, useApi } from '../../lib/api.ts'
 import { setFollowing } from '../../lib/follow.ts'
 import { dayGroup, timeAgo } from '../../lib/format.ts'
@@ -171,7 +171,7 @@ export default function Notifications() {
                 </div>
               ))
             )}
-            <p className={styles.prefNote}>{FOLLOW_REQUEST_NOTE}</p>
+            <p className={styles.prefNote}>{ALWAYS_ON_NOTE}</p>
             <Link to="/settings#notifications" className={styles.settingsLink}>
               All notification settings →
             </Link>

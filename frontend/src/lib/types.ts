@@ -101,8 +101,8 @@ export type ApiMe = {
     favorite_genres: string[]
     privacy: Record<'ratings' | 'reviews' | 'lists' | 'watchlist' | 'history' | 'following', boolean>
     integrations: Record<'calendar' | 'location' | 'weather' | 'digest', boolean>
-    /** One switch per notification type, all on by default. Follow requests have none: they always arrive. */
-    notifications: Record<Exclude<ApiNotification['kind'], 'follow_request'>, boolean>
+    /** One switch per notification type, all on by default. Follow requests and removed-review notices have none: they always arrive. */
+    notifications: Record<Exclude<ApiNotification['kind'], 'follow_request' | 'review_removed'>, boolean>
   }
   /** Linked providers → when they were connected. */
   connected: Partial<Record<'google' | 'github' | 'discord', string>>
@@ -149,6 +149,8 @@ export type ApiNotification = {
     | 'night_vote'
     | 'night_update'
     | 'review_helpful'
+    | 'review_removed'
+  /** `review_removed` notices come from the WatchWise team (id 0), never from the staff member who acted. */
   actor: ApiMember
   /** Whether you already follow the actor (drives "Follow back"). */
   actor_followed: boolean

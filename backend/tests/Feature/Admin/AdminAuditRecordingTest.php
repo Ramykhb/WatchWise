@@ -2,8 +2,6 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Admin\DTOs\Requests\AdminAuditQuery;
-use App\Admin\InterfaceRepository\AdminAuditRepositoryInterface;
 use App\Admin\Support\AdminAction;
 use App\Admin\Support\AdminSubjectType;
 use App\Models\AdminAuditLog;
@@ -12,10 +10,8 @@ use App\Models\Review;
 use App\Models\ReviewReport;
 use App\Models\User;
 use Illuminate\Database\Eloquent\MassAssignmentException;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Storage;
 use LogicException;
-use RuntimeException;
 
 /** What staff do is recorded once it has gone through, and never when it was refused or failed. */
 class AdminAuditRecordingTest extends AdminTestCase
@@ -343,23 +339,6 @@ class AdminAuditRecordingTest extends AdminTestCase
         $this->as($admin)->patchJson('/api/admin/movies/1', ['is_hidden' => true])->assertNotFound();
 
         $this->assertDatabaseCount('admin_audit_logs', 0);
-    }
-
-    /** Makes every audit insert fail, as a full disk or a lost connection would. */
-    private function failAuditInserts(): void
-    {
-        $this->app->bind(AdminAuditRepositoryInterface::class, fn () => new class implements AdminAuditRepositoryInterface
-        {
-            public function insert(User $actor, AdminAction $action, ?int $subjectId, ?string $subjectLabel, ?array $changes): void
-            {
-                throw new RuntimeException('The audit log is unavailable.');
-            }
-
-            public function paginate(AdminAuditQuery $query): LengthAwarePaginator
-            {
-                throw new RuntimeException('The audit log is unavailable.');
-            }
-        });
     }
 
     public function test_a_failing_audit_insert_rolls_back_a_user_update(): void

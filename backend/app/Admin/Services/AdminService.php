@@ -21,6 +21,8 @@ use App\Admin\InterfaceRepository\AdminStatsRepositoryInterface;
 use App\Admin\InterfaceRepository\AdminUserRepositoryInterface;
 use App\Admin\InterfaceServices\AdminAuditServiceInterface;
 use App\Admin\InterfaceServices\AdminServiceInterface;
+use App\Admin\Mail\AccountReinstatedMail;
+use App\Admin\Mail\AccountSuspendedMail;
 use App\Admin\Support\AdminAction;
 use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Genre\DTOs\Responses\GenreResponse;
@@ -31,9 +33,11 @@ use App\Models\User;
 use App\Movie\DTOs\Requests\LocalMovieQuery;
 use App\Movie\DTOs\Requests\UpdateLocalMovieData;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
+use App\Notification\InterfaceServices\NotificationServiceInterface;
 use App\Review\InterfaceServices\ReviewServiceInterface;
 use App\Support\Exceptions\TmdbUnavailable;
 use App\Support\MediaType;
+use App\Support\SendsMailAfterResponse;
 use App\User\InterfaceServices\AccountServiceInterface;
 use Carbon\CarbonInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -45,6 +49,8 @@ use JsonSerializable;
 
 class AdminService implements AdminServiceInterface
 {
+    use SendsMailAfterResponse;
+
     /** How many rows each "top movies" table shows. */
     private const RANKING_SIZE = 5;
 
@@ -77,6 +83,7 @@ class AdminService implements AdminServiceInterface
         private readonly GenreServiceInterface $genres,
         private readonly AccountServiceInterface $accounts,
         private readonly AdminAuditServiceInterface $audit,
+        private readonly NotificationServiceInterface $notifications,
     ) {}
 
     public function stats(AdminStatsQuery $query): AdminStatsResponse
@@ -180,7 +187,7 @@ class AdminService implements AdminServiceInterface
             }
         }
 
-        $updated = DB::transaction(function () use ($admin, $target, $data): User {
+        [$updated, $wasActive] = DB::transaction(function () use ($admin, $target, $data): array {
             $current = $this->users->lockForUpdate($target);
             $wasRole = $current->role;
             $wasActive = (bool) $current->is_active;
@@ -188,14 +195,30 @@ class AdminService implements AdminServiceInterface
             $updated = $this->users->update($current, $data->changes());
             $this->auditUserUpdate($admin, $updated, $wasRole, $wasActive);
 
-            return $updated;
+            return [$updated, $wasActive];
         });
+
+        $this->tellMemberOfActiveChange($updated, $wasActive);
 
         if ($data->isActive === false) {
             $this->auth->revokeSessions($updated);
         }
 
         return AdminUserResponse::fromModel($updated);
+    }
+
+    /**
+     * Emails the member's stored address, verified or not, once their active state really changed: a suspended member
+     * can't sign in, so the email is the only way they hear of it. It names neither the staff member nor a reason.
+     * Called after the transaction committed; sending is deferred and a failure is only reported.
+     */
+    private function tellMemberOfActiveChange(User $user, bool $wasActive): void
+    {
+        if ((bool) $user->is_active === $wasActive) {
+            return;
+        }
+
+        $this->mailLater($user->email, $user->is_active ? new AccountReinstatedMail($user->name) : new AccountSuspendedMail($user->name));
     }
 
     /** One entry for each of the role and the active state that really changed; sending the value a member already has records nothing. */
@@ -261,9 +284,10 @@ class AdminService implements AdminServiceInterface
 
     public function moderateReview(User $moderator, Review $review, ModerateReviewData $data): AdminReviewResponse
     {
-        $moderated = DB::transaction(function () use ($moderator, $review, $data): Review {
+        [$moderated, $removedText] = DB::transaction(function () use ($moderator, $review, $data): array {
             $current = $this->reviews->lockForUpdate($review)->loadMissing('user');
             $was = $this->reviewState($current);
+            $removedText = ! $data->isApproval() && filled($current->content);
             $reportsResolved = $this->reviews->openReportsCount($current);
 
             $moderated = $data->isApproval() ? $this->reviews->approve($current) : $this->reviews->reject($current);
@@ -279,9 +303,13 @@ class AdminService implements AdminServiceInterface
                 );
             }
 
-            return $moderated;
+            return [$moderated, $removedText];
         });
         $this->forgetStats();
+
+        if ($removedText) {
+            $this->tellAuthorReviewRemoved($moderated);
+        }
 
         $moderated->loadMissing(['user', 'reports']);
 
@@ -293,12 +321,26 @@ class AdminService implements AdminServiceInterface
         $review->loadMissing('user');
         $id = $review->id;
         $label = $this->reviewLabel($review);
+        $hadText = filled($review->content);
 
         DB::transaction(function () use ($moderator, $review, $id, $label): void {
             $this->reviews->delete($review);
             $this->audit->record($moderator, AdminAction::ReviewDeleted, $id, $label);
         });
         $this->forgetStats();
+
+        if ($hadText) {
+            $this->tellAuthorReviewRemoved($review);
+        }
+    }
+
+    /**
+     * Tells the author their review was removed. Called after the transaction committed; a failure to notify is
+     * reported and never undoes or fails the moderation.
+     */
+    private function tellAuthorReviewRemoved(Review $review): void
+    {
+        rescue(fn () => $this->notifications->reviewRemoved($review));
     }
 
     public function movies(LocalMovieQuery $query): AdminPageResponse

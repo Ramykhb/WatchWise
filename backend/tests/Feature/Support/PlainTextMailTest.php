@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Support;
 
+use App\Admin\Mail\AccountReinstatedMail;
+use App\Admin\Mail\AccountSuspendedMail;
 use App\Auth\Mail\PasswordChangedMail;
 use App\Auth\Mail\ResetPasswordMail;
 use App\Auth\Mail\VerifyEmailMail;
@@ -51,6 +53,8 @@ class PlainTextMailTest extends TestCase
             'email changed' => [fn (string $name): Mailable => new EmailChangedMail($name, 't***@example.com'), ['https://front.test/signin']],
             'confirm account deletion' => [fn (string $name): Mailable => new ConfirmAccountDeletionMail($name, self::LINK, self::CANCEL), [self::LINK, self::CANCEL]],
             'account deleted' => [fn (string $name): Mailable => new AccountDeletedMail($name), ['https://front.test/signup']],
+            'account suspended' => [fn (string $name): Mailable => new AccountSuspendedMail($name), []],
+            'account reinstated' => [fn (string $name): Mailable => new AccountReinstatedMail($name), ['https://front.test/signin']],
         ];
     }
 

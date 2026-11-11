@@ -27,7 +27,8 @@ interface AdminServiceInterface
 
     /**
      * Deactivating an account also signs it out everywhere. A role change and an active-state change are each
-     * recorded in the audit log (one entry apiece), but only when the value really changed.
+     * recorded in the audit log (one entry apiece), but only when the value really changed. A real suspension or
+     * reinstatement also emails the member's stored address once the change is saved; role changes send nothing.
      *
      * @throws CannotModerateSelf when `$admin` removes their own admin role or deactivates themselves
      */
@@ -40,10 +41,12 @@ interface AdminServiceInterface
 
     /**
      * Recorded in the audit log as approved or rejected, with the review's status before and after and how many
-     * open reports the decision closed; a decision that changes neither records nothing.
+     * open reports the decision closed; a decision that changes neither records nothing. Rejecting a review that
+     * still has text tells its author it was removed; approving tells nobody.
      */
     public function moderateReview(User $moderator, Review $review, ModerateReviewData $data): AdminReviewResponse;
 
+    /** Deleting a review that still has text tells its author it was removed. */
     public function deleteReview(User $moderator, Review $review): void;
 
     public function movies(LocalMovieQuery $query): AdminPageResponse;
