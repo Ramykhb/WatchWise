@@ -16,7 +16,6 @@ use App\Models\User;
 use App\Support\SendsMailAfterResponse;
 use App\User\InterfaceServices\AccountServiceInterface;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class PasswordResetService implements PasswordResetServiceInterface
@@ -63,7 +62,7 @@ class PasswordResetService implements PasswordResetServiceInterface
             // Locked until commit: a second request with the same token waits here, then finds no row.
             $record = $this->resets->latestForUpdate($email);
 
-            if (! $record || ! $this->isUsable($record, $data->token, $presented)) {
+            if (! $record || ! $this->isUsable($record, $presented)) {
                 throw new InvalidResetToken;
             }
 
@@ -96,17 +95,11 @@ class PasswordResetService implements PasswordResetServiceInterface
         return hash('sha256', $plain);
     }
 
-    /** @param  string  $presented  the SHA-256 of `$plain` */
-    private function isUsable(PasswordReset $record, string $plain, string $presented): bool
+    /** @param  string  $presented  the SHA-256 of the token from the link */
+    private function isUsable(PasswordReset $record, string $presented): bool
     {
         if (! $record->created_at || $record->created_at->lt(now()->subMinutes(self::EXPIRES_MINUTES))) {
             return false;
-        }
-
-        // Rows stored before the switch to SHA-256 hold a bcrypt hash. They expire within 60 minutes of the deploy,
-        // after which this branch never runs and can be removed.
-        if (Hash::isHashed($record->token)) {
-            return Hash::check($plain, $record->token);
         }
 
         return hash_equals($record->token, $presented);

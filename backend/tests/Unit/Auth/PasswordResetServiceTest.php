@@ -15,7 +15,6 @@ use App\Models\PasswordReset;
 use App\Models\User;
 use App\User\InterfaceServices\AccountServiceInterface;
 use Illuminate\Support\Defer\DeferredCallbackCollection;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Mockery;
 use Mockery\MockInterface;
@@ -142,22 +141,6 @@ class PasswordResetServiceTest extends TestCase
         $this->resets->shouldReceive('deleteFor')->andReturn(1);
         $this->users->shouldReceive('findByEmail')->andReturnNull();
         $this->expectException(InvalidResetToken::class);
-
-        $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword1'));
-    }
-
-    public function test_reset_accepts_a_bcrypt_row_stored_before_the_switch_to_sha256(): void
-    {
-        Mail::fake();
-        $user = $this->user();
-        $legacy = new PasswordReset(['email' => 'ada@example.com', 'token' => Hash::make('tok')]);
-        $legacy->created_at = now()->subMinutes(5);
-        $this->resets->shouldReceive('latestForUpdate')->andReturn($legacy);
-        $this->resets->shouldReceive('deleteFor')->once()->andReturn(1);
-        $this->users->shouldReceive('findByEmail')->andReturn($user);
-        $this->users->shouldReceive('updatePassword')->once();
-        $this->accounts->shouldReceive('passwordResetThroughEmail')->once();
-        $this->refreshTokens->shouldReceive('revokeAllForUser')->once()->andReturn(1);
 
         $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword1'));
     }

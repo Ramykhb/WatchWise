@@ -8,7 +8,6 @@ use App\Models\PasswordReset;
 use App\Models\User;
 use Firebase\JWT\JWT;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -128,7 +127,7 @@ class SessionInvalidationTest extends TestCase
     {
         $user = User::factory()->create();
         $before = $this->accessToken($user);
-        PasswordReset::create(['email' => $user->email, 'token' => Hash::make('goodtoken')]);
+        PasswordReset::create(['email' => $user->email, 'token' => hash('sha256', 'goodtoken')]);
 
         $this->postJson('/api/auth/reset-password', [
             'email' => $user->email, 'token' => 'goodtoken', 'password' => 'newsecret99', 'password_confirmation' => 'newsecret99',
