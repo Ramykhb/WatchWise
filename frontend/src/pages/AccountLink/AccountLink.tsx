@@ -1,11 +1,13 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import axios from 'axios'
 import AuthShell from '../../components/AuthShell/AuthShell.tsx'
 import AuthWaves from '../../components/AuthWaves/AuthWaves.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
+import { useNoReferrer } from '../../hooks/useNoReferrer.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
-import { api } from '../../lib/api.ts'
+import { api, SESSION_REQUEST_TIMEOUT } from '../../lib/api.ts'
+import type { AuthUser } from '../../lib/auth.ts'
 import bgPeach from '../../assets/auth/signin-bg-peach-blob.svg'
 import mailIcon from '../../assets/forgot/icon-mail.svg'
 import styles from '../VerifyEmail/VerifyEmail.module.css'
@@ -15,23 +17,13 @@ import {
 
 const NEXT_PATH: Record<Exclude<Resolution['next'], 'retry'>, string> = {
   signin: '/signin',
+  'verify-email': '/verify-email',
   'edit-profile': '/edit-profile',
   settings: '/settings',
   landing: '/',
 }
 
 const NO_REFERRER = { rel: 'noreferrer', referrerPolicy: 'no-referrer' } as const
-
-/** The address of these pages carries a signed link, so no request they make may reveal it in a Referer header. */
-function useNoReferrer() {
-  useEffect(() => {
-    const meta = document.createElement('meta')
-    meta.name = 'referrer'
-    meta.content = 'no-referrer'
-    document.head.appendChild(meta)
-    return () => { meta.remove() }
-  }, [])
-}
 
 function Shell({ children }: { children: ReactNode }) {
   return (
@@ -96,6 +88,13 @@ export default function AccountLink() {
     // Leave a different signed-in account's local state alone.
     const linkId = Number(new URLSearchParams(search).get('id'))
     if (resolveOutcome(kind, result).endsSession && user?.id === linkId) setUser(null)
+    // The email is verified now: a signed-in account of this link refreshes so the verify wall goes away.
+    if (resolveOutcome(kind, result).refreshesSession && user) {
+      try {
+        const me = await api.get<{ user: AuthUser }>('/auth/me', { timeout: SESSION_REQUEST_TIMEOUT })
+        setUser(me.data.user)
+      } catch { /* the verify page re-checks on load */ }
+    }
     if (result === FAILED) {
       // Nothing was decided, so stay on the signed link and let them try again.
       setOutcome(result)

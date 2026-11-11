@@ -5,8 +5,8 @@ namespace Tests\Feature\User;
 use Illuminate\Testing\TestResponse;
 
 /**
- * Opens the signed email-change and account-deletion links the way a browser without a session does: a GET only
- * redirects to a public frontend page, and the confirming click on that page POSTs the same signed URL.
+ * Opens the signed verification, email-change and account-deletion links the way a browser without a session does: a
+ * GET only redirects to a public frontend page, and the confirming click on that page POSTs the same signed URL.
  */
 trait OpensAccountLinks
 {

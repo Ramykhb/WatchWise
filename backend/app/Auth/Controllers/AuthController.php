@@ -28,9 +28,6 @@ class AuthController
 
     public function login(LoginRequest $request): JsonResponse
     {
-        // TODO: add a captcha here (required after repeated failed attempts) so the per-email rate limit
-        // in AppServiceProvider no longer lets a third party lock out an account owner. Do the same for
-        // register and forgot-password.
         $auth = $this->auth->login($request->toDto(), $request);
 
         return $this->cookies->attach(response()->json($auth->body()), $auth);

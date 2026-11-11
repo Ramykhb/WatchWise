@@ -70,3 +70,17 @@ test('an unknown failure falls back to the given message', async () => {
   const result = await settlePassword(setPassword({ password: 'a', password_confirmation: 'a' }), "Couldn't set your password.")
   assert.equal(result.message, "Couldn't set your password.")
 })
+
+test('password rule needs letters and numbers, 8 characters and at most 72 bytes', async () => {
+  const { passwordRuleError } = await import('../src/lib/password.ts')
+  assert.equal(passwordRuleError('abcdefg1'), null)
+  assert.equal(passwordRuleError('12345678') === null, false, 'digits only')
+  assert.equal(passwordRuleError('abcdefgh') === null, false, 'letters only')
+  assert.equal(passwordRuleError('abc123') === null, false, 'too short')
+  assert.equal(passwordRuleError('a1' + 'x'.repeat(70)), null, '72 bytes')
+  assert.equal(passwordRuleError('a1' + 'x'.repeat(71)) === null, false, '73 bytes')
+  // 36 two-byte letters + digit = 73 bytes though only 37 characters
+  assert.equal(passwordRuleError('é'.repeat(36) + '1') === null, false, 'multibyte over 72 bytes')
+  assert.equal(passwordRuleError('é'.repeat(35) + '1'), null, '71 bytes multibyte')
+  assert.equal(passwordRuleError('abcdefg1\0') === null, false, 'NUL byte')
+})

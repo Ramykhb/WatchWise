@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import PillButton from '../../components/PillButton/PillButton.tsx'
 import TextField from '../../components/TextField/TextField.tsx'
-import { PASSWORD_PATTERN, changePassword, settlePassword } from '../../lib/password.ts'
+import { passwordRuleError, changePassword, settlePassword } from '../../lib/password.ts'
 import styles from './Settings.module.css'
 
 type Errors = Partial<Record<'current' | 'next' | 'confirm', string>>
@@ -20,7 +20,7 @@ export default function ChangePasswordForm({ onDone, onNote }: { onDone: () => P
     const confirm = String(data.get('confirm') ?? '')
     const found: Errors = {}
     if (!current) found.current = 'Enter your current password.'
-    if (!PASSWORD_PATTERN.test(next)) found.next = 'Use at least 8 characters, including a number.'
+    if (passwordRuleError(next)) found.next = passwordRuleError(next) ?? undefined
     else if (next === current) found.next = 'Pick a password you have not used here.'
     if (confirm !== next) found.confirm = "Passwords don't match."
     setErrors(found)

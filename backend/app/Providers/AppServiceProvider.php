@@ -7,6 +7,7 @@ use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Symfony\Component\Process\Process;
 
@@ -24,6 +25,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->configureUrlGeneration();
+
         RateLimiter::for('tmdb', fn (Request $request) => Limit::perMinute(60)->by('ip:'.$request->ip()));
 
         Event::listen(CommandStarting::class, function (CommandStarting $event): void {
@@ -53,5 +56,21 @@ class AppServiceProvider extends ServiceProvider
                 }
             });
         });
+    }
+
+    /**
+     * In production every generated URL, the signed email links included, is built on APP_URL over https instead
+     * of the request's Host header, so no request can choose the host of a link mailed to a member. Incoming
+     * links are still checked against the request URL, so APP_URL must be the public backend address the links
+     * are opened on (the proxy in front forwards that Host and `X-Forwarded-Proto: https`).
+     */
+    public function configureUrlGeneration(): void
+    {
+        if (! $this->app->environment('production')) {
+            return;
+        }
+
+        URL::forceRootUrl(config('app.url'));
+        URL::forceScheme('https');
     }
 }

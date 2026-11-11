@@ -1,7 +1,8 @@
 import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { useCallback, useEffect, useState } from 'react'
+import { decideRefresh, refreshAcrossTabs, shouldEndSession } from './sessionRefresh.ts'
 
-const backendUrl = (import.meta.env?.VITE_BACKEND_URL ?? 'http://localhost:8000').replace(/\/$/, '')
+import { backendUrl } from './backendUrl.ts'
 
 /** The shared Laravel API client (`/api/...`) for both application and auth requests. */
 export const api = axios.create({
@@ -10,7 +11,18 @@ export const api = axios.create({
   headers: { Accept: 'application/json' },
 })
 
+/**
+ * `_retried`: already retried once. `_probe`: the initial session check; it may refresh, but failing never
+ * signs out or redirects. `_noRefresh`: never refresh for this request (the in-lock session re-check).
+ */
 type RetryableRequestConfig = InternalAxiosRequestConfig & { _retried?: boolean }
+
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    _probe?: boolean
+    _noRefresh?: boolean
+  }
+}
 
 const publicAuthEndpoints = [
   '/auth/login',
@@ -21,7 +33,7 @@ const publicAuthEndpoints = [
   '/auth/reset-password',
   '/auth/resend-verification',
 ]
-const guestRoutes = ['/', '/signin', '/signup', '/forgot-password', '/auth/callback', '/verify-email']
+const guestRoutes = ['/', '/signin', '/signup', '/forgot-password', '/auth/callback', '/verify-email', '/terms', '/privacy', '/reset-password']
 /** Pages that work without a session; a failed session check there must not bounce the visitor to the landing page. */
 export function isGuestRoute(pathname: string): boolean {
   return guestRoutes.includes(pathname) || pathname === '/account-link' || pathname.startsWith('/account-link/')
@@ -39,7 +51,7 @@ export function isEmailUnverified(error: unknown): boolean {
 }
 
 /** The emailed-link confirmations are authorised by their signature alone, so a 403/410 there is never a session problem. */
-const signedLinkPaths = /^\/me\/(email\/(confirm|authorize)|delete\/confirm)\//
+const signedLinkPaths = /^\/(me\/(email\/(confirm|authorize)|delete\/confirm)|auth\/verify-email)\//
 
 export function shouldSkipRefresh(url?: string): boolean {
   if (!url) return false
@@ -92,12 +104,17 @@ api.interceptors.response.use(undefined, async (error: AxiosError) => {
     return Promise.reject(error)
   }
 
-  if (!config || config.signal?.aborted || ![401, 403].includes(status ?? 0) || shouldSkipRefresh(config.url)) {
-    return Promise.reject(error)
-  }
+  const decision = decideRefresh({
+    status,
+    hasConfig: Boolean(config),
+    aborted: Boolean(config?.signal?.aborted),
+    skipUrl: shouldSkipRefresh(config?.url) || Boolean(config?._noRefresh),
+    retried: Boolean(config?._retried),
+  })
+  if (!config || decision === 'reject') return Promise.reject(error)
 
-  if (config._retried) {
-    if (status === 401) await clearSessionAndRedirect()
+  if (decision === 'clear') {
+    if (shouldEndSession(config._probe)) await clearSessionAndRedirect()
     return Promise.reject(error)
   }
 
@@ -112,12 +129,16 @@ api.interceptors.response.use(undefined, async (error: AxiosError) => {
   refreshing = true
 
   try {
-    await api.post('/auth/refresh', undefined, { timeout: SESSION_REQUEST_TIMEOUT })
+    // Serialised across tabs; inside the lock another tab may already have refreshed the shared cookie.
+    await refreshAcrossTabs({
+      isSessionValid: () => api.get('/auth/me', { timeout: SESSION_REQUEST_TIMEOUT, _noRefresh: true }).then(() => true, () => false),
+      refresh: () => api.post('/auth/refresh', undefined, { timeout: SESSION_REQUEST_TIMEOUT }),
+    })
   } catch (refreshError) {
     refreshing = false
     settleFailedRequests(refreshError)
     // A slow or unavailable server does not mean the refresh token is invalid.
-    if (axios.isAxiosError(refreshError) && [401, 403].includes(refreshError.response?.status ?? 0)) {
+    if (shouldEndSession(config._probe) && axios.isAxiosError(refreshError) && [401, 403].includes(refreshError.response?.status ?? 0)) {
       await clearSessionAndRedirect()
     }
     return Promise.reject(refreshError)

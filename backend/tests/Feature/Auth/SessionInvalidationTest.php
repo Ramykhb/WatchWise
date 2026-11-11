@@ -4,21 +4,19 @@ namespace Tests\Feature\Auth;
 
 use App\Auth\Factories\TokenFactory;
 use App\Auth\InterfaceServices\AuthServiceInterface;
+use App\Models\PasswordReset;
 use App\Models\User;
 use Firebase\JWT\JWT;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Testing\TestResponse;
-use Laravel\Socialite\Contracts\Provider;
-use Laravel\Socialite\Facades\Socialite;
-use Laravel\Socialite\Two\User as SocialiteUser;
-use Mockery;
 use Tests\TestCase;
 
 /** Revoking every session of an account raises `session_version`, which ends every access token issued with an older one. */
 class SessionInvalidationTest extends TestCase
 {
     use RefreshDatabase;
+    use SignsInWithProviders;
 
     protected function setUp(): void
     {
@@ -42,7 +40,7 @@ class SessionInvalidationTest extends TestCase
         return app(TokenFactory::class)->issueAccessToken($user)[0];
     }
 
-    /** A token signed like ours but issued before the `sv` claim existed. */
+    /** A token signed like ours but issued before the `sv` and `aud` claims existed. */
     private function legacyAccessToken(User $user): string
     {
         return JWT::encode([
@@ -57,19 +55,10 @@ class SessionInvalidationTest extends TestCase
 
     private function googleSignIn(string $email): TestResponse
     {
-        $socialUser = new SocialiteUser;
-        $socialUser->map(['id' => 'g1', 'name' => 'Owner', 'nickname' => 'owner', 'email' => $email, 'avatar' => null]);
-        $socialUser->token = 'provider-access-token';
-        $socialUser->user = ['email_verified' => true];
+        $this->configureSocialProviders();
+        $this->mockSocialite('google', $this->socialiteUser('g1', $email, ['email_verified' => true]));
 
-        $driver = Mockery::mock(Provider::class);
-        $driver->shouldReceive('stateless')->andReturnSelf();
-        $driver->shouldReceive('user')->andReturn($socialUser);
-        Socialite::shouldReceive('driver')->with('google')->andReturn($driver);
-
-        return $this->withUnencryptedCookie('oauth_state', 'abc')
-            ->get('/api/auth/social/google/callback?state=abc')
-            ->assertRedirect('http://front.test/auth/callback?status=success');
+        return $this->hitSocialCallback('google')->assertRedirect('http://front.test/auth/callback?status=success');
     }
 
     public function test_a_squatter_loses_its_session_when_the_owner_takes_the_account_over(): void
@@ -134,6 +123,21 @@ class SessionInvalidationTest extends TestCase
         $this->withAccessToken($otherDevice)->getJson('/api/me')->assertUnauthorized();
     }
 
+    public function test_resetting_the_password_ends_the_access_tokens_issued_before(): void
+    {
+        $user = User::factory()->create();
+        $before = $this->accessToken($user);
+        PasswordReset::create(['email' => $user->email, 'token' => hash('sha256', 'goodtoken')]);
+
+        $this->postJson('/api/auth/reset-password', [
+            'email' => $user->email, 'token' => 'goodtoken', 'password' => 'newsecret99', 'password_confirmation' => 'newsecret99',
+        ])->assertOk();
+
+        $this->withAccessToken($before)->getJson('/api/me')->assertUnauthorized();
+        $this->withAccessToken($before)->getJson('/api/auth/me')->assertUnauthorized();
+        $this->withAccessToken($this->accessToken($user->fresh()))->getJson('/api/me')->assertOk();
+    }
+
     public function test_a_token_minted_in_the_same_second_but_before_the_revocation_is_refused(): void
     {
         $user = User::factory()->create();
@@ -148,6 +152,7 @@ class SessionInvalidationTest extends TestCase
 
     public function test_a_legacy_token_without_a_version_works_only_until_the_first_revocation(): void
     {
+        config(['jwt.require_iss_aud' => false]);
         $user = User::factory()->create();
         $legacy = $this->legacyAccessToken($user);
 

@@ -13,7 +13,6 @@ use App\User\Mail\EmailChangedMail;
 use App\User\Mail\EmailChangeRequestedMail;
 use App\User\Repository\AccountRepository;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Tests\Feature\Social\SocialTestCase;
@@ -147,7 +146,7 @@ class EmailChangeTest extends SocialTestCase
 
     private function resetPasswordByEmail(string $email, string $password): void
     {
-        $record = new PasswordReset(['email' => $email, 'token' => Hash::make('goodtoken')]);
+        $record = new PasswordReset(['email' => $email, 'token' => hash('sha256', 'goodtoken')]);
         $record->created_at = now();
         $record->save();
 
@@ -199,7 +198,7 @@ class EmailChangeTest extends SocialTestCase
     public function test_disconnecting_the_social_login_keeps_the_first_password_unproven(): void
     {
         $user = $this->socialOnlyUser();
-        SocialAccount::create(['user_id' => $user->id, 'provider' => 'google', 'provider_id' => 'g1', 'access_token' => 'token']);
+        SocialAccount::create(['user_id' => $user->id, 'provider' => 'google', 'provider_id' => 'g1']);
         $this->setFirstPassword($user, 'chosen12345');
 
         $this->as($user)->deleteJson('/api/me/social/google')->assertOk();

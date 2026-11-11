@@ -9,25 +9,30 @@ use App\Models\RefreshToken;
 use App\Models\SocialAccount;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Laravel\Socialite\Contracts\Provider;
 use Laravel\Socialite\Facades\Socialite;
-use Laravel\Socialite\Two\User as SocialiteUser;
 use Mockery;
+use Tests\Feature\User\OpensAccountLinks;
 use Tests\TestCase;
 
 class AccountFlowsTest extends TestCase
 {
+    use OpensAccountLinks;
     use RefreshDatabase;
+    use SignsInWithProviders;
 
     protected function setUp(): void
     {
         parent::setUp();
         config(['jwt.secret' => str_repeat('s', 40), 'services.frontend_url' => 'http://front.test']);
+        $this->configureSocialProviders();
     }
 
     private function resetUrlParts(ResetPasswordMail $mail): array
@@ -49,32 +54,48 @@ class AccountFlowsTest extends TestCase
         Mail::assertSent(VerifyEmailMail::class, fn ($m) => $m->hasTo('jane@example.com'));
     }
 
-    public function test_signed_link_verifies_email(): void
+    public function test_opening_the_link_changes_nothing_and_the_confirming_post_verifies_once(): void
     {
+        Event::fake([Verified::class]);
         $user = User::factory()->unverified()->create();
         $url = URL::temporarySignedRoute('auth.verify-email', now()->addMinutes(60), [
             'id' => $user->id, 'hash' => sha1($user->email),
         ]);
 
-        $this->get($url)->assertRedirect('http://front.test/verify-email?status=success');
-        $this->assertNotNull($user->fresh()->email_verified_at);
+        // A mail scanner or link preview that prefetches the link only gets the redirect.
+        $this->assertOpensConfirmationPage($url, 'verify-email');
+        $this->assertOpensConfirmationPage($url, 'verify-email');
+        $this->assertNull($user->fresh()->email_verified_at);
+
+        $this->confirmLink($url, 'success');
+        $verifiedAt = $user->fresh()->email_verified_at;
+        $this->assertNotNull($verifiedAt);
+
+        // A second click is harmless: same answer family, nothing changes.
+        $this->travel(1)->minutes();
+        $this->confirmLink($url, 'already-verified');
+        $this->assertTrue($verifiedAt->equalTo($user->fresh()->email_verified_at));
+        Event::assertDispatchedTimes(Verified::class, 1);
     }
 
     public function test_unsigned_expired_or_wrong_hash_links_do_not_verify(): void
     {
         $user = User::factory()->unverified()->create();
+        $unsigned = "/api/auth/verify-email/{$user->id}/".sha1($user->email);
 
-        $this->get("/api/auth/verify-email/{$user->id}/".sha1($user->email))->assertRedirect('http://front.test/verify-email?status=invalid');
+        $this->get($unsigned)->assertRedirect($this->resultPage('verify-email', 'invalid'));
+        $this->submitLink($unsigned)->assertForbidden()->assertExactJson(['outcome' => 'invalid']);
 
         $expired = URL::temporarySignedRoute('auth.verify-email', now()->subMinute(), [
             'id' => $user->id, 'hash' => sha1($user->email),
         ]);
-        $this->get($expired)->assertRedirect('http://front.test/verify-email?status=expired');
+        $this->get($expired)->assertRedirect($this->resultPage('verify-email', 'expired'));
+        $this->submitLink($expired)->assertStatus(410)->assertExactJson(['outcome' => 'expired']);
 
         $wrong = URL::temporarySignedRoute('auth.verify-email', now()->addMinutes(5), [
             'id' => $user->id, 'hash' => sha1('other@example.com'),
         ]);
-        $this->get($wrong)->assertRedirect('http://front.test/verify-email?status=invalid');
+        $this->confirmLink($wrong, 'invalid');
 
         $this->assertNull($user->fresh()->email_verified_at);
     }
@@ -162,52 +183,29 @@ class AccountFlowsTest extends TestCase
         $this->assertFalse(Hash::check('newsecret99', $user->fresh()->password));
     }
 
-    private function mockSocialite(string $provider, SocialiteUser $socialUser): void
-    {
-        $driver = Mockery::mock(Provider::class);
-        $driver->shouldReceive('stateless')->andReturnSelf();
-        $driver->shouldReceive('user')->andReturn($socialUser);
-        Socialite::shouldReceive('driver')->with($provider)->andReturn($driver);
-    }
-
-    private function socialUser(string $id, ?string $email, array $raw = []): SocialiteUser
-    {
-        $u = new SocialiteUser;
-        $u->map(['id' => $id, 'name' => 'Soc User', 'nickname' => 'soc', 'email' => $email, 'avatar' => null]);
-        $u->token = 'provider-access-token';
-        $u->user = $raw;
-
-        return $u;
-    }
-
-    private function hitSocialCallback(string $provider)
-    {
-        return $this->withUnencryptedCookie('oauth_state', 'abc')->get("/api/auth/social/{$provider}/callback?state=abc");
-    }
-
     public function test_social_callback_creates_verified_user_and_issues_cookies(): void
     {
-        $this->mockSocialite('github', $this->socialUser('gh1', 'new@example.com'));
+        $this->mockSocialite('github', $this->socialiteUser('gh1', 'new@example.com'));
 
         $response = $this->hitSocialCallback('github');
 
         $response->assertRedirect('http://front.test/auth/callback?status=success');
         $this->assertNotNull($response->getCookie('access_token', false));
         $this->assertNotNull($response->getCookie('refresh_token', false));
+        $this->assertTrue($response->getCookie('oauth_state', false)->isCleared());
 
         $user = User::where('email', 'new@example.com')->firstOrFail();
         $this->assertNotNull($user->email_verified_at);
         // Social sign-ups store no password until they set one.
         $this->assertNull($user->password);
-        $account = SocialAccount::firstOrFail();
-        $this->assertSame('provider-access-token', $account->access_token);
-        $this->assertNotSame('provider-access-token', $account->getRawOriginal('access_token'));
+        // The provider's access token is never stored.
+        $this->assertNull(SocialAccount::firstOrFail()->getRawOriginal('access_token'));
     }
 
     public function test_social_callback_links_existing_user_by_verified_email_and_verifies_them(): void
     {
         $user = User::factory()->unverified()->create(['email' => 'me@example.com']);
-        $this->mockSocialite('google', $this->socialUser('g1', 'me@example.com', ['email_verified' => true]));
+        $this->mockSocialite('google', $this->socialiteUser('g1', 'me@example.com', ['email_verified' => true]));
 
         $this->hitSocialCallback('google')->assertRedirect('http://front.test/auth/callback?status=success');
 
@@ -219,11 +217,12 @@ class AccountFlowsTest extends TestCase
     public function test_social_callback_does_not_verify_with_unverified_provider_email(): void
     {
         $user = User::factory()->unverified()->create(['email' => 'me@example.com']);
-        $this->mockSocialite('google', $this->socialUser('g1', 'me@example.com', ['email_verified' => false]));
+        $this->mockSocialite('google', $this->socialiteUser('g1', 'me@example.com', ['email_verified' => false]));
 
-        $this->hitSocialCallback('google')
+        $response = $this->hitSocialCallback('google')
             ->assertRedirect('http://front.test/auth/callback?status=error&reason=email_unverified');
 
+        $this->assertTrue($response->getCookie('oauth_state', false)->isCleared());
         $this->assertNull($user->fresh()->email_verified_at);
         $this->assertSame(0, SocialAccount::count());
     }
@@ -236,7 +235,7 @@ class AccountFlowsTest extends TestCase
             'user_id' => $user->id, 'token_hash' => 'attacker-session', 'family_id' => 'f',
             'expires_at' => now()->addDay(),
         ]);
-        $this->mockSocialite('google', $this->socialUser('g1', 'me@example.com', ['email_verified' => true]));
+        $this->mockSocialite('google', $this->socialiteUser('g1', 'me@example.com', ['email_verified' => true]));
 
         $this->hitSocialCallback('google')->assertRedirect('http://front.test/auth/callback?status=success');
 
@@ -252,57 +251,43 @@ class AccountFlowsTest extends TestCase
     public function test_social_callback_reuses_linked_account(): void
     {
         $user = User::factory()->create();
-        SocialAccount::create(['user_id' => $user->id, 'provider' => 'github', 'provider_id' => 'gh9', 'access_token' => 'old']);
-        $this->mockSocialite('github', $this->socialUser('gh9', 'different@example.com'));
+        SocialAccount::create(['user_id' => $user->id, 'provider' => 'github', 'provider_id' => 'gh9']);
+        $this->mockSocialite('github', $this->socialiteUser('gh9', 'different@example.com'));
 
         $this->hitSocialCallback('github')->assertRedirect('http://front.test/auth/callback?status=success');
 
         $this->assertSame(1, User::count());
-        $this->assertSame('provider-access-token', SocialAccount::first()->access_token);
+        $this->assertSame(1, SocialAccount::count());
+        $this->assertNull(SocialAccount::first()->getRawOriginal('access_token'));
     }
 
     public function test_social_callback_rejects_bad_state_and_unknown_provider(): void
     {
-        $this->withUnencryptedCookie('oauth_state', 'abc')
-            ->get('/api/auth/social/github/callback?state=zzz')
+        $response = $this->withUnencryptedCookie('oauth_state', 'github:abc')
+            ->get('/api/auth/social/github/callback?state=github:zzz')
             ->assertRedirect('http://front.test/auth/callback?status=error&reason=invalid_state');
+        $this->assertTrue($response->getCookie('oauth_state', false)->isCleared());
 
         $this->get('/api/auth/social/slack/callback')->assertNotFound();
         $this->get('/api/auth/social/slack')->assertNotFound();
     }
 
-    public function test_social_redirect_sets_state_cookie(): void
+    public function test_social_redirect_sets_a_state_cookie_bound_to_the_provider(): void
     {
-        // The redirect refuses to run without real-looking credentials, so the test can't depend on .env.
-        config(['services.google.client_id' => 'test-client-id', 'services.google.client_secret' => 'test-client-secret']);
         $driver = Mockery::mock(Provider::class);
         $driver->shouldReceive('stateless')->andReturnSelf();
-        $driver->shouldReceive('with')->with(Mockery::on(fn ($a) => isset($a['state'])))->andReturnSelf();
+        $driver->shouldReceive('with')->with(Mockery::on(fn ($a) => str_starts_with($a['state'] ?? '', 'google:')))->andReturnSelf();
         $driver->shouldReceive('redirect')->andReturn(redirect('https://accounts.example/auth'));
         Socialite::shouldReceive('driver')->with('google')->andReturn($driver);
 
         $response = $this->get('/api/auth/social/google');
 
         $response->assertRedirect('https://accounts.example/auth');
-        $this->assertNotNull($response->getCookie('oauth_state', false));
-    }
-
-    public function test_social_redirect_is_unavailable_without_real_credentials(): void
-    {
-        config(['services.github.client_id' => 'CHANGE_ME', 'services.github.client_secret' => 'test-client-secret']);
-
-        $this->getJson('/api/auth/social/github')
-            ->assertStatus(503)
-            ->assertJsonPath('message', 'Github sign-in is not configured. Add valid OAuth client credentials to the backend environment.');
+        $this->assertStringStartsWith('google:', $response->getCookie('oauth_state', false)->getValue());
     }
 
     public function test_discord_redirect_and_callback_sign_the_user_in(): void
     {
-        config(['services.discord' => [
-            'client_id' => 'discord-id',
-            'client_secret' => 'discord-secret',
-            'redirect' => 'http://api.test/api/auth/social/discord/callback',
-        ]]);
         Http::fake([
             'discord.com/api/oauth2/token' => Http::response(['access_token' => 'discord-token']),
             'discord.com/api/users/@me' => Http::response([
@@ -311,7 +296,7 @@ class AccountFlowsTest extends TestCase
         ]);
 
         $redirect = $this->get('/api/auth/social/discord');
-        $redirect->assertRedirectContains('https://discord.com/oauth2/authorize?client_id=discord-id');
+        $redirect->assertRedirectContains('https://discord.com/oauth2/authorize?client_id=discord-client-id');
         $state = $redirect->getCookie('oauth_state', false)->getValue();
 
         $this->withUnencryptedCookie('oauth_state', $state)
@@ -319,24 +304,20 @@ class AccountFlowsTest extends TestCase
             ->assertRedirect('http://front.test/auth/callback?status=success');
 
         $this->assertDatabaseHas('users', ['email' => 'ada@example.com', 'avatar' => 'https://cdn.discordapp.com/avatars/42/abc.png']);
-        $this->assertDatabaseHas('social_accounts', ['provider' => 'discord', 'provider_id' => '42']);
+        $this->assertDatabaseHas('social_accounts', ['provider' => 'discord', 'provider_id' => '42', 'access_token' => null]);
     }
 
     public function test_discord_callback_without_a_code_or_user_redirects_with_a_provider_error(): void
     {
-        config(['services.discord' => ['client_id' => 'discord-id', 'client_secret' => 'discord-secret', 'redirect' => 'http://api.test/cb']]);
         Http::fake([
             'discord.com/api/oauth2/token' => Http::response(['access_token' => 'discord-token']),
             'discord.com/api/users/@me' => Http::response(['username' => 'no-id']),
         ]);
         $failure = 'http://front.test/auth/callback?status=error&reason=provider_error';
 
-        $this->withUnencryptedCookie('oauth_state', 'abc')
-            ->get('/api/auth/social/discord/callback?state=abc')
-            ->assertRedirect($failure);
-        $this->withUnencryptedCookie('oauth_state', 'abc')
-            ->get('/api/auth/social/discord/callback?state=abc&code=the-code')
-            ->assertRedirect($failure);
+        $this->hitSocialCallback('discord')->assertRedirect($failure);
+        $this->hitSocialCallback('discord', '&code=the-code')->assertRedirect($failure);
+        $this->assertSame(0, User::count());
     }
 
     public function test_registered_event_is_listened_to(): void

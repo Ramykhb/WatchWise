@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuth } from '../../contexts/useAuth.ts'
+import Toast from '../../components/Toast/Toast.tsx'
 import Logo from '../../components/Logo/Logo.tsx'
 import gridIcon from '../../assets/admin/icon-grid.svg'
 import usersIcon from '../../assets/admin/icon-users.svg'
@@ -44,6 +46,13 @@ function MaskIcon({ src, size = 20 }: { src: string; size?: number }) {
 export default function AdminLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(null)
+  const signOut = () => {
+    logout().then(
+      () => navigate('/signin', { replace: true }),
+      () => setToast({ id: Date.now(), message: "Couldn't sign out. Please try again." }),
+    )
+  }
   const isAdmin = isAdminRole(user?.role)
   const links = LINKS.filter((link) => isAdmin || !link.adminOnly)
   return (
@@ -82,7 +91,7 @@ export default function AdminLayout() {
             <span className={styles.name}>{user?.name}</span>
             <span className={styles.role}>{isAdmin ? 'Administrator' : 'Moderator'}</span>
           </span>
-          <button type="button" onClick={() => void logout().then(() => navigate('/signin', { replace: true }))} className={styles.logout} aria-label="Log out">
+          <button type="button" onClick={signOut} className={styles.logout} aria-label="Log out">
             <MaskIcon src={logoutIcon} size={18} />
           </button>
         </div>
@@ -91,6 +100,7 @@ export default function AdminLayout() {
       <main className={styles.main}>
         <Outlet />
       </main>
+      {toast && <Toast key={toast.id} message={toast.message} onDone={() => setToast(null)} />}
     </div>
   )
 }

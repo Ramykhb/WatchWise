@@ -5,7 +5,10 @@ namespace App\Auth\DTOs\Responses;
 use App\Auth\Support\TokenPair;
 use Carbon\CarbonInterface;
 
-/** Result of a login, registration or refresh: the user plus the tokens the controller turns into cookies. */
+/**
+ * Result of a login, registration or refresh: the user plus the tokens the controller turns into cookies, and
+ * whether the login is remembered (false: the cookies are session cookies).
+ */
 final readonly class AuthResponse
 {
     public function __construct(
@@ -14,6 +17,7 @@ final readonly class AuthResponse
         public CarbonInterface $accessExpiresAt,
         public string $refreshToken,
         public CarbonInterface $refreshExpiresAt,
+        public bool $remember = true,
     ) {}
 
     public static function fromTokenPair(TokenPair $pair): self
@@ -24,6 +28,7 @@ final readonly class AuthResponse
             $pair->accessExpiresAt,
             $pair->refreshToken,
             $pair->refreshExpiresAt,
+            $pair->remember,
         );
     }
 

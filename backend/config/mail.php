@@ -49,7 +49,8 @@ return [
             'port' => 587,
             'username' => env('BREVO_SMTP_USERNAME'),
             'password' => env('BREVO_SMTP_KEY'),
-            'timeout' => 15,
+            // Same bound as the Brevo API transport: two attempts of an account mail stay under 20 seconds.
+            'timeout' => 8,
             'require_tls' => true,
         ],
 

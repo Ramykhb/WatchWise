@@ -1,10 +1,9 @@
 <?php
 
 use App\Auth\Middleware\AuthenticateJwt;
-use App\Auth\Middleware\AuthenticateOptional;
 use App\Auth\Middleware\EnsureEmailVerified;
 use App\Auth\Middleware\EnsureRole;
-use App\User\Support\AccountLink;
+use App\Support\AccountLink;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -20,9 +19,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Which proxies to trust is read per request from config/trustedproxy.php (TRUSTED_PROXIES). Only the
+        // client address and the scheme are taken from them: X-Forwarded-Host/-Port would let a caller choose the
+        // host of URLs built from the request (signed email links), and the AWS ELB and RFC 7239 `Forwarded`
+        // headers are never read.
+        $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO);
         $middleware->alias([
             'auth.jwt' => AuthenticateJwt::class,
-            'auth.optional' => AuthenticateOptional::class,
             'role' => EnsureRole::class,
             'verified.email' => EnsureEmailVerified::class,
         ]);
@@ -33,15 +36,8 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (InvalidSignatureException $exception, Request $request) {
-            if ($request->routeIs('auth.verify-email')) {
-                $status = URL::hasCorrectSignature($request) && ! URL::signatureHasNotExpired($request)
-                    ? 'expired' : 'invalid';
-
-                return redirect(rtrim(config('services.frontend_url'), '/').'/verify-email?status='.$status);
-            }
-
-            // The emailed email-change and account-deletion links: a browser opening one (GET) lands on the public
-            // result page; the confirmation page's click (POST) gets the outcome as JSON.
+            // The emailed verification, email-change and account-deletion links: a browser opening one (GET) lands on
+            // the public result page; the confirmation page's click (POST) gets the outcome as JSON.
             $link = AccountLink::forRoute($request->route()?->getName());
 
             if ($link !== null) {

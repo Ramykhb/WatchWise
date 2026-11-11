@@ -5,6 +5,7 @@ namespace App\Auth\Repository;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Models\User;
 use App\Support\EmailAddress;
+use Illuminate\Support\Facades\Hash;
 
 class UserRepository implements UserRepositoryInterface
 {
@@ -27,6 +28,30 @@ class UserRepository implements UserRepositoryInterface
     public function markEmailVerified(User $user): void
     {
         $user->forceFill(['email_verified_at' => now()])->save();
+    }
+
+    public function markEmailVerifiedIfUnverified(User $user): bool
+    {
+        $now = now();
+        $updated = User::query()->whereKey($user->id)->whereNull('email_verified_at')->update(['email_verified_at' => $now]);
+
+        if ($updated === 1) {
+            $user->setAttribute('email_verified_at', $now)->syncOriginalAttribute('email_verified_at');
+        }
+
+        return $updated === 1;
+    }
+
+    public function rehashPassword(User $user, string $verifiedHash, string $plainPassword): bool
+    {
+        $hash = Hash::make($plainPassword);
+        $updated = User::query()->whereKey($user->id)->where('password', $verifiedHash)->toBase()->update(['password' => $hash]);
+
+        if ($updated === 1) {
+            $user->setAttribute('password', $hash)->syncOriginalAttribute('password');
+        }
+
+        return $updated === 1;
     }
 
     public function markActive(User $user): void

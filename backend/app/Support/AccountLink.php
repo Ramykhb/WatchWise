@@ -1,17 +1,19 @@
 <?php
 
-namespace App\User\Support;
+namespace App\Support;
 
 use Illuminate\Http\Request;
 
 /**
- * The signed links mailed for an email change or an account deletion, and the public frontend pages they land on.
- * The value is the `kind` the frontend reads: `/account-link/{kind}` asks for the click that confirms (a POST to
- * the same signed URL), `/account-link/result?kind=&outcome=` shows what happened. Both pages work without a
- * session, since confirming an email change signs every device out and the links open in any browser.
+ * The signed links mailed for email verification (Auth), an email change or an account deletion (User), and the
+ * public frontend pages they land on. The value is the `kind` the frontend reads: `/account-link/{kind}` asks for
+ * the click that confirms (a POST to the same signed URL), `/account-link/result?kind=&outcome=` shows what
+ * happened. Both pages work without a session, since confirming an email change signs every device out and the
+ * links open in any browser.
  */
 enum AccountLink: string
 {
+    case VerifyEmail = 'verify-email';
     case EmailConfirm = 'email-confirm';
     case EmailAuthorize = 'email-authorize';
     case EmailCancel = 'email-cancel';
@@ -22,6 +24,7 @@ enum AccountLink: string
     public static function forRoute(?string $routeName): ?self
     {
         return match ($routeName) {
+            'auth.verify-email', 'auth.verify-email.submit' => self::VerifyEmail,
             'me.email.confirm', 'me.email.confirm.submit' => self::EmailConfirm,
             'me.email.authorize', 'me.email.authorize.submit' => self::EmailAuthorize,
             'me.email.cancel' => self::EmailCancel,

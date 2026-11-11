@@ -7,8 +7,11 @@ use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
 use App\Auth\InterfaceRepository\SocialAccountRepositoryInterface;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
 use App\Auth\InterfaceServices\AuthServiceInterface;
+use App\Auth\InterfaceServices\DiscordOAuthClientInterface;
 use App\Auth\InterfaceServices\EmailVerificationServiceInterface;
+use App\Auth\InterfaceServices\GooglePhotoInterface;
 use App\Auth\InterfaceServices\PasswordResetServiceInterface;
+use App\Auth\InterfaceServices\RefreshTokenCleanupServiceInterface;
 use App\Auth\InterfaceServices\SocialAuthServiceInterface;
 use App\Auth\Listeners\SendEmailVerification;
 use App\Auth\Mail\BrevoTransport;
@@ -19,10 +22,16 @@ use App\Auth\Repository\UserRepository;
 use App\Auth\Services\AuthService;
 use App\Auth\Services\EmailVerificationService;
 use App\Auth\Services\PasswordResetService;
+use App\Auth\Services\RefreshTokenCleanupService;
 use App\Auth\Services\SocialAuthService;
+use App\Auth\Support\DiscordOAuthClient;
+use App\Auth\Support\GooglePhoto;
+use App\Auth\Support\RateLimitAddress;
+use App\Auth\Support\SocialLoginRedirect;
 use App\Support\EmailAddress;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
@@ -47,7 +56,10 @@ class AuthModuleServiceProvider extends ServiceProvider
         AuthServiceInterface::class => AuthService::class,
         EmailVerificationServiceInterface::class => EmailVerificationService::class,
         PasswordResetServiceInterface::class => PasswordResetService::class,
+        RefreshTokenCleanupServiceInterface::class => RefreshTokenCleanupService::class,
         SocialAuthServiceInterface::class => SocialAuthService::class,
+        DiscordOAuthClientInterface::class => DiscordOAuthClient::class,
+        GooglePhotoInterface::class => GooglePhoto::class,
     ];
 
     public function boot(): void
@@ -61,33 +73,53 @@ class AuthModuleServiceProvider extends ServiceProvider
 
     /**
      * Each limiter has its own bucket; the plain throttle:N,M middleware shares one per IP across routes.
+     *
+     * No bucket is keyed by the email alone: anyone could fill it from many addresses and lock the owner out of
+     * signing in or recovering the account. Every request counts in a per-IP bucket (`$request->ip()` is the client
+     * behind a trusted proxy; an IPv6 address counts as its /64, see `RateLimitAddress`), and the routes that take an email also count in a per-(email + IP) bucket, so one
+     * address can be hit fewer times than the IP may make requests in all. Login's per-(email + IP) bucket counts
+     * failed attempts only and lives in `AuthService::login()` (`LOGIN_FAILURES_PER_MINUTE`).
      */
     private function configureRateLimiting(): void
     {
+        // name => [per IP, per email + IP] (per minute); null: the route takes no email.
         $limits = [
-            'auth-register' => 5,
-            'auth-login' => 5,
-            'auth-refresh' => 30,
-            'auth-verify-email' => 20,
-            'auth-resend-verification' => 3,
-            'auth-forgot-password' => 3,
-            'auth-reset-password' => 5,
+            'auth-register' => [10, 3],
+            'auth-login' => [20, null],
+            'auth-refresh' => [30, null],
+            'auth-verify-email' => [20, null],
+            'auth-resend-verification' => [10, 3],
+            'auth-forgot-password' => [10, 3],
+            'auth-reset-password' => [10, 5],
         ];
 
-        foreach ($limits as $name => $perMinute) {
-            RateLimiter::for($name, function (Request $request) use ($perMinute): array {
-                $limits = [Limit::perMinute($perMinute)->by('ip:'.$request->ip())];
+        foreach ($limits as $name => [$perIp, $perEmailAndIp]) {
+            RateLimiter::for($name, function (Request $request) use ($perIp, $perEmailAndIp): array {
+                $ip = RateLimitAddress::of($request->ip());
+                $limits = [Limit::perMinute($perIp)->by('ip:'.$ip)];
 
-                // Separate per-account bucket: a rotating email value can only tighten limiting, never reset it.
                 $value = $request->input('email');
                 $email = EmailAddress::normalize(is_string($value) ? $value : '');
 
-                if ($email !== '') {
-                    $limits[] = Limit::perMinute($perMinute)->by('email:'.$email);
+                if ($perEmailAndIp !== null && $email !== '') {
+                    $limits[] = Limit::perMinute($perEmailAndIp)->by('email-ip:'.$email.'|'.$ip);
                 }
 
                 return $limits;
             });
+        }
+
+        // The social routes take no email, so they are limited per IP only. They are browser navigations in the
+        // middle of an OAuth round trip, so a refusal is a redirect to the frontend failure page, not a JSON 429.
+        $socialLimits = [
+            'auth-social-redirect' => 30,
+            'auth-social-callback' => 30,
+        ];
+
+        foreach ($socialLimits as $name => $perMinute) {
+            RateLimiter::for($name, fn (Request $request): Limit => Limit::perMinute($perMinute)
+                ->by('ip:'.RateLimitAddress::of($request->ip()))
+                ->response(fn (Request $request, array $headers): RedirectResponse => SocialLoginRedirect::failure('too_many_attempts')->withHeaders($headers)));
         }
     }
 }

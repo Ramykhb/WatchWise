@@ -8,13 +8,13 @@ use App\Auth\Exceptions\InvalidResetToken;
 use App\Auth\InterfaceRepository\PasswordResetRepositoryInterface;
 use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
+use App\Auth\Mail\PasswordChangedMail;
 use App\Auth\Mail\ResetPasswordMail;
 use App\Auth\Services\PasswordResetService;
 use App\Models\PasswordReset;
 use App\Models\User;
 use App\User\InterfaceServices\AccountServiceInterface;
 use Illuminate\Support\Defer\DeferredCallbackCollection;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Mockery;
 use Mockery\MockInterface;
@@ -53,7 +53,7 @@ class PasswordResetServiceTest extends TestCase
 
     private function record(string $plain, int $minutesAgo = 5): PasswordReset
     {
-        $record = new PasswordReset(['email' => 'ada@example.com', 'token' => Hash::make($plain)]);
+        $record = new PasswordReset(['email' => 'ada@example.com', 'token' => hash('sha256', $plain)]);
         $record->created_at = now()->subMinutes($minutesAgo);
 
         return $record;
@@ -71,13 +71,18 @@ class PasswordResetServiceTest extends TestCase
         Mail::assertNothingSent();
     }
 
-    public function test_send_reset_link_stores_hashed_token_and_mails_after_defer(): void
+    public function test_send_reset_link_stores_the_sha256_of_the_token_and_mails_after_defer(): void
     {
         Mail::fake();
+        $stored = null;
         $this->users->shouldReceive('findByEmail')->andReturn($this->user());
         $this->resets->shouldReceive('replaceFor')
             ->once()
-            ->with('ada@example.com', Mockery::on(fn ($hash) => is_string($hash) && Hash::info($hash)['algoName'] === 'bcrypt'))
+            ->with('ada@example.com', Mockery::on(function ($hash) use (&$stored): bool {
+                $stored = $hash;
+
+                return is_string($hash) && preg_match('/^[0-9a-f]{64}$/', $hash) === 1;
+            }))
             ->andReturn(new PasswordReset);
 
         $this->service->sendResetLink(new ForgotPasswordData('ada@example.com'));
@@ -85,53 +90,76 @@ class PasswordResetServiceTest extends TestCase
 
         app(DeferredCallbackCollection::class)->invoke();
 
-        Mail::assertSent(ResetPasswordMail::class);
+        Mail::assertSent(ResetPasswordMail::class, function (ResetPasswordMail $mail) use (&$stored): bool {
+            parse_str((string) parse_url($mail->url, PHP_URL_QUERY), $query);
+
+            return hash('sha256', $query['token']) === $stored;
+        });
     }
 
     public function test_reset_throws_when_no_record(): void
     {
-        $this->resets->shouldReceive('latestFor')->andReturnNull();
+        $this->resets->shouldReceive('latestForUpdate')->andReturnNull();
+        $this->resets->shouldNotReceive('deleteFor');
         $this->expectException(InvalidResetToken::class);
 
-        $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword'));
+        $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword1'));
     }
 
     public function test_reset_throws_when_expired(): void
     {
-        $this->resets->shouldReceive('latestFor')->andReturn($this->record('tok', 61));
+        $this->resets->shouldReceive('latestForUpdate')->andReturn($this->record('tok', 61));
+        $this->resets->shouldNotReceive('deleteFor');
         $this->expectException(InvalidResetToken::class);
 
-        $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword'));
+        $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword1'));
     }
 
     public function test_reset_throws_when_token_wrong(): void
     {
-        $this->resets->shouldReceive('latestFor')->andReturn($this->record('tok'));
+        $this->resets->shouldReceive('latestForUpdate')->andReturn($this->record('tok'));
+        $this->resets->shouldNotReceive('deleteFor');
         $this->users->shouldNotReceive('updatePassword');
         $this->expectException(InvalidResetToken::class);
 
-        $this->service->reset(new ResetPasswordData('ada@example.com', 'wrong', 'newpassword'));
+        $this->service->reset(new ResetPasswordData('ada@example.com', 'wrong', 'newpassword1'));
+    }
+
+    public function test_reset_throws_when_the_row_was_consumed_meanwhile(): void
+    {
+        $this->resets->shouldReceive('latestForUpdate')->andReturn($this->record('tok'));
+        $this->resets->shouldReceive('deleteFor')->once()->andReturn(0);
+        $this->users->shouldNotReceive('updatePassword');
+        $this->expectException(InvalidResetToken::class);
+
+        $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword1'));
     }
 
     public function test_reset_throws_when_user_missing(): void
     {
-        $this->resets->shouldReceive('latestFor')->andReturn($this->record('tok'));
+        $this->resets->shouldReceive('latestForUpdate')->andReturn($this->record('tok'));
+        $this->resets->shouldReceive('deleteFor')->andReturn(1);
         $this->users->shouldReceive('findByEmail')->andReturnNull();
         $this->expectException(InvalidResetToken::class);
 
-        $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword'));
+        $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword1'));
     }
 
-    public function test_reset_updates_password_records_inbox_proof_deletes_record_and_revokes_tokens(): void
+    public function test_reset_consumes_the_row_updates_password_records_inbox_proof_revokes_tokens_and_notifies(): void
     {
+        Mail::fake();
         $user = $this->user();
-        $this->resets->shouldReceive('latestFor')->andReturn($this->record('tok'));
+        $this->resets->shouldReceive('latestForUpdate')->once()->with('ada@example.com')->andReturn($this->record('tok'))->ordered();
+        $this->resets->shouldReceive('deleteFor')->once()->with('ada@example.com')->andReturn(1)->ordered();
         $this->users->shouldReceive('findByEmail')->andReturn($user);
-        $this->users->shouldReceive('updatePassword')->once()->with($user, 'newpassword');
+        $this->users->shouldReceive('updatePassword')->once()->with($user, 'newpassword1')->ordered();
         $this->accounts->shouldReceive('passwordResetThroughEmail')->once()->with($user);
-        $this->resets->shouldReceive('deleteFor')->once()->with('ada@example.com');
         $this->refreshTokens->shouldReceive('revokeAllForUser')->once()->with($user)->andReturn(1);
 
-        $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword'));
+        $this->service->reset(new ResetPasswordData('ada@example.com', 'tok', 'newpassword1'));
+        Mail::assertNothingSent();
+        app(DeferredCallbackCollection::class)->invoke();
+
+        Mail::assertSent(PasswordChangedMail::class, fn (PasswordChangedMail $mail): bool => $mail->hasTo('ada@example.com'));
     }
 }
