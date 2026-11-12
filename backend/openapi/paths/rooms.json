@@ -207,7 +207,7 @@
                         }
                     },
                     "401": { "description": "Not signed in." },
-                    "403": { "description": "You are not a member of the room." },
+                    "403": { "description": "You are not a member of the room, or staff locked it: body `{\"message\": \"This room is locked. Nobody can post in it right now.\", \"code\": \"room_locked\"}`. Nobody can post in a locked room, its creator included; reading, joining and invitations still work." },
                     "404": { "description": "Unknown room." },
                     "422": { "description": "Empty or too long.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } } },
                     "429": { "description": "More than 30 messages a minute." }
@@ -312,6 +312,7 @@
                     "media_type": { "type": "string", "enum": ["movie", "tv"] },
                     "spoilers": { "type": "boolean" },
                     "is_private": { "type": "boolean" },
+                    "is_locked": { "type": "boolean", "description": "Staff locked the room: nobody can post in it, but it can still be read and joined." },
                     "host": { "allOf": [{ "$ref": "#/components/schemas/RoomMember" }], "nullable": true },
                     "members": { "type": "array", "items": { "$ref": "#/components/schemas/RoomMember" } },
                     "joined": { "type": "boolean" },

@@ -39,15 +39,16 @@ final readonly class NotificationResponse implements JsonSerializable
 
     /**
      * Null when the notification can't be shown any more: its actor deleted their account, or it is a type
-     * (or an older row) without the fields its sentence needs. The staff notices (removed review, restricted list)
-     * have no actor and show as from the WatchWise team.
+     * (or an older row) without the fields its sentence needs. A notice from staff has no actor and shows
+     * as from the WatchWise team, and so does a `room_deleted` row without an `actor_id` (staff deleted the room).
      *
      * @param  bool  $actorFollowed  whether the reader follows the actor
      * @param  bool  $actorRequested  whether the reader has asked to follow the actor
      */
     public static function fromModel(Notification $notification, ?User $actor, bool $actorFollowed, bool $actorRequested): ?self
     {
-        $fromTeam = in_array($notification->type, [Notification::REVIEW_REMOVED, Notification::LIST_RESTRICTED], true);
+        $fromTeam = in_array($notification->type, Notification::TEAM_TYPES, true)
+            || ($notification->type === Notification::ROOM_DELETED && ! isset($notification->data['actor_id']));
 
         if ($actor === null && ! $fromTeam) {
             return null;
@@ -71,6 +72,10 @@ final readonly class NotificationResponse implements JsonSerializable
             Notification::REVIEW_HELPFUL => self::review($data),
             Notification::REVIEW_REMOVED => self::removedReview($data),
             Notification::LIST_RESTRICTED => self::restrictedList($data),
+            Notification::MESSAGE_REMOVED => self::staffRoomNotice($data, 'removed your message in'),
+            Notification::ROOM_LOCKED => self::staffRoomNotice($data, 'locked your room'),
+            Notification::ROOM_UNLOCKED => self::staffRoomNotice($data, 'unlocked your room'),
+            Notification::ROOM_REMOVED => ['text' => 'deleted your room', 'target' => (string) ($data['room_name'] ?? 'a room'), 'film' => self::film($data, (string) ($data['media_type'] ?? 'movie')), 'to' => '/rooms', 'action' => 'See rooms'],
             default => null,
         };
 
@@ -200,6 +205,19 @@ final readonly class NotificationResponse implements JsonSerializable
             'to' => $restriction === ListRestriction::Deleted ? '/lists' : '/lists/'.(int) $data['list_id'],
             'action' => $restriction === ListRestriction::Deleted ? 'See lists' : 'View list',
         ];
+    }
+
+    /**
+     * A staff action on a room or on a message in it: the room it happened in, with its film when the row has one.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{text: string, target: string, detail: string|null, film: array{tmdb_id: int, media_type: string}|null, to: string, action: string}|null
+     */
+    private static function staffRoomNotice(array $data, string $text): ?array
+    {
+        $room = self::room($data, $text, 'Open room');
+
+        return $room === null ? null : [...$room, 'film' => self::film($data, (string) ($data['media_type'] ?? 'movie'))];
     }
 
     /**

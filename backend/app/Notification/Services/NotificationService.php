@@ -111,7 +111,7 @@ class NotificationService implements NotificationServiceInterface
 
         $mentioned = $this->notifications->wanting(array_values(array_diff($mentionedIds, [$senderId])), Notification::MENTION);
         foreach ($mentioned as $userId) {
-            $this->live->push($this->notifications->create($userId, Notification::MENTION, ['actor_id' => $senderId, ...$this->roomData($room), 'preview' => $preview]));
+            $this->live->push($this->notifications->create($userId, Notification::MENTION, ['actor_id' => $senderId, ...$this->roomData($room), 'preview' => $preview, 'message_id' => $message->id]));
         }
 
         $members = $this->notifications->wanting(array_values(array_diff($memberIds, [$senderId])), Notification::NEW_MESSAGES);
@@ -130,6 +130,7 @@ class NotificationService implements NotificationServiceInterface
                 'count' => $counting ? (int) ($existing->data['count'] ?? 1) + 1 : 1,
                 'sender_ids' => array_slice(array_values(array_unique([$senderId, ...$earlierSenders])), 0, self::SENDERS_KEPT),
                 'preview' => $preview,
+                'message_id' => $message->id,
             ];
 
             $notification = $existing === null
@@ -148,18 +149,58 @@ class NotificationService implements NotificationServiceInterface
 
     public function roomDeleted(DiscussionRoom $room, User $deleter, array $audienceIds): void
     {
-        // Mentions can reach people outside the room, so this looks at everyone's notifications.
-        $stale = $this->notifications->matchingAnyone(
-            [Notification::ROOM_INVITE, Notification::ROOM_JOINED, Notification::NEW_MESSAGES, Notification::MENTION],
-            ['room_id' => $room->id],
-        );
-
-        if ($stale->isNotEmpty()) {
-            $this->notifications->delete($stale->modelKeys());
-            $stale->pluck('user_id')->unique()->each(fn ($userId) => $this->live->changed((int) $userId));
-        }
+        $this->withdrawRoomNotifications($room);
 
         $this->notify($audienceIds, Notification::ROOM_DELETED, ['actor_id' => $deleter->id, 'room_name' => $room->name]);
+    }
+
+    public function roomRemovedByStaff(DiscussionRoom $room, User $staff, array $audienceIds): void
+    {
+        $this->withdrawRoomNotifications($room);
+
+        $creatorId = $room->created_by === null ? null : (int) $room->created_by;
+        $members = array_values(array_diff($audienceIds, [$staff->id], $creatorId === null ? [] : [$creatorId]));
+
+        foreach ($this->notifications->wanting($members, Notification::ROOM_DELETED) as $userId) {
+            $this->live->push($this->notifications->create($userId, Notification::ROOM_DELETED, ['room_name' => $room->name]));
+        }
+
+        if ($creatorId !== null && $creatorId !== $staff->id) {
+            $this->live->push($this->notifications->create($creatorId, Notification::ROOM_REMOVED, [
+                'room_name' => $room->name,
+                'tmdb_id' => (int) $room->tmdb_id,
+                'media_type' => $room->media_type ?? 'movie',
+                'action' => 'deleted',
+            ]));
+        }
+    }
+
+    public function roomMessageDeleted(DiscussionRoom $room, Message $message, array $unreadByIds): void
+    {
+        $preview = Str::limit(Str::squish($message->content), self::PREVIEW_LENGTH, '…');
+        $affected = [];
+
+        foreach ($this->notifications->matchingAnyone([Notification::MENTION, Notification::NEW_MESSAGES], ['room_id' => $room->id]) as $notification) {
+            $userId = (int) $notification->user_id;
+            $quotesIt = $this->quotes($notification, $message, $preview);
+
+            if ($notification->type === Notification::MENTION) {
+                if ($quotesIt) {
+                    $this->notifications->delete([$notification->id]);
+                    $affected[$userId] = true;
+                }
+            } elseif ($notification->read_at === null && in_array($userId, $unreadByIds, true)) {
+                $this->countOneFewer($notification, forgetPreview: $quotesIt);
+                $affected[$userId] = true;
+            } elseif ($quotesIt) {
+                $this->notifications->update($notification, ['data' => [...$notification->data, 'preview' => '', 'message_id' => null]]);
+                $affected[$userId] = true;
+            }
+        }
+
+        foreach (array_keys($affected) as $userId) {
+            $this->live->changed($userId);
+        }
     }
 
     public function nightInvited(MovieNight $night, User $host, array $guestIds): void
@@ -229,6 +270,80 @@ class NotificationService implements NotificationServiceInterface
             'action' => $restriction->value,
             ...($restriction === ListRestriction::ItemRemoved && $film !== null ? ['tmdb_id' => $film['tmdb_id'], 'media_type' => $film['media_type']] : []),
         ]));
+    }
+
+    public function messageRemoved(DiscussionRoom $room, Message $message): void
+    {
+        $this->live->push($this->notifications->create((int) $message->user_id, Notification::MESSAGE_REMOVED, [
+            ...$this->roomData($room),
+            'tmdb_id' => (int) $room->tmdb_id,
+            'media_type' => $room->media_type ?? 'movie',
+            'action' => 'removed',
+        ]));
+    }
+
+    public function roomLockChanged(DiscussionRoom $room, bool $locked): void
+    {
+        if ($room->created_by === null) {
+            return;
+        }
+
+        $this->live->push($this->notifications->create((int) $room->created_by, $locked ? Notification::ROOM_LOCKED : Notification::ROOM_UNLOCKED, [
+            ...$this->roomData($room),
+            'tmdb_id' => (int) $room->tmdb_id,
+            'media_type' => $room->media_type ?? 'movie',
+            'action' => $locked ? 'locked' : 'unlocked',
+        ]));
+    }
+
+    /**
+     * Removes every notification that opens the room, since it is gone (mentions can reach people outside the room,
+     * so this looks at everyone's).
+     */
+    private function withdrawRoomNotifications(DiscussionRoom $room): void
+    {
+        $stale = $this->notifications->matchingAnyone(
+            [
+                Notification::ROOM_INVITE, Notification::ROOM_JOINED, Notification::NEW_MESSAGES, Notification::MENTION,
+                Notification::MESSAGE_REMOVED, Notification::ROOM_LOCKED, Notification::ROOM_UNLOCKED,
+            ],
+            ['room_id' => $room->id],
+        );
+
+        if ($stale->isNotEmpty()) {
+            $this->notifications->delete($stale->modelKeys());
+            $stale->pluck('user_id')->unique()->each(fn ($userId) => $this->live->changed((int) $userId));
+        }
+    }
+
+    /** Whether the notification quotes this message: by its message id, or for a row without one by the quoted text. */
+    private function quotes(Notification $notification, Message $message, string $preview): bool
+    {
+        $messageId = $notification->data['message_id'] ?? null;
+
+        return $messageId === null
+            ? ($notification->data['preview'] ?? null) === $preview
+            : (int) $messageId === $message->id;
+    }
+
+    /** A "new messages" row loses one message; at none it goes, and `$forgetPreview` blanks the quote it can no longer give. */
+    private function countOneFewer(Notification $notification, bool $forgetPreview = false): void
+    {
+        $count = max(0, (int) ($notification->data['count'] ?? 1) - 1);
+
+        if ($count === 0) {
+            $this->notifications->delete([$notification->id]);
+
+            return;
+        }
+
+        $data = [...$notification->data, 'count' => $count];
+
+        if ($forgetPreview) {
+            $data = [...$data, 'preview' => '', 'message_id' => null];
+        }
+
+        $this->notifications->update($notification, ['data' => $data]);
     }
 
     /**

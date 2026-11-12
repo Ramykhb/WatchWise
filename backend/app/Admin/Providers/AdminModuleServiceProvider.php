@@ -3,6 +3,7 @@
 namespace App\Admin\Providers;
 
 use App\Admin\InterfaceRepository\AdminAuditRepositoryInterface;
+use App\Admin\InterfaceRepository\AdminRoomRepositoryInterface;
 use App\Admin\InterfaceRepository\AdminStatsRepositoryInterface;
 use App\Admin\InterfaceRepository\AdminUserRepositoryInterface;
 use App\Admin\InterfaceServices\AdminAuditServiceInterface;
@@ -11,9 +12,11 @@ use App\Admin\InterfaceServices\AdminListServiceInterface;
 use App\Admin\InterfaceServices\AdminRatingServiceInterface;
 use App\Admin\InterfaceServices\AdminReportServiceInterface;
 use App\Admin\InterfaceServices\AdminReviewToolsServiceInterface;
+use App\Admin\InterfaceServices\AdminRoomServiceInterface;
 use App\Admin\InterfaceServices\AdminServiceInterface;
 use App\Admin\InterfaceServices\AdminSettingServiceInterface;
 use App\Admin\Repository\AdminAuditRepository;
+use App\Admin\Repository\AdminRoomRepository;
 use App\Admin\Repository\AdminStatsRepository;
 use App\Admin\Repository\AdminUserRepository;
 use App\Admin\Services\AdminAuditService;
@@ -22,6 +25,7 @@ use App\Admin\Services\AdminListService;
 use App\Admin\Services\AdminRatingService;
 use App\Admin\Services\AdminReportService;
 use App\Admin\Services\AdminReviewToolsService;
+use App\Admin\Services\AdminRoomService;
 use App\Admin\Services\AdminService;
 use App\Admin\Services\AdminSettingService;
 use App\Auth\CurrentUser\CurrentUser;
@@ -49,6 +53,8 @@ class AdminModuleServiceProvider extends ServiceProvider
         AdminReviewToolsServiceInterface::class => AdminReviewToolsService::class,
         AdminRatingServiceInterface::class => AdminRatingService::class,
         AdminListServiceInterface::class => AdminListService::class,
+        AdminRoomRepositoryInterface::class => AdminRoomRepository::class,
+        AdminRoomServiceInterface::class => AdminRoomService::class,
     ];
 
     public function boot(): void

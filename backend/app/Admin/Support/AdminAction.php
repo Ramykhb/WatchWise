@@ -26,6 +26,11 @@ enum AdminAction: string
     case ListItemRemoved = 'list.item_removed';
     case ListDeleted = 'list.deleted';
 
+    case RoomLocked = 'room.locked';
+    case RoomUnlocked = 'room.unlocked';
+    case RoomDeleted = 'room.deleted';
+    case MessageDeleted = 'message.deleted';
+
     /** What kind of record the action is done to. */
     public function subjectType(): AdminSubjectType
     {
@@ -39,6 +44,8 @@ enum AdminAction: string
             self::RatingDeleted => AdminSubjectType::Rating,
             self::RatingsPurged => AdminSubjectType::User,
             self::ListMadePrivate, self::ListItemRemoved, self::ListDeleted => AdminSubjectType::MovieList,
+            self::RoomLocked, self::RoomUnlocked, self::RoomDeleted => AdminSubjectType::Room,
+            self::MessageDeleted => AdminSubjectType::Message,
         };
     }
 }

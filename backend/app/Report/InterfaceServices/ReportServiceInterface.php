@@ -38,10 +38,20 @@ interface ReportServiceInterface
     public function resolveForTarget(ReportTargetType $type, int $targetId, ?User $by, string $status): int;
 
     /**
-     * How many open reports each of the targets has, in one grouped query. Targets without any are absent.
+     * Closes every open report on any of the targets with one decision, like resolveForTarget() for many targets of
+     * one kind at once (a deleted room and the messages in it). Returns how many it closed.
      *
      * @param  list<int>  $targetIds
-     * @return array<int, int> open report count keyed by target id
+     * @param  'resolved'|'dismissed'  $status
+     */
+    public function resolveForTargets(ReportTargetType $type, array $targetIds, ?User $by, string $status): int;
+
+    /**
+     * How many open reports each of the targets has, in one query however many ids there are; a target without one
+     * is present with 0.
+     *
+     * @param  list<int>  $targetIds
+     * @return array<int, int> target id => open reports
      */
     public function openCountsFor(ReportTargetType $type, array $targetIds): array;
 

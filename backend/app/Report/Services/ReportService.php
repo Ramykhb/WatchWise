@@ -83,8 +83,13 @@ class ReportService implements ReportServiceInterface
 
     public function resolveForTarget(ReportTargetType $type, int $targetId, ?User $by, string $status): int
     {
+        return $this->resolveForTargets($type, [$targetId], $by, $status);
+    }
+
+    public function resolveForTargets(ReportTargetType $type, array $targetIds, ?User $by, string $status): int
+    {
         $decision = ReportStatus::closing($status);
-        $ids = $this->reports->lockOpenForTarget($type, $targetId);
+        $ids = $this->reports->lockOpenForTargets($type, $targetIds);
         $this->reports->closeMany($ids, $decision, $by?->id, null);
 
         return count($ids);
@@ -92,7 +97,7 @@ class ReportService implements ReportServiceInterface
 
     public function openCountsFor(ReportTargetType $type, array $targetIds): array
     {
-        return $targetIds === [] ? [] : $this->reports->openCountsFor($type, $targetIds);
+        return $targetIds === [] ? [] : $this->reports->openCountsFor($type, $targetIds) + array_fill_keys($targetIds, 0);
     }
 
     public function openFor(ReportTargetType $type, int $targetId): Collection
@@ -103,7 +108,7 @@ class ReportService implements ReportServiceInterface
     public function close(Report $report, User $by, string $status, ?string $note, bool $applyToTarget): array
     {
         $decision = ReportStatus::closing($status);
-        $targetIds = $applyToTarget ? $this->reports->lockOpenForTarget($report->target_type, $report->target_id) : [];
+        $targetIds = $applyToTarget ? $this->reports->lockOpenForTargets($report->target_type, [$report->target_id]) : [];
         $current = $this->reports->lockForUpdate($report);
 
         if ($current->status !== ReportStatus::Open) {

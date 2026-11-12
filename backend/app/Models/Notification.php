@@ -36,16 +36,20 @@ class Notification extends Model
     /** Someone you invited to a private room joined it (`data`: actor_id, room_id, room_name). */
     public const ROOM_JOINED = 'room_joined';
 
-    /** A room you were a member of, or invited to, was deleted by its creator or an admin (`data`: actor_id, room_name). */
+    /**
+     * A room you were a member of, or invited to, was deleted by its creator or an admin (`data`: actor_id, room_name).
+     * When staff deleted it there is no `actor_id`: it shows as from the WatchWise team.
+     */
     public const ROOM_DELETED = 'room_deleted';
 
     /**
      * New messages in a room you are a member of: one row per room, updated as messages arrive and marked read
-     * when you read the room (`data`: room_id, room_name, actor_id of the latest sender, sender_ids, count, preview).
+     * when you read the room (`data`: room_id, room_name, actor_id of the latest sender, sender_ids, count, preview,
+     * message_id of the latest message).
      */
     public const NEW_MESSAGES = 'new_messages';
 
-    /** Someone wrote @yourusername in a room (`data`: actor_id, room_id, room_name, preview). */
+    /** Someone wrote @yourusername in a room (`data`: actor_id, room_id, room_name, preview, message_id). */
     public const MENTION = 'mention';
 
     /** The host invited you to a movie night (`data`: actor_id, night_id, title). */
@@ -82,8 +86,31 @@ class Notification extends Model
     public const LIST_RESTRICTED = 'list_restricted';
 
     /**
+     * Staff removed a message you sent in a room (`data`: room_id, room_name, tmdb_id, media_type, action `removed`).
+     * It carries no actor and never the message's text. Like REVIEW_REMOVED it has no switch and always arrives.
+     */
+    public const MESSAGE_REMOVED = 'message_removed';
+
+    /**
+     * Staff locked a room you created, so nobody can post in it (`data`: room_id, room_name, tmdb_id, media_type,
+     * action `locked`). It carries no actor and has no switch.
+     */
+    public const ROOM_LOCKED = 'room_locked';
+
+    /** Staff unlocked a room you created (`data` as ROOM_LOCKED, action `unlocked`). It carries no actor and has no switch. */
+    public const ROOM_UNLOCKED = 'room_unlocked';
+
+    /**
+     * Staff deleted a room you created (`data`: room_name, tmdb_id, media_type, action `deleted`). It carries no actor
+     * and no room id (the room is gone), and has no switch: the creator always hears of it, even with ROOM_DELETED
+     * switched off.
+     */
+    public const ROOM_REMOVED = 'room_removed';
+
+    /**
      * The types a member can switch off (the keys of `settings.notifications`, all on by default). Follow
-     * requests and the staff notices (removed review, restricted list) are not among them: they always arrive.
+     * requests and the notices from staff (removed review or message, restricted list, locked or unlocked room,
+     * removed room) are not among them: they always arrive.
      *
      * @var list<string>
      */
@@ -99,7 +126,21 @@ class Notification extends Model
      *
      * @var list<string>
      */
-    public const FEED_TYPES = [self::FOLLOW_REQUEST, self::REVIEW_REMOVED, self::LIST_RESTRICTED, ...self::OPTIONAL_TYPES];
+    public const FEED_TYPES = [
+        self::FOLLOW_REQUEST, self::REVIEW_REMOVED, self::LIST_RESTRICTED,
+        self::MESSAGE_REMOVED, self::ROOM_LOCKED, self::ROOM_UNLOCKED, self::ROOM_REMOVED,
+        ...self::OPTIONAL_TYPES,
+    ];
+
+    /**
+     * The notices that come from the WatchWise team: they have no actor and never name the staff member.
+     *
+     * @var list<string>
+     */
+    public const TEAM_TYPES = [
+        self::REVIEW_REMOVED, self::LIST_RESTRICTED,
+        self::MESSAGE_REMOVED, self::ROOM_LOCKED, self::ROOM_UNLOCKED, self::ROOM_REMOVED,
+    ];
 
     protected function casts(): array
     {

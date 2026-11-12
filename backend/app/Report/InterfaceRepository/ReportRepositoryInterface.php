@@ -53,21 +53,6 @@ interface ReportRepositoryInterface
     public function openCountsByTargetType(): array;
 
     /**
-     * Open reports per target among `$targetIds`; targets without any are absent.
-     *
-     * @param  list<int>  $targetIds
-     * @return array<int, int>
-     */
-    public function openCountsFor(ReportTargetType $type, array $targetIds): array;
-
-    /**
-     * Open reports on the target, newest first, then by id, with `reporter` loaded.
-     *
-     * @return Collection<int, Report>
-     */
-    public function openFor(ReportTargetType $type, int $targetId): Collection;
-
-    /**
      * The rows reports point at, found in a constant number of queries (one per kind) with the author each description needs loaded.
      * Ids that no longer exist are left out.
      *
@@ -80,12 +65,29 @@ interface ReportRepositoryInterface
     public function lockForUpdate(Report $report): Report;
 
     /**
-     * The ids of the open reports on the target, in ascending order, row-locked until the surrounding transaction
-     * ends. Locking in one fixed order keeps two staff members closing reports of the same target from deadlocking.
+     * The ids of the open reports on any of the targets, in ascending order, row-locked until the surrounding
+     * transaction ends. Locking in one fixed order keeps two staff members closing reports of the same target from deadlocking.
      *
+     * @param  list<int>  $targetIds
      * @return list<int>
      */
-    public function lockOpenForTarget(ReportTargetType $type, int $targetId): array;
+    public function lockOpenForTargets(ReportTargetType $type, array $targetIds): array;
+
+    /**
+     * Open reports per target, for the targets that have any (one grouped query per few hundred ids); the others
+     * are absent.
+     *
+     * @param  list<int>  $targetIds
+     * @return array<int, int> target id => open reports
+     */
+    public function openCountsFor(ReportTargetType $type, array $targetIds): array;
+
+    /**
+     * The open reports on one target, newest first, then by id, with their `reporter` loaded.
+     *
+     * @return Collection<int, Report>
+     */
+    public function openFor(ReportTargetType $type, int $targetId): Collection;
 
     /**
      * Closes the reports that are still open among `$ids`.

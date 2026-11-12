@@ -75,6 +75,22 @@ class RoomRepository implements RoomRepositoryInterface
         $room->delete();
     }
 
+    public function lockForUpdate(DiscussionRoom $room): DiscussionRoom
+    {
+        return DiscussionRoom::query()->whereKey($room->getKey())->lockForUpdate()->firstOrFail();
+    }
+
+    public function isLocked(DiscussionRoom $room): bool
+    {
+        return (bool) DiscussionRoom::query()->whereKey($room->getKey())->sharedLock()->value('is_locked');
+    }
+
+    public function setLocked(DiscussionRoom $room, bool $locked): void
+    {
+        // Not mass-assignable on purpose; only staff lock a room.
+        $room->forceFill(['is_locked' => $locked])->save();
+    }
+
     public function inviterId(DiscussionRoom $room, int $userId): ?int
     {
         $inviterId = DB::table('room_invites')->where('room_id', $room->id)->where('user_id', $userId)->value('invited_by');
@@ -147,6 +163,16 @@ class RoomRepository implements RoomRepositoryInterface
         Notification::whereKey($receipts->modelKeys())->update(['read_at' => now()]);
 
         return $this->messageIdsOf($receipts);
+    }
+
+    public function unreadReaderIds(DiscussionRoom $room, int $messageId): array
+    {
+        return $this->roomReceipts($room)
+            ->whereNull('read_at')
+            ->where('data->message_id', $messageId)
+            ->pluck('user_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
     }
 
     public function fullyRead(DiscussionRoom $room, array $messageIds, CarbonInterface $sentBy): array
