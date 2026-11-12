@@ -13,6 +13,7 @@ use App\Admin\Exceptions\RoomNotReviewable;
 use App\Admin\InterfaceRepository\AdminRoomRepositoryInterface;
 use App\Admin\InterfaceServices\AdminAuditServiceInterface;
 use App\Admin\InterfaceServices\AdminRoomServiceInterface;
+use App\Admin\InterfaceServices\AdminServiceInterface;
 use App\Admin\Support\AdminAction;
 use App\Models\DiscussionRoom;
 use App\Models\Message;
@@ -39,6 +40,7 @@ class AdminRoomService implements AdminRoomServiceInterface
         private readonly MovieCatalogServiceInterface $catalog,
         private readonly NotificationServiceInterface $notifications,
         private readonly AdminAuditServiceInterface $audit,
+        private readonly AdminServiceInterface $admin,
     ) {}
 
     public function rooms(AdminRoomQuery $query): AdminPageResponse
@@ -96,6 +98,7 @@ class AdminRoomService implements AdminRoomServiceInterface
             );
             $this->roomService->deleteMessage($room, $message);
         });
+        $this->admin->forgetStats();
 
         if ((int) $message->user_id !== $staff->id) {
             rescue(fn () => $this->notifications->messageRemoved($room, $message));
@@ -120,6 +123,10 @@ class AdminRoomService implements AdminRoomServiceInterface
             return $changed;
         });
 
+        if ($changed) {
+            $this->admin->forgetStats();
+        }
+
         if ($changed && (int) $room->created_by !== $staff->id) {
             rescue(fn () => $this->notifications->roomLockChanged($room, $data->isLocked));
         }
@@ -142,6 +149,7 @@ class AdminRoomService implements AdminRoomServiceInterface
             );
             $this->roomService->deleteByStaff($room, $staff);
         });
+        $this->admin->forgetStats();
     }
 
     /** The titles a room is kept under in the audit log, which stay readable once the room is gone. */

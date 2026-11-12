@@ -79,6 +79,11 @@ class RatingService implements RatingServiceInterface
         return $this->ratings->paginateBursts($until->copy()->subHours($query->hours), $until, $query->min, $query->page, $query->perPage);
     }
 
+    public function countCreated(CarbonInterface $from, ?CarbonInterface $until = null): int
+    {
+        return $this->ratings->countCreated($from, $until);
+    }
+
     public function lockForUpdate(Review $rating): Review
     {
         return $this->ratings->lockForUpdate($rating);

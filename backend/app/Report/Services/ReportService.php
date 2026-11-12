@@ -13,6 +13,7 @@ use App\Report\InterfaceRepository\ReportRepositoryInterface;
 use App\Report\InterfaceServices\ReportServiceInterface;
 use App\Report\Support\ReportStatus;
 use App\Report\Support\ReportTargetType;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -140,6 +141,11 @@ class ReportService implements ReportServiceInterface
             'against_open' => $this->reports->openCountForTarget(ReportTargetType::Profile, $member->id),
             'filed' => $this->reports->filedByCount($member->id),
         ];
+    }
+
+    public function resolvedSince(CarbonInterface $since): int
+    {
+        return $this->reports->resolvedCountSince($since);
     }
 
     public function targets(iterable $reports): array

@@ -12,6 +12,7 @@ use App\Report\DTOs\Requests\ReportQueueQuery;
 use App\Report\InterfaceRepository\ReportRepositoryInterface;
 use App\Report\Support\ReportStatus;
 use App\Report\Support\ReportTargetType;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -179,6 +180,11 @@ class ReportRepository implements ReportRepositoryInterface
                 'resolved_by' => $resolvedBy,
                 'resolution_note' => $note,
             ]);
+    }
+
+    public function resolvedCountSince(CarbonInterface $since): int
+    {
+        return Report::query()->where('status', ReportStatus::Resolved)->where('resolved_at', '>=', $since)->count();
     }
 
     /**

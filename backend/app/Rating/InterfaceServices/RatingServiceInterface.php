@@ -53,6 +53,12 @@ interface RatingServiceInterface
      */
     public function bursts(RatingBurstQuery $query, CarbonInterface $until): LengthAwarePaginator;
 
+    /**
+     * How many star-only ratings were created from `$from` (inclusive) until `$until` (exclusive; no end without it).
+     * Moderated rows count, like in every other staff rating figure.
+     */
+    public function countCreated(CarbonInterface $from, ?CarbonInterface $until = null): int;
+
     /** A fresh copy of the row, locked until the surrounding transaction ends (call inside one). */
     public function lockForUpdate(Review $rating): Review;
 

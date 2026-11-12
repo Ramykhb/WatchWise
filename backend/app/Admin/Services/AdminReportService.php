@@ -8,6 +8,7 @@ use App\Admin\DTOs\Responses\AdminReportDecisionResponse;
 use App\Admin\DTOs\Responses\AdminReportResponse;
 use App\Admin\InterfaceServices\AdminAuditServiceInterface;
 use App\Admin\InterfaceServices\AdminReportServiceInterface;
+use App\Admin\InterfaceServices\AdminServiceInterface;
 use App\Admin\Support\AdminAction;
 use App\Models\Report;
 use App\Models\User;
@@ -24,6 +25,7 @@ class AdminReportService implements AdminReportServiceInterface
     public function __construct(
         private readonly ReportServiceInterface $reports,
         private readonly AdminAuditServiceInterface $audit,
+        private readonly AdminServiceInterface $admin,
     ) {}
 
     public function reports(ReportQueueQuery $query): AdminPageResponse
@@ -67,6 +69,8 @@ class AdminReportService implements AdminReportServiceInterface
 
             return $closedIds;
         });
+
+        $this->admin->forgetStats();
 
         return new AdminReportDecisionResponse($this->report($report->refresh()), count($closedIds));
     }

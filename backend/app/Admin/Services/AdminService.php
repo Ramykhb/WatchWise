@@ -17,6 +17,7 @@ use App\Admin\DTOs\Responses\GenreShareResponse;
 use App\Admin\DTOs\Responses\RankedMovieResponse;
 use App\Admin\Exceptions\CannotModerateSelf;
 use App\Admin\Exceptions\CannotModerateStaff;
+use App\Admin\InterfaceRepository\AdminRoomRepositoryInterface;
 use App\Admin\InterfaceRepository\AdminStatsRepositoryInterface;
 use App\Admin\InterfaceRepository\AdminUserRepositoryInterface;
 use App\Admin\InterfaceServices\AdminAuditServiceInterface;
@@ -35,7 +36,12 @@ use App\Models\User;
 use App\Movie\DTOs\Requests\LocalMovieQuery;
 use App\Movie\DTOs\Requests\UpdateLocalMovieData;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
+use App\MovieList\InterfaceServices\MovieListServiceInterface;
 use App\Notification\InterfaceServices\NotificationServiceInterface;
+use App\Rating\DTOs\Requests\RatingQuery;
+use App\Rating\InterfaceServices\RatingServiceInterface;
+use App\Report\InterfaceServices\ReportServiceInterface;
+use App\Report\Support\ReportStatus;
 use App\Review\DTOs\Requests\ModerationQueueQuery;
 use App\Review\InterfaceServices\ReviewServiceInterface;
 use App\Support\Exceptions\TmdbUnavailable;
@@ -81,7 +87,11 @@ class AdminService implements AdminServiceInterface
         private readonly AdminStatsRepositoryInterface $stats,
         private readonly AdminUserRepositoryInterface $users,
         private readonly AuthServiceInterface $auth,
+        private readonly AdminRoomRepositoryInterface $rooms,
         private readonly ReviewServiceInterface $reviews,
+        private readonly ReportServiceInterface $reports,
+        private readonly RatingServiceInterface $ratings,
+        private readonly MovieListServiceInterface $lists,
         private readonly MovieCatalogServiceInterface $catalog,
         private readonly GenreServiceInterface $genres,
         private readonly AccountServiceInterface $accounts,
@@ -129,8 +139,14 @@ class AdminService implements AdminServiceInterface
             ...array_column($rated, 'tmdb_id'),
         ])));
 
+        $members = $this->users->totals();
+        $ratings = $this->ratings->summary(new RatingQuery);
+        $reports = $this->reports->summary();
+
         return new AdminStatsResponse(
-            usersTotal: $this->stats->usersTotal(),
+            usersTotal: $members['total'],
+            usersSuspended: $members['inactive'],
+            usersUnverified: $members['unverified'],
             newUsers: [
                 'last_7_days' => $this->stats->usersCreatedSince($lastWeek),
                 'last_30_days' => $this->stats->usersCreatedSince($lastMonth),
@@ -144,6 +160,19 @@ class AdminService implements AdminServiceInterface
             activeToday: $this->stats->usersActiveBetween(today(), $tomorrow),
             activeYesterday: $this->stats->usersActiveBetween(today()->subDay(), today()),
             flaggedReviews: $this->reviews->moderationTotals()['flagged'],
+            reports: [
+                'open' => $reports['by_status'][ReportStatus::Open->value],
+                'by_target_type' => $reports['by_target_type'],
+                'resolved_last_7_days' => $this->reports->resolvedSince($lastWeek),
+            ],
+            ratings: [
+                'total' => $ratings['total'],
+                'new_last_7_days' => $this->ratings->countCreated($lastWeek),
+                'new_last_30_days' => $this->ratings->countCreated($lastMonth),
+                'average' => $ratings['average'],
+            ],
+            rooms: $this->rooms->totals(),
+            lists: $this->lists->staffTotals(),
             range: [
                 'name' => $query->range ?? (string) $query->days,
                 'days' => $query->days,
@@ -151,6 +180,10 @@ class AdminService implements AdminServiceInterface
                 'previous_new_users' => $this->stats->usersCreatedBetween($previousStart, $windowStart),
                 'new_reviews' => $this->stats->reviewsCreatedBetween($windowStart, $tomorrow),
                 'previous_new_reviews' => $this->stats->reviewsCreatedBetween($previousStart, $windowStart),
+                'new_ratings' => $this->ratings->countCreated($windowStart, $tomorrow),
+                'previous_new_ratings' => $this->ratings->countCreated($previousStart, $windowStart),
+                'new_lists' => $this->lists->countCreatedBetween($windowStart, $tomorrow),
+                'previous_new_lists' => $this->lists->countCreatedBetween($previousStart, $windowStart),
             ],
             mostWatched: array_map(
                 fn (array $row): RankedMovieResponse => $this->ranked($row['tmdb_id'], $row['count'], $titles),
@@ -223,6 +256,10 @@ class AdminService implements AdminServiceInterface
 
             return [$updated, $wasActive];
         });
+
+        if ((bool) $updated->is_active !== $wasActive) {
+            $this->forgetStats();
+        }
 
         $this->tellMemberOfActiveChange($updated, $wasActive);
 

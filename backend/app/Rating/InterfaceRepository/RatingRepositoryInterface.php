@@ -53,6 +53,9 @@ interface RatingRepositoryInterface
      */
     public function paginateBursts(CarbonInterface $since, CarbonInterface $until, int $min, int $page, int $perPage): LengthAwarePaginator;
 
+    /** How many star-only ratings were created from `$from` (inclusive) until `$until` (exclusive); no end when it is null. */
+    public function countCreated(CarbonInterface $from, ?CarbonInterface $until): int;
+
     /** A fresh copy of the row, locked until the surrounding transaction ends (call inside one). */
     public function lockForUpdate(Review $rating): Review;
 

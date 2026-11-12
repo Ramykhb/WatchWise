@@ -10,6 +10,7 @@ use App\Admin\Exceptions\ListItemNotFound;
 use App\Admin\Exceptions\ListNotFound;
 use App\Admin\InterfaceServices\AdminAuditServiceInterface;
 use App\Admin\InterfaceServices\AdminListServiceInterface;
+use App\Admin\InterfaceServices\AdminServiceInterface;
 use App\Admin\Support\AdminAction;
 use App\Models\MovieList;
 use App\Models\MovieListItem;
@@ -37,6 +38,7 @@ class AdminListService implements AdminListServiceInterface
         private readonly MovieCatalogServiceInterface $catalog,
         private readonly AdminAuditServiceInterface $audit,
         private readonly NotificationServiceInterface $notifications,
+        private readonly AdminServiceInterface $admin,
     ) {}
 
     public function lists(StaffListQuery $query): AdminPageResponse
@@ -96,6 +98,7 @@ class AdminListService implements AdminListServiceInterface
         });
 
         if ($changed) {
+            $this->admin->forgetStats();
             $this->tellOwner($staff, $list, ListRestriction::MadePrivate);
         }
 
@@ -124,6 +127,7 @@ class AdminListService implements AdminListServiceInterface
             );
         });
 
+        $this->admin->forgetStats();
         $this->tellOwner($staff, $list, ListRestriction::ItemRemoved, ['tmdb_id' => $film->tmdbId, 'media_type' => $film->mediaType]);
 
         return $this->row($list);
@@ -147,6 +151,7 @@ class AdminListService implements AdminListServiceInterface
             );
         });
 
+        $this->admin->forgetStats();
         $this->tellOwner($staff, $list, ListRestriction::Deleted);
     }
 

@@ -6,6 +6,7 @@ use App\Models\Report;
 use App\Report\DTOs\Requests\ReportQueueQuery;
 use App\Report\Support\ReportStatus;
 use App\Report\Support\ReportTargetType;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -101,4 +102,7 @@ interface ReportRepositoryInterface
 
     /** How many reports the member filed, open or closed. */
     public function filedByCount(int $reporterId): int;
+
+    /** How many reports were closed as resolved (not dismissed) from `$since` on. */
+    public function resolvedCountSince(CarbonInterface $since): int;
 }

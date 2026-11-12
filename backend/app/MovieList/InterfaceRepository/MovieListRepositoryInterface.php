@@ -8,6 +8,7 @@ use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\DTOs\Requests\StaffListQuery;
 use App\Support\HiddenMovies;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -85,4 +86,7 @@ interface MovieListRepositoryInterface
 
     /** How many lists the user owns, public or not. */
     public function countOwnedBy(User $user): int;
+
+    /** How many lists were created from `$from` (inclusive) until `$until` (exclusive). */
+    public function countCreatedBetween(CarbonInterface $from, CarbonInterface $until): int;
 }

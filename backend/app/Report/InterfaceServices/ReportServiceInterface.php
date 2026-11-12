@@ -10,6 +10,7 @@ use App\Report\DTOs\Responses\ReportContentResponse;
 use App\Report\DTOs\Responses\ReportedTargetResponse;
 use App\Report\Exceptions\ReportAlreadyClosed;
 use App\Report\Support\ReportTargetType;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -104,4 +105,7 @@ interface ReportServiceInterface
      * @return array{against_open: int, filed: int}
      */
     public function countsForMember(User $member): array;
+
+    /** How many reports staff closed as resolved (dismissals are not counted) from `$since` on. */
+    public function resolvedSince(CarbonInterface $since): int;
 }

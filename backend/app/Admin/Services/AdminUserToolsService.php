@@ -287,6 +287,10 @@ class AdminUserToolsService implements AdminUserToolsServiceInterface
             $afterId = $ids === [] ? $afterId : end($ids);
         } while (count($ids) === self::LIFT_CHUNK);
 
+        if ($lifted > 0) {
+            $this->admin->forgetStats();
+        }
+
         return $lifted;
     }
 
