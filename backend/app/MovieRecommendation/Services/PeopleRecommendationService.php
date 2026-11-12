@@ -6,6 +6,7 @@ use App\Groq\Exceptions\GroqUnavailable;
 use App\Groq\InterfaceServices\GroqStructuredOutputInterface;
 use App\Models\User;
 use App\Movie\DTOs\Responses\MovieResponse;
+use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Movie\InterfaceServices\MovieServiceInterface;
 use App\MovieRecommendation\DTOs\Responses\RecommendationResponse;
 use App\MovieRecommendation\Exceptions\RecommendationUnavailable;
@@ -24,6 +25,7 @@ class PeopleRecommendationService
         private readonly MovieServiceInterface $movies,
         private readonly PersonRepositoryInterface $people,
         private readonly GroqStructuredOutputInterface $groq,
+        private readonly MovieCatalogServiceInterface $catalog,
     ) {}
 
     public function forUser(User $user): RecommendationResponse
@@ -36,7 +38,9 @@ class PeopleRecommendationService
             ->sort()->values()->all();
         $key = 'recommendations.people.groq.key2.v1.'.$user->id.'.'.hash('sha256', json_encode($fingerprint));
 
-        return new RecommendationResponse(Cache::remember($key, now()->addHour(), fn (): array => $this->generate($watched)));
+        $payload = Cache::remember($key, now()->addHour(), fn (): array => $this->generate($watched));
+
+        return (new RecommendationResponse($payload))->without($this->catalog->hiddenMovies());
     }
 
     private function generate(Collection $watched): array

@@ -4,6 +4,7 @@ namespace App\Movie\InterfaceRepository;
 
 use App\Models\LocalMovie;
 use App\Movie\DTOs\Requests\LocalMovieQuery;
+use App\Support\HiddenMovies;
 use Carbon\CarbonInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -13,7 +14,8 @@ interface MovieCatalogRepositoryInterface
     /** @return LengthAwarePaginator<int, LocalMovie> */
     public function paginate(LocalMovieQuery $query): LengthAwarePaginator;
 
-    public function findByTmdbId(int $tmdbId): ?LocalMovie;
+    /** With `$lockForUpdate` the row stays locked until the surrounding transaction ends (call inside one). */
+    public function findByTmdbId(int $tmdbId, bool $lockForUpdate = false): ?LocalMovie;
 
     /**
      * @param  array<string, mixed>  $attributes
@@ -33,6 +35,16 @@ interface MovieCatalogRepositoryInterface
 
     /** @return list<int> */
     public function hiddenTmdbIds(): array;
+
+    /** The hidden films as the filter every member-facing list uses. */
+    public function hidden(): HiddenMovies;
+
+    /**
+     * Visible films an admin featured, most recently edited first.
+     *
+     * @return Collection<int, LocalMovie>
+     */
+    public function featured(int $limit): Collection;
 
     /**
      * @return array{cached: int, overrides: int, last_synced_at: CarbonInterface|null}

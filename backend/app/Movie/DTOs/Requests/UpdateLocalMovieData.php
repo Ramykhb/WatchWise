@@ -2,12 +2,18 @@
 
 namespace App\Movie\DTOs\Requests;
 
+use App\Models\LocalMovie;
+use Carbon\CarbonInterface;
+
 /**
  * Fields an admin changes on a local movie. A null title, flag or genre list is left as it is. The overview,
  * director, runtime and release date can be cleared, so whether each was supplied is tracked apart from its value.
  */
 final readonly class UpdateLocalMovieData
 {
+    /** The fields that make up a film's content; changing one marks the film as edited. */
+    private const CONTENT_FIELDS = ['title', 'overview', 'director', 'runtime', 'release_date', 'genre_ids'];
+
     /**
      * @param  list<int>|null  $genreIds  null keeps the genres, an empty list clears them
      */
@@ -47,15 +53,38 @@ final readonly class UpdateLocalMovieData
         );
     }
 
-    /** Whether any of the film's content (not just its hidden or featured flag) is being changed. */
-    public function editsContent(): bool
+    /**
+     * The submitted fields whose value differs from what the film has now. A stored `null` genre list and an empty
+     * one are the same, and a date is compared as `Y-m-d`.
+     *
+     * @return array<string, mixed>
+     */
+    public function changesFrom(LocalMovie $movie): array
     {
-        return $this->title !== null
-            || $this->overviewSupplied
-            || $this->directorSupplied
-            || $this->runtimeSupplied
-            || $this->releaseDateSupplied
-            || $this->genreIds !== null;
+        return array_filter(
+            $this->changes(),
+            fn (mixed $value, string $field): bool => self::comparable($field, $movie->{$field}) !== self::comparable($field, $value),
+            ARRAY_FILTER_USE_BOTH,
+        );
+    }
+
+    /**
+     * Whether `$changes` (from `changesFrom()`) touch the film's content, not just its hidden or featured flag.
+     *
+     * @param  array<string, mixed>  $changes
+     */
+    public static function editsContent(array $changes): bool
+    {
+        return array_intersect_key($changes, array_flip(self::CONTENT_FIELDS)) !== [];
+    }
+
+    private static function comparable(string $field, mixed $value): mixed
+    {
+        return match (true) {
+            $value instanceof CarbonInterface => $value->toDateString(),
+            $field === 'genre_ids' => array_values($value ?? []),
+            default => $value,
+        };
     }
 
     /**

@@ -6,16 +6,18 @@ use App\Models\MovieList;
 use App\Models\User;
 use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\DTOs\Requests\MovieListSearchQuery;
+use App\Support\HiddenMovies;
 use Illuminate\Database\Eloquent\Collection;
 
 interface MovieListRepositoryInterface
 {
     /**
-     * Lists in the query's scope, newest activity first, with their owner, films and film count.
+     * Lists in the query's scope, newest activity first, with their owner, films and film count. Hidden movies
+     * are left out of the films and the count.
      *
      * @return Collection<int, MovieList>
      */
-    public function search(MovieListSearchQuery $query, User $viewer): Collection;
+    public function search(MovieListSearchQuery $query, User $viewer, HiddenMovies $hidden): Collection;
 
     /**
      * @param  array{user_id: int, title: string, description: string|null, is_public: bool}  $attributes
@@ -45,6 +47,6 @@ interface MovieListRepositoryInterface
     /** Removes the title; false when it was not in the list. */
     public function removeItem(MovieList $list, ListFilmData $film): bool;
 
-    /** Loads the owner, the films and the film count. */
-    public function loadDetail(MovieList $list): MovieList;
+    /** Loads the owner, the films and the film count, leaving the hidden movies out of both. */
+    public function loadDetail(MovieList $list, HiddenMovies $hidden): MovieList;
 }

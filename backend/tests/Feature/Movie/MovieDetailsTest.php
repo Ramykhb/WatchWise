@@ -2,11 +2,14 @@
 
 namespace Tests\Feature\Movie;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class MovieDetailsTest extends TestCase
 {
+    use RefreshDatabase;
+
     /**
      * A TMDB movie with credits, videos, similar movies and release dates appended.
      *

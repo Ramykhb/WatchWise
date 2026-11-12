@@ -34,13 +34,14 @@ export const KIND_STYLE: Record<NotificationKind, { icon: string; bg: string; la
   night_vote: { icon: crownIcon, bg: 'var(--surface-yellow-tint)', label: 'Vote' },
   night_update: { icon: filmIcon, bg: 'var(--surface-cream-deep)', label: 'Movie night update' },
   review_helpful: { icon: heartIcon, bg: 'var(--surface-coral-tint)', label: 'Helpful review' },
+  review_removed: { icon: trashIcon, bg: 'var(--surface-coral-tint)', label: 'Review removed' },
 }
 
 export const maskIcon = (icon: string) => ({ '--icon': `url("${icon}")` }) as CSSProperties
 
 /** The Notifications page tabs after All and Unread. */
 export const TAB_KINDS: Record<'social' | 'rooms' | 'nights', NotificationKind[]> = {
-  social: ['follow', 'follow_request', 'follow_accepted', 'review_helpful'],
+  social: ['follow', 'follow_request', 'follow_accepted', 'review_helpful', 'review_removed'],
   rooms: ['room_invite', 'room_joined', 'room_deleted', 'new_messages', 'mention'],
   nights: ['night_invite', 'night_rsvp', 'night_vote', 'night_update'],
 }
@@ -79,5 +80,5 @@ export const NOTIFICATION_GROUPS: { title: string; items: { id: NotifyKey; title
   },
 ]
 
-/** Shown under the switches: follow requests can't be switched off. */
-export const FOLLOW_REQUEST_NOTE = 'Follow requests always arrive, since they wait for your answer.'
+/** Shown under the switches: these can't be switched off. */
+export const ALWAYS_ON_NOTE = 'Follow requests always arrive, since they wait for your answer, and so do notices that a moderator removed your review.'

@@ -4,10 +4,12 @@ namespace App\User\Services;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\DiscussionRoom;
+use App\Models\LocalMovie;
 use App\Models\MovieList;
 use App\Models\Review;
 use App\Models\User;
 use App\Models\Watchlist;
+use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Support\MediaType;
 use App\User\DTOs\Responses\HomeResponse;
 use App\User\InterfaceRepository\HomeRepositoryInterface;
@@ -16,7 +18,13 @@ use App\User\Resources\MemberResource;
 
 class HomeService implements HomeServiceInterface
 {
-    public function __construct(private readonly HomeRepositoryInterface $home) {}
+    /** How many films the Home page's Featured row holds. */
+    private const FEATURED_LIMIT = 10;
+
+    public function __construct(
+        private readonly HomeRepositoryInterface $home,
+        private readonly MovieCatalogServiceInterface $catalog,
+    ) {}
 
     public function home(CurrentUser $viewer): HomeResponse
     {
@@ -41,13 +49,37 @@ class HomeService implements HomeServiceInterface
                 'leader' => $leader ? ['tmdb_id' => $leader->first()->tmdb_id, 'votes' => $leader->count()] : null,
             ] : null,
             $this->activity($user),
+            $this->featured(),
         );
+    }
+
+    /**
+     * The films an admin featured, shaped like the movie cards of the TMDB lists. The catalogue does not keep
+     * votes or a backdrop, so those come back empty.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function featured(): array
+    {
+        return $this->catalog->featured(self::FEATURED_LIMIT)->map(fn (LocalMovie $movie): array => [
+            'id' => $movie->tmdb_id,
+            'media_type' => MediaType::MOVIE,
+            'title' => $movie->title,
+            'overview' => $movie->overview ?? '',
+            'release_date' => $movie->release_date?->toDateString(),
+            'year' => $movie->release_date?->year,
+            'rating' => 0.0,
+            'vote_count' => 0,
+            'genre_ids' => $movie->genre_ids ?? [],
+            'poster_url' => $movie->poster_path ? config('services.tmdb.image_url').'/w500'.$movie->poster_path : null,
+            'backdrop_url' => null,
+        ])->values()->all();
     }
 
     /** @return list<array<string, mixed>> */
     private function activity(User $viewer): array
     {
-        $recent = $this->home->recentActivity($viewer, 8);
+        $recent = $this->home->recentActivity($viewer, 8, $this->catalog->hiddenMovies());
         $reviews = $recent['reviews']->map(function (Review $review): array {
             $hasText = $review->content !== null && $review->content !== '';
 

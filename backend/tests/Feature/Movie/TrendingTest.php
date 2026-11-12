@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Movie;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -11,6 +12,8 @@ use Tests\TestCase;
 
 class TrendingTest extends TestCase
 {
+    use RefreshDatabase;
+
     public static function mediaTypes(): array
     {
         return ['movies' => ['movie'], 'TV shows' => ['tv']];

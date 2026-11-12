@@ -58,16 +58,16 @@ class AdminUserRepository implements AdminUserRepositoryInterface
         ];
     }
 
+    public function lockForUpdate(User $user): User
+    {
+        return User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+    }
+
     public function update(User $user, array $changes): User
     {
         // Role and active state are not mass-assignable on purpose; only admin code sets them.
         $user->forceFill($changes)->save();
 
         return $user->loadCount(['reviews' => fn (Builder $reviews) => $reviews->withText()]);
-    }
-
-    public function delete(User $user): void
-    {
-        $user->delete();
     }
 }

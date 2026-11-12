@@ -5,6 +5,7 @@ namespace App\Movie\Repository;
 use App\Models\LocalMovie;
 use App\Movie\DTOs\Requests\LocalMovieQuery;
 use App\Movie\InterfaceRepository\MovieCatalogRepositoryInterface;
+use App\Support\HiddenMovies;
 use App\Support\LikePattern;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -21,9 +22,9 @@ class MovieCatalogRepository implements MovieCatalogRepositoryInterface
             ->paginate($query->perPage, ['*'], 'page', $query->page);
     }
 
-    public function findByTmdbId(int $tmdbId): ?LocalMovie
+    public function findByTmdbId(int $tmdbId, bool $lockForUpdate = false): ?LocalMovie
     {
-        return LocalMovie::where('tmdb_id', $tmdbId)->first();
+        return LocalMovie::where('tmdb_id', $tmdbId)->when($lockForUpdate, fn ($query) => $query->lockForUpdate())->first();
     }
 
     public function create(array $attributes): LocalMovie
@@ -57,5 +58,20 @@ class MovieCatalogRepository implements MovieCatalogRepositoryInterface
     public function hiddenTmdbIds(): array
     {
         return LocalMovie::where('is_hidden', true)->pluck('tmdb_id')->map(fn ($id): int => (int) $id)->all();
+    }
+
+    public function hidden(): HiddenMovies
+    {
+        return new HiddenMovies($this->hiddenTmdbIds());
+    }
+
+    public function featured(int $limit): Collection
+    {
+        return LocalMovie::where('is_featured', true)
+            ->where('is_hidden', false)
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
     }
 }

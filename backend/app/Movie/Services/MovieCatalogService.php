@@ -11,6 +11,7 @@ use App\Movie\InterfaceRepository\MovieCatalogRepositoryInterface;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Movie\InterfaceServices\MovieServiceInterface;
 use App\Support\Exceptions\TmdbUnavailable;
+use App\Support\HiddenMovies;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
@@ -57,11 +58,11 @@ class MovieCatalogService implements MovieCatalogServiceInterface
 
     public function update(int $tmdbId, UpdateLocalMovieData $data): LocalMovie
     {
-        $movie = $this->catalog->findByTmdbId($tmdbId) ?? throw new MovieNotFound($tmdbId);
+        $movie = $this->catalog->findByTmdbId($tmdbId, lockForUpdate: true) ?? throw new MovieNotFound($tmdbId);
 
-        $changes = $data->changes();
+        $changes = $data->changesFrom($movie);
 
-        if ($data->editsContent()) {
+        if (UpdateLocalMovieData::editsContent($changes)) {
             $changes['edited_at'] = now();
         }
 
@@ -83,5 +84,15 @@ class MovieCatalogService implements MovieCatalogServiceInterface
     public function hiddenTmdbIds(): array
     {
         return $this->catalog->hiddenTmdbIds();
+    }
+
+    public function hiddenMovies(): HiddenMovies
+    {
+        return $this->catalog->hidden();
+    }
+
+    public function featured(int $limit): Collection
+    {
+        return $this->catalog->featured($limit);
     }
 }
