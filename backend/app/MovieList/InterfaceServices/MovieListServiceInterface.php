@@ -11,6 +11,7 @@ use App\MovieList\DTOs\Requests\StaffListQuery;
 use App\MovieList\DTOs\Requests\UpdateMovieListData;
 use App\Report\DTOs\Requests\ReportContentData;
 use App\Report\DTOs\Responses\ReportContentResponse;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -75,4 +76,7 @@ interface MovieListServiceInterface
 
     /** How many lists the member owns, public or private. */
     public function countOwnedBy(User $user): int;
+
+    /** How many lists, public or private, were created from `$from` (inclusive) until `$until` (exclusive). */
+    public function countCreatedBetween(CarbonInterface $from, CarbonInterface $until): int;
 }

@@ -10,8 +10,6 @@ use Carbon\CarbonInterface;
  */
 interface AdminStatsRepositoryInterface
 {
-    public function usersTotal(): int;
-
     public function usersCreatedSince(CarbonInterface $since): int;
 
     public function reviewsTotal(): int;

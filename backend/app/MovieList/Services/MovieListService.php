@@ -18,6 +18,7 @@ use App\Report\InterfaceServices\ReportServiceInterface;
 use App\Report\Support\ReportTargetType;
 use App\Support\HiddenMovies;
 use App\Support\MediaType;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -145,6 +146,11 @@ class MovieListService implements MovieListServiceInterface
     public function countOwnedBy(User $user): int
     {
         return $this->lists->countOwnedBy($user);
+    }
+
+    public function countCreatedBetween(CarbonInterface $from, CarbonInterface $until): int
+    {
+        return $this->lists->countCreatedBetween($from, $until);
     }
 
     /**

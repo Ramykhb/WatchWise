@@ -99,6 +99,14 @@ class RatingRepository implements RatingRepositoryInterface
             ->paginate($perPage, ['*'], 'page', $page);
     }
 
+    public function countCreated(CarbonInterface $from, ?CarbonInterface $until): int
+    {
+        return Review::query()->starOnly()
+            ->where('created_at', '>=', $from)
+            ->when($until !== null, fn (Builder $ratings) => $ratings->where('created_at', '<', $until))
+            ->count();
+    }
+
     public function lockForUpdate(Review $rating): Review
     {
         return Review::query()->whereKey($rating->getKey())->lockForUpdate()->firstOrFail();
