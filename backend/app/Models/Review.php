@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Report\Support\ReportTargetType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -34,7 +35,7 @@ class Review extends Model
     /** Reports members filed against this review. */
     public function reports(): HasMany
     {
-        return $this->hasMany(ReviewReport::class);
+        return $this->hasMany(Report::class, 'target_id')->where('target_type', ReportTargetType::Review);
     }
 
     /** Members who marked this review as helpful. */

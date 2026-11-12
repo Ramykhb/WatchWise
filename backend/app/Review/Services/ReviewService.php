@@ -3,13 +3,19 @@
 namespace App\Review\Services;
 
 use App\Models\Review;
+use App\Models\User;
+use App\Report\InterfaceServices\ReportServiceInterface;
+use App\Report\Support\ReportTargetType;
 use App\Review\InterfaceRepository\ReviewRepositoryInterface;
 use App\Review\InterfaceServices\ReviewServiceInterface;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class ReviewService implements ReviewServiceInterface
 {
-    public function __construct(private readonly ReviewRepositoryInterface $reviews) {}
+    public function __construct(
+        private readonly ReviewRepositoryInterface $reviews,
+        private readonly ReportServiceInterface $reports,
+    ) {}
 
     public function moderationQueue(string $status, int $page, int $perPage, string $search = '', ?string $sentiment = null, ?string $reason = null): LengthAwarePaginator
     {
@@ -31,14 +37,20 @@ class ReviewService implements ReviewServiceInterface
         return $this->reviews->openReportsCount($review);
     }
 
-    public function approve(Review $review): Review
+    public function approve(Review $review, User $moderator): Review
     {
-        return $this->reviews->markApproved($review);
+        $approved = $this->reviews->markApproved($review);
+        $this->reports->resolveForTarget(ReportTargetType::Review, $review->id, $moderator, 'dismissed');
+
+        return $approved;
     }
 
-    public function reject(Review $review): Review
+    public function reject(Review $review, User $moderator): Review
     {
-        return $this->reviews->clearText($review);
+        $rejected = $this->reviews->clearText($review);
+        $this->reports->resolveForTarget(ReportTargetType::Review, $review->id, $moderator, 'resolved');
+
+        return $rejected;
     }
 
     public function delete(Review $review): void

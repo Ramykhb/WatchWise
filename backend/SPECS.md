@@ -52,7 +52,7 @@ Suggested order of work: Activity (with the Review, Rating, Watchlist and MovieL
 - **Review** (`app/Review/`): movie-page reviews with sentiment, automatic moderation, helpful votes, spoiler marking and member reports, for movies and TV shows. See Review.
 - **TV shows**: ratings, reviews, the watchlist and lists now store a `media_type` (`movie` or `tv`), so a TV show and a movie with the same TMDB id no longer clash. TV shows are kept out of the admin movie stats and the local catalogue.
 - **Rooms**: messages are kept on the server for 24 hours (see Room 5).
-- **Migrations**: `reviews.has_spoilers`, `review_votes`, `reviews.moderation_labels`, `reviews.removed_at`, `review_reports`, `users.last_active_at`, the `moderator` role, `movies.director`, `movies.edited_at`, and `media_type` on `reviews`, `watchlists` and `movie_list_items`.
+- **Migrations**: `reviews.has_spoilers`, `review_votes`, `reviews.moderation_labels`, `reviews.removed_at`, `reports` (it replaced `review_reports`), `users.last_active_at`, the `moderator` role, `movies.director`, `movies.edited_at`, and `media_type` on `reviews`, `watchlists` and `movie_list_items`.
 - **Not changed**: Activity, personalized recommendations, favorite actors and directors, watch history, room moderation, email-verification enforcement, the Notifications page and all the module refactors.
 
 ---

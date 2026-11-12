@@ -1,6 +1,7 @@
 <?php
 
 use App\Admin\Controllers\AdminController;
+use App\Admin\Controllers\AdminReportController;
 use Illuminate\Support\Facades\Route;
 
 // Loaded from routes/api.php inside its `auth.jwt` + `verified.email` group (already under the /api prefix),
@@ -16,7 +17,7 @@ Route::prefix('admin')->middleware('throttle:admin')->controller(AdminController
         Route::get('audit-log', 'auditLog');
     });
 
-    // Moderators get read-only stats and users, may suspend or reinstate plain members, and moderate reviews.
+    // Moderators get read-only stats and users, may suspend or reinstate plain members, moderate reviews and triage content reports.
     Route::middleware('role:admin,moderator')->group(function () {
         Route::get('stats', 'stats');
 
@@ -26,5 +27,11 @@ Route::prefix('admin')->middleware('throttle:admin')->controller(AdminController
         Route::get('reviews', 'reviews');
         Route::patch('reviews/{review}', 'moderateReview')->whereNumber('review');
         Route::delete('reviews/{review}', 'destroyReview')->whereNumber('review');
+
+        Route::controller(AdminReportController::class)->group(function () {
+            Route::get('reports', 'index');
+            Route::get('reports/{report}', 'show')->whereNumber('report');
+            Route::patch('reports/{report}', 'update')->whereNumber('report');
+        });
     });
 });

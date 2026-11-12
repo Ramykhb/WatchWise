@@ -57,6 +57,14 @@ class DiscussionRoomPolicy
             && ($current->isAdmin() || ($room->created_by !== null && $current->id() === (int) $room->created_by));
     }
 
+    /** Members report rooms they can see that they did not create. */
+    public function report(CurrentUser $current, DiscussionRoom $room): bool
+    {
+        return $current->isAuthenticated()
+            && ($room->created_by === null || $current->id() !== (int) $room->created_by)
+            && $this->view($current, $room);
+    }
+
     private function isMember(CurrentUser $current, DiscussionRoom $room): bool
     {
         return $room->members()->whereKey($current->id())->exists();

@@ -38,6 +38,12 @@ class MessagePolicy
         return $this->owns($current, $message) || $current->isAdmin();
     }
 
+    /** Members report other members' messages in rooms they can see. */
+    public function report(CurrentUser $current, Message $message): bool
+    {
+        return $current->isAuthenticated() && ! $this->owns($current, $message) && $this->view($current, $message);
+    }
+
     private function owns(CurrentUser $current, Message $message): bool
     {
         return $current->isAuthenticated() && $current->id() === $message->user_id;

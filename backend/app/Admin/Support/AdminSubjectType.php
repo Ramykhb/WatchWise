@@ -8,4 +8,5 @@ enum AdminSubjectType: string
     case User = 'user';
     case Review = 'review';
     case Movie = 'movie';
+    case Report = 'report';
 }

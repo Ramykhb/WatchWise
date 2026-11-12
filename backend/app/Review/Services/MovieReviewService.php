@@ -6,6 +6,9 @@ use App\Models\Review;
 use App\Models\User;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Notification\InterfaceServices\NotificationServiceInterface;
+use App\Report\DTOs\Requests\ReportContentData;
+use App\Report\InterfaceServices\ReportServiceInterface;
+use App\Report\Support\ReportTargetType;
 use App\Review\DTOs\Requests\MovieReviewQuery;
 use App\Review\DTOs\Requests\ReportReviewData;
 use App\Review\DTOs\Requests\SaveReviewData;
@@ -26,6 +29,7 @@ class MovieReviewService implements MovieReviewServiceInterface
         private readonly MovieCatalogServiceInterface $catalog,
         private readonly ReviewModerationServiceInterface $moderation,
         private readonly NotificationServiceInterface $notifications,
+        private readonly ReportServiceInterface $reports,
     ) {}
 
     public function forTitle(MovieReviewQuery $query, User $viewer): array
@@ -71,7 +75,9 @@ class MovieReviewService implements MovieReviewServiceInterface
             throw new AuthorizationException;
         }
 
-        return new ReportReviewResponse($this->reviews->saveReport($review, $reporter, $data->reason), $data->reason);
+        $result = $this->reports->report($reporter, ReportTargetType::Review, $review->id, new ReportContentData($data->reason));
+
+        return new ReportReviewResponse($result->created, $result->reason);
     }
 
     public function markHelpful(Review $review, User $user, bool $helpful): int

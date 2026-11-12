@@ -3,6 +3,7 @@
 namespace App\Review\Repository;
 
 use App\Models\Review;
+use App\Report\Support\ReportStatus;
 use App\Review\InterfaceRepository\ReviewRepositoryInterface;
 use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
@@ -71,13 +72,12 @@ class ReviewRepository implements ReviewRepositoryInterface
 
     public function openReportsCount(Review $review): int
     {
-        return $review->reports()->whereNull('resolved_at')->count();
+        return $review->reports()->open()->count();
     }
 
     public function markApproved(Review $review): Review
     {
         $review->update(['is_approved' => true]);
-        $review->reports()->whereNull('resolved_at')->update(['resolved_at' => now()]);
 
         return $review;
     }
@@ -87,13 +87,13 @@ class ReviewRepository implements ReviewRepositoryInterface
         // With no text left there is nothing to moderate, the same as a plain star rating.
         $review->votes()->delete();
         $review->update(['content' => null, 'sentiment' => null, 'moderation_labels' => null, 'has_spoilers' => false, 'is_approved' => true, 'removed_at' => now()]);
-        $review->reports()->whereNull('resolved_at')->update(['resolved_at' => now()]);
 
         return $review;
     }
 
     public function delete(Review $review): void
     {
+        $review->reports()->delete();
         $review->delete();
     }
 
@@ -122,6 +122,6 @@ class ReviewRepository implements ReviewRepositoryInterface
      */
     private function open(Builder $reports): void
     {
-        $reports->whereNull('resolved_at');
+        $reports->where('status', ReportStatus::Open);
     }
 }

@@ -290,7 +290,7 @@ class AdminService implements AdminServiceInterface
             $removedText = ! $data->isApproval() && filled($current->content);
             $reportsResolved = $this->reviews->openReportsCount($current);
 
-            $moderated = $data->isApproval() ? $this->reviews->approve($current) : $this->reviews->reject($current);
+            $moderated = $data->isApproval() ? $this->reviews->approve($current, $moderator) : $this->reviews->reject($current, $moderator);
             $now = $this->reviewState($moderated);
 
             if ($now !== $was || $reportsResolved > 0) {

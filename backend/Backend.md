@@ -32,6 +32,7 @@ What each module does. Paths are relative to `backend/`. The backend is a Larave
 - [User module](#user-module)
 - [Room module](#room-module)
 - [Notification module](#notification-module)
+- [Report module](#report-module)
 - [Admin module](#admin-module)
 - [Removed code](#removed-code)
 - [Gemini module](#gemini-module)
@@ -185,6 +186,7 @@ Every limiter is a named limiter defined in the provider of the module it protec
 | `me-email-change` | `UserModuleServiceProvider` | 3 (and 10 per hour), per account | `PUT /api/me/email`, `POST /api/me/email/resend` |
 | `me-email-confirm` | `UserModuleServiceProvider` | 20, per IP | the signed email-change links (`me.email.confirm`, `me.email.authorize`, `me.email.cancel`) and the POSTs that confirm them, one shared bucket (opening a link and confirming it spends two) |
 | `me-delete-confirm` | `UserModuleServiceProvider` | 20, per IP | the signed account-deletion links (`me.delete.confirm`, `me.delete.cancel`) and the confirming POST, one shared bucket |
+| `report` | `ReportModuleServiceProvider` | 20 per hour | `POST /api/rooms/{room}/messages/{message}/report`, `POST /api/rooms/{room}/report`, `POST /api/lists/{list}/report` and `POST /api/users/{username}/report`, one shared bucket per signed-in user (every request counts, a repeat report included). `POST /api/reviews/{review}/report` keeps its own `throttle:10,1` |
 | `admin` | `AdminModuleServiceProvider` | 120 | every `/api/admin/*` route, per signed-in staff member |
 | `user-search` | `UserModuleServiceProvider` | 60 | `GET /api/users`, per signed-in user |
 | `user-follows` | `UserModuleServiceProvider` | 60 | `POST`/`DELETE /api/users/{username}/follow` and the follow-request accept/decline routes, one shared bucket per signed-in user |
@@ -381,18 +383,20 @@ Most policies stay in `app/Policies/` because each belongs to the entity it prot
 | --- | --- |
 | `ReviewPolicy` | Owner-based access |
 | `WatchlistPolicy` (`app/Watchlist/Policies/`) | Owner-based access |
-| `MovieListPolicy`, `MovieListItemPolicy` (`app/MovieList/Policies/`) | Private lists are visible to their owner only |
+| `MovieListPolicy`, `MovieListItemPolicy` (`app/MovieList/Policies/`) | Private lists are visible to their owner only; `report`: a list you can see that is not yours |
 | `MovieNightPolicy` (`app/MovieNight/Policies/`) | Organizer and invitees can view a night; only the organizer can change it |
-| `MessagePolicy` | Authenticated users can read and post in discussion rooms; author edits, author or admin deletes |
+| `DiscussionRoomPolicy` (`app/Room/Policies/`) | Public rooms are open, private ones are for members and invitees; `report`: a room you can see that you did not create |
+| `MessagePolicy` | Authenticated users can read and post in discussion rooms; author edits, author or admin deletes; `report`: a message in a room you can see that is not yours |
 | `NotificationPolicy` (`app/Notification/Policies/`) | Members see and change only their own feed notifications, never room read receipts |
-| `UserPolicy` (`app/User/Policies/`) | Private profiles are visible to the owner and admins |
+| `UserPolicy` (`app/User/Policies/`) | Private profiles are visible to the owner and admins; `report`: any active member's profile that is not yours |
+| `AdminPolicy` (`app/Admin/Policies/`) | The `admin.*` gates; `admin.reports` (`handleReports`) lets admins and moderators triage reports |
 
 ## Wiring
 
 | File | Purpose |
 | --- | --- |
 | `bootstrap/app.php` | Registers the API and console routes, the three middleware aliases, the trusted proxy headers (only `X-Forwarded-For` and `X-Forwarded-Proto`; the proxies themselves come from `config/trustedproxy.php`), runs `AuthenticateJwt` before `ThrottleRequests`, sends bad or expired verification, email-change and account-deletion link signatures (`App\Support\AccountLink::forRoute()`) to the public result page (GET) or answers them with JSON 403/410 (POST), and renders JSON errors for every `api/*` request |
-| `bootstrap/providers.php` | Registers `AppServiceProvider`, `AuthorizationServiceProvider` and all 18 module service providers |
+| `bootstrap/providers.php` | Registers `AppServiceProvider`, `AuthorizationServiceProvider` and all 19 module service providers |
 
 ## Tests
 
@@ -503,7 +507,7 @@ app/Person/
 ```
 app/MovieList/
   Controllers/          MovieListController
-  FormRequests/         MovieListIndexRequest, StoreMovieListRequest, UpdateMovieListRequest, AddMovieListItemRequest, RemoveMovieListItemRequest
+  FormRequests/         MovieListIndexRequest, StoreMovieListRequest, UpdateMovieListRequest, AddMovieListItemRequest, RemoveMovieListItemRequest, ReportMovieListRequest
   InterfaceServices/    MovieListServiceInterface
   Services/             MovieListService (transactions)
   InterfaceRepository/  MovieListRepositoryInterface
@@ -526,7 +530,7 @@ app/MovieNight/
   Providers/            MovieNightModuleServiceProvider (interface bindings)
 ```
 
-- The routes did not change (`/api/lists` and `/api/movie-nights`, in `routes/lists.php` and `routes/movie_nights.php`).
+- The routes did not change (`/api/lists` and `/api/movie-nights`, in `routes/lists.php` and `routes/movie_nights.php`), apart from `POST /api/lists/{list}/report` (`reason`: `spam`, `harassment`, `inappropriate` or `other`; optional `details`, max 500; `throttle:report`). `MovieListPolicy::report` refuses your own list and one you cannot see (403); `MovieListService::report()` hands it to `ReportServiceInterface`. 201 when new, 200 with the earlier report when repeated.
 - The form requests run the policy check in `authorize()`, so a forbidden request is rejected before validation, as before.
 - `GET /api/lists` with an unknown `scope` now fails validation (422 with an `errors` object) instead of returning the message "Unknown scope.".
 - A public list whose owner's profile is followers-only or private is for that owner's followers only: `scope=public` leaves it out for everyone else, and `GET /api/lists/{list}` answers 403 (`MovieListPolicy::view`; the owner and admins always see it). `scope=following` already only lists people you follow.
@@ -579,7 +583,7 @@ app/Rating/
 
 ## Review module
 
-`app/Review/` holds the Movie page's Reviews section and the review data the Admin module moderates. The `Review`, `ReviewVote` and `ReviewReport` models stay in `app/Models/`, and `ReviewPolicy` in `app/Policies/`.
+`app/Review/` holds the Movie page's Reviews section and the review data the Admin module moderates. The `Review` and `ReviewVote` models stay in `app/Models/` (its reports are rows of the generic `Report` model, see the [Report module](#report-module)), and `ReviewPolicy` in `app/Policies/`.
 
 ```
 app/Review/
@@ -600,10 +604,11 @@ app/Review/
 | `PUT /api/reviews/mine` | Write or rewrite your review: `tmdb_id`, `type`, `content` (not blank, max 2000), `rating` 1 to 5, `has_spoilers` |
 | `DELETE /api/reviews/mine?tmdb_id=&type=` | Remove the text; the star rating stays |
 | `POST`, `DELETE /api/reviews/{review}/helpful` | Mark or unmark a review helpful; returns the `helpful` count. Not your own review, and only approved text reviews whose author's privacy shows them to you |
-| `POST /api/reviews/{review}/report` | Report with a `reason` (see [Admin module](#admin-module)) |
+| `POST /api/reviews/{review}/report` | Report with a `reason` (`Spam`, `Links`, `Spoilers`, `Offensive language`); 201, or 200 when you had already reported it and the reason was replaced. It files the report through `ReportServiceInterface` (see [Report module](#report-module)) |
 
 - **Moderation on save:** `ReviewModerationService` asks Groq (strict JSON schema) for the labels `offensive language`, `spoiler` and `spam`. No labels means the review is approved at once; any label sends it to the admin queue as pending. If Groq fails, the labels are null and the review waits for a moderator. `has_spoilers` is set when the author ticks it or Groq finds a spoiler.
 - **Sentiment:** `SentimentClassifier` asks Groq for positive/neutral/negative and falls back to the star rating (4 to 5 positive, 3 neutral, 1 to 2 negative).
+- `Review::reports()` is a `hasMany` of `Report` on `target_id` limited to `target_type = review`. A review is flagged while one of those reports is `open`. Approving a review dismisses its open reports and rejecting it resolves them (`ReviewService::approve()` and `reject()` call `ReportServiceInterface::resolveForTarget()` with the moderator); deleting a review deletes its reports, as the old foreign key did, and rewriting it clears them.
 - Saving a movie review also remembers the film in the local catalogue. Marking helpful sends a `review_helpful` notification; taking it back removes it.
 - Tests: `tests/Feature/Social/MovieReviewsTest.php`, `tests/Feature/Review/ReviewReportTest.php` and `tests/Feature/Admin/AdminReviewsTest.php`.
 
@@ -614,7 +619,7 @@ app/Review/
 ```
 app/User/
   Controllers/          UserController (account under /me, profiles and following under /users, and /home)
-  FormRequests/         UpdateProfileRequest, UpdatePreferencesRequest, UpdatePasswordRequest, SetPasswordRequest, UploadAvatarRequest, DeleteAccountRequest, UserSearchRequest, RequestEmailChangeRequest
+  FormRequests/         UpdateProfileRequest, UpdatePreferencesRequest, UpdatePasswordRequest, SetPasswordRequest, UploadAvatarRequest, DeleteAccountRequest, UserSearchRequest, RequestEmailChangeRequest, ReportUserRequest
   InterfaceServices/    AccountServiceInterface, ProfileServiceInterface, HomeServiceInterface, EmailChangeServiceInterface, AccountDeletionServiceInterface
   Services/             AccountService (settings, password, avatar, social disconnect, the one account-erasing path), ProfileService (search, profile page, follow), HomeService, ProfilePrivacy (what a viewer may see of a profile), EmailChangeService (pending email, confirmation link, notices), AccountDeletionService (password check or emailed confirmation link, then AccountService::deleteAccount)
   InterfaceRepository/  AccountRepositoryInterface, ProfileRepositoryInterface, HomeRepositoryInterface, AccountDeletionRepositoryInterface
@@ -624,11 +629,12 @@ app/User/
   Resources/            MemberResource (the small public card of a user, used by many modules)
   Exceptions/           IncorrectPassword (422 on the wrong field), ProfileSectionHidden (403 JSON), NoPendingEmailChange (422), CannotDisconnectLastLogin (422 on `provider`), PasswordAlreadySet (409 `password_already_set`), NoPasswordSet (409 `no_password_set`)
   Mail/                 ConfirmEmailChangeMail, EmailChangeRequestedMail, EmailChangedMail, PasswordAddedMail; account deletion: ConfirmAccountDeletionMail, AccountDeletedMail. All three services send through the shared `App\Support\SendsMailAfterResponse` trait (see [Email](#email))
-  Policies/             UserPolicy (view, follow)
+  Policies/             UserPolicy (view, follow, report)
   Providers/            UserModuleServiceProvider (interface bindings, the me-email-change and me-email-confirm, me-account-deletion and me-delete-confirm rate limiters, plus user-search, user-follows, user-avatar and user-profile-update)
 ```
 
 - Routes are in `routes/user.php`: `/api/home`; `/api/me` (show, update, delete), `/me/preferences`, `/me/password` and `/me/password/set` (`me.password.set`; see below), `/me/avatar` (upload/delete, public disk; see below), `/me/social/{google|github|discord}` (disconnect), `/me/follow-requests/{username}` (accept/decline), `/me/email` (see below); `/api/users` (search) and `/api/users/{username}` with `followers`, `following` and `follow`/unfollow. Account deletion adds `routes/account_deletion_signed_in.php` (`DELETE /api/me/delete-request`, in the verified group) and `routes/account_deletion.php` (the two signed links, outside it); see [Deleting the account](#deleting-the-account).
+- `POST /api/users/{username}/report` (`ReportUserRequest`, `throttle:report`; `reason`: `spam`, `harassment`, `inappropriate` or `other`, optional `details` max 500) reports a profile. `UserPolicy::report` refuses your own profile and a deactivated member's (403) but not a private or followers-only one; `ProfileService::report()` files it through `ReportServiceInterface`: 201 when new, 200 with the earlier report when repeated. Tests: `tests/Feature/Report/ReportContentTest.php`.
 - Disconnecting a provider (`DELETE /api/me/social/{provider}`, `AccountService::disconnectSocial`) is a no-op when it is not linked. An account without a password (`password` is NULL, `has_password: false`) cannot remove its last linked provider: it would be locked out. It gets 422 `CannotDisconnectLastLogin` (message on `errors.provider`) until it sets a password or links another provider. `AccountRepository::deleteSocialAccountsKeepingAnother` checks and deletes inside a transaction holding a row lock on the user, so two disconnects at once cannot remove both providers. Accounts with a password of their own (including a first one set in Settings) disconnect freely.
 - `ProfilePrivacy` decides what a viewer may see of a profile. The profile page decides `canView` once and reads every section through `sectionsShownTo()`, so a followers-only profile does not repeat the follow query per section. `my_following` still lists everyone the viewer follows: "View all" loads the full followers/following lists and each person there needs a Follow/Following button. The 8 recent followers/following are the newest follows first, and the review count skips empty text like Home does.
 - **Search input** (`GET /api/users?q=&limit=`): nothing is rejected. `UserSearchQuery::fromInput` treats a `q` that is not a string (`q[]=x`) as empty, trims it and cuts it to 100 characters, and clamps `limit` to 1-30 (a non-number falls back to 10).
@@ -697,7 +703,7 @@ app/User/
 ```
 app/Room/
   Controllers/          RoomController (rooms, joining, invitations, messages, read receipts), RoomSocketController (socket channel auth)
-  FormRequests/         StoreRoomRequest, InviteToRoomRequest, SendRoomMessageRequest, ReadRoomMessagesRequest, RoomSocketRequest
+  FormRequests/         StoreRoomRequest, InviteToRoomRequest, SendRoomMessageRequest, ReadRoomMessagesRequest, RoomSocketRequest, ReportRoomRequest, ReportRoomMessageRequest
   InterfaceServices/    RoomServiceInterface
   Services/             RoomService (visibility, membership, invitations, delivery, read receipts, deletion)
   InterfaceRepository/  RoomRepositoryInterface
@@ -720,6 +726,8 @@ app/Room/
 | `GET /api/rooms/{room}/messages` | The messages you can still see, each with `read_by` (author first) and `unread_by` |
 | `POST /api/rooms/{room}/messages` | Send a message (members only) |
 | `POST /api/rooms/{room}/read` | The member has seen these messages; returns the ones now deleted |
+| `POST /api/rooms/{room}/report` | Report a room you can see and did not create (`reason`: `spam`, `harassment`, `inappropriate`, `other`; optional `details`, max 500; `throttle:report`) |
+| `POST /api/rooms/{room}/messages/{message}/report` | Report another member's message in a room you can see (`reason`: `spam`, `harassment`, `hate`, `spoilers`, `other`; optional `details`). The route uses scoped bindings, so a message from another room is a 404 |
 | `POST /api/rooms/socket-auth` | Authorize `private-room.{id}`, `private-rooms.public` or `private-rooms.user.{id}` on Reverb |
 
 - A room is public (anyone signed in can read it and join) or private (`discussion_rooms.is_private`): only its members and the people they invited can see and read it. A room's members (`room_members`) are its creator and everyone who joined; only members post, and joining is explicit (`POST /join`), posting never joins you.
@@ -732,6 +740,7 @@ app/Room/
 - The browser keeps no copy: the Rooms page shows what `GET /messages` returns plus what the socket pushes, and takes a message off the screen once its 24 hours are up unless it still waits for that member. One the member reads after that stays on screen until they leave the room. Copies saved by the earlier localStorage version are deleted when the app loads.
 - Only the room's creator (`created_by`) or an admin can delete it (`DiscussionRoomPolicy::delete`; the Rooms page shows "Delete room" in the room menu to them, with a confirm dialog). The foreign keys delete its messages, members and invitations; `RoomRepository::delete()` removes its read receipts, which the database can't cascade. Every list that showed the room gets `rooms.changed`, and its members and invitees get a `room_deleted` notification.
 - `room_message` rows are read receipts, not notifications for the bell: `/api/me` and the [Notification module](#notification-module) leave them out. Invitations, messages, @mentions and reads also go to that module (see there).
+- Reporting a room or a message is `DiscussionRoomPolicy::report` and `MessagePolicy::report` (403 for your own, or for a room you cannot see); `RoomService` files it through `ReportServiceInterface`, 201 when new and 200 with the earlier report when repeated. A message is reportable by anyone who can see its room, even after its 24 hours; its report outlives the deleted message (shown as removed in the staff queue). Tests are in `tests/Feature/Report/ReportContentTest.php`.
 - Tests: `tests/Feature/Room/RoomMessagingTest.php`, `tests/Feature/Room/RoomMembershipTest.php`, `tests/Feature/Room/HiddenMoviesRoomTest.php` (the permission matrix is in `tests/Feature/Auth/PolicyTest.php`).
 
 ## Notification module
@@ -785,18 +794,42 @@ app/Notification/
 - Data lookups compare the JSON in PHP (`NotificationRepository::matching()`), so they behave the same on MySQL, PostgreSQL and SQLite.
 - Tests: `tests/Feature/Notification/` (feed, follow requests, every trigger, settings and the socket channel). `tests/TestCase.php` fakes the two events, so no test reaches a socket server; a test that fakes its own events has to list `NOTIFICATION_EVENTS` again.
 
+## Report module
+
+`app/Report/` holds content reports: members report reviews, room messages, movie lists, discussion rooms and member profiles, and staff triage them in the queue the [Admin module](#admin-module) serves. The `Report` model stays in `app/Models/`. The Report module owns the data and the rules for closing a report; the module that owns the content decides who may report it, files the report through `ReportServiceInterface` and exposes the route (Review, Room, MovieList and User), and Admin owns the staff endpoints.
+
+```
+app/Report/
+  DTOs/Requests/        ReportContentData (reason, details max 500), ReportQueueQuery (status, target type, reason, reporter, page, per_page max 50)
+  DTOs/Responses/       ReportContentResponse (the member's confirmation), ReportedTargetResponse (what a report is about, for staff)
+  InterfaceServices/    ReportServiceInterface
+  Services/             ReportService
+  InterfaceRepository/  ReportRepositoryInterface
+  Repository/           ReportRepository
+  Support/              ReportTargetType (review, message, list, room, profile; the reasons of each), ReportStatus (open, resolved, dismissed)
+  Exceptions/           ReportAlreadyClosed (409)
+  Providers/            ReportModuleServiceProvider (bindings and the `report` limiter)
+```
+
+- **Table.** `reports` (migration `2026_11_12_090000`, `Report` model and `ReportFactory`): `reporter_id` (foreign key to `users`, cascade), `target_type` and `target_id` (polymorphic, no foreign key), `reason`, `details` (max 500), `target_label` (max 120) and `target_excerpt` (max 200) (a snapshot of the content taken when the report is filed), `status` (`open`, `resolved`, `dismissed`), `resolved_at`, `resolved_by` (foreign key to `users`, `nullOnDelete`), `resolution_note` (max 500) and timestamps. One report per (reporter, target type, target id) is a unique key; `(target_type, target_id, status)` and `(status, created_at)` are indexed for closing by target and for the queue. The migration moved every row of the old `review_reports` table into it (same id, reporter, reason and timestamps; `open` when `resolved_at` was null, else `resolved`) and dropped that table; `down()` restores the review reports and drops the rest. On PostgreSQL both directions advance the id sequence past the copied ids. `ReportsMigrationTest` covers both directions.
+- **Reasons per kind** (`ReportTargetType::reasons()`): review `Spam`, `Links`, `Spoilers`, `Offensive language` (unchanged); message `spam`, `harassment`, `hate`, `spoilers`, `other`; list, room and profile `spam`, `harassment`, `inappropriate`, `other`. The staff `reason` filter accepts any of them.
+- **Member endpoints** (each in the module of the content, see their sections): `POST /api/reviews/{review}/report`, `POST /api/rooms/{room}/messages/{message}/report`, `POST /api/rooms/{room}/report`, `POST /api/lists/{list}/report`, `POST /api/users/{username}/report`. The reporter has to see the target (a message, list or room) and may not report their own content or profile (the `report` ability of each policy: 403). A profile is the exception: any signed-in member can report any other active member's profile, private and followers-only ones included, because their name and handle are visible to everyone anyway; a deactivated member's profile and your own are refused (403), a repeat report of the same target answers 200 with the existing report and adds no row. While that report is open the first reason, details and snapshot stay (the exception is a review, where a repeat replaces the reason, as it always did); once staff closed it, reporting again reopens it as new under a row lock: open, `resolved_at`, `resolved_by` and `resolution_note` cleared, reason, details and snapshot replaced, `created_at` moved to now so it sorts as the newest. Two requests racing to create the first report are settled by the unique key (`createOrFirst`). `details` is optional (max 500). The body is `{message, report: {id, target_type, target_id, reason, details, status, created_at}}`; the review endpoint keeps its old `{message, reason}`. The message, list, room and profile endpoints share the `report` limiter, 20 an hour per user, defined in `ReportModuleServiceProvider`; the review endpoint keeps its own `throttle:10,1`.
+- **`ReportServiceInterface`:** `report()` files a report (authorization is the caller's job); `resolveForTarget($type, $targetId, $by, $status)` closes every open report on a target as `resolved` or `dismissed` (for the staff actions that act on the content itself; `$by` may be null for a system closure; the review approve and reject paths use it); `close()` closes one report (row-locked, `ReportAlreadyClosed` when it is not open), optionally with every other open report on the same target; `queue()`, `summary()` and `targets()` serve the staff queue. Closing sets `status`, `resolved_at`, `resolved_by` and `resolution_note`.
+- **Content that is gone.** The target has no foreign key, so deleting a message, list, room, review or account leaves its reports behind. They are not closed automatically: they stay in the queue and show `target.removed: true` (with no excerpt and no owner for a deleted row; a review whose text was removed by a moderator or cleared by its author also counts as removed), and staff close them with a normal decision. The one exception is a review deleted through the admin API, which deletes its reports with it, as the old foreign key did. The label and excerpt saved with each report (message text, list title, room name, profile name and handle, review text; cut to 120 and 200 characters) are what staff read when a message is long gone, since messages are deleted within a day or so.
+- Tests: `tests/Feature/Report/ReportContentTest.php` (every member endpoint: success, 401, 403, own content, hidden content, 404, duplicates, reasons, details, throttle), `ReportsMigrationTest.php`, `tests/Feature/Review/ReviewReportTest.php` and `tests/Feature/Admin/AdminReportQueueTest.php`, `AdminReportDecisionTest.php`.
+
 ## Admin module
 
-`app/Admin/` is the administrator and moderator dashboard API (brief objective 11). It uses the same layers as Auth. One `AdminController` serves the dashboard, users, reviews and movies, and the routes are in `routes/admin.php` under `/api/admin` with `auth.jwt` and `role:admin,moderator`. The `reviews`, `movies` and `users` data stay in their own modules and tables: Admin calls `ReviewServiceInterface`, `MovieCatalogServiceInterface`, `NotificationServiceInterface` (to tell a review's author it was removed) and `AccountServiceInterface` (to delete a user), and only its two repositories (`AdminStatsRepository`, `AdminUserRepository`) read the `users` and statistics tables.
+`app/Admin/` is the administrator and moderator dashboard API (brief objective 11). It uses the same layers as Auth. One `AdminController` serves the dashboard, users, reviews, movies and the audit log, `AdminReportController` the report queue, and the routes are in `routes/admin.php` under `/api/admin` with `auth.jwt` and `role:admin,moderator`. The `reviews`, `movies` and `users` data stay in their own modules and tables: Admin calls `ReviewServiceInterface`, `ReportServiceInterface`, `MovieCatalogServiceInterface`, `NotificationServiceInterface` (to tell a review's author it was removed) and `AccountServiceInterface` (to delete a user), and only its two repositories (`AdminStatsRepository`, `AdminUserRepository`) read the `users` and statistics tables.
 
 ```
 app/Admin/
-  Controllers/          AdminController
-  FormRequests/         AdminStatsRequest, AdminUserIndexRequest, UpdateUserRequest, AdminReviewIndexRequest, ModerateReviewRequest, AdminMovieIndexRequest, UpdateLocalMovieRequest, AdminAuditIndexRequest
-  DTOs/Requests/        AdminStatsQuery, AdminUserQuery, UpdateUserData, ReviewModerationQuery, ModerateReviewData, AdminAuditQuery
-  DTOs/Responses/       AdminStatsResponse, RankedMovieResponse, GenreShareResponse, ActivityPointResponse, AdminUserResponse, AdminReviewResponse, AdminMovieResponse, AdminAuditLogResponse, AdminPageResponse
-  InterfaceServices/    AdminServiceInterface, AdminAuditServiceInterface
-  Services/             AdminService, AdminAuditService
+  Controllers/          AdminController, AdminReportController
+  FormRequests/         AdminStatsRequest, AdminUserIndexRequest, UpdateUserRequest, AdminReviewIndexRequest, ModerateReviewRequest, AdminMovieIndexRequest, UpdateLocalMovieRequest, AdminAuditIndexRequest, AdminReportIndexRequest, UpdateReportRequest
+  DTOs/Requests/        AdminStatsQuery, AdminUserQuery, UpdateUserData, ReviewModerationQuery, ModerateReviewData, AdminAuditQuery, UpdateReportData
+  DTOs/Responses/       AdminStatsResponse, RankedMovieResponse, GenreShareResponse, ActivityPointResponse, AdminUserResponse, AdminReviewResponse, AdminMovieResponse, AdminAuditLogResponse, AdminReportResponse, AdminReportDecisionResponse, AdminPageResponse
+  InterfaceServices/    AdminServiceInterface, AdminAuditServiceInterface, AdminReportServiceInterface
+  Services/             AdminService, AdminAuditService, AdminReportService
   InterfaceRepository/  AdminStatsRepositoryInterface, AdminUserRepositoryInterface, AdminAuditRepositoryInterface
   Repository/           AdminStatsRepository, AdminUserRepository, AdminAuditRepository
   Support/              AdminAction, AdminSubjectType (backed enums of the audit log)
@@ -816,6 +849,7 @@ app/Admin/
 | `DELETE /api/admin/users/{user}` | yes | no |
 | `GET`, `PATCH`, `DELETE /api/admin/reviews*` | yes | yes |
 | `GET /api/admin/movies`, `PATCH /api/admin/movies/{tmdbId}` | yes | no |
+| `GET /api/admin/reports`, `GET`, `PATCH /api/admin/reports/{report}` | yes | yes |
 | `GET /api/admin/audit-log` | yes (read-only) | no |
 
 An admin cannot demote, deactivate or delete themselves (`CannotModerateSelf`). A moderator who targets themselves, an admin or another moderator, or sends a `role` that differs from the target's current one, gets `CannotModerateStaff` (sending the role the member already has changes nothing and is accepted). Deactivating a user revokes their sessions (`AuthServiceInterface::revokeSessions()`), so login, refresh and existing access tokens stop working. Deleting a user revokes their sessions and then calls `AccountServiceInterface::deleteAccount()`, the same removal the member's own account deletion uses, so the stored avatar file goes too (an external Google or GitHub avatar URL is just skipped). Every admin route sits behind `throttle:admin`, a per-user limiter of 120 requests a minute (keyed by user id) defined in `AdminModuleServiceProvider`; over the limit the API answers 429 and every admin operation documents it. The gates `admin.dashboard`, `admin.users`, `admin.reviews`, `admin.movies`, `admin.users.manage` (admin-only: delete users) and `admin.audit` (admin-only: the audit log) are defined in `AuthorizationServiceProvider` and backed by `AdminPolicy`.
@@ -827,8 +861,9 @@ An admin cannot demote, deactivate or delete themselves (`CannotModerateSelf`). 
 - `popular_genres` is worked out from `AdminStatsRepository::engagementWeights()`, which ranks in SQL: watched movie entries and approved movie reviews are counted per `tmdb_id` in two grouped queries, joined with `UNION ALL` in a subquery, summed, ordered by weight (then `tmdb_id`, so ties are stable) and limited to the 1000 heaviest films. Only plain `count`, `sum` and `UNION ALL`, so it behaves the same on MySQL, PostgreSQL and SQLite.
 - `users`: filters `q`, `role` (`user`, `moderator`, `admin`), `status` (`active`, `unverified`, `inactive`), `page`, `per_page`. Each row has `status`, `reviews_count` (reviews with text only) and `last_active_at`. A `summary` gives site-wide totals whatever the filters.
 - `reviews`: `?status=pending|approved|flagged|removed` (default `pending`; the four never overlap). A row's `status` is `removed` if `removed_at` is set, else `flagged` if it has an open report, else `approved` if `is_approved`, else `pending`. Rows carry `reports_count`, `reasons`, the author and the film (`movie.title` is null for TV and films not in the catalogue). A `summary` gives the flagged and removed totals and the sentiment split. Approving or rejecting closes the review's open reports; rejecting clears the text and sentiment, keeps the stars and sets `removed_at`.
+- `reports`: the staff queue of member reports (gate `admin.reports`, checked in `AdminReportIndexRequest` and `UpdateReportRequest::authorize()` and, for the single read, in the controller). `GET /api/admin/reports` filters `status` (`open` by default, `resolved`, `dismissed` or `all`), `target_type` (`review`, `message`, `list`, `room`, `profile`), `reason` (any reason of any kind), `reporter_id`, `page` and `per_page` (at most 50). Newest first, ties broken by id. Each row has `id`, `status`, `reason`, `details`, `reporter` {id, name, username}, `target` {`type`, `id`, `label`, `excerpt`, `owner` {id, name, username} or null, `removed`}, `resolved_by`, `resolution_note`, `created_at` and `resolved_at`. The excerpt is the message or review text cut to 200 characters, a list title, a room name or a username; the label reads like `Message by maya in Fight Club night`. The page's `summary` has `by_status` (every report) and `by_target_type` (open reports only, per kind). The targets are loaded by `ReportServiceInterface::targets()` in a constant number of queries (one per kind of content, owner eager-loaded), however many reports there are. `GET /api/admin/reports/{report}` returns the same row under `report`. `PATCH /api/admin/reports/{report}` takes `status` (`resolved` or `dismissed`), an optional `note` (max 500) and `apply_to_target` (default true: every other open report on the same content is closed with the same decision, note and staff member) and returns `report` and `reports_closed`. Closing an already closed report is `ReportAlreadyClosed` (409, nothing recorded). Inside the transaction `ReportService::close()` first locks the target's open reports in id order and then the report, so two staff members cannot both close it and two closing different reports of the same target with `apply_to_target` cannot deadlock. This is triage only: the reported content is never touched and the reporters are not told. A report whose content is gone (deleted, or a review whose text was removed) stays in the queue with `target.removed` true. A deleted row is shown from the label and excerpt saved with the report when it was filed (no owner); a removed review has no excerpt. Staff close it like any other.
 - `movies`: local catalogue rows (`title`, `overview`, `director`, `runtime`, `release_date`, `genre_ids`, `is_hidden`, `is_featured`, `is_edited`, `synced_at`, `edited_at`) and a `summary.sync` block (`cached`, `overrides`, `last_synced_at`). `PATCH` takes any of those editable fields; `null` clears `director`, `runtime`, `release_date` and `overview`, and an empty `genre_ids` clears the genres. Editing content sets `edited_at` only when a submitted content field (`title`, `overview`, `director`, `runtime`, `release_date`, `genre_ids`) differs from what is stored (`UpdateLocalMovieData::changesFrom()`; a stored `null` genre list equals an empty one), so resending the same values changes nothing; hiding or featuring never sets it. `is_hidden` hides the film from members' browsing and `is_featured` puts it in the Home page's Featured row (see [Genre and Movie modules](#genre-and-movie-modules)); the admin endpoints themselves always list every row.
-- `audit-log`: admins only (`admin.audit` gate in `AdminPolicy`, checked in `AdminAuditIndexRequest::authorize()`). Filters `action` (an `AdminAction` value), `actor_id`, `subject_type` (`user`, `review`, `movie`), `subject_id` (needs `subject_type`, since user 5 and review 5 are different records), `page`, `per_page` (at most 50). Newest first, ties broken by id; actors are eager-loaded, so the query count does not grow with the page. Entries use the same `data` + `meta` page as the other lists and carry `id`, `action`, `actor {id, name, username, role}`, `subject {type, id, label}`, `changes` and `created_at`.
+- `audit-log`: admins only (`admin.audit` gate in `AdminPolicy`, checked in `AdminAuditIndexRequest::authorize()`). Filters `action` (an `AdminAction` value), `actor_id`, `subject_type` (`user`, `review`, `movie`, `report`), `subject_id` (needs `subject_type`, since user 5 and review 5 are different records), `page`, `per_page` (at most 50). Newest first, ties broken by id; actors are eager-loaded, so the query count does not grow with the page. Entries use the same `data` + `meta` page as the other lists and carry `id`, `action`, `actor {id, name, username, role}`, `subject {type, id, label}`, `changes` and `created_at`.
 
 **What members are told**
 
@@ -856,9 +891,10 @@ Staff actions are recorded in `admin_audit_logs` (`AdminAuditLog` model and fact
 | `user.deleted` | user (id, username) | none |
 | `review.approved`, `review.rejected` | review (id, "Review by username") | `status: {from, to}` (`pending`, `approved` or `removed`; open reports only make a review show as `flagged`, so they are not a state here) and `reports_resolved`, the number of open reports the decision closed (0 when there were none) |
 | `review.deleted` | review (id, "Review by username") | none |
+| `report.resolved`, `report.dismissed` | report (id, "Report on <type> #<target id>", e.g. "Report on message #12") | `status: {from: open, to: resolved or dismissed}` `reports_closed`, how many reports the decision closed (1, or more with `apply_to_target`), and `closed_report_ids`, their ids (at most 100) |
 | `movie.updated` | movie (`tmdb_id`, title after the edit) | each submitted field that really changed as `{from, to}`; `overview` is only `{changed: true}`, never the text |
 
-- One update that changes both the role and the active state writes two entries. Sending a value the target already has (a moderator sending the member's current role, `is_active: true` for an active member, a movie field set to what it is) changes nothing and records nothing. A stored `null` genre list and an empty `genre_ids` count as the same. An approve or reject records nothing when the status stays the same and no open report was closed (approving an approved review with no open reports, rejecting a removed one); approving a flagged review whose status stays `approved` is recorded, with `reports_resolved` above 0.
+- One update that changes both the role and the active state writes two entries. Sending a value the target already has (a moderator sending the member's current role, `is_active: true` for an active member, a movie field set to what it is) changes nothing and records nothing. A stored `null` genre list and an empty `genre_ids` count as the same. An approve or reject records nothing when the status stays the same and no open report was closed (approving an approved review with no open reports, rejecting a removed one); approving a flagged review whose status stays `approved` is recorded, with `reports_resolved` above 0. Approving or rejecting a review also closes its open reports (approving dismisses them, rejecting resolves them, both by the moderator); that is part of the review entry, not an entry of its own.
 - Each row keeps `actor_role`, the role the staff member had at the time, and `subject_label`, a username or title, so it stays readable after the subject is deleted. Emails are never stored. `subject_id` has no foreign key.
 - `actor_id` is a foreign key with `nullOnDelete`: deleting the staff account keeps its rows and the API then returns `null` for the actor's id, name and username (the recorded role stays).
 - The log is append-only. The table has `created_at` only; `AdminAuditLog` has `$guarded = ['*']` (the repository inserts with `forceCreate`), saving a changed row or deleting one through the model throws a `LogicException`, and neither the repository interface nor the service has an update or delete method. Rows can still be removed by hand in the database.
@@ -869,9 +905,9 @@ Staff actions are recorded in `admin_audit_logs` (`AdminAuditLog` model and fact
 
 - `users.last_active_at` is stamped by the `auth.jwt` middleware at most once every 5 minutes per user. It is in `User::$hidden`, so public payloads and `/api/auth/me` do not expose it.
 - `users.role` accepts `moderator` besides `user` and `admin` (migration `2026_10_29_000001`). `role` is guarded against mass assignment.
-- `review_reports` (migration `2026_10_29_000002`) holds one report per member per review with a reason (`Spam`, `Links`, `Spoilers`, `Offensive language`) and `resolved_at`. The same migration adds `reviews.removed_at`. A member reports a review with `POST /api/reviews/{review}/report` (`throttle:10,1`, in the Review module). It is refused (403) for your own review, an unapproved, text-less or removed review, and a review whose author's privacy hides it from you. Re-reporting changes the reason and returns 200; a new report returns 201. When the author rewrites the review, its reports and `removed_at` are cleared.
+- Review reports live in the generic `reports` table (see the [Report module](#report-module)); migration `2026_10_29_000002` added `reviews.removed_at`, and its old `review_reports` table was moved into `reports` by `2026_11_12_090000`. A member reports a review with `POST /api/reviews/{review}/report` (`throttle:10,1`, in the Review module), with a reason of `Spam`, `Links`, `Spoilers` or `Offensive language`. It is refused (403) for your own review, an unapproved, text-less or removed review, and a review whose author's privacy hides it from you. Re-reporting changes the reason and returns 200; a new report returns 201. When the author rewrites the review, its reports and `removed_at` are cleared.
 - `movies.director` and `movies.edited_at` (migration `2026_10_29_000003`). The director is filled from TMDB when a film is first cached.
-- Tests: `tests/Feature/Admin/` (every route for guest, member, moderator and admin; stats windows and caching; film ranking; user insights; moderation; moderator permissions; the rate limit in `AdminRateLimitTest`; `AdminMemberNoticesTest` for the suspension and reinstatement emails and the removed-review notification (when each is sent, never sent, and that a failing audit insert or mail transport changes nothing else), `AdminAuditRecordingTest` for what is and is not recorded and the row's immutability, `AdminAuditLogTest` for the endpoint: access, shape, ordering, filters, paging and a constant query count) and `tests/Feature/Review/ReviewReportTest.php`. The API paths are in `openapi/paths/admin.json` and `openapi/paths/social.json`.
+- Tests: `tests/Feature/Admin/` (every route for guest, member, moderator and admin; stats windows and caching; film ranking; user insights; moderation; moderator permissions; the rate limit in `AdminRateLimitTest`; `AdminMemberNoticesTest` for the suspension and reinstatement emails and the removed-review notification (when each is sent, never sent, and that a failing audit insert or mail transport changes nothing else), `AdminAuditRecordingTest` for what is and is not recorded and the row's immutability, `AdminAuditLogTest` for the endpoint: access, shape, ordering, filters, paging and a constant query count, `AdminReportQueueTest` for the report queue (access, row shape, removed targets, filters, paging and order, summary, constant query count) and `AdminReportDecisionTest` for resolving and dismissing (`apply_to_target`, the 409, the audit rows, the rollback when the audit insert fails, review approval and rejection closing their reports)) and `tests/Feature/Review/ReviewReportTest.php`. The API paths are in `openapi/paths/admin.json` and `openapi/paths/social.json`.
 
 ## Removed code
 

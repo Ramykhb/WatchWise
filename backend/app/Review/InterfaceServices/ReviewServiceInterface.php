@@ -3,6 +3,7 @@
 namespace App\Review\InterfaceServices;
 
 use App\Models\Review;
+use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 interface ReviewServiceInterface
@@ -26,11 +27,11 @@ interface ReviewServiceInterface
     /** How many reports on the review are still open; approving or rejecting it closes them all. */
     public function openReportsCount(Review $review): int;
 
-    /** Makes the review visible to everyone and closes its reports. */
-    public function approve(Review $review): Review;
+    /** Makes the review visible to everyone and dismisses its open reports, closed by `$moderator`. */
+    public function approve(Review $review, User $moderator): Review;
 
-    /** Rejects the text; the member's star rating stays. */
-    public function reject(Review $review): Review;
+    /** Rejects the text (the member's star rating stays) and resolves its open reports, closed by `$moderator`. */
+    public function reject(Review $review, User $moderator): Review;
 
     public function delete(Review $review): void;
 }

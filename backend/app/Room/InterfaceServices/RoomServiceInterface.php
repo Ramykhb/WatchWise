@@ -3,7 +3,10 @@
 namespace App\Room\InterfaceServices;
 
 use App\Models\DiscussionRoom;
+use App\Models\Message;
 use App\Models\User;
+use App\Report\DTOs\Requests\ReportContentData;
+use App\Report\DTOs\Responses\ReportContentResponse;
 use App\Room\DTOs\Requests\CreateRoomData;
 use App\Room\DTOs\Requests\InviteToRoomData;
 use App\Room\DTOs\Requests\ReadRoomMessagesData;
@@ -60,6 +63,12 @@ interface RoomServiceInterface
      * read.
      */
     public function read(DiscussionRoom $room, ReadRoomMessagesData $data, User $reader): ReadReceiptsResponse;
+
+    /** Reports another member's message (the caller has checked the reporter can see its room); reporting it twice files one report. */
+    public function reportMessage(Message $message, User $reporter, ReportContentData $data): ReportContentResponse;
+
+    /** Reports a room another member created (the caller has checked the reporter can see it); reporting it twice files one report. */
+    public function report(DiscussionRoom $room, User $reporter, ReportContentData $data): ReportContentResponse;
 
     /**
      * Deletes, in every room, the messages whose 24 hours are up that no member still has to read (everyone read

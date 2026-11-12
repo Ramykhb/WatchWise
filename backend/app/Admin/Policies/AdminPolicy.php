@@ -33,6 +33,12 @@ class AdminPolicy
         return $this->isStaff($current);
     }
 
+    /** Triaging member reports of reviews, messages, lists, rooms and profiles. */
+    public function handleReports(CurrentUser $current): bool
+    {
+        return $this->isStaff($current);
+    }
+
     public function manageMovies(CurrentUser $current): bool
     {
         return $current->isAdmin();
