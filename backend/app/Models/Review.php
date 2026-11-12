@@ -32,6 +32,22 @@ class Review extends Model
         $query->whereNotNull('content')->where('content', '!=', '');
     }
 
+    /**
+     * Star ratings: rows without any text.
+     *
+     * @param  Builder<Review>  $query
+     */
+    public function scopeStarOnly(Builder $query): void
+    {
+        $query->where(fn (Builder $stars) => $stars->whereNull('content')->orWhere('content', ''));
+    }
+
+    /** Whether the row is only a star rating, with no text. */
+    public function isStarOnly(): bool
+    {
+        return $this->content === null || $this->content === '';
+    }
+
     /** Reports members filed against this review. */
     public function reports(): HasMany
     {

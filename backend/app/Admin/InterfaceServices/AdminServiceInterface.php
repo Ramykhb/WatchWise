@@ -24,6 +24,9 @@ interface AdminServiceInterface
 {
     public function stats(AdminStatsQuery $query): AdminStatsResponse;
 
+    /** Retires every cached stats window, so the next request counts afresh. Call it once the change has committed. */
+    public function forgetStats(): void;
+
     public function users(AdminUserQuery $query): AdminPageResponse;
 
     /**

@@ -23,6 +23,11 @@ class CannotModerateSelf extends RuntimeException
         return new self('You cannot delete your own account from the admin area.');
     }
 
+    public static function forRatingsPurge(): self
+    {
+        return new self('You cannot remove your own ratings from the admin area.');
+    }
+
     public function render(): JsonResponse
     {
         return response()->json(['message' => $this->getMessage()], 403);

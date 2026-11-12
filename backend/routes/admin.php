@@ -2,6 +2,7 @@
 
 use App\Admin\Controllers\AdminController;
 use App\Admin\Controllers\AdminGenreController;
+use App\Admin\Controllers\AdminRatingController;
 use App\Admin\Controllers\AdminReportController;
 use App\Admin\Controllers\AdminReviewToolsController;
 use App\Admin\Controllers\AdminSettingController;
@@ -45,6 +46,15 @@ Route::prefix('admin')->middleware('throttle:admin')->group(function () {
         Route::get('reports', 'index');
         Route::get('reports/{report}', 'show')->whereNumber('report');
         Route::patch('reports/{report}', 'update')->whereNumber('report');
+    });
+
+    // Moderators and admins look through star ratings, spot rating bursts and remove ratings.
+    Route::middleware('role:admin,moderator')->controller(AdminRatingController::class)->group(function () {
+        Route::get('ratings', 'index');
+        Route::get('ratings/films/{tmdbId}', 'film')->whereNumber('tmdbId');
+        Route::get('ratings/bursts', 'bursts');
+        Route::delete('ratings/{rating}', 'destroy')->whereNumber('rating');
+        Route::delete('users/{user}/ratings', 'purge')->whereNumber('user');
     });
 
     // Moderators may look at the genres but only admins change them.
