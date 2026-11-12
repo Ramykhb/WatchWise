@@ -21,6 +21,7 @@
         { "name": "Social" },
         { "name": "Rooms" },
         { "name": "Notifications" },
+        { "name": "Announcement" },
         { "name": "Admin" }
     ],
     "paths": {},

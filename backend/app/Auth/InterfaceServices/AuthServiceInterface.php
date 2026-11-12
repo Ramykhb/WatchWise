@@ -7,11 +7,15 @@ use App\Auth\DTOs\Requests\RegisterData;
 use App\Auth\DTOs\Responses\AuthResponse;
 use App\Auth\Exceptions\InvalidCredentials;
 use App\Auth\Exceptions\InvalidRefreshToken;
+use App\Auth\Exceptions\RegistrationClosed;
 use App\Models\User;
 use Illuminate\Http\Request;
 
 interface AuthServiceInterface
 {
+    /**
+     * @throws RegistrationClosed when an admin closed registration
+     */
     public function register(RegisterData $data, Request $request): AuthResponse;
 
     /** @throws InvalidCredentials */

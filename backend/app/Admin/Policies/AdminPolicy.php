@@ -55,6 +55,12 @@ class AdminPolicy
         return $current->isAdmin();
     }
 
+    /** App-wide settings are for admins only; moderators get no access. */
+    public function manageSettings(CurrentUser $current): bool
+    {
+        return $current->isAdmin();
+    }
+
     private function isStaff(CurrentUser $current): bool
     {
         return $current->isAdmin() || $current->role() === 'moderator';

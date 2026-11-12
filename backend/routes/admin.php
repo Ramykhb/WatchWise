@@ -2,6 +2,7 @@
 
 use App\Admin\Controllers\AdminController;
 use App\Admin\Controllers\AdminGenreController;
+use App\Admin\Controllers\AdminSettingController;
 use Illuminate\Support\Facades\Route;
 
 // Loaded from routes/api.php inside its `auth.jwt` + `verified.email` group (already under the /api prefix),
@@ -41,5 +42,11 @@ Route::prefix('admin')->middleware('throttle:admin')->group(function () {
         Route::middleware('role:admin,moderator')->group(function () {
             Route::get('genres', 'index');
         });
+    });
+
+    // Settings change how the whole app behaves, so they stay with admins.
+    Route::middleware('role:admin')->group(function () {
+        Route::get('settings', [AdminSettingController::class, 'index']);
+        Route::patch('settings', [AdminSettingController::class, 'update']);
     });
 });

@@ -8,12 +8,14 @@ use App\Admin\InterfaceRepository\AdminUserRepositoryInterface;
 use App\Admin\InterfaceServices\AdminAuditServiceInterface;
 use App\Admin\InterfaceServices\AdminGenreServiceInterface;
 use App\Admin\InterfaceServices\AdminServiceInterface;
+use App\Admin\InterfaceServices\AdminSettingServiceInterface;
 use App\Admin\Repository\AdminAuditRepository;
 use App\Admin\Repository\AdminStatsRepository;
 use App\Admin\Repository\AdminUserRepository;
 use App\Admin\Services\AdminAuditService;
 use App\Admin\Services\AdminGenreService;
 use App\Admin\Services\AdminService;
+use App\Admin\Services\AdminSettingService;
 use App\Auth\CurrentUser\CurrentUser;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\RateLimiter;
@@ -34,6 +36,7 @@ class AdminModuleServiceProvider extends ServiceProvider
         AdminServiceInterface::class => AdminService::class,
         AdminAuditServiceInterface::class => AdminAuditService::class,
         AdminGenreServiceInterface::class => AdminGenreService::class,
+        AdminSettingServiceInterface::class => AdminSettingService::class,
     ];
 
     public function boot(): void

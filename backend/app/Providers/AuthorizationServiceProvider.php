@@ -73,5 +73,6 @@ class AuthorizationServiceProvider extends ServiceProvider
         Gate::define('admin.genres.view', [AdminPolicy::class, 'viewGenres']);
         Gate::define('admin.genres', [AdminPolicy::class, 'manageGenres']);
         Gate::define('admin.audit', [AdminPolicy::class, 'viewAuditLog']);
+        Gate::define('admin.settings', [AdminPolicy::class, 'manageSettings']);
     }
 }

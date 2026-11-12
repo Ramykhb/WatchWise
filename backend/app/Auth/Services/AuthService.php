@@ -7,6 +7,7 @@ use App\Auth\DTOs\Requests\RegisterData;
 use App\Auth\DTOs\Responses\AuthResponse;
 use App\Auth\Exceptions\EmailAlreadyRegistered;
 use App\Auth\Exceptions\InvalidCredentials;
+use App\Auth\Exceptions\RegistrationClosed;
 use App\Auth\Exceptions\TooManyLoginAttempts;
 use App\Auth\Factories\TokenFactory;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
@@ -15,6 +16,7 @@ use App\Auth\Support\DummyPassword;
 use App\Auth\Support\RateLimitAddress;
 use App\Auth\Support\TokenPair;
 use App\Models\User;
+use App\Setting\InterfaceServices\SettingServiceInterface;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -31,6 +33,7 @@ class AuthService implements AuthServiceInterface
         private readonly UserRepositoryInterface $users,
         private readonly TokenFactory $tokens,
         private readonly DummyPassword $dummyPassword,
+        private readonly SettingServiceInterface $settings,
     ) {}
 
     /**
@@ -38,9 +41,15 @@ class AuthService implements AuthServiceInterface
      * no account behind. Two sign-ups at once can both pass validation: the loser hits the unique index and gets the
      * same 422 as the validation rule when the email was taken, or one more try when only the generated username
      * collided (the next try generates another).
+     *
+     * @throws RegistrationClosed when an admin closed registration
      */
     public function register(RegisterData $data, Request $request): AuthResponse
     {
+        if (! $this->settings->registrationOpen()) {
+            throw new RegistrationClosed;
+        }
+
         try {
             $pair = $this->createAccount($data, $request);
         } catch (UniqueConstraintViolationException $collision) {

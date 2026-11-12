@@ -17,6 +17,7 @@ use App\Auth\Services\SocialAuthService;
 use App\Auth\Support\TokenPair;
 use App\Models\SocialAccount;
 use App\Models\User;
+use App\Setting\InterfaceServices\SettingServiceInterface;
 use App\User\InterfaceServices\EmailChangeServiceInterface;
 use Illuminate\Http\Request;
 use Laravel\Socialite\Contracts\Provider;
@@ -56,6 +57,7 @@ class SocialAuthServiceTest extends TestCase
 
         $this->service = new SocialAuthService(
             $this->users, $this->accounts, $this->refreshTokens, $this->tokens, Mockery::mock(DiscordOAuthClientInterface::class), $googlePhoto, $this->emailChanges,
+            Mockery::mock(SettingServiceInterface::class, ['registrationOpen' => true]),
         );
     }
 

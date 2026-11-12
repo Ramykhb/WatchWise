@@ -15,6 +15,7 @@ enum AdminAction: string
     case MovieUpdated = 'movie.updated';
     case GenreUpdated = 'genre.updated';
     case GenreReset = 'genre.reset';
+    case SettingsUpdated = 'settings.updated';
 
     /** What kind of record the action is done to. */
     public function subjectType(): AdminSubjectType
@@ -24,6 +25,7 @@ enum AdminAction: string
             self::ReviewApproved, self::ReviewRejected, self::ReviewDeleted => AdminSubjectType::Review,
             self::MovieUpdated => AdminSubjectType::Movie,
             self::GenreUpdated, self::GenreReset => AdminSubjectType::Genre,
+            self::SettingsUpdated => AdminSubjectType::Setting,
         };
     }
 }

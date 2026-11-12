@@ -9,4 +9,5 @@ enum AdminSubjectType: string
     case Review = 'review';
     case Movie = 'movie';
     case Genre = 'genre';
+    case Setting = 'setting';
 }

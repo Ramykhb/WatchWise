@@ -20,8 +20,10 @@ use App\Room\DTOs\Responses\RoomResponse;
 use App\Room\Events\RoomMessageSent;
 use App\Room\Events\RoomMessagesRead;
 use App\Room\Events\RoomsChanged;
+use App\Room\Exceptions\RoomCreationDisabled;
 use App\Room\InterfaceRepository\RoomRepositoryInterface;
 use App\Room\InterfaceServices\RoomServiceInterface;
+use App\Setting\InterfaceServices\SettingServiceInterface;
 use Carbon\CarbonInterface;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Support\Collection;
@@ -37,6 +39,7 @@ class RoomService implements RoomServiceInterface
         private readonly RoomRepositoryInterface $rooms,
         private readonly NotificationServiceInterface $notifications,
         private readonly MovieCatalogServiceInterface $catalog,
+        private readonly SettingServiceInterface $settings,
     ) {}
 
     public function list(User $viewer): RoomListResponse
@@ -54,6 +57,10 @@ class RoomService implements RoomServiceInterface
 
     public function create(CreateRoomData $data, User $creator): RoomResponse
     {
+        if (! $this->settings->roomsCreationEnabled()) {
+            throw new RoomCreationDisabled;
+        }
+
         $room = DB::transaction(function () use ($data, $creator): DiscussionRoom {
             $room = $this->rooms->create([
                 'name' => $data->name,
