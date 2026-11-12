@@ -93,4 +93,10 @@ interface NotificationServiceInterface
      * notice carries neither the review's text nor who removed it, and ignores the author's notification settings.
      */
     public function reviewRemoved(Review $review): void;
+
+    /**
+     * Staff removed the member's profile picture or bio. `$action` is `avatar_removed` or `bio_removed`. The notice
+     * names neither the removed content nor who removed it, and ignores the member's notification settings.
+     */
+    public function profileChanged(User $member, string $action): void;
 }

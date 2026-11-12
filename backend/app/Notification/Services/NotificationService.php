@@ -219,6 +219,11 @@ class NotificationService implements NotificationServiceInterface
         ]));
     }
 
+    public function profileChanged(User $member, string $action): void
+    {
+        $this->live->push($this->notifications->create($member->id, Notification::PROFILE_CHANGED, ['action' => $action]));
+    }
+
     /**
      * Stores the notification for each of `$userIds` who wants this type (never the actor) and pushes it.
      *

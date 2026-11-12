@@ -236,6 +236,11 @@ class RoomService implements RoomServiceInterface
         return $this->rooms->deleteFullyRead($this->lifetimeCutoff());
     }
 
+    public function countCreatedBy(User $user): int
+    {
+        return $this->rooms->countCreatedBy($user->id);
+    }
+
     /**
      * Members who have read the message, in the order they read it (the author is not among them).
      *

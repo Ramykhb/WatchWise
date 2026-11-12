@@ -68,6 +68,16 @@ class ReportRepository implements ReportRepositoryInterface
             ->paginate($query->perPage, ['*'], 'page', $query->page);
     }
 
+    public function openCountForTarget(ReportTargetType $type, int $targetId): int
+    {
+        return Report::query()->open()->where('target_type', $type)->where('target_id', $targetId)->count();
+    }
+
+    public function filedByCount(int $reporterId): int
+    {
+        return Report::query()->where('reporter_id', $reporterId)->count();
+    }
+
     public function countsByStatus(): array
     {
         $counts = Report::query()->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');

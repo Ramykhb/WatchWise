@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
-    protected $hidden = ['password', 'remember_token', 'last_active_at', 'pending_email', 'pending_email_nonce', 'pending_email_authorized_at', 'pending_email_link_sent_at', 'password_set_without_proof_at', 'session_version', 'deletion_requested_at', 'deletion_nonce'];
+    protected $hidden = ['password', 'remember_token', 'last_active_at', 'pending_email', 'pending_email_nonce', 'pending_email_authorized_at', 'pending_email_link_sent_at', 'password_set_without_proof_at', 'session_version', 'deletion_requested_at', 'deletion_nonce', 'suspension_reason', 'suspended_until'];
 
     protected $fillable = [
         'name',
@@ -170,6 +170,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'suspended_until' => 'datetime',
             'last_active_at' => 'datetime',
             'pending_email_authorized_at' => 'datetime',
             'pending_email_link_sent_at' => 'datetime',

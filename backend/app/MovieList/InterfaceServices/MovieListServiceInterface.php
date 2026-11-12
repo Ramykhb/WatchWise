@@ -39,4 +39,7 @@ interface MovieListServiceInterface
 
     /** Reports another member's list (the caller has checked the reporter can see it); reporting it twice files one report. */
     public function report(MovieList $list, User $reporter, ReportContentData $data): ReportContentResponse;
+
+    /** How many lists the member owns, public or private. */
+    public function countOwnedBy(User $user): int;
 }

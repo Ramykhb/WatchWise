@@ -57,4 +57,9 @@ class ReviewService implements ReviewServiceInterface
     {
         $this->reviews->delete($review);
     }
+
+    public function countsForUser(User $user): array
+    {
+        return $this->reviews->countsForUser($user);
+    }
 }

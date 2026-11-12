@@ -140,4 +140,7 @@ interface RoomRepositoryInterface
 
     /** How many of the room's messages the user still has to read. */
     public function unreadCount(DiscussionRoom $room, int $userId): int;
+
+    /** How many rooms the user created, public or private. */
+    public function countCreatedBy(int $userId): int;
 }

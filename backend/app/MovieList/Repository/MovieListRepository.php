@@ -111,4 +111,9 @@ class MovieListRepository implements MovieListRepositoryInterface
 
         return $list->load(['user', 'items' => $visibleItems])->loadCount(['items' => $visibleItems]);
     }
+
+    public function countOwnedBy(User $user): int
+    {
+        return $user->movieLists()->count();
+    }
 }

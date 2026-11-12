@@ -60,4 +60,11 @@ interface ProfileServiceInterface
 
     /** `$me` declines `$requester`'s follow request; nothing happens when there is none. */
     public function declineFollowRequest(User $me, User $requester): void;
+
+    /**
+     * How many members follow the member and how many they follow, whatever their privacy settings say.
+     *
+     * @return array{followers: int, following: int}
+     */
+    public function followCounts(User $user): array;
 }

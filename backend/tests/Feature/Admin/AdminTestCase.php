@@ -50,7 +50,7 @@ abstract class AdminTestCase extends SocialTestCase
 
             public function __construct(private readonly AdminAuditRepository $real, private readonly int $failing) {}
 
-            public function insert(User $actor, AdminAction $action, ?int $subjectId, ?string $subjectLabel, ?array $changes): void
+            public function insert(?User $actor, AdminAction $action, ?int $subjectId, ?string $subjectLabel, ?array $changes): void
             {
                 if (++$this->inserts === $this->failing) {
                     throw new RuntimeException('The audit log is unavailable.');
@@ -71,7 +71,7 @@ abstract class AdminTestCase extends SocialTestCase
     {
         $this->app->bind(AdminAuditRepositoryInterface::class, fn () => new class implements AdminAuditRepositoryInterface
         {
-            public function insert(User $actor, AdminAction $action, ?int $subjectId, ?string $subjectLabel, ?array $changes): void
+            public function insert(?User $actor, AdminAction $action, ?int $subjectId, ?string $subjectLabel, ?array $changes): void
             {
                 throw new RuntimeException('The audit log is unavailable.');
             }

@@ -14,4 +14,11 @@ interface SocialAccountRepositoryInterface
      * @param  array{user_id: int, provider: string, provider_id: string}  $attributes
      */
     public function create(array $attributes): SocialAccount;
+
+    /**
+     * The names of the providers the user signed in with, alphabetically; never their ids.
+     *
+     * @return list<string>
+     */
+    public function providerNamesOf(int $userId): array;
 }

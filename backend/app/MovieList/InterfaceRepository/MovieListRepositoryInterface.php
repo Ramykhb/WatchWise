@@ -49,4 +49,7 @@ interface MovieListRepositoryInterface
 
     /** Loads the owner, the films and the film count, leaving the hidden movies out of both. */
     public function loadDetail(MovieList $list, HiddenMovies $hidden): MovieList;
+
+    /** How many lists the user owns, public or not. */
+    public function countOwnedBy(User $user): int;
 }

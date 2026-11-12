@@ -71,4 +71,11 @@ interface ReportServiceInterface
      * @return array<int, ReportedTargetResponse>
      */
     public function targets(iterable $reports): array;
+
+    /**
+     * The reports on a member's profile that are still open, and how many reports the member filed themselves.
+     *
+     * @return array{against_open: int, filed: int}
+     */
+    public function countsForMember(User $member): array;
 }

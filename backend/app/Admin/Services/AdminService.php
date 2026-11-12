@@ -173,6 +173,32 @@ class AdminService implements AdminServiceInterface
 
     public function updateUser(User $admin, User $target, UpdateUserData $data): AdminUserResponse
     {
+        [$updated] = $this->saveUserUpdate($admin, $target, $data);
+
+        if ($data->isActive === false) {
+            $this->auth->revokeSessions($updated);
+        }
+
+        return AdminUserResponse::fromModel($updated);
+    }
+
+    public function suspendUser(User $admin, User $target, ?string $reason, ?CarbonInterface $until): bool
+    {
+        [$updated, $wasActive] = $this->saveUserUpdate($admin, $target, new UpdateUserData(isActive: false, reason: $reason, suspendedUntil: $until?->toImmutable()));
+
+        rescue(fn () => $this->auth->revokeSessions($updated));
+
+        return $wasActive;
+    }
+
+    /**
+     * The checks, the locked update, the audit entries and the member's email shared by `updateUser()` and `suspendUser()`; the caller signs
+     * the member out afterwards. A suspension keeps its reason and end only when it really starts; reinstating clears both.
+     *
+     * @return array{0: User, 1: bool} the saved user and whether it was active before
+     */
+    private function saveUserUpdate(User $admin, User $target, UpdateUserData $data): array
+    {
         if ($admin->role !== 'admin') {
             $this->assertModeratorMayUpdate($admin, $target, $data);
         }
@@ -192,7 +218,7 @@ class AdminService implements AdminServiceInterface
             $wasRole = $current->role;
             $wasActive = (bool) $current->is_active;
 
-            $updated = $this->users->update($current, $data->changes());
+            $updated = $this->users->update($current, [...$data->changes(), ...$this->suspensionChanges($data, $wasActive)]);
             $this->auditUserUpdate($admin, $updated, $wasRole, $wasActive);
 
             return [$updated, $wasActive];
@@ -200,16 +226,27 @@ class AdminService implements AdminServiceInterface
 
         $this->tellMemberOfActiveChange($updated, $wasActive);
 
-        if ($data->isActive === false) {
-            $this->auth->revokeSessions($updated);
-        }
+        return [$updated, $wasActive];
+    }
 
-        return AdminUserResponse::fromModel($updated);
+    /**
+     * The suspension columns to write: the reason and end of a suspension that starts now, both cleared by a reinstatement.
+     *
+     * @return array<string, mixed>
+     */
+    private function suspensionChanges(UpdateUserData $data, bool $wasActive): array
+    {
+        return match (true) {
+            $data->isActive === false && $wasActive => ['suspension_reason' => $data->reason, 'suspended_until' => $data->suspendedUntil],
+            $data->isActive === true && ! $wasActive => ['suspension_reason' => null, 'suspended_until' => null],
+            default => [],
+        };
     }
 
     /**
      * Emails the member's stored address, verified or not, once their active state really changed: a suspended member
-     * can't sign in, so the email is the only way they hear of it. It names neither the staff member nor a reason.
+     * can't sign in, so the email is the only way they hear of it. A suspension email carries the reason and end when
+     * staff gave them; it never names the staff member.
      * Called after the transaction committed; sending is deferred and a failure is only reported.
      */
     private function tellMemberOfActiveChange(User $user, bool $wasActive): void
@@ -218,7 +255,9 @@ class AdminService implements AdminServiceInterface
             return;
         }
 
-        $this->mailLater($user->email, $user->is_active ? new AccountReinstatedMail($user->name) : new AccountSuspendedMail($user->name));
+        $this->mailLater($user->email, $user->is_active
+            ? new AccountReinstatedMail($user->name)
+            : new AccountSuspendedMail($user->name, $user->suspension_reason, $user->suspended_until));
     }
 
     /** One entry for each of the role and the active state that really changed; sending the value a member already has records nothing. */
@@ -232,8 +271,29 @@ class AdminService implements AdminServiceInterface
 
         if ((bool) $user->is_active !== $wasActive) {
             $action = $user->is_active ? AdminAction::UserReinstated : AdminAction::UserSuspended;
-            $this->audit->record($admin, $action, $user->id, $label, ['is_active' => ['from' => $wasActive, 'to' => (bool) $user->is_active]]);
+            $this->audit->record($admin, $action, $user->id, $label, $this->activeChange($user, $wasActive));
         }
+    }
+
+    /**
+     * The `is_active` change, with the reason and end of a suspension that has them. The reason is short text staff
+     * wrote for the member, not personal data, so the log keeps it.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function activeChange(User $user, bool $wasActive): array
+    {
+        $changes = ['is_active' => ['from' => $wasActive, 'to' => (bool) $user->is_active]];
+
+        if (! $user->is_active && $user->suspension_reason !== null) {
+            $changes['reason'] = ['from' => null, 'to' => $user->suspension_reason];
+        }
+
+        if (! $user->is_active && $user->suspended_until !== null) {
+            $changes['until'] = ['from' => null, 'to' => $user->suspended_until->toJSON()];
+        }
+
+        return $changes;
     }
 
     /** A moderator may only suspend or reinstate plain members; sending the role the member already has changes nothing, so it is allowed. */

@@ -34,4 +34,11 @@ interface ReviewServiceInterface
     public function reject(Review $review, User $moderator): Review;
 
     public function delete(Review $review): void;
+
+    /**
+     * How many reviews with text the member wrote and how many titles they rated with stars (a star rating without text counts too).
+     *
+     * @return array{reviews_with_text: int, ratings: int}
+     */
+    public function countsForUser(User $user): array;
 }

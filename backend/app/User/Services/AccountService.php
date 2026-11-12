@@ -21,6 +21,7 @@ use App\User\InterfaceServices\EmailChangeServiceInterface;
 use App\User\Mail\PasswordAddedMail;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -150,6 +151,21 @@ class AccountService implements AccountServiceInterface
         $this->accounts->updateAvatar($user, null);
 
         return AccountResponse::fromModel($user);
+    }
+
+    public function removeAvatar(User $user): void
+    {
+        $path = $user->storedAvatarPath();
+        $this->accounts->updateAvatar($user, null);
+
+        if ($path !== null) {
+            DB::afterCommit(fn () => Storage::disk('public')->delete($path));
+        }
+    }
+
+    public function clearBio(User $user): void
+    {
+        $this->accounts->updateProfile($user, ['bio' => null]);
     }
 
     public function disconnectSocial(User $user, string $provider): AccountResponse

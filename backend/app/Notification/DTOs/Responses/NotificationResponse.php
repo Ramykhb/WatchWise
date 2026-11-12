@@ -38,15 +38,15 @@ final readonly class NotificationResponse implements JsonSerializable
 
     /**
      * Null when the notification can't be shown any more: its actor deleted their account, or it is a type
-     * (or an older row) without the fields its sentence needs. A removed-review notice has no actor and shows
-     * as from the WatchWise team.
+     * (or an older row) without the fields its sentence needs. A removed-review or changed-profile notice has no actor
+     * and shows as from the WatchWise team.
      *
      * @param  bool  $actorFollowed  whether the reader follows the actor
      * @param  bool  $actorRequested  whether the reader has asked to follow the actor
      */
     public static function fromModel(Notification $notification, ?User $actor, bool $actorFollowed, bool $actorRequested): ?self
     {
-        $fromTeam = $notification->type === Notification::REVIEW_REMOVED;
+        $fromTeam = in_array($notification->type, [Notification::REVIEW_REMOVED, Notification::PROFILE_CHANGED], true);
 
         if ($actor === null && ! $fromTeam) {
             return null;
@@ -69,6 +69,7 @@ final readonly class NotificationResponse implements JsonSerializable
             Notification::NIGHT_UPDATE => self::night($data, self::updateText($data), 'View night', ($data['change'] ?? null) === 'confirmed' ? self::film($data, 'movie') : null),
             Notification::REVIEW_HELPFUL => self::review($data),
             Notification::REVIEW_REMOVED => self::removedReview($data),
+            Notification::PROFILE_CHANGED => self::changedProfile($data),
             default => null,
         };
 
@@ -168,6 +169,21 @@ final readonly class NotificationResponse implements JsonSerializable
         $key = ($film['media_type'] === 'tv' ? 'tv-' : '').$film['tmdb_id'];
 
         return ['text' => 'removed your review', 'film' => $film, 'to' => "/movies/{$key}", 'action' => 'View film'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{text: string, to: string, action: string}|null
+     */
+    private static function changedProfile(array $data): ?array
+    {
+        $text = match ($data['action'] ?? null) {
+            'avatar_removed' => 'removed your profile picture',
+            'bio_removed' => 'removed your bio',
+            default => null,
+        };
+
+        return $text === null ? null : ['text' => $text, 'to' => '/settings', 'action' => 'Open settings'];
     }
 
     /**

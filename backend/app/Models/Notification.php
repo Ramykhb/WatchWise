@@ -74,8 +74,15 @@ class Notification extends Model
     public const REVIEW_REMOVED = 'review_removed';
 
     /**
+     * Staff removed your profile picture or your bio (`data`: action `avatar_removed` or `bio_removed`). It carries
+     * no actor, so it shows as from the WatchWise team. Like `review_removed` it is about your own content: no switch,
+     * it always arrives.
+     */
+    public const PROFILE_CHANGED = 'profile_changed';
+
+    /**
      * The types a member can switch off (the keys of `settings.notifications`, all on by default). Follow
-     * requests and removed-review notices are not among them: they always arrive.
+     * requests and the notices that staff removed your review or part of your profile are not among them: they always arrive.
      *
      * @var list<string>
      */
@@ -91,7 +98,7 @@ class Notification extends Model
      *
      * @var list<string>
      */
-    public const FEED_TYPES = [self::FOLLOW_REQUEST, self::REVIEW_REMOVED, ...self::OPTIONAL_TYPES];
+    public const FEED_TYPES = [self::FOLLOW_REQUEST, self::REVIEW_REMOVED, self::PROFILE_CHANGED, ...self::OPTIONAL_TYPES];
 
     protected function casts(): array
     {
