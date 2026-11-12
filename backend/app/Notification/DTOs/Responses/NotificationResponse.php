@@ -4,6 +4,7 @@ namespace App\Notification\DTOs\Responses;
 
 use App\Models\Notification;
 use App\Models\User;
+use App\Notification\Support\ListRestriction;
 use JsonSerializable;
 
 /**
@@ -38,15 +39,15 @@ final readonly class NotificationResponse implements JsonSerializable
 
     /**
      * Null when the notification can't be shown any more: its actor deleted their account, or it is a type
-     * (or an older row) without the fields its sentence needs. A removed-review notice has no actor and shows
-     * as from the WatchWise team.
+     * (or an older row) without the fields its sentence needs. The staff notices (removed review, restricted list)
+     * have no actor and show as from the WatchWise team.
      *
      * @param  bool  $actorFollowed  whether the reader follows the actor
      * @param  bool  $actorRequested  whether the reader has asked to follow the actor
      */
     public static function fromModel(Notification $notification, ?User $actor, bool $actorFollowed, bool $actorRequested): ?self
     {
-        $fromTeam = $notification->type === Notification::REVIEW_REMOVED;
+        $fromTeam = in_array($notification->type, [Notification::REVIEW_REMOVED, Notification::LIST_RESTRICTED], true);
 
         if ($actor === null && ! $fromTeam) {
             return null;
@@ -69,6 +70,7 @@ final readonly class NotificationResponse implements JsonSerializable
             Notification::NIGHT_UPDATE => self::night($data, self::updateText($data), 'View night', ($data['change'] ?? null) === 'confirmed' ? self::film($data, 'movie') : null),
             Notification::REVIEW_HELPFUL => self::review($data),
             Notification::REVIEW_REMOVED => self::removedReview($data),
+            Notification::LIST_RESTRICTED => self::restrictedList($data),
             default => null,
         };
 
@@ -168,6 +170,36 @@ final readonly class NotificationResponse implements JsonSerializable
         $key = ($film['media_type'] === 'tv' ? 'tv-' : '').$film['tmdb_id'];
 
         return ['text' => 'removed your review', 'film' => $film, 'to' => "/movies/{$key}", 'action' => 'View film'];
+    }
+
+    /**
+     * A deleted list has no page, so its notice opens the Lists page.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{text: string, target: string, film: array{tmdb_id: int, media_type: string}|null, to: string, action: string}|null
+     */
+    private static function restrictedList(array $data): ?array
+    {
+        $restriction = ListRestriction::tryFrom((string) ($data['action'] ?? ''));
+
+        if ($restriction === null || ! isset($data['list_id'])) {
+            return null;
+        }
+
+        $film = $restriction === ListRestriction::ItemRemoved ? self::film($data, (string) ($data['media_type'] ?? 'movie')) : null;
+        $text = match ($restriction) {
+            ListRestriction::MadePrivate => 'made your list private',
+            ListRestriction::ItemRemoved => 'removed a film from your list',
+            ListRestriction::Deleted => 'deleted your list',
+        };
+
+        return [
+            'text' => $text,
+            'target' => (string) ($data['list_title'] ?? 'a list'),
+            'film' => $film,
+            'to' => $restriction === ListRestriction::Deleted ? '/lists' : '/lists/'.(int) $data['list_id'],
+            'action' => $restriction === ListRestriction::Deleted ? 'See lists' : 'View list',
+        ];
     }
 
     /**

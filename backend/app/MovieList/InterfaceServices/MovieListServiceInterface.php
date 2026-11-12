@@ -7,10 +7,12 @@ use App\Models\User;
 use App\MovieList\DTOs\Requests\CreateMovieListData;
 use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\DTOs\Requests\MovieListSearchQuery;
+use App\MovieList\DTOs\Requests\StaffListQuery;
 use App\MovieList\DTOs\Requests\UpdateMovieListData;
 use App\Report\DTOs\Requests\ReportContentData;
 use App\Report\DTOs\Responses\ReportContentResponse;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 interface MovieListServiceInterface
 {
@@ -30,12 +32,43 @@ interface MovieListServiceInterface
     /** Replaces the movies and TV shows in the given order when `films` is set (add, remove, reorder). */
     public function update(MovieList $list, UpdateMovieListData $data): MovieList;
 
-    public function delete(MovieList $list): void;
+    /** Deletes the list with its films. False when it was already gone (another request deleted it first). */
+    public function delete(MovieList $list): bool;
 
     /** Adds one movie or TV show at the end (the Movie page's "Add to list"); does nothing if it is already there. */
     public function addMovie(MovieList $list, ListFilmData $film): MovieList;
 
     public function removeMovie(MovieList $list, ListFilmData $film): MovieList;
+
+    /**
+     * Removes one title and says whether it was there. Unlike removeMovie() it does not reload the list, for
+     * callers (staff moderation) that only need to know if anything was removed.
+     */
+    public function removeItem(MovieList $list, ListFilmData $film): bool;
+
+    /**
+     * Every member's lists for staff: whatever their visibility, with hidden movies counted, newest first.
+     *
+     * @return LengthAwarePaginator<int, MovieList>
+     */
+    public function paginateForStaff(StaffListQuery $query): LengthAwarePaginator;
+
+    /**
+     * @return array{total: int, public: int, private: int, reported: int} counts of all lists, whatever the filters
+     */
+    public function staffTotals(): array;
+
+    /** The list as a row of the staff table: its owner and the number of titles (hidden movies included) as `items_count`. */
+    public function staffRow(MovieList $list): MovieList;
+
+    /** The list as staff see it: its owner, the first `$itemLimit` titles in order (hidden movies included) and the full count as `items_count`. */
+    public function staffDetail(MovieList $list, int $itemLimit): MovieList;
+
+    /** A fresh copy of the list, row-locked until the surrounding transaction ends (call inside one); null when it no longer exists. */
+    public function lockForUpdate(MovieList $list): ?MovieList;
+
+    /** Makes the list private (the only restriction staff apply). False, changing nothing, when it already was. */
+    public function makePrivate(MovieList $list): bool;
 
     /** Reports another member's list (the caller has checked the reporter can see it); reporting it twice files one report. */
     public function report(MovieList $list, User $reporter, ReportContentData $data): ReportContentResponse;

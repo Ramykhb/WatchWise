@@ -8,6 +8,7 @@ use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\MovieList\DTOs\Requests\CreateMovieListData;
 use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\DTOs\Requests\MovieListSearchQuery;
+use App\MovieList\DTOs\Requests\StaffListQuery;
 use App\MovieList\DTOs\Requests\UpdateMovieListData;
 use App\MovieList\InterfaceRepository\MovieListRepositoryInterface;
 use App\MovieList\InterfaceServices\MovieListServiceInterface;
@@ -18,6 +19,7 @@ use App\Report\Support\ReportTargetType;
 use App\Support\HiddenMovies;
 use App\Support\MediaType;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 class MovieListService implements MovieListServiceInterface
@@ -80,9 +82,9 @@ class MovieListService implements MovieListServiceInterface
         return $this->detail($list);
     }
 
-    public function delete(MovieList $list): void
+    public function delete(MovieList $list): bool
     {
-        $this->lists->delete($list);
+        return $this->lists->delete($list);
     }
 
     public function addMovie(MovieList $list, ListFilmData $film): MovieList
@@ -98,6 +100,41 @@ class MovieListService implements MovieListServiceInterface
         $this->lists->removeItem($list, $film);
 
         return $this->detail($list);
+    }
+
+    public function removeItem(MovieList $list, ListFilmData $film): bool
+    {
+        return $this->lists->removeItem($list, $film);
+    }
+
+    public function paginateForStaff(StaffListQuery $query): LengthAwarePaginator
+    {
+        return $this->lists->paginateForStaff($query);
+    }
+
+    public function staffTotals(): array
+    {
+        return $this->lists->staffTotals();
+    }
+
+    public function staffRow(MovieList $list): MovieList
+    {
+        return $this->lists->loadStaffRow($list);
+    }
+
+    public function staffDetail(MovieList $list, int $itemLimit): MovieList
+    {
+        return $this->lists->loadStaffDetail($list, $itemLimit);
+    }
+
+    public function lockForUpdate(MovieList $list): ?MovieList
+    {
+        return $this->lists->lockForUpdate($list);
+    }
+
+    public function makePrivate(MovieList $list): bool
+    {
+        return $this->lists->makePrivate($list);
     }
 
     public function report(MovieList $list, User $reporter, ReportContentData $data): ReportContentResponse

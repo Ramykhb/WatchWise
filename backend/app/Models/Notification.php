@@ -74,8 +74,16 @@ class Notification extends Model
     public const REVIEW_REMOVED = 'review_removed';
 
     /**
+     * Staff restricted your list: made it private, removed a film from it or deleted it (`data`: list_id,
+     * list_title, action `made_private`, `item_removed` or `deleted`, and tmdb_id and media_type of the film for
+     * `item_removed`). It carries no actor. It is a notice about your own content, so it has no switch and always
+     * arrives.
+     */
+    public const LIST_RESTRICTED = 'list_restricted';
+
+    /**
      * The types a member can switch off (the keys of `settings.notifications`, all on by default). Follow
-     * requests and removed-review notices are not among them: they always arrive.
+     * requests and the staff notices (removed review, restricted list) are not among them: they always arrive.
      *
      * @var list<string>
      */
@@ -91,7 +99,7 @@ class Notification extends Model
      *
      * @var list<string>
      */
-    public const FEED_TYPES = [self::FOLLOW_REQUEST, self::REVIEW_REMOVED, ...self::OPTIONAL_TYPES];
+    public const FEED_TYPES = [self::FOLLOW_REQUEST, self::REVIEW_REMOVED, self::LIST_RESTRICTED, ...self::OPTIONAL_TYPES];
 
     protected function casts(): array
     {

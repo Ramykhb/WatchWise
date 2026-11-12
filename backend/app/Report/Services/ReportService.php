@@ -13,6 +13,7 @@ use App\Report\InterfaceRepository\ReportRepositoryInterface;
 use App\Report\InterfaceServices\ReportServiceInterface;
 use App\Report\Support\ReportStatus;
 use App\Report\Support\ReportTargetType;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
@@ -87,6 +88,16 @@ class ReportService implements ReportServiceInterface
         $this->reports->closeMany($ids, $decision, $by?->id, null);
 
         return count($ids);
+    }
+
+    public function openCountsFor(ReportTargetType $type, array $targetIds): array
+    {
+        return $targetIds === [] ? [] : $this->reports->openCountsFor($type, $targetIds);
+    }
+
+    public function openFor(ReportTargetType $type, int $targetId): Collection
+    {
+        return $this->reports->openFor($type, $targetId);
     }
 
     public function close(Report $report, User $by, string $status, ?string $note, bool $applyToTarget): array

@@ -4,12 +4,14 @@ namespace App\Notification\Services;
 
 use App\Models\DiscussionRoom;
 use App\Models\Message;
+use App\Models\MovieList;
 use App\Models\MovieNight;
 use App\Models\Notification;
 use App\Models\Review;
 use App\Models\User;
 use App\Notification\InterfaceRepository\NotificationRepositoryInterface;
 use App\Notification\InterfaceServices\NotificationServiceInterface;
+use App\Notification\Support\ListRestriction;
 use Illuminate\Support\Str;
 
 class NotificationService implements NotificationServiceInterface
@@ -216,6 +218,16 @@ class NotificationService implements NotificationServiceInterface
             'tmdb_id' => (int) $review->tmdb_id,
             'media_type' => $review->media_type ?? 'movie',
             'action' => 'removed',
+        ]));
+    }
+
+    public function listRestricted(MovieList $list, ListRestriction $restriction, ?array $film = null): void
+    {
+        $this->live->push($this->notifications->create((int) $list->user_id, Notification::LIST_RESTRICTED, [
+            'list_id' => $list->id,
+            'list_title' => $list->title,
+            'action' => $restriction->value,
+            ...($restriction === ListRestriction::ItemRemoved && $film !== null ? ['tmdb_id' => $film['tmdb_id'], 'media_type' => $film['media_type']] : []),
         ]));
     }
 

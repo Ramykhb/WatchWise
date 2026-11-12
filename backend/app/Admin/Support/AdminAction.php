@@ -18,6 +18,9 @@ enum AdminAction: string
     case SettingsUpdated = 'settings.updated';
     case ReportResolved = 'report.resolved';
     case ReportDismissed = 'report.dismissed';
+    case ListMadePrivate = 'list.made_private';
+    case ListItemRemoved = 'list.item_removed';
+    case ListDeleted = 'list.deleted';
 
     /** What kind of record the action is done to. */
     public function subjectType(): AdminSubjectType
@@ -29,6 +32,7 @@ enum AdminAction: string
             self::GenreUpdated, self::GenreReset => AdminSubjectType::Genre,
             self::SettingsUpdated => AdminSubjectType::Setting,
             self::ReportResolved, self::ReportDismissed => AdminSubjectType::Report,
+            self::ListMadePrivate, self::ListItemRemoved, self::ListDeleted => AdminSubjectType::MovieList,
         };
     }
 }

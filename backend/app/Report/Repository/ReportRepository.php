@@ -13,6 +13,7 @@ use App\Report\InterfaceRepository\ReportRepositoryInterface;
 use App\Report\Support\ReportStatus;
 use App\Report\Support\ReportTargetType;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class ReportRepository implements ReportRepositoryInterface
@@ -84,6 +85,31 @@ class ReportRepository implements ReportRepositoryInterface
         return collect(ReportTargetType::cases())
             ->mapWithKeys(fn (ReportTargetType $type): array => [$type->value => (int) ($counts[$type->value] ?? 0)])
             ->all();
+    }
+
+    public function openCountsFor(ReportTargetType $type, array $targetIds): array
+    {
+        return Report::query()
+            ->open()
+            ->where('target_type', $type)
+            ->whereIn('target_id', $targetIds)
+            ->selectRaw('target_id, count(*) as total')
+            ->groupBy('target_id')
+            ->pluck('total', 'target_id')
+            ->map(fn ($total): int => (int) $total)
+            ->all();
+    }
+
+    public function openFor(ReportTargetType $type, int $targetId): Collection
+    {
+        return Report::query()
+            ->open()
+            ->where('target_type', $type)
+            ->where('target_id', $targetId)
+            ->with('reporter:id,name,username')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get();
     }
 
     public function targetRows(array $idsByType): array
