@@ -67,6 +67,12 @@ class AdminPolicy
         return $current->isAdmin();
     }
 
+    /** Looking through star ratings, spotting rating bursts and removing ratings; the service limits whose ratings a moderator may clear in bulk. */
+    public function moderateRatings(CurrentUser $current): bool
+    {
+        return $this->isStaff($current);
+    }
+
     private function isStaff(CurrentUser $current): bool
     {
         return $current->isAdmin() || $current->role() === 'moderator';

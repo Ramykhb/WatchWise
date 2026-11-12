@@ -18,6 +18,9 @@ enum AdminAction: string
     case SettingsUpdated = 'settings.updated';
     case ReportResolved = 'report.resolved';
     case ReportDismissed = 'report.dismissed';
+    case RatingDeleted = 'rating.deleted';
+    /** Every star rating of one member removed at once; the subject is that member. */
+    case RatingsPurged = 'rating.purged';
 
     /** What kind of record the action is done to. */
     public function subjectType(): AdminSubjectType
@@ -29,6 +32,8 @@ enum AdminAction: string
             self::GenreUpdated, self::GenreReset => AdminSubjectType::Genre,
             self::SettingsUpdated => AdminSubjectType::Setting,
             self::ReportResolved, self::ReportDismissed => AdminSubjectType::Report,
+            self::RatingDeleted => AdminSubjectType::Rating,
+            self::RatingsPurged => AdminSubjectType::User,
         };
     }
 }

@@ -105,10 +105,7 @@ class AdminService implements AdminServiceInterface
         return AdminStatsResponse::fromPayload($payload);
     }
 
-    /**
-     * Retires every cached stats window, so the next request counts afresh.
-     */
-    private function forgetStats(): void
+    public function forgetStats(): void
     {
         Cache::forever(self::STATS_VERSION_KEY, (string) Str::uuid());
     }
