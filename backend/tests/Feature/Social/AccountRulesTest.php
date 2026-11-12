@@ -34,15 +34,6 @@ class AccountRulesTest extends SocialTestCase
             ->assertJsonPath('errors.current_password.0', 'Your current password is incorrect.');
     }
 
-    public function test_changing_the_email_marks_it_unverified(): void
-    {
-        $user = User::factory()->create(['email_verified_at' => now()]);
-
-        $this->as($user)->patchJson('/api/me', ['email' => 'new.address@example.com'])->assertOk();
-
-        $this->assertNull($user->refresh()->email_verified_at);
-    }
-
     public function test_avatar_can_be_uploaded_and_removed(): void
     {
         Storage::fake('public');

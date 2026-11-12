@@ -364,7 +364,7 @@ With the backend running:
 | `/api/notifications/*` | Notification feed, read/unread state, mark-all-read, dismissal, and socket authentication. |
 | `/api/admin/*` | Staff statistics, users, review moderation, and movie management. |
 
-Most member and staff endpoints require authenticated cookies. External-service routes also apply rate limits. Route definitions are in [api.php](backend/routes/api.php), [auth_flows.php](backend/routes/auth_flows.php), [social.php](backend/routes/social.php), and [admin.php](backend/routes/admin.php).
+Most member and staff endpoints require authenticated cookies. External-service routes also apply rate limits. Route definitions are in [api.php](backend/routes/api.php), [auth_flows.php](backend/routes/auth_flows.php), the per-entity files in [backend/routes](backend/routes) (for example [user.php](backend/routes/user.php)), and [admin.php](backend/routes/admin.php).
 
 ## Development and validation
 

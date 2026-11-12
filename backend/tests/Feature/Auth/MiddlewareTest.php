@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Auth\CurrentUser\CurrentUser;
 use App\Auth\Factories\TokenFactory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,10 +18,7 @@ class MiddlewareTest extends TestCase
 
         Route::middleware('role:admin')->get('/api/_test/admin', fn () => ['ok' => true]);
         Route::middleware('verified.email')->get('/api/_test/verified', fn () => ['ok' => true]);
-        Route::middleware('auth.optional')->get('/api/_test/optional', fn (CurrentUser $current) => [
-            'authenticated' => $current->isAuthenticated(),
-            'id' => $current->id(),
-        ]);
+        Route::get('/api/_test/open', fn () => ['ok' => true]);
     }
 
     private function as(User $user): static
@@ -51,17 +47,9 @@ class MiddlewareTest extends TestCase
     public function test_verified_email_middleware(): void
     {
         $this->getJson('/api/_test/verified')->assertUnauthorized();
-        $this->as(User::factory()->unverified()->create())->getJson('/api/_test/verified')->assertForbidden();
+        $this->as(User::factory()->unverified()->create())->getJson('/api/_test/verified')->assertForbidden()
+            ->assertExactJson(['message' => 'Verify your email address to continue.', 'code' => 'email_unverified']);
         $this->as(User::factory()->create())->getJson('/api/_test/verified')->assertOk();
-    }
-
-    public function test_optional_auth_allows_guests_and_resolves_users(): void
-    {
-        $this->getJson('/api/_test/optional')->assertOk()->assertJson(['authenticated' => false, 'id' => null]);
-
-        $user = User::factory()->create();
-        $this->as($user)->getJson('/api/_test/optional')->assertOk()
-            ->assertJson(['authenticated' => true, 'id' => $user->id]);
     }
 
     public function test_inactive_user_token_is_rejected(): void
@@ -73,7 +61,7 @@ class MiddlewareTest extends TestCase
 
     public function test_cors_allows_credentials_for_the_frontend_origin(): void
     {
-        $this->withHeaders(['Origin' => 'http://localhost:5173'])->getJson('/api/_test/optional')
+        $this->withHeaders(['Origin' => 'http://localhost:5173'])->getJson('/api/_test/open')
             ->assertHeader('Access-Control-Allow-Origin', 'http://localhost:5173')
             ->assertHeader('Access-Control-Allow-Credentials', 'true');
     }

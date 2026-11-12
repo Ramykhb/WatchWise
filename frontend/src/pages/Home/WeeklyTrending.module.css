@@ -97,6 +97,8 @@
   text-shadow: 4px 5px 0 rgb(48 33 68 / 18%);
 }
 
+.card.unranked { flex-basis: 180px; padding-left: 0; }
+
 .controls button:focus-visible,
 .row:focus-visible {
   outline: 3px solid var(--ground-violet);
@@ -151,6 +153,7 @@
 
 @media (max-width: 600px) {
   .card { --poster-w: 154; flex-basis: 208px; padding-left: 54px; }
+  .card.unranked { flex-basis: 154px; padding-left: 0; }
   .row { gap: 12px; }
   .rank { top: 84px; font-size: 112px; }
   .controls { gap: 5px; }

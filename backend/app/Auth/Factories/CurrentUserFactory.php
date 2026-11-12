@@ -6,6 +6,7 @@ use App\Auth\CurrentUser\CurrentUser;
 use App\Auth\CurrentUser\GuestUser;
 use App\Auth\CurrentUser\JwtCurrentUser;
 use App\Auth\InterfaceRepository\UserRepositoryInterface;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class CurrentUserFactory
@@ -34,7 +35,11 @@ class CurrentUserFactory
         return $current;
     }
 
-    /** Build from a verified access token; guest if invalid or the user is gone/inactive. */
+    /**
+     * Build from a verified access token; guest if invalid, the user is gone/inactive, or the token's session
+     * version (`sv`, 0 for tokens issued before the claim existed) is not exactly the user's current one, i.e.
+     * the user's sessions were revoked after it was issued.
+     */
     public function fromToken(string $jwt): CurrentUser
     {
         $claims = $this->tokens->parseAccessToken($jwt);
@@ -45,11 +50,18 @@ class CurrentUserFactory
 
         $user = $this->users->findById((int) $claims->sub);
 
-        if (! $user || ! $user->is_active) {
+        if (! $user || ! $user->is_active || ! $this->sessionStillCurrent($claims, $user)) {
             return $this->guest();
         }
 
-        return new JwtCurrentUser($user, $claims);
+        return new JwtCurrentUser($user);
+    }
+
+    private function sessionStillCurrent(object $claims, User $user): bool
+    {
+        $claimed = $claims->sv ?? 0;
+
+        return is_int($claimed) && $claimed === (int) $user->session_version;
     }
 
     public function guest(): CurrentUser

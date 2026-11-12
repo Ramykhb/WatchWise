@@ -76,6 +76,34 @@ class OpenApiCoverageTest extends TestCase
         $this->assertSame([], array_values($unknown), "Spec operations without a route:\n".implode("\n", $unknown));
     }
 
+    public function test_every_verified_route_documents_the_email_unverified_response(): void
+    {
+        $spec = (new OpenApiSpec)->build();
+        $undocumented = [];
+
+        foreach (Route::getRoutes() as $route) {
+            if (! in_array('verified.email', $route->gatherMiddleware(), true)) {
+                continue;
+            }
+
+            $path = '/'.preg_replace('/\{(\w+):\w+\}/', '{$1}', $route->uri());
+
+            foreach (array_diff($route->methods(), ['HEAD']) as $method) {
+                $forbidden = $spec['paths'][$path][strtolower($method)]['responses']['403'] ?? [];
+
+                if (! str_contains(json_encode($forbidden), 'EmailUnverified') && ! str_contains($forbidden['description'] ?? '', 'email_unverified')) {
+                    $undocumented[] = $method.' '.$path;
+                }
+            }
+        }
+
+        $this->assertSame([], $undocumented, "Verified routes without the email_unverified 403:\n".implode("\n", $undocumented));
+        $this->assertSame(
+            ['message' => 'Verify your email address to continue.', 'code' => 'email_unverified'],
+            $spec['components']['responses']['EmailUnverified']['content']['application/json']['example'],
+        );
+    }
+
     public function test_every_operation_has_summary_tags_and_responses(): void
     {
         $spec = (new OpenApiSpec)->build();

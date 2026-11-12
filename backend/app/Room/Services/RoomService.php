@@ -6,6 +6,7 @@ use App\Models\DiscussionRoom;
 use App\Models\Message;
 use App\Models\Notification;
 use App\Models\User;
+use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Notification\InterfaceServices\NotificationServiceInterface;
 use App\Room\DTOs\Requests\CreateRoomData;
 use App\Room\DTOs\Requests\InviteToRoomData;
@@ -35,13 +36,14 @@ class RoomService implements RoomServiceInterface
     public function __construct(
         private readonly RoomRepositoryInterface $rooms,
         private readonly NotificationServiceInterface $notifications,
+        private readonly MovieCatalogServiceInterface $catalog,
     ) {}
 
     public function list(User $viewer): RoomListResponse
     {
         $unread = $this->rooms->unreadCounts($viewer->id);
 
-        $rooms = $this->rooms->visibleTo($viewer->id, $this->lifetimeCutoff())
+        $rooms = $this->rooms->visibleTo($viewer->id, $this->lifetimeCutoff(), $this->catalog->hiddenMovies())
             ->map(fn (DiscussionRoom $room): RoomResponse => RoomResponse::fromModel($room, $viewer->id, $unread[$room->id] ?? 0))
             ->sort(fn (RoomResponse $a, RoomResponse $b): int => [$b->joined(), $b->invited(), $b->lastActivity()] <=> [$a->joined(), $a->invited(), $a->lastActivity()])
             ->values()

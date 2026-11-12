@@ -40,11 +40,36 @@ class ModeratorPermissionsTest extends AdminTestCase
         $member = User::factory()->create();
 
         $this->as($this->moderator())->patchJson("/api/admin/users/{$member->id}", ['role' => 'moderator'])->assertForbidden();
-        $this->as($this->moderator())->patchJson("/api/admin/users/{$member->id}", ['role' => 'user', 'is_active' => false])->assertForbidden();
+        $this->as($this->moderator())->patchJson("/api/admin/users/{$member->id}", ['role' => 'admin', 'is_active' => false])->assertForbidden();
 
         $member->refresh();
         $this->assertSame('user', $member->role);
         $this->assertTrue($member->is_active);
+    }
+
+    public function test_a_moderator_sending_the_members_current_role_changes_nothing_and_is_accepted(): void
+    {
+        $member = User::factory()->create();
+
+        $this->as($this->moderator())->patchJson("/api/admin/users/{$member->id}", ['role' => 'user'])
+            ->assertOk()
+            ->assertJsonPath('user.role', 'user');
+        $this->as($this->moderator())->patchJson("/api/admin/users/{$member->id}", ['role' => 'user', 'is_active' => false])
+            ->assertOk()
+            ->assertJsonPath('user.is_active', false);
+
+        $this->assertSame('user', $member->fresh()->role);
+    }
+
+    public function test_a_moderator_sending_a_staff_members_current_role_is_still_refused(): void
+    {
+        $admin = $this->admin();
+        $colleague = $this->moderator();
+
+        $this->as($this->moderator())->patchJson("/api/admin/users/{$admin->id}", ['role' => 'admin'])->assertForbidden();
+        $this->as($this->moderator())->patchJson("/api/admin/users/{$colleague->id}", ['role' => 'moderator', 'is_active' => false])->assertForbidden();
+
+        $this->assertTrue($colleague->fresh()->is_active);
     }
 
     public function test_a_moderator_cannot_suspend_staff_or_themselves(): void
@@ -65,6 +90,7 @@ class ModeratorPermissionsTest extends AdminTestCase
         $this->as($moderator)->deleteJson("/api/admin/users/{$member->id}")->assertForbidden();
         $this->as($moderator)->getJson('/api/admin/movies')->assertForbidden();
         $this->as($moderator)->patchJson('/api/admin/movies/550', ['is_hidden' => true])->assertForbidden();
+        $this->as($moderator)->getJson('/api/admin/audit-log')->assertForbidden();
 
         $this->assertModelExists($member);
     }

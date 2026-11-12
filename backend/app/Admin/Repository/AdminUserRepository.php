@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Str;
 
 class AdminUserRepository implements AdminUserRepositoryInterface
 {
@@ -21,7 +22,8 @@ class AdminUserRepository implements AdminUserRepositoryInterface
                 $builder->where(fn ($match) => $match
                     ->whereRaw("name LIKE ? ESCAPE '!'", [$pattern])
                     ->orWhereRaw("username LIKE ? ESCAPE '!'", [$pattern])
-                    ->orWhereRaw("email LIKE ? ESCAPE '!'", [$pattern]));
+                    // Emails are stored lowercase, so "ALI@" finds them on case-sensitive databases too.
+                    ->orWhereRaw("email LIKE ? ESCAPE '!'", [Str::lower($pattern)]));
             })
             ->when($query->role !== null, fn ($builder) => $builder->where('role', $query->role))
             ->when($query->status !== null, fn ($builder) => match ($query->status) {
@@ -56,16 +58,16 @@ class AdminUserRepository implements AdminUserRepositoryInterface
         ];
     }
 
+    public function lockForUpdate(User $user): User
+    {
+        return User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
+    }
+
     public function update(User $user, array $changes): User
     {
         // Role and active state are not mass-assignable on purpose; only admin code sets them.
         $user->forceFill($changes)->save();
 
         return $user->loadCount(['reviews' => fn (Builder $reviews) => $reviews->withText()]);
-    }
-
-    public function delete(User $user): void
-    {
-        $user->delete();
     }
 }

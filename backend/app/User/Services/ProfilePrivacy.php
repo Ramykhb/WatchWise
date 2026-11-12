@@ -37,6 +37,28 @@ class ProfilePrivacy
         return $this->canView($owner, $viewer) && $owner->shares($section);
     }
 
+    /**
+     * `shows()` for one owner and viewer, deciding `canView()` at most once however many sections are asked
+     * (or never, when the caller already knows it). A followers-only profile checks the follow with a query,
+     * so a page reading many sections uses this.
+     *
+     * @return \Closure(string): bool
+     */
+    public function sectionsShownTo(User $owner, CurrentUser $viewer, ?bool $canView = null): \Closure
+    {
+        $privileged = $this->isPrivileged($owner, $viewer);
+
+        return function (string $section) use ($owner, $viewer, $privileged, &$canView): bool {
+            if ($privileged) {
+                return true;
+            }
+
+            $canView ??= $this->canView($owner, $viewer);
+
+            return $canView && $owner->shares($section);
+        };
+    }
+
     /** Reviews waiting for moderation are only shown to their author and admins. */
     public function seesUnapprovedReviews(User $owner, CurrentUser $viewer): bool
     {

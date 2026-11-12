@@ -11,6 +11,7 @@ use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\DTOs\Requests\UpdateMovieListData;
 use App\MovieList\InterfaceRepository\MovieListRepositoryInterface;
 use App\MovieList\InterfaceServices\MovieListServiceInterface;
+use App\Support\HiddenMovies;
 use App\Support\MediaType;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,10 @@ class MovieListService implements MovieListServiceInterface
 
     public function search(MovieListSearchQuery $query, User $viewer): Collection
     {
-        return $this->lists->search($query, $viewer);
+        // Hidden movies stay in the viewer's own lists; other members' lists leave them out.
+        $hidden = $query->scope === 'mine' ? HiddenMovies::none() : $this->catalog->hiddenMovies();
+
+        return $this->lists->search($query, $viewer, $hidden);
     }
 
     public function create(CreateMovieListData $data, User $owner): MovieList
@@ -47,7 +51,14 @@ class MovieListService implements MovieListServiceInterface
 
     public function detail(MovieList $list): MovieList
     {
-        return $this->lists->loadDetail($list);
+        return $this->lists->loadDetail($list, HiddenMovies::none());
+    }
+
+    public function show(MovieList $list, User $viewer): MovieList
+    {
+        $hidden = $list->user_id === $viewer->id ? HiddenMovies::none() : $this->catalog->hiddenMovies();
+
+        return $this->lists->loadDetail($list, $hidden);
     }
 
     public function update(MovieList $list, UpdateMovieListData $data): MovieList

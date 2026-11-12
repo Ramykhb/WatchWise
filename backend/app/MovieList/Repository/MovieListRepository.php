@@ -8,6 +8,7 @@ use App\Models\User;
 use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\InterfaceRepository\MovieListRepositoryInterface;
+use App\Support\HiddenMovies;
 use App\Support\LikePattern;
 use App\Support\MediaType;
 use Illuminate\Database\Eloquent\Collection;
@@ -15,11 +16,12 @@ use Illuminate\Database\UniqueConstraintViolationException;
 
 class MovieListRepository implements MovieListRepositoryInterface
 {
-    public function search(MovieListSearchQuery $query, User $viewer): Collection
+    public function search(MovieListSearchQuery $query, User $viewer, HiddenMovies $hidden): Collection
     {
         $scope = $query->scope;
+        $visibleItems = fn ($items) => $hidden->exclude($items);
 
-        return MovieList::with(['user', 'items'])->withCount('items')
+        return MovieList::with(['user', 'items' => $visibleItems])->withCount(['items' => $visibleItems])
             ->when($query->contains !== null, fn ($builder) => $builder->withExists([
                 'items as has_movie' => fn ($items) => $items->where('tmdb_id', $query->contains)->where('media_type', $query->containsType),
             ]))
@@ -103,8 +105,10 @@ class MovieListRepository implements MovieListRepositoryInterface
         return array_values(array_filter($films, fn (ListFilmData $film): bool => ! in_array($film->key(), $existing, true)));
     }
 
-    public function loadDetail(MovieList $list): MovieList
+    public function loadDetail(MovieList $list, HiddenMovies $hidden): MovieList
     {
-        return $list->load(['user', 'items'])->loadCount('items');
+        $visibleItems = fn ($items) => $hidden->exclude($items);
+
+        return $list->load(['user', 'items' => $visibleItems])->loadCount(['items' => $visibleItems]);
     }
 }

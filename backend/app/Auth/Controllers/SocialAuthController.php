@@ -2,96 +2,71 @@
 
 namespace App\Auth\Controllers;
 
-use App\Auth\Exceptions\AccountDisabled;
-use App\Auth\Exceptions\EmailRequired;
-use App\Auth\Exceptions\UnverifiedProviderEmail;
+use App\Auth\Exceptions\SocialLoginFailure;
+use App\Auth\FormRequests\SocialCallbackRequest;
 use App\Auth\InterfaceServices\SocialAuthServiceInterface;
 use App\Auth\Support\AuthCookies;
-use App\Auth\Support\GooglePhoto;
+use App\Auth\Support\OAuthState;
+use App\Auth\Support\SocialLoginRedirect;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Throwable;
 
+/**
+ * Both routes are browser navigations, so every outcome is a redirect: to the provider, or to the frontend's
+ * /auth/callback page with `status=success` or `status=error&reason=<reason>`. An expected failure carries its
+ * reason (`SocialLoginFailure`); anything else is reported and shown as `provider_error`.
+ */
 class SocialAuthController
 {
     private const PROVIDERS = ['google', 'github', 'discord'];
 
-    private const STATE_COOKIE = 'oauth_state';
-
     public function __construct(
         private readonly SocialAuthServiceInterface $social,
         private readonly AuthCookies $cookies,
-        private readonly GooglePhoto $googlePhoto,
     ) {}
 
     public function redirect(string $provider): RedirectResponse
     {
         $this->assertProvider($provider);
 
-        $state = Str::random(40);
+        $state = OAuthState::issue($provider);
 
-        return redirect($this->social->redirectUrl($provider, $state))
-            ->withCookie(cookie(self::STATE_COOKIE, $state, 10, '/', null, ! app()->environment('local', 'testing'), true, false, 'lax'));
+        try {
+            $url = $this->social->redirectUrl($provider, $state);
+        } catch (SocialLoginFailure $failure) {
+            return SocialLoginRedirect::failure($failure->reason());
+        }
+
+        return redirect($url)->withCookie(OAuthState::cookie($state));
     }
 
-    public function callback(Request $request, string $provider): RedirectResponse
+    public function callback(SocialCallbackRequest $request, string $provider): RedirectResponse
     {
         $this->assertProvider($provider);
 
-        $expected = $request->cookie(self::STATE_COOKIE);
-        $given = $request->query('state');
-
-        if (! is_string($expected) || ! is_string($given) || ! hash_equals($expected, $given)) {
-            return $this->failure('invalid_state');
-        }
-
-        $code = $request->query('code');
-
         try {
-            $socialData = $this->social->providerUser($provider, is_string($code) ? $code : null);
-        } catch (Throwable) {
-            return $this->failure('provider_error');
-        }
+            $authResponse = $this->social->loginWithProvider($request->toDto());
+        } catch (SocialLoginFailure $failure) {
+            return SocialLoginRedirect::failure($failure->reason());
+        } catch (Throwable $e) {
+            report($e);
 
-        // Google's letter image for accounts without a photo counts as no photo (initials are shown).
-        if ($provider === 'google' && $this->googlePhoto->isPlaceholder($socialData->accessToken) === true) {
-            $socialData = $socialData->withoutPlaceholderAvatar();
-        }
-
-        try {
-            $authResponse = $this->social->loginWithProvider($socialData, $request);
-        } catch (EmailRequired) {
-            return $this->failure('email_required');
-        } catch (UnverifiedProviderEmail) {
-            return $this->failure('email_unverified');
-        } catch (AccountDisabled) {
-            return $this->failure('account_disabled');
+            return SocialLoginRedirect::failure('provider_error');
         }
 
         $json = $this->cookies->attach(new JsonResponse, $authResponse);
 
-        $redirect = redirect($this->frontend('/auth/callback?status=success'));
+        $redirect = SocialLoginRedirect::success();
         foreach ($json->headers->getCookies() as $cookie) {
             $redirect->headers->setCookie($cookie);
         }
 
-        return $redirect->withCookie(cookie()->forget(self::STATE_COOKIE, '/'));
+        return $redirect;
     }
 
     private function assertProvider(string $provider): void
     {
         abort_unless(in_array($provider, self::PROVIDERS, true), 404);
-    }
-
-    private function failure(string $reason): RedirectResponse
-    {
-        return redirect($this->frontend('/auth/callback?status=error&reason='.$reason));
-    }
-
-    private function frontend(string $path): string
-    {
-        return rtrim(config('services.frontend_url'), '/').$path;
     }
 }

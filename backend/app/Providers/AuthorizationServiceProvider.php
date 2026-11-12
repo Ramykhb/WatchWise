@@ -13,7 +13,6 @@ use App\Models\MovieNight;
 use App\Models\Notification;
 use App\Models\Review;
 use App\Models\User;
-use App\Models\UserPreference;
 use App\Models\Watchlist;
 use App\MovieList\Policies\MovieListItemPolicy;
 use App\MovieList\Policies\MovieListPolicy;
@@ -23,7 +22,6 @@ use App\Policies\MessagePolicy;
 use App\Policies\ReviewPolicy;
 use App\Room\Policies\DiscussionRoomPolicy;
 use App\User\Policies\UserPolicy;
-use App\User\Policies\UserPreferencePolicy;
 use App\Watchlist\Policies\WatchlistPolicy;
 use Illuminate\Auth\Access\Gate as AccessGate;
 use Illuminate\Contracts\Auth\Access\Gate as GateContract;
@@ -44,7 +42,6 @@ class AuthorizationServiceProvider extends ServiceProvider
         DiscussionRoom::class => DiscussionRoomPolicy::class,
         Message::class => MessagePolicy::class,
         Notification::class => NotificationPolicy::class,
-        UserPreference::class => UserPreferencePolicy::class,
         User::class => UserPolicy::class,
     ];
 
@@ -73,5 +70,6 @@ class AuthorizationServiceProvider extends ServiceProvider
         Gate::define('admin.users.manage', [AdminPolicy::class, 'manageUsers']);
         Gate::define('admin.reviews', [AdminPolicy::class, 'moderateReviews']);
         Gate::define('admin.movies', [AdminPolicy::class, 'manageMovies']);
+        Gate::define('admin.audit', [AdminPolicy::class, 'viewAuditLog']);
     }
 }

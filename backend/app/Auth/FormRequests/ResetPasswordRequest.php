@@ -3,12 +3,14 @@
 namespace App\Auth\FormRequests;
 
 use App\Auth\DTOs\Requests\ResetPasswordData;
-use App\Support\SocialPlaceholderPassword;
+use App\Support\NewPasswordRules;
+use App\Support\NormalizesEmailInput;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
 
 class ResetPasswordRequest extends FormRequest
 {
+    use NormalizesEmailInput;
+
     public function authorize(): bool
     {
         return true;
@@ -18,8 +20,8 @@ class ResetPasswordRequest extends FormRequest
     {
         return [
             'email' => ['required', 'string', 'email', 'max:255'],
-            'token' => ['required', 'string'],
-            'password' => ['required', 'string', 'confirmed', Password::min(8), SocialPlaceholderPassword::rule()],
+            'token' => ['required', 'string', 'max:255'],
+            'password' => NewPasswordRules::rules(),
         ];
     }
 

@@ -46,6 +46,12 @@ class UserFactory extends Factory
         return $this->state(['email_verified_at' => null]);
     }
 
+    /** An account made by social sign-in that never set a password (`password` is NULL). */
+    public function withoutPassword(): static
+    {
+        return $this->state(['password' => null]);
+    }
+
     public function private(): static
     {
         return $this->state(['profile_visibility' => 'private']);

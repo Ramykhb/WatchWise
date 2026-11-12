@@ -11,6 +11,7 @@ use App\Models\Watchlist;
 use App\Support\MediaType;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class AdminStatsRepository implements AdminStatsRepositoryInterface
 {
@@ -99,28 +100,25 @@ class AdminStatsRepository implements AdminStatsRepositoryInterface
             ->where('media_type', MediaType::MOVIE)
             ->whereNotIn('tmdb_id', $excludedTmdbIds)
             ->selectRaw('tmdb_id, count(*) as total')
-            ->groupBy('tmdb_id')
-            ->pluck('total', 'tmdb_id');
+            ->groupBy('tmdb_id');
 
         $rated = Review::query()
             ->where('is_approved', true)
             ->where('media_type', MediaType::MOVIE)
             ->whereNotIn('tmdb_id', $excludedTmdbIds)
             ->selectRaw('tmdb_id, count(*) as total')
+            ->groupBy('tmdb_id');
+
+        return DB::query()
+            ->fromSub($watched->unionAll($rated), 'engagement')
+            ->selectRaw('tmdb_id, sum(total) as weight')
             ->groupBy('tmdb_id')
-            ->pluck('total', 'tmdb_id');
-
-        $weights = [];
-
-        foreach ([$watched, $rated] as $counts) {
-            foreach ($counts as $tmdbId => $total) {
-                $weights[(int) $tmdbId] = ($weights[(int) $tmdbId] ?? 0) + (int) $total;
-            }
-        }
-
-        arsort($weights);
-
-        return array_slice($weights, 0, $limit, true);
+            ->orderByDesc('weight')
+            ->orderBy('tmdb_id')
+            ->limit($limit)
+            ->pluck('weight', 'tmdb_id')
+            ->map(fn ($weight): int => (int) $weight)
+            ->all();
     }
 
     public function dailyActivity(CarbonInterface $since): array

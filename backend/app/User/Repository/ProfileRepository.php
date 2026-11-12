@@ -4,6 +4,7 @@ namespace App\User\Repository;
 
 use App\Models\Review;
 use App\Models\User;
+use App\Support\HiddenMovies;
 use App\Support\LikePattern;
 use App\User\DTOs\Requests\UserSearchQuery;
 use App\User\InterfaceRepository\ProfileRepositoryInterface;
@@ -60,14 +61,14 @@ class ProfileRepository implements ProfileRepositoryInterface
 
     public function reviewsCount(User $user, bool $approvedOnly): int
     {
-        // Star ratings from the Movie page are reviews without text; they aren't counted as reviews.
-        return $this->reviews($user, $approvedOnly)->whereNotNull('content')->count();
+        // Star ratings (no text, or empty text) aren't reviews; same rule as the Home feed.
+        return $this->reviews($user, $approvedOnly)->withText()->count();
     }
 
-    public function topRatedTmdbIds(User $user, bool $approvedOnly, int $limit): SupportCollection
+    public function topRatedTmdbIds(User $user, bool $approvedOnly, int $limit, HiddenMovies $hidden): SupportCollection
     {
         // Movies only: the profile shows these ids as movie posters (a TV show can share the id).
-        return $this->reviews($user, $approvedOnly)->where('media_type', 'movie')->orderByDesc('rating')->latest()->limit($limit)->pluck('tmdb_id');
+        return $hidden->exclude($this->reviews($user, $approvedOnly)->where('media_type', 'movie'))->orderByDesc('rating')->latest()->limit($limit)->pluck('tmdb_id');
     }
 
     public function listsCount(User $user, bool $publicOnly): int
@@ -75,31 +76,33 @@ class ProfileRepository implements ProfileRepositoryInterface
         return $user->movieLists()->when($publicOnly, fn ($builder) => $builder->where('is_public', true))->count();
     }
 
-    public function lists(User $user, bool $publicOnly): Collection
+    public function lists(User $user, bool $publicOnly, HiddenMovies $hidden): Collection
     {
+        $visibleItems = fn ($items) => $hidden->exclude($items);
+
         return $user->movieLists()->when($publicOnly, fn ($builder) => $builder->where('is_public', true))
-            ->with(['user', 'items'])->withCount('items')->latest('updated_at')->get();
+            ->with(['user', 'items' => $visibleItems])->withCount(['items' => $visibleItems])->latest('updated_at')->get();
     }
 
-    public function watchedCount(User $user): int
+    public function watchedCount(User $user, HiddenMovies $hidden): int
     {
-        return $user->watchlists()->where('status', 'watched')->count();
+        return $hidden->exclude($user->watchlists()->where('status', 'watched'))->count();
     }
 
-    public function watchedTmdbIds(User $user, int $limit): SupportCollection
+    public function watchedTmdbIds(User $user, int $limit, HiddenMovies $hidden): SupportCollection
     {
         // Movies only, like top 4 (shown as movie tiles).
-        return $user->watchlists()->where('status', 'watched')->where('media_type', 'movie')->latest('watched_at')->limit($limit)->pluck('tmdb_id');
+        return $hidden->exclude($user->watchlists()->where('status', 'watched')->where('media_type', 'movie'))->latest('watched_at')->limit($limit)->pluck('tmdb_id');
     }
 
     public function recentFollowers(User $user, int $limit): Collection
     {
-        return $user->followers()->limit($limit)->get();
+        return $user->followers()->orderByDesc('follows.id')->limit($limit)->get();
     }
 
     public function recentFollowing(User $user, int $limit): Collection
     {
-        return $user->following()->limit($limit)->get();
+        return $user->following()->orderByDesc('follows.id')->limit($limit)->get();
     }
 
     public function allFollowers(User $user): Collection
@@ -127,14 +130,17 @@ class ProfileRepository implements ProfileRepositoryInterface
      */
     private function matching(UserSearchQuery $query, int $exceptUserId): Builder
     {
-        $like = LikePattern::contains(ltrim($query->q, '@'));
+        $text = ltrim($query->q, '@');
+        $like = LikePattern::contains($text);
+        // Handles are stored lowercase, so "@Mali" finds "mali" whatever the database collation.
+        $handleLike = LikePattern::contains(mb_strtolower($text));
 
         return User::query()
             ->where('is_active', true)
             ->whereKeyNot($exceptUserId)
             ->when($query->q !== '', fn ($builder) => $builder->where(fn ($where) => $where
                 ->whereRaw("name LIKE ? ESCAPE '!'", [$like])
-                ->orWhereRaw("username LIKE ? ESCAPE '!'", [$like])));
+                ->orWhereRaw("username LIKE ? ESCAPE '!'", [$handleLike])));
     }
 
     /**

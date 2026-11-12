@@ -1,17 +1,11 @@
 <?php
 
 use App\Auth\Controllers\AuthController;
-use App\Cinema\Controllers\NearbyCinemaController;
-use App\Docs\Controllers\DocumentationController;
-use App\Genre\Controllers\GenreController;
-use App\Groq\Controllers\ChatController;
-use App\Groq\Controllers\ChatSocketController;
 use App\Health\Controllers\HealthController;
-use App\Movie\Controllers\MovieController;
-use App\MovieRecommendation\Controllers\RecommendationController;
-use App\Person\Controllers\PersonController;
-use App\Weather\Controllers\WeatherController;
 use Illuminate\Support\Facades\Route;
+
+// Thin entry point: each entity or module owns one routes file under routes/ and is required from the right
+// group below. A new entity gets its own file here, not more routes in this one.
 
 Route::get('/health', HealthController::class)->name('health');
 
@@ -23,35 +17,33 @@ Route::prefix('auth')->group(function () {
     Route::get('me', [AuthController::class, 'me'])->middleware('auth.jwt');
 });
 
+// Exempt from `verified.email` so an unverified member can verify, resend the link or reset the password.
 require __DIR__.'/auth_flows.php';
-require __DIR__.'/social.php';
-require __DIR__.'/admin.php';
 
-Route::prefix('chat')->middleware('auth.jwt')->group(function () {
-    Route::get('connection', [ChatSocketController::class, 'show'])->middleware('throttle:60,1');
-    Route::post('auth', [ChatSocketController::class, 'store'])->middleware('throttle:60,1');
-    Route::post('messages', [ChatController::class, 'store'])->middleware('throttle:chat');
+// Every signed-in route outside /api/auth needs a verified email: guests get 401, unverified members 403
+// (`code: email_unverified`). Add new signed-in routes as a bare routes file required inside this group
+// (no `auth.jwt` wrapper in the file); RequireVerifiedEmailTest checks it.
+Route::middleware(['auth.jwt', 'verified.email'])->group(function () {
+    require __DIR__.'/user.php';
+    require __DIR__.'/account_deletion_signed_in.php';
+    require __DIR__.'/lists.php';
+    require __DIR__.'/watchlist.php';
+    require __DIR__.'/ratings.php';
+    require __DIR__.'/reviews.php';
+    require __DIR__.'/movie_nights.php';
+    require __DIR__.'/rooms.php';
+    require __DIR__.'/notifications.php';
+    require __DIR__.'/chat.php';
+    require __DIR__.'/recommendations.php';
+    require __DIR__.'/admin.php';
 });
 
-Route::get('/weather', [WeatherController::class, 'show'])->middleware('throttle:weather');
-Route::post('/weather-mood', [WeatherController::class, 'mood'])->middleware('throttle:ai');
-Route::get('/watched-recommendations', [RecommendationController::class, 'watched'])->middleware(['auth.jwt', 'throttle:ai']);
-Route::get('/people-recommendations', [RecommendationController::class, 'people'])->middleware(['auth.jwt', 'throttle:ai']);
-Route::get('/following-recommendations', [RecommendationController::class, 'following'])->middleware(['auth.jwt', 'throttle:60,1']);
-Route::get('/taste-profile', [RecommendationController::class, 'taste'])->middleware(['auth.jwt', 'throttle:60,1']);
-Route::get('/movie-recommendations', [RecommendationController::class, 'index'])->middleware('throttle:ai');
-Route::get('/nearby-cinemas', [NearbyCinemaController::class, 'index'])->middleware('throttle:30,1');
-
-Route::middleware('throttle:tmdb')->group(function () {
-    Route::get('/movies', [MovieController::class, 'index']);
-    Route::get('/movies/trending', [MovieController::class, 'trending']);
-    Route::get('/movies/search', [MovieController::class, 'search']);
-    Route::get('/movies/discover', [MovieController::class, 'discover']);
-    Route::get('/movies/{id}', [MovieController::class, 'show'])->whereNumber('id');
-    Route::get('/people/{id}', [PersonController::class, 'show'])->whereNumber('id');
-    Route::get('/people/{id}/collaborators', [PersonController::class, 'collaborators'])->whereNumber('id');
-    Route::get('/genres', [GenreController::class, 'index']);
-});
-
-Route::get('/documentation', [DocumentationController::class, 'ui'])->name('documentation');
-Route::get('/documentation/openapi.json', [DocumentationController::class, 'spec'])->name('documentation.spec');
+// Public routes, outside the verified group. The signed email-change and account-deletion links need no
+// session (the signature proves they came from the email).
+require __DIR__.'/email_change.php';
+require __DIR__.'/account_deletion.php';
+require __DIR__.'/weather.php';
+require __DIR__.'/recommendations_public.php';
+require __DIR__.'/cinemas.php';
+require __DIR__.'/movies.php';
+require __DIR__.'/documentation.php';

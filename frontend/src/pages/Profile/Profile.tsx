@@ -23,6 +23,7 @@ import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { compactCount, toMember, toProfile, type ActivityItem, type Member, type Profile as ProfileData, type ProfileList } from './profileData.ts'
 import styles from './Profile.module.css'
+import Toast from '../../components/Toast/Toast.tsx'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, isStatus, useApi } from '../../lib/api.ts'
 import { setFollowing as saveFollow } from '../../lib/follow.ts'
@@ -59,6 +60,13 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
   const isMe = profile.isMe
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(null)
+  const signOut = () => {
+    logout().then(
+      () => navigate('/signin', { replace: true }),
+      () => setToast({ id: Date.now(), message: "Couldn't sign out. Please try again." }),
+    )
+  }
   const firstName = profile.name.split(' ')[0]
   const [tab, setTab] = useState<Tab>('activity')
   const [peopleTab, setPeopleTab] = useState<PeopleTab>('followers')
@@ -141,6 +149,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
 
   return (
     <div ref={pageRef} className={styles.page}>
+      {toast && <Toast key={toast.id} message={toast.message} onDone={() => setToast(null)} />}
       <AppNav />
 
       <main>
@@ -200,7 +209,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                     <button
                       type="button"
                       className={styles.logoutBtn}
-                      onClick={() => void logout().then(() => navigate('/signin', { replace: true }))}
+                      onClick={signOut}
                     >
                       Log out
                     </button>

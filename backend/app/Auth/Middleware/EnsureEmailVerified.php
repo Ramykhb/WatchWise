@@ -8,8 +8,14 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Lets only members with a verified email through: a guest gets 401, an unverified member gets 403 with
+ * `code: email_unverified` so the frontend can send them to the "check your inbox" screen.
+ */
 class EnsureEmailVerified
 {
+    public const CODE = 'email_unverified';
+
     public function __construct(private readonly CurrentUserFactory $factory) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -22,7 +28,7 @@ class EnsureEmailVerified
         }
 
         if (! $current->isVerified()) {
-            return response()->json(['message' => 'Your email address is not verified.'], 403);
+            return response()->json(['message' => 'Verify your email address to continue.', 'code' => self::CODE], 403);
         }
 
         return $next($request);

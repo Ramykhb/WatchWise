@@ -28,6 +28,11 @@ class IncorrectPassword extends RuntimeException
         return new self('password', 'That password is incorrect.');
     }
 
+    public static function forMissingAccountDeletionPassword(): self
+    {
+        return new self('password', 'Enter your password to delete your account.');
+    }
+
     public function render(): JsonResponse
     {
         return response()->json([

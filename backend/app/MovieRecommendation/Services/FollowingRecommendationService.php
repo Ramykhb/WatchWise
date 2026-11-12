@@ -4,6 +4,7 @@ namespace App\MovieRecommendation\Services;
 
 use App\Models\User;
 use App\Movie\Exceptions\MovieNotFound;
+use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Movie\InterfaceServices\MovieServiceInterface;
 use App\MovieRecommendation\DTOs\Responses\RecommendationResponse;
 use App\MovieRecommendation\InterfaceRepository\FollowingRecommendationRepositoryInterface;
@@ -14,12 +15,13 @@ class FollowingRecommendationService implements FollowingRecommendationServiceIn
     public function __construct(
         private readonly FollowingRecommendationRepositoryInterface $recommendations,
         private readonly MovieServiceInterface $movies,
+        private readonly MovieCatalogServiceInterface $catalog,
     ) {}
 
     public function forUser(User $user): RecommendationResponse
     {
         $movies = [];
-        foreach ($this->recommendations->candidates($user) as $candidate) {
+        foreach ($this->recommendations->candidates($user, $this->catalog->hiddenMovies()) as $candidate) {
             try {
                 $movie = $this->movies->find($candidate['tmdb_id'], $candidate['media_type'])->movie;
             } catch (MovieNotFound) {

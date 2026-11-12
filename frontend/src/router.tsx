@@ -30,6 +30,8 @@ import Notifications from './pages/Notifications/Notifications.tsx'
 import Placeholder from './pages/Placeholder/Placeholder.tsx'
 import Releases from './pages/Releases/Releases.tsx'
 import { RequireAdmin, RequireAuth, RequireGuest } from './components/RouteGuards/RouteGuards.tsx'
+import AccountLink, { AccountLinkResult } from './pages/AccountLink/AccountLink.tsx'
+import ResetPassword from './pages/ResetPassword/ResetPassword.tsx'
 import AuthCallback from './pages/AuthCallback/AuthCallback.tsx'
 
 export const router = createBrowserRouter([
@@ -40,6 +42,14 @@ export const router = createBrowserRouter([
       { index: true, element: <RequireGuest><Landing /></RequireGuest> },
       { path: 'signin', element: <RequireGuest><SignIn /></RequireGuest> },
       { path: 'verify-email', element: <VerifyEmail /> },
+      // The emailed reset link works signed in or out.
+      { path: 'reset-password', element: <ResetPassword /> },
+      // Emailed account links work signed in or out, in any browser; `result` must come before `:kind`.
+      { path: 'account-link/result', element: <AccountLinkResult /> },
+      { path: 'account-link/:kind', element: <AccountLink /> },
+      // Legal pages are readable without an account.
+      { path: 'terms', element: <Placeholder title="Terms of Service" /> },
+      { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
       { path: 'signup', element: <RequireGuest><SignUp /></RequireGuest> },
       { path: 'forgot-password', element: <RequireGuest><ForgotPassword /></RequireGuest> },
       { path: 'auth/callback', element: <RequireGuest><AuthCallback /></RequireGuest> },
@@ -86,8 +96,6 @@ export const router = createBrowserRouter([
             ],
           },
           { path: 'notifications', element: <Notifications /> },
-          { path: 'terms', element: <Placeholder title="Terms of Service" /> },
-          { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
           { path: 'community', element: <Placeholder title="Community" /> },
           { path: 'movie-nights', element: <MovieNights /> },
           { path: 'movie-nights/:slug', element: <NightDetail /> },

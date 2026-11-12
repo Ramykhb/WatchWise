@@ -2,28 +2,37 @@
 
 namespace App\User\Services;
 
-use App\Auth\InterfaceRepository\RefreshTokenRepositoryInterface;
-use App\Auth\InterfaceServices\EmailVerificationServiceInterface;
+use App\Auth\DTOs\Responses\AuthResponse;
+use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Models\User;
-use App\Support\SocialPlaceholderPassword;
+use App\Support\SendsMailAfterResponse;
 use App\User\DTOs\Requests\ChangePasswordData;
-use App\User\DTOs\Requests\DeleteAccountData;
+use App\User\DTOs\Requests\SetPasswordData;
 use App\User\DTOs\Requests\UpdatePreferencesData;
 use App\User\DTOs\Requests\UpdateProfileData;
 use App\User\DTOs\Responses\AccountResponse;
+use App\User\Exceptions\CannotDisconnectLastLogin;
 use App\User\Exceptions\IncorrectPassword;
+use App\User\Exceptions\NoPasswordSet;
+use App\User\Exceptions\PasswordAlreadySet;
 use App\User\InterfaceRepository\AccountRepositoryInterface;
 use App\User\InterfaceServices\AccountServiceInterface;
+use App\User\InterfaceServices\EmailChangeServiceInterface;
+use App\User\Mail\PasswordAddedMail;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 class AccountService implements AccountServiceInterface
 {
+    use SendsMailAfterResponse;
+
     public function __construct(
         private readonly AccountRepositoryInterface $accounts,
-        private readonly EmailVerificationServiceInterface $verification,
-        private readonly RefreshTokenRepositoryInterface $tokens,
+        private readonly AuthServiceInterface $auth,
+        private readonly EmailChangeServiceInterface $emailChange,
     ) {}
 
     public function show(User $user): AccountResponse
@@ -33,14 +42,7 @@ class AccountService implements AccountServiceInterface
 
     public function updateProfile(User $user, UpdateProfileData $data): AccountResponse
     {
-        $email = $data->attributes['email'] ?? null;
-        $emailChanged = $email !== null && strcasecmp($email, $user->email) !== 0;
-
-        $this->accounts->updateProfile($user, $data->attributes, $emailChanged);
-
-        if ($emailChanged) {
-            $this->verification->send($user);
-        }
+        $this->accounts->updateProfile($user, $data->attributes);
 
         return AccountResponse::fromModel($user->refresh());
     }
@@ -63,28 +65,81 @@ class AccountService implements AccountServiceInterface
         return AccountResponse::fromModel($user->refresh());
     }
 
-    public function changePassword(User $user, ChangePasswordData $data): void
+    public function changePassword(User $user, ChangePasswordData $data, Request $request): AuthResponse
     {
-        // Accounts created by social sign-in still hold the placeholder, so they set a first password freely.
-        if (! SocialPlaceholderPassword::isStoredFor($user)) {
-            if ($data->currentPassword === null) {
-                throw IncorrectPassword::forMissingCurrentPassword();
-            }
-            if (! Hash::check($data->currentPassword, $user->password)) {
-                throw IncorrectPassword::forCurrentPassword();
-            }
+        // Social sign-ups have no password to change; they set their first one through setPassword().
+        if (! $user->hasPassword()) {
+            throw new NoPasswordSet;
+        }
+        if (! Hash::check($data->currentPassword, $user->password)) {
+            throw IncorrectPassword::forCurrentPassword();
         }
 
+        // A password first set without proof keeps its mark: whoever set it knows it, which proves nothing more.
         $this->accounts->updatePassword($user, $data->newPassword);
-        // The access cookie stays valid until it expires (15 min); every refresh token is gone.
-        $this->tokens->revokeAllForUser($user->id);
+
+        return $this->afterNewPassword($user, $request);
+    }
+
+    public function setPassword(User $user, SetPasswordData $data, Request $request): AuthResponse
+    {
+        // Checked again under a row lock in the repository, so two requests at once cannot both set one.
+        if ($user->hasPassword() || ! $this->accounts->setFirstPassword($user, $data->password)) {
+            throw new PasswordAlreadySet;
+        }
+
+        $this->mailLater($user->email, new PasswordAddedMail($user->name));
+
+        return $this->afterNewPassword($user, $request);
+    }
+
+    /**
+     * Drops a pending email change (its links already stopped working, being bound to the password hash; this
+     * clears Settings too), then signs out every device: each loses its refresh token and every access token
+     * issued before now stops working (`session_version`), while this one gets a fresh session, so the
+     * person stays signed in here.
+     */
+    private function afterNewPassword(User $user, Request $request): AuthResponse
+    {
+        $this->emailChange->discardPendingChange($user);
+
+        return $this->auth->replaceSessions($user, $request);
+    }
+
+    public function passwordResetThroughEmail(User $user): void
+    {
+        if ($user->password_set_without_proof_at !== null) {
+            $this->accounts->clearPasswordSetWithoutProof($user);
+        }
+
+        // The emailed token proves the inbox as well as the verification link would, so the owner is not sent to
+        // the verify-email wall after resetting.
+        if ($user->email_verified_at === null) {
+            $this->accounts->markEmailVerified($user);
+        }
+
+        $this->emailChange->discardPendingChange($user);
     }
 
     public function uploadAvatar(User $user, UploadedFile $file): AccountResponse
     {
-        $this->deleteStoredAvatar($user);
+        $previous = $user->storedAvatarPath();
+
+        // The new file lands first and the old one goes only after the row points at the new one,
+        // so a failed store or update never leaves the member without their current picture.
         $path = $file->store('avatars', 'public');
-        $this->accounts->updateAvatar($user, Storage::disk('public')->url($path));
+
+        try {
+            $this->accounts->updateAvatar($user, $path);
+        } catch (Throwable $e) {
+            Storage::disk('public')->delete($path);
+
+            throw $e;
+        }
+
+        if ($previous !== null) {
+            Storage::disk('public')->delete($previous);
+        }
 
         return AccountResponse::fromModel($user);
     }
@@ -99,17 +154,19 @@ class AccountService implements AccountServiceInterface
 
     public function disconnectSocial(User $user, string $provider): AccountResponse
     {
-        $this->accounts->deleteSocialAccounts($user, $provider);
+        // With a password of its own the account can always sign in again; without one, the last linked
+        // provider is its only way in, so it stays until a password is set or another provider is linked.
+        if ($user->hasPassword()) {
+            $this->accounts->deleteSocialAccounts($user, $provider);
+        } elseif (! $this->accounts->deleteSocialAccountsKeepingAnother($user, $provider)) {
+            throw new CannotDisconnectLastLogin($provider);
+        }
 
         return AccountResponse::fromModel($user);
     }
 
-    public function deleteAccount(User $user, DeleteAccountData $data): void
+    public function deleteAccount(User $user): void
     {
-        if (! Hash::check($data->password, $user->password)) {
-            throw IncorrectPassword::forAccountDeletion();
-        }
-
         $this->deleteStoredAvatar($user);
         $this->accounts->delete($user);
     }
@@ -117,9 +174,9 @@ class AccountService implements AccountServiceInterface
     /** Only files this app stored are removed; an avatar copied from Google or GitHub is just a URL. */
     private function deleteStoredAvatar(User $user): void
     {
-        $prefix = Storage::disk('public')->url('avatars/');
-        if ($user->avatar && str_starts_with($user->avatar, $prefix)) {
-            Storage::disk('public')->delete('avatars/'.substr($user->avatar, strlen($prefix)));
+        $path = $user->storedAvatarPath();
+        if ($path !== null) {
+            Storage::disk('public')->delete($path);
         }
     }
 }

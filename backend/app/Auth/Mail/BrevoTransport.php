@@ -12,6 +12,12 @@ use Symfony\Component\Mime\MessageConverter;
 /** Sends Laravel mailables through Brevo's transactional email API. */
 class BrevoTransport extends AbstractTransport
 {
+    /**
+     * Whole-request limit. Account mails are sent after the response, but with Apache mod_php that still holds the
+     * worker: two attempts and the 1-second backoff stay under 20 seconds.
+     */
+    public const TIMEOUT_SECONDS = 8;
+
     public function __construct(private readonly string $apiKey)
     {
         parent::__construct();
@@ -59,7 +65,7 @@ class BrevoTransport extends AbstractTransport
         $response = Http::acceptJson()
             ->withHeaders(['api-key' => $this->apiKey])
             ->connectTimeout(5)
-            ->timeout(15)
+            ->timeout(self::TIMEOUT_SECONDS)
             ->post('https://api.brevo.com/v3/smtp/email', $payload);
 
         // Keep email bodies, signed links, and credentials out of transport errors.

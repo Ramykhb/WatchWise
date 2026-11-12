@@ -5,12 +5,15 @@ namespace Tests\Feature\Auth;
 use App\Auth\Factories\TokenFactory;
 use App\Auth\Mail\VerifyEmailMail;
 use App\Models\User;
+use App\Support\Exceptions\MailNotDelivered;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Sleep;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Tests\TestCase;
 
@@ -58,7 +61,7 @@ class BrevoVerificationTest extends TestCase
         $this->withToken($jwt)->getJson('/api/auth/me')->assertOk()->assertJsonPath('user.email_verified_at', null);
         $this->getJson('/api/home')->assertForbidden()->assertJsonPath('code', 'email_unverified');
 
-        $this->get($url)->assertRedirect('http://front.test/verify-email?status=success');
+        $this->postJson($url)->assertOk()->assertExactJson(['outcome' => 'success']);
         $user = User::where('email', 'jane@example.com')->firstOrFail();
         $this->assertNotNull($user->email_verified_at);
         Event::assertDispatched(Verified::class, fn ($event) => $event->user->id === $user->id);
@@ -68,7 +71,7 @@ class BrevoVerificationTest extends TestCase
 
         $timestamp = $user->email_verified_at->toJSON();
         $this->travel(1)->minutes();
-        $this->get($url)->assertRedirect('http://front.test/verify-email?status=success');
+        $this->postJson($url)->assertOk()->assertExactJson(['outcome' => 'already-verified']);
         $this->assertSame($timestamp, $user->fresh()->email_verified_at->toJSON());
         Event::assertDispatchedTimes(Verified::class, 1);
     }
@@ -79,8 +82,8 @@ class BrevoVerificationTest extends TestCase
         $other = User::factory()->unverified()->create();
         $url = URL::temporarySignedRoute('auth.verify-email', now()->addHour(), ['id' => $user->id, 'hash' => sha1($user->email)]);
         $tampered = preg_replace('/expires=\d+/', 'expires=1', $url);
-        $this->get($tampered)->assertRedirect('http://front.test/verify-email?status=invalid');
-        $this->get(str_replace('/'.$user->id.'/', '/'.$other->id.'/', $url))->assertRedirect('http://front.test/verify-email?status=invalid');
+        $this->postJson($tampered)->assertForbidden()->assertExactJson(['outcome' => 'invalid']);
+        $this->postJson(str_replace('/'.$user->id.'/', '/'.$other->id.'/', $url))->assertForbidden()->assertExactJson(['outcome' => 'invalid']);
         $this->assertNull($user->fresh()->email_verified_at);
         $this->assertNull($other->fresh()->email_verified_at);
     }
@@ -90,7 +93,8 @@ class BrevoVerificationTest extends TestCase
         Mail::fake();
         $user = User::factory()->unverified()->create();
         $url = URL::temporarySignedRoute('auth.verify-email', now()->subMinute(), ['id' => $user->id, 'hash' => sha1($user->email)]);
-        $this->get($url)->assertRedirect('http://front.test/verify-email?status=expired');
+        $this->get($url)->assertRedirect('http://front.test/account-link/result?kind=verify-email&outcome=expired');
+        $this->postJson($url)->assertStatus(410)->assertExactJson(['outcome' => 'expired']);
         $this->assertNull($user->fresh()->email_verified_at);
         $this->postJson('/api/auth/resend-verification', ['email' => $user->email])->assertOk();
         $freshUrl = null;
@@ -99,7 +103,7 @@ class BrevoVerificationTest extends TestCase
 
             return true;
         });
-        $this->get($freshUrl)->assertRedirect('http://front.test/verify-email?status=success');
+        $this->postJson($freshUrl)->assertOk()->assertExactJson(['outcome' => 'success']);
         $this->assertNotNull($user->fresh()->email_verified_at);
     }
 
@@ -108,24 +112,33 @@ class BrevoVerificationTest extends TestCase
         $user = User::factory()->unverified()->create();
         $url = URL::temporarySignedRoute('auth.verify-email', now()->addHour(), ['id' => $user->id, 'hash' => sha1($user->email)]);
         $user->update(['email' => 'changed@example.com']);
-        $this->get($url)->assertRedirect('http://front.test/verify-email?status=invalid');
+        $this->postJson($url)->assertOk()->assertExactJson(['outcome' => 'invalid']);
         $this->assertNull($user->fresh()->email_verified_at);
         $user->delete();
-        $this->get($url)->assertRedirect('http://front.test/verify-email?status=invalid');
+        $this->postJson($url)->assertOk()->assertExactJson(['outcome' => 'invalid']);
     }
 
     public function test_brevo_failure_does_not_lose_the_registered_account(): void
     {
-        Http::fake(['api.brevo.com/v3/smtp/email' => Http::response(['message' => 'Invalid sender'], 400)]);
+        Sleep::fake();
+        Exceptions::fake();
+        Http::fakeSequence('api.brevo.com/v3/smtp/email')
+            ->push(['message' => 'Invalid sender'], 400)
+            ->push(['message' => 'Invalid sender'], 400)
+            ->push(['messageId' => 'retry-message'], 201);
         $this->postJson('/api/auth/register', [
             'name' => 'Jane', 'email' => 'jane@example.com',
             'password' => 'secret1234', 'password_confirmation' => 'secret1234',
         ])->assertCreated()->assertJsonPath('user.email_verified_at', null);
         $this->assertDatabaseHas('users', ['email' => 'jane@example.com', 'email_verified_at' => null]);
-        Http::assertSentCount(1);
-        Http::fake(['api.brevo.com/v3/smtp/email' => Http::response(['messageId' => 'retry-message'], 201)]);
+        // Tried twice after the response (1 s apart), then reported once without the address or link.
+        Http::assertSentCount(2);
+        Sleep::assertSequence([Sleep::for(1)->second()]);
+        Exceptions::assertReportedCount(1);
+        Exceptions::assertReported(fn (MailNotDelivered $e): bool => $e->getMessage() === 'VerifyEmailMail was not delivered after 2 attempt(s): TransportException.');
         $this->postJson('/api/auth/resend-verification', ['email' => 'jane@example.com'])->assertOk();
-        Http::assertSentCount(1);
+        Http::assertSentCount(3);
+        Exceptions::assertReportedCount(1);
     }
 
     public function test_missing_brevo_key_fails_without_a_network_request(): void

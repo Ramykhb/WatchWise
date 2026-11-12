@@ -2,10 +2,9 @@
 
 namespace App\User\FormRequests;
 
-use App\Support\SocialPlaceholderPassword;
+use App\Support\NewPasswordRules;
 use App\User\DTOs\Requests\ChangePasswordData;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
 
 class UpdatePasswordRequest extends FormRequest
 {
@@ -20,9 +19,8 @@ class UpdatePasswordRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Optional only for accounts that never chose a password; AccountService enforces it for the rest.
-            'current_password' => ['nullable', 'string'],
-            'password' => ['required', 'string', 'confirmed', 'different:current_password', Password::min(8)->letters()->numbers(), SocialPlaceholderPassword::rule()],
+            'current_password' => ['required', 'string'],
+            'password' => [...NewPasswordRules::rules(), 'different:current_password'],
         ];
     }
 

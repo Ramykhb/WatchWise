@@ -4,6 +4,7 @@ namespace Tests\Feature\Admin;
 
 use App\Models\RefreshToken;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 
 class AdminUsersTest extends AdminTestCase
 {
@@ -103,6 +104,34 @@ class AdminUsersTest extends AdminTestCase
 
         $this->assertModelMissing($member);
         $this->assertDatabaseCount('reviews', 0);
+    }
+
+    public function test_deleting_a_user_removes_their_stored_avatar(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('avatars/maya.png', 'image');
+        Storage::disk('public')->put('avatars/other.png', 'image');
+        $member = User::factory()->create();
+        $member->forceFill(['avatar' => 'avatars/maya.png'])->save();
+
+        $this->as($this->admin())->deleteJson("/api/admin/users/{$member->id}")->assertOk();
+
+        $this->assertModelMissing($member);
+        Storage::disk('public')->assertMissing('avatars/maya.png');
+        Storage::disk('public')->assertExists('avatars/other.png');
+    }
+
+    public function test_deleting_a_user_whose_avatar_is_an_external_url_still_works(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('avatars/other.png', 'image');
+        $member = User::factory()->create();
+        $member->forceFill(['avatar' => 'https://lh3.googleusercontent.com/a/maya'])->save();
+
+        $this->as($this->admin())->deleteJson("/api/admin/users/{$member->id}")->assertOk();
+
+        $this->assertModelMissing($member);
+        Storage::disk('public')->assertExists('avatars/other.png');
     }
 
     public function test_an_admin_cannot_delete_themselves(): void

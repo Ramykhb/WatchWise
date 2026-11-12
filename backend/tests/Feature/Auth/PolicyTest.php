@@ -23,7 +23,7 @@ class PolicyTest extends TestCase
 
     private function current(User $user): CurrentUser
     {
-        return new JwtCurrentUser($user, (object) ['sub' => (string) $user->id]);
+        return new JwtCurrentUser($user);
     }
 
     private function can(CurrentUser $current, string $ability, mixed $arguments): bool

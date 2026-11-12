@@ -1,6 +1,8 @@
 // Shapes returned by the Laravel API (backend/app/Http/Controllers, backend/app/Http/Resources).
 // Films are TMDB ids; lib/movies.ts turns them into the poster data the components draw.
 
+import type { TmdbMovie } from '../pages/Discover/discoverApi.ts'
+
 /** Small public card of a user (MemberResource). */
 export type ApiMember = { id: number; username: string; name: string; avatar: string | null }
 
@@ -99,13 +101,21 @@ export type ApiMe = {
     favorite_genres: string[]
     privacy: Record<'ratings' | 'reviews' | 'lists' | 'watchlist' | 'history' | 'following', boolean>
     integrations: Record<'calendar' | 'location' | 'weather' | 'digest', boolean>
-    /** One switch per notification type, all on by default. Follow requests have none: they always arrive. */
-    notifications: Record<Exclude<ApiNotification['kind'], 'follow_request'>, boolean>
+    /** One switch per notification type, all on by default. Follow requests and removed-review notices have none: they always arrive. */
+    notifications: Record<Exclude<ApiNotification['kind'], 'follow_request' | 'review_removed'>, boolean>
   }
   /** Linked providers → when they were connected. */
   connected: Partial<Record<'google' | 'github' | 'discord', string>>
-  /** False while a Google/GitHub/Discord sign-up hasn't chosen its own password (no current password to ask for). */
+  /** False for accounts with no password (Google/GitHub/Discord sign-ups until they set one); true otherwise. */
   has_password: boolean
+  /** A new sign-in email waiting for its confirmation link to be opened; `user.email` stays in use until then. */
+  pending_email: string | null
+  /** True while the current address still has to approve the change (no password, or a first one not yet proven); the new one is not mailed yet. */
+  pending_email_awaiting_current: boolean
+  /** True when deleting the account mails a confirmation link instead of asking for the password (no password of its own, or a first one not yet proven). */
+  deletion_by_email: boolean
+  /** True while a deletion confirmation link mailed to the account is still valid. */
+  deletion_pending: boolean
   counts: { unread_notifications: number; followers: number; following: number }
 }
 
@@ -139,6 +149,8 @@ export type ApiNotification = {
     | 'night_vote'
     | 'night_update'
     | 'review_helpful'
+    | 'review_removed'
+  /** `review_removed` notices come from the WatchWise team (id 0), never from the staff member who acted. */
   actor: ApiMember
   /** Whether you already follow the actor (drives "Follow back"). */
   actor_followed: boolean
@@ -228,6 +240,8 @@ export type ApiHomeActivity = {
 
 export type ApiHome = {
   activity: ApiHomeActivity[]
+  /** Films the admins feature on Home (visible ones only, most recently edited first, at most 10). */
+  featured: TmdbMovie[]
   rooms: { id: number; name: string; members: number }[]
   next_night: {
     id: number

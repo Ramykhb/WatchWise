@@ -7,6 +7,7 @@ use App\Movie\DTOs\Requests\LocalMovieQuery;
 use App\Movie\DTOs\Requests\UpdateLocalMovieData;
 use App\Movie\DTOs\Responses\CatalogSyncResponse;
 use App\Movie\Exceptions\MovieNotFound;
+use App\Support\HiddenMovies;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
@@ -34,9 +35,19 @@ interface MovieCatalogServiceInterface
     public function syncSummary(): CatalogSyncResponse;
 
     /**
-     * Films admins have hidden; the app's own lists and stats leave them out.
+     * Films admins have hidden from browsing; admin stats leave them out.
      *
      * @return list<int>
      */
     public function hiddenTmdbIds(): array;
+
+    /** The same films as a filter for the lists members browse: search, Discover, Home, recommendations and other members' lists. */
+    public function hiddenMovies(): HiddenMovies;
+
+    /**
+     * Visible films an admin featured, most recently edited first, for the Home page's Featured row.
+     *
+     * @return Collection<int, LocalMovie>
+     */
+    public function featured(int $limit): Collection;
 }

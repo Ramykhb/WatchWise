@@ -30,7 +30,7 @@ mock.module('react', { namedExports: {
   },
   useCallback: (callback) => callback,
 } })
-const { useApi, clearApiCache } = await import('../src/lib/api.ts')
+const { useApi, clearApiCache, isGuestRoute, shouldSkipRefresh } = await import('../src/lib/api.ts')
 const flush = () => new Promise((resolve) => setImmediate(resolve))
 const failure = (status) => Object.assign(new Error('Request failed'), {
   isAxiosError: true, response: status ? { status } : undefined,
@@ -136,4 +136,23 @@ test('unmount cancels a pending retry', async (t) => {
   t.mock.timers.tick(10_000)
   await flush()
   assert.equal(calls, 1)
+})
+
+test('account-link pages count as guest routes, lookalikes do not', () => {
+  for (const path of ['/', '/signin', '/account-link', '/account-link/email-confirm', '/account-link/result']) assert.equal(isGuestRoute(path), true, path)
+  for (const path of ['/account-link-evil', '/settings', '/account-linkx/a']) assert.equal(isGuestRoute(path), false, path)
+})
+
+test('signed confirm POSTs and auth endpoints never trigger a refresh', () => {
+  const query = `?expires=1&signature=${'a'.repeat(64)}`
+  for (const kind of ['email/confirm', 'email/authorize', 'delete/confirm']) {
+    assert.equal(shouldSkipRefresh(`/me/${kind}/7/${'b'.repeat(64)}${query}`), true, kind)
+    assert.equal(shouldSkipRefresh(`https://api.test/api/me/${kind}/7/x${query}`), true, kind)
+  }
+  assert.equal(shouldSkipRefresh(`/auth/verify-email/7/${'b'.repeat(64)}${query}`), true)
+  assert.equal(shouldSkipRefresh(`https://api.test/api/auth/verify-email/7/x${query}`), true)
+  assert.equal(isGuestRoute('/reset-password'), true)
+  assert.equal(shouldSkipRefresh('/auth/login'), true)
+  assert.equal(shouldSkipRefresh('/me'), false)
+  assert.equal(shouldSkipRefresh('/me/email/cancel/7/x'), false)
 })

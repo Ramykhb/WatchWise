@@ -5,26 +5,25 @@ namespace App\User\InterfaceRepository;
 use App\Models\DiscussionRoom;
 use App\Models\MovieNight;
 use App\Models\User;
+use App\Support\HiddenMovies;
 use Illuminate\Database\Eloquent\Collection;
 
 interface HomeRepositoryInterface
 {
     /**
-     * Current, shared activity by followed members, bounded per source.
+     * Current, shared activity by followed members, bounded per source, without the hidden movies (a list's
+     * cover is its first visible film).
      *
      * @return array{reviews: Collection, lists: Collection, watchlist: Collection}
      */
-    public function recentActivity(User $viewer, int $limit): array;
+    public function recentActivity(User $viewer, int $limit, HiddenMovies $hidden): array;
 
     /**
-     * The rooms with the most recent message, newest first: public rooms and the private ones the user is in.
+     * The rooms with the most recent message, newest first: public rooms and the private ones the user is in, each with its `members_count`.
      *
      * @return Collection<int, DiscussionRoom>
      */
     public function busiestRooms(int $limit, int $userId): Collection;
-
-    /** How many members the room has (its creator and everyone who has joined). */
-    public function roomMemberCount(DiscussionRoom $room): int;
 
     /** The soonest upcoming night the user hosts or has not declined, with its guests and votes. */
     public function nextNightFor(User $user): ?MovieNight;

@@ -23,6 +23,7 @@ import { RELEASE_GRADIENTS, gradientCss, upcomingReleases } from './homeData.ts'
 import { googleCalendarUrl } from '../MovieDetails/calendar.ts'
 import styles from './Home.module.css'
 import WeeklyTrending from './WeeklyTrending.tsx'
+import FeaturedRow from './FeaturedRow.tsx'
 import FollowingActivity from './FollowingActivity.tsx'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, useApi } from '../../lib/api.ts'
@@ -400,6 +401,8 @@ export default function Home() {
             )}
           </article>
         </section>
+
+        <FeaturedRow movies={home?.featured} />
 
         <WeeklyTrending />
 

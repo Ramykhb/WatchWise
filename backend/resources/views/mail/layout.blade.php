@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light">
-    <title>{{ $action }} · WatchWise</title>
+    <title>{{ isset($action) ? $action.' · WatchWise' : 'WatchWise' }}</title>
     <style>
         body { margin: 0; padding: 0; }
         table { border-collapse: collapse; }
@@ -40,19 +40,30 @@
                     <h1 class="headline" style="margin:24px 0 20px;font-family:Arial,Helvetica,sans-serif;font-size:46px;line-height:49px;letter-spacing:-2px;font-weight:800;color:#2b1a63;">{{ $heading }}</h1>
                     <p style="margin:0 0 16px;font-size:16px;line-height:27px;color:#5a5470;">{{ $intro }}</p>
                     <p style="margin:0 0 26px;font-size:16px;line-height:27px;color:#5a5470;">{{ $instruction }}</p>
+                    @isset($url)
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td>
                         <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ $url }}" style="height:54px;v-text-anchor:middle;width:240px;" arcsize="50%" stroke="f" fillcolor="#2b1a63"><w:anchorlock/><center style="color:#fff3e3;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">{{ $action }} &rarr;</center></v:roundrect><![endif]-->
                         <!--[if !mso]><!--><a class="button" href="{{ $url }}" style="display:inline-block;background-color:#2b1a63;border:2px solid #2b1a63;border-radius:28px;padding:16px 28px;color:#fff3e3;text-decoration:none;font-size:16px;line-height:20px;font-weight:700;">{{ $action }} &nbsp; &rarr;</a><!--<![endif]-->
                     </td></tr></table>
+                    @endisset
+                    @isset($expiresInMinutes)
                     <p style="margin:16px 0 28px;font-size:12px;line-height:20px;color:#5a5470;">Your link expires in <strong>{{ $expiresInMinutes }} minutes.</strong></p>
+                    @else
+                    <div style="height:28px;font-size:0;line-height:0;">&nbsp;</div>
+                    @endisset
+                    @isset($secondaryUrl)
+                    <p style="margin:0 0 28px;font-size:14px;line-height:23px;color:#5a5470;">{{ $secondaryPrompt }} <a href="{{ $secondaryUrl }}" style="color:#2b1a63;font-weight:700;text-decoration:underline;">{{ $secondaryAction }}</a></p>
+                    @endisset
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td bgcolor="#fbe6cf" style="padding:18px 20px;border-radius:12px;border-left:3px solid #ff5a4e;font-size:13px;line-height:22px;color:#5a5470;">{{ $note }}</td></tr></table>
                     <p style="margin:28px 0 0;font-size:14px;line-height:23px;color:#5a5470;">{{ $signoff }}<br><strong style="color:#2b1a63;">The WatchWise crew</strong></p>
                 </td></tr>
                 <tr><td bgcolor="#fff3e3" class="inset" style="padding:28px 40px 34px;border-radius:0 0 24px 24px;">
+                    @isset($url)
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-top:1px solid #dbd5d1;padding-top:22px;">
                         <p style="margin:0 0 8px;font-size:12px;line-height:20px;color:#5a5470;">Button taking an intermission? Copy this link into your browser:</p>
                         <a href="{{ $url }}" style="font-size:11px;line-height:19px;color:#2b1a63;text-decoration:underline;word-break:break-all;overflow-wrap:anywhere;">{{ $url }}</a>
                     </td></tr></table>
+                    @endisset
                 </td></tr>
                 <tr><td align="center" style="padding:26px 16px 0;">
                     <p style="margin:0 0 8px;font-size:10px;line-height:16px;letter-spacing:2px;font-weight:700;color:#2b1a63;">GOOD FILMS. GREAT COMPANY.</p>

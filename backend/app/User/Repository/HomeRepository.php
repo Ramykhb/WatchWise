@@ -8,15 +8,16 @@ use App\Models\MovieNight;
 use App\Models\Review;
 use App\Models\User;
 use App\Models\Watchlist;
+use App\Support\HiddenMovies;
 use App\User\InterfaceRepository\HomeRepositoryInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
 class HomeRepository implements HomeRepositoryInterface
 {
-    public function recentActivity(User $viewer, int $limit): array
+    public function recentActivity(User $viewer, int $limit, HiddenMovies $hidden): array
     {
-        $reviews = Review::with('user.preferences')
+        $reviews = $hidden->exclude(Review::with('user.preferences'))
             ->where('is_approved', true)->whereNull('removed_at')
             ->where(function (Builder $activity) use ($viewer) {
                 $activity->where(fn (Builder $reviews) => $reviews->withText()
@@ -27,12 +28,12 @@ class HomeRepository implements HomeRepositoryInterface
             })
             ->orderByDesc('updated_at')->orderByDesc('id')->limit($limit)->get();
 
-        $lists = MovieList::with(['user', 'items' => fn ($items) => $items->limit(1)])
+        $lists = MovieList::with(['user', 'items' => fn ($items) => $hidden->exclude($items)->limit(1)])
             ->where('is_public', true)
             ->whereHas('user', fn (Builder $authors) => $this->activityAuthors($authors, $viewer, 'lists'))
             ->orderByDesc('updated_at')->orderByDesc('id')->limit($limit)->get();
 
-        $watchlist = Watchlist::with('user')
+        $watchlist = $hidden->exclude(Watchlist::with('user'))
             ->where(fn (Builder $activity) => $activity
                 ->where(fn (Builder $watched) => $watched->where('status', 'watched')
                     ->whereHas('user', fn (Builder $authors) => $this->activityAuthors($authors, $viewer, 'history')))
@@ -60,17 +61,12 @@ class HomeRepository implements HomeRepositoryInterface
 
     public function busiestRooms(int $limit, int $userId): Collection
     {
-        return DiscussionRoom::withCount('messages')
+        return DiscussionRoom::withCount(['messages', 'members'])
             ->where(fn ($rooms) => $rooms->where('is_private', false)->orWhereHas('members', fn ($members) => $members->whereKey($userId)))
             ->withMax('messages', 'created_at')
             ->orderByDesc('messages_max_created_at')
             ->limit($limit)
             ->get();
-    }
-
-    public function roomMemberCount(DiscussionRoom $room): int
-    {
-        return $room->members()->count();
     }
 
     public function nextNightFor(User $user): ?MovieNight
