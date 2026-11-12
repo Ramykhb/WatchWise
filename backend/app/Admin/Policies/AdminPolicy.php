@@ -38,6 +38,17 @@ class AdminPolicy
         return $current->isAdmin();
     }
 
+    /** Moderators may see the genre overrides but not change them. */
+    public function viewGenres(CurrentUser $current): bool
+    {
+        return $this->isStaff($current);
+    }
+
+    public function manageGenres(CurrentUser $current): bool
+    {
+        return $current->isAdmin();
+    }
+
     /** The log of what staff did is for admins only. */
     public function viewAuditLog(CurrentUser $current): bool
     {

@@ -45,6 +45,13 @@ interface MovieCatalogServiceInterface
     public function hiddenMovies(): HiddenMovies;
 
     /**
+     * How many visible (not hidden) catalogue films carry each genre id.
+     *
+     * @return array<int, int> film count keyed by genre id; genres no film carries are absent
+     */
+    public function visibleGenreCounts(): array;
+
+    /**
      * Visible films an admin featured, most recently edited first, for the Home page's Featured row.
      *
      * @return Collection<int, LocalMovie>

@@ -168,16 +168,18 @@
     "/api/genres": {
       "get": {
         "summary": "List movie genres",
-        "description": "Returns TMDB's movie genres (cached for a day). Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
+        "description": "Returns TMDB's movie or tv genres (TMDB's list is cached for a day) with the local overrides staff set applied on top, on every request: a display name replaces the TMDB name (without moving the genre), hidden genres are left out, and genres with a position come first in that order, followed by the rest in TMDB's order, so with no overrides the list is TMDB's unchanged. Hiding a genre only removes it from this list; browsing by its id still works and films keep their genre ids. Anything that turns genre ids into names (film tiles, the admin film editor) must pass include_hidden=1, otherwise a hidden genre has no label. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
         "tags": ["Genres"],
         "parameters": [
-          {"name": "type", "in": "query", "required": false, "description": "Which genre list to return.", "schema": {"type": "string", "enum": ["movie", "tv"], "default": "movie"}}
+          {"name": "type", "in": "query", "required": false, "description": "Which genre list to return.", "schema": {"type": "string", "enum": ["movie", "tv"], "default": "movie"}},
+          {"name": "include_hidden", "in": "query", "required": false, "description": "Send 1 to keep the genres staff hid from members in the list (display names and order still applied), for looking up a name from an id. Send 1 or 0; any other value answers 422.", "schema": {"type": "boolean", "default": false}}
         ],
         "responses": {
           "200": {
             "description": "All genres.",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/GenreList"}, "example": {"genres": [{"id": 28, "name": "Action"}, {"id": 12, "name": "Adventure"}]}}}
           },
+          "422": {"description": "include_hidden is not a boolean."},
           "429": {"description": "Too many requests.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}}}},
           "502": {"description": "TMDB is unreachable or returned an error.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Message"}, "example": {"message": "Movie service is temporarily unavailable."}}}}
         }
