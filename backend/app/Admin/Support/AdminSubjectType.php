@@ -12,4 +12,5 @@ enum AdminSubjectType: string
     case Setting = 'setting';
     case Report = 'report';
     case Rating = 'rating';
+    case MovieList = 'list';
 }

@@ -22,6 +22,9 @@ enum AdminAction: string
     case RatingDeleted = 'rating.deleted';
     /** Every star rating of one member removed at once; the subject is that member. */
     case RatingsPurged = 'rating.purged';
+    case ListMadePrivate = 'list.made_private';
+    case ListItemRemoved = 'list.item_removed';
+    case ListDeleted = 'list.deleted';
 
     /** What kind of record the action is done to. */
     public function subjectType(): AdminSubjectType
@@ -35,6 +38,7 @@ enum AdminAction: string
             self::ReportResolved, self::ReportDismissed => AdminSubjectType::Report,
             self::RatingDeleted => AdminSubjectType::Rating,
             self::RatingsPurged => AdminSubjectType::User,
+            self::ListMadePrivate, self::ListItemRemoved, self::ListDeleted => AdminSubjectType::MovieList,
         };
     }
 }

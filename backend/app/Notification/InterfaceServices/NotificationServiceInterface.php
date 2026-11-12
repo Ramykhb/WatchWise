@@ -4,9 +4,11 @@ namespace App\Notification\InterfaceServices;
 
 use App\Models\DiscussionRoom;
 use App\Models\Message;
+use App\Models\MovieList;
 use App\Models\MovieNight;
 use App\Models\Review;
 use App\Models\User;
+use App\Notification\Support\ListRestriction;
 
 /**
  * What other modules call when something happens that someone should hear about. Each notification is stored
@@ -93,4 +95,13 @@ interface NotificationServiceInterface
      * notice carries neither the review's text nor who removed it, and ignores the author's notification settings.
      */
     public function reviewRemoved(Review $review): void;
+
+    /**
+     * Staff restricted the list (made it private, removed a film from it or deleted it) and its owner is told which
+     * list it was. `$film` names the removed title for `ItemRemoved`. The notice carries nobody who acted and
+     * ignores the owner's notification settings. A deleted list may be passed: only its id, title and owner are read.
+     *
+     * @param  array{tmdb_id: int, media_type: string}|null  $film
+     */
+    public function listRestricted(MovieList $list, ListRestriction $restriction, ?array $film = null): void;
 }

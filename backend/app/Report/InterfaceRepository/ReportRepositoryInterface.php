@@ -6,6 +6,7 @@ use App\Models\Report;
 use App\Report\DTOs\Requests\ReportQueueQuery;
 use App\Report\Support\ReportStatus;
 use App\Report\Support\ReportTargetType;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -50,6 +51,21 @@ interface ReportRepositoryInterface
      * @return array<string, int>
      */
     public function openCountsByTargetType(): array;
+
+    /**
+     * Open reports per target among `$targetIds`; targets without any are absent.
+     *
+     * @param  list<int>  $targetIds
+     * @return array<int, int>
+     */
+    public function openCountsFor(ReportTargetType $type, array $targetIds): array;
+
+    /**
+     * Open reports on the target, newest first, then by id, with `reporter` loaded.
+     *
+     * @return Collection<int, Report>
+     */
+    public function openFor(ReportTargetType $type, int $targetId): Collection;
 
     /**
      * The rows reports point at, found in a constant number of queries (one per kind) with the author each description needs loaded.

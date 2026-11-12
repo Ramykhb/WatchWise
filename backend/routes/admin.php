@@ -2,6 +2,7 @@
 
 use App\Admin\Controllers\AdminController;
 use App\Admin\Controllers\AdminGenreController;
+use App\Admin\Controllers\AdminListController;
 use App\Admin\Controllers\AdminRatingController;
 use App\Admin\Controllers\AdminReportController;
 use App\Admin\Controllers\AdminReviewToolsController;
@@ -66,6 +67,20 @@ Route::prefix('admin')->middleware('throttle:admin')->group(function () {
 
         Route::middleware('role:admin,moderator')->group(function () {
             Route::get('genres', 'index');
+        });
+    });
+
+    // Moderators and admins read every member's lists, make one private and remove a film from one; only admins delete one.
+    Route::controller(AdminListController::class)->group(function () {
+        Route::middleware('role:admin')->group(function () {
+            Route::delete('lists/{list}', 'destroy')->whereNumber('list');
+        });
+
+        Route::middleware('role:admin,moderator')->group(function () {
+            Route::get('lists', 'index');
+            Route::get('lists/{list}', 'show')->whereNumber('list');
+            Route::patch('lists/{list}', 'update')->whereNumber('list');
+            Route::delete('lists/{list}/items/{tmdbId}', 'removeItem')->whereNumber('list')->whereNumber('tmdbId');
         });
     });
 

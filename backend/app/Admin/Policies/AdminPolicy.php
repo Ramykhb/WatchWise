@@ -73,6 +73,18 @@ class AdminPolicy
         return $this->isStaff($current);
     }
 
+    /** Reading every member's lists, making one private and removing a film from one. */
+    public function moderateLists(CurrentUser $current): bool
+    {
+        return $this->isStaff($current);
+    }
+
+    /** Deleting a whole list stays with admins. */
+    public function deleteLists(CurrentUser $current): bool
+    {
+        return $current->isAdmin();
+    }
+
     private function isStaff(CurrentUser $current): bool
     {
         return $current->isAdmin() || $current->role() === 'moderator';

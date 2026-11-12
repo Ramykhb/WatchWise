@@ -7,12 +7,15 @@ use App\Models\MovieListItem;
 use App\Models\User;
 use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\DTOs\Requests\MovieListSearchQuery;
+use App\MovieList\DTOs\Requests\StaffListQuery;
 use App\MovieList\InterfaceRepository\MovieListRepositoryInterface;
 use App\Support\HiddenMovies;
 use App\Support\LikePattern;
 use App\Support\MediaType;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class MovieListRepository implements MovieListRepositoryInterface
 {
@@ -52,9 +55,14 @@ class MovieListRepository implements MovieListRepositoryInterface
         $list->touch();
     }
 
-    public function delete(MovieList $list): void
+    public function delete(MovieList $list): bool
     {
-        $list->delete();
+        return MovieList::query()->whereKey($list->getKey())->delete() > 0;
+    }
+
+    public function lockForUpdate(MovieList $list): ?MovieList
+    {
+        return MovieList::query()->whereKey($list->getKey())->lockForUpdate()->first();
     }
 
     public function addItem(MovieList $list, ListFilmData $film): bool
@@ -110,5 +118,63 @@ class MovieListRepository implements MovieListRepositoryInterface
         $visibleItems = fn ($items) => $hidden->exclude($items);
 
         return $list->load(['user', 'items' => $visibleItems])->loadCount(['items' => $visibleItems]);
+    }
+
+    public function paginateForStaff(StaffListQuery $query): LengthAwarePaginator
+    {
+        return MovieList::query()
+            ->with('user:id,name,username')
+            ->withCount('items')
+            ->when($query->search !== '', function (Builder $builder) use ($query): void {
+                $pattern = LikePattern::contains($query->search);
+
+                $builder->where(fn (Builder $match) => $match
+                    ->whereRaw("title LIKE ? ESCAPE '!'", [$pattern])
+                    ->orWhereHas('user', fn (Builder $owner) => $owner
+                        ->whereRaw("name LIKE ? ESCAPE '!'", [$pattern])
+                        ->orWhereRaw("username LIKE ? ESCAPE '!'", [$pattern])));
+            })
+            ->when($query->visibility !== null, fn (Builder $builder) => $builder->where('is_public', $query->visibility === 'public'))
+            ->when($query->ownerId !== null, fn (Builder $builder) => $builder->where('user_id', $query->ownerId))
+            ->when($query->reported === true, fn (Builder $builder) => $builder->whereHas('reports', fn (Builder $reports) => $reports->open()))
+            ->when($query->reported === false, fn (Builder $builder) => $builder->whereDoesntHave('reports', fn (Builder $reports) => $reports->open()))
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate($query->perPage, ['*'], 'page', $query->page);
+    }
+
+    public function staffTotals(): array
+    {
+        $counts = MovieList::query()
+            ->selectRaw('count(*) as total')
+            ->selectRaw('sum(case when is_public = ? then 1 else 0 end) as public_lists', [true])
+            ->selectRaw('sum(case when is_public = ? then 1 else 0 end) as private_lists', [false])
+            ->toBase()
+            ->first();
+
+        return [
+            'total' => (int) $counts->total,
+            'public' => (int) $counts->public_lists,
+            'private' => (int) $counts->private_lists,
+            'reported' => MovieList::query()->whereHas('reports', fn (Builder $reports) => $reports->open())->count(),
+        ];
+    }
+
+    public function loadStaffRow(MovieList $list): MovieList
+    {
+        return $list->refresh()->load('user:id,name,username')->loadCount('items');
+    }
+
+    public function loadStaffDetail(MovieList $list, int $itemLimit): MovieList
+    {
+        return $list->load(['user:id,name,username', 'items' => fn ($items) => $items->limit($itemLimit)])->loadCount('items');
+    }
+
+    public function makePrivate(MovieList $list): bool
+    {
+        $changed = MovieList::query()->whereKey($list->getKey())->where('is_public', true)->update(['is_public' => false, 'updated_at' => now()]) > 0;
+        $list->refresh();
+
+        return $changed;
     }
 }
