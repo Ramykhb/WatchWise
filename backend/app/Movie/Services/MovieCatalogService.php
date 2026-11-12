@@ -91,6 +91,11 @@ class MovieCatalogService implements MovieCatalogServiceInterface
         return $this->catalog->hidden();
     }
 
+    public function visibleGenreCounts(): array
+    {
+        return $this->catalog->visibleGenreCounts();
+    }
+
     public function featured(int $limit): Collection
     {
         return $this->catalog->featured($limit);

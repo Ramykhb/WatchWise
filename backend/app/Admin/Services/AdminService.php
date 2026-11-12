@@ -515,12 +515,14 @@ class AdminService implements AdminServiceInterface
     }
 
     /**
+     * Display names, including those of genres hidden from members: a hidden genre still sits on films, so it keeps its row.
+     *
      * @return array<int, string>
      */
     private function genreNames(): array
     {
         try {
-            $all = $this->genres->all();
+            $all = $this->genres->allIncludingHidden();
         } catch (TmdbUnavailable) {
             return [];
         }

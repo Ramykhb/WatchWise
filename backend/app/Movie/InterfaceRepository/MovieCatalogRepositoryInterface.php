@@ -47,6 +47,13 @@ interface MovieCatalogRepositoryInterface
     public function featured(int $limit): Collection;
 
     /**
+     * How many visible (not hidden) films carry each genre id.
+     *
+     * @return array<int, int> film count keyed by genre id; genres no film carries are absent
+     */
+    public function visibleGenreCounts(): array;
+
+    /**
      * @return array{cached: int, overrides: int, last_synced_at: CarbonInterface|null}
      */
     public function syncTotals(): array;

@@ -65,6 +65,23 @@ class MovieCatalogRepository implements MovieCatalogRepositoryInterface
         return new HiddenMovies($this->hiddenTmdbIds());
     }
 
+    /**
+     * One streamed query over the genre column, tallied here: counting inside a JSON column needs different SQL on
+     * SQLite, MySQL and PostgreSQL, and a query per genre would grow with the genre list.
+     */
+    public function visibleGenreCounts(): array
+    {
+        $counts = [];
+
+        foreach (LocalMovie::where('is_hidden', false)->whereNotNull('genre_ids')->select('genre_ids')->cursor() as $movie) {
+            foreach (array_unique($movie->genre_ids) as $genreId) {
+                $counts[(int) $genreId] = ($counts[(int) $genreId] ?? 0) + 1;
+            }
+        }
+
+        return $counts;
+    }
+
     public function featured(int $limit): Collection
     {
         return LocalMovie::where('is_featured', true)

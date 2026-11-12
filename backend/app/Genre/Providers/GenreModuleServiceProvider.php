@@ -2,8 +2,10 @@
 
 namespace App\Genre\Providers;
 
+use App\Genre\InterfaceRepository\GenreOverrideRepositoryInterface;
 use App\Genre\InterfaceRepository\GenreRepositoryInterface;
 use App\Genre\InterfaceServices\GenreServiceInterface;
+use App\Genre\Repository\GenreOverrideRepository;
 use App\Genre\Repository\GenreRepository;
 use App\Genre\Services\GenreService;
 use Illuminate\Support\ServiceProvider;
@@ -18,6 +20,7 @@ class GenreModuleServiceProvider extends ServiceProvider
      */
     public array $bindings = [
         GenreRepositoryInterface::class => GenreRepository::class,
+        GenreOverrideRepositoryInterface::class => GenreOverrideRepository::class,
         GenreServiceInterface::class => GenreService::class,
     ];
 }
