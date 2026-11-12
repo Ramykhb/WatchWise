@@ -56,6 +56,7 @@
                         }
                     },
                     "401": { "description": "Not signed in." },
+                    "403": { "description": "An admin turned room creation off (setting `rooms_creation_enabled`): body `{\"message\": \"Creating discussion rooms is turned off right now.\", \"code\": \"rooms_creation_disabled\"}`. Existing rooms keep working." },
                     "422": { "description": "Invalid input.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } } }
                 }
             }

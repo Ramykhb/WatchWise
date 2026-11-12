@@ -1,0 +1,79 @@
+{
+  "paths": {
+    "/api/announcement": {
+      "get": {
+        "summary": "Get the site announcement",
+        "description": "Public: no sign-in needed. Returns {\"announcement\": null} while the announcement is switched off or has expired, otherwise {\"announcement\": {message, level, expires_at}}. The message is plain text: clients must render it as text, never as HTML. Limited to 60 requests per minute per IP.",
+        "tags": [
+          "Announcement"
+        ],
+        "responses": {
+          "200": {
+            "description": "The announcement to show, or null.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "announcement": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Announcement"
+                        }
+                      ],
+                      "nullable": true
+                    }
+                  }
+                },
+                "example": {
+                  "announcement": {
+                    "message": "Maintenance tonight at 22:00 UTC.",
+                    "level": "warning",
+                    "expires_at": "2026-11-20T22:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Announcement": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Plain text; render it as text, never as HTML."
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "critical"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      }
+    }
+  }
+}

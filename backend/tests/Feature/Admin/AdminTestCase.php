@@ -4,6 +4,7 @@ namespace Tests\Feature\Admin;
 
 use App\Admin\DTOs\Requests\AdminAuditQuery;
 use App\Admin\InterfaceRepository\AdminAuditRepositoryInterface;
+use App\Admin\Repository\AdminAuditRepository;
 use App\Admin\Support\AdminAction;
 use App\Models\Review;
 use App\Models\User;
@@ -38,6 +39,31 @@ abstract class AdminTestCase extends SocialTestCase
             'is_approved' => false,
             ...$attributes,
         ]);
+    }
+
+    /** Lets the audit inserts before number `$number` through and makes that one fail, like a connection lost half way. */
+    protected function failAuditInsertNumber(int $number): void
+    {
+        $this->app->singleton(AdminAuditRepositoryInterface::class, fn () => new class(new AdminAuditRepository, $number) implements AdminAuditRepositoryInterface
+        {
+            private int $inserts = 0;
+
+            public function __construct(private readonly AdminAuditRepository $real, private readonly int $failing) {}
+
+            public function insert(User $actor, AdminAction $action, ?int $subjectId, ?string $subjectLabel, ?array $changes): void
+            {
+                if (++$this->inserts === $this->failing) {
+                    throw new RuntimeException('The audit log is unavailable.');
+                }
+
+                $this->real->insert($actor, $action, $subjectId, $subjectLabel, $changes);
+            }
+
+            public function paginate(AdminAuditQuery $query): LengthAwarePaginator
+            {
+                return $this->real->paginate($query);
+            }
+        });
     }
 
     /** Makes every audit insert fail, as a full disk or a lost connection would. */

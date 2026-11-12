@@ -13,6 +13,7 @@ use App\Room\DTOs\Responses\RoomListResponse;
 use App\Room\DTOs\Responses\RoomMessageResponse;
 use App\Room\DTOs\Responses\RoomMessagesResponse;
 use App\Room\DTOs\Responses\RoomResponse;
+use App\Room\Exceptions\RoomCreationDisabled;
 
 /**
  * Discussion rooms: group chats about a film. A public room can be read and joined by anyone; a private one
@@ -30,7 +31,11 @@ interface RoomServiceInterface
      */
     public function list(User $viewer): RoomListResponse;
 
-    /** Creates the room; its creator becomes its first member. */
+    /**
+     * Creates the room; its creator becomes its first member.
+     *
+     * @throws RoomCreationDisabled when an admin switched room creation off
+     */
     public function create(CreateRoomData $data, User $creator): RoomResponse;
 
     /** Joins a public room, or accepts the invitation to a private one. */

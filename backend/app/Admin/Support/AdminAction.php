@@ -13,6 +13,7 @@ enum AdminAction: string
     case ReviewRejected = 'review.rejected';
     case ReviewDeleted = 'review.deleted';
     case MovieUpdated = 'movie.updated';
+    case SettingsUpdated = 'settings.updated';
 
     /** What kind of record the action is done to. */
     public function subjectType(): AdminSubjectType
@@ -21,6 +22,7 @@ enum AdminAction: string
             self::UserRoleChanged, self::UserSuspended, self::UserReinstated, self::UserDeleted => AdminSubjectType::User,
             self::ReviewApproved, self::ReviewRejected, self::ReviewDeleted => AdminSubjectType::Review,
             self::MovieUpdated => AdminSubjectType::Movie,
+            self::SettingsUpdated => AdminSubjectType::Setting,
         };
     }
 }

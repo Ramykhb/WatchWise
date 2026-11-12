@@ -1,6 +1,7 @@
 <?php
 
 use App\Admin\Controllers\AdminController;
+use App\Admin\Controllers\AdminSettingController;
 use Illuminate\Support\Facades\Route;
 
 // Loaded from routes/api.php inside its `auth.jwt` + `verified.email` group (already under the /api prefix),
@@ -14,6 +15,9 @@ Route::prefix('admin')->middleware('throttle:admin')->controller(AdminController
         Route::patch('movies/{tmdbId}', 'updateMovie')->whereNumber('tmdbId');
 
         Route::get('audit-log', 'auditLog');
+
+        Route::get('settings', [AdminSettingController::class, 'index']);
+        Route::patch('settings', [AdminSettingController::class, 'update']);
     });
 
     // Moderators get read-only stats and users, may suspend or reinstate plain members, and moderate reviews.
