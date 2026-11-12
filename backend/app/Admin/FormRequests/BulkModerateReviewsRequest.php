@@ -2,12 +2,13 @@
 
 namespace App\Admin\FormRequests;
 
+use App\Admin\DTOs\Requests\BulkModerateReviewsData;
 use App\Admin\DTOs\Requests\ModerateReviewData;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
-class ModerateReviewRequest extends FormRequest
+class BulkModerateReviewsRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -20,12 +21,14 @@ class ModerateReviewRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'ids' => ['required', 'array', 'min:1', 'max:'.BulkModerateReviewsData::MAX_REVIEWS],
+            'ids.*' => ['integer', 'min:1', 'distinct'],
             'status' => ['required', Rule::in(ModerateReviewData::DECISIONS)],
         ];
     }
 
-    public function toDto(): ModerateReviewData
+    public function toDto(): BulkModerateReviewsData
     {
-        return ModerateReviewData::fromValidated($this->validated());
+        return BulkModerateReviewsData::fromValidated($this->validated());
     }
 }

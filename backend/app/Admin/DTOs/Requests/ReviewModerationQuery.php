@@ -23,10 +23,13 @@ final readonly class ReviewModerationQuery
         public string $search = '',
         public ?string $sentiment = null,
         public ?string $reason = null,
+        public ?int $userId = null,
+        public ?int $tmdbId = null,
+        public ?string $mediaType = null,
     ) {}
 
     /**
-     * @param  array{status?: string|null, page?: int|string, per_page?: int|string, q?: string|null, sentiment?: string|null, reason?: string|null}  $validated
+     * @param  array{status?: string|null, page?: int|string, per_page?: int|string, q?: string|null, sentiment?: string|null, reason?: string|null, user_id?: int|string|null, tmdb_id?: int|string|null, media_type?: string|null}  $validated
      */
     public static function fromValidated(array $validated): self
     {
@@ -37,6 +40,9 @@ final readonly class ReviewModerationQuery
             trim((string) ($validated['q'] ?? '')),
             $validated['sentiment'] ?? null,
             $validated['reason'] ?? null,
+            isset($validated['user_id']) ? (int) $validated['user_id'] : null,
+            isset($validated['tmdb_id']) ? (int) $validated['tmdb_id'] : null,
+            $validated['media_type'] ?? null,
         );
     }
 }

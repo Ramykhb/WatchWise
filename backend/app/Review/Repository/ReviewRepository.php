@@ -2,20 +2,24 @@
 
 namespace App\Review\Repository;
 
+use App\Models\Report;
 use App\Models\Review;
 use App\Report\Support\ReportStatus;
+use App\Report\Support\ReportTargetType;
+use App\Review\DTOs\Requests\ModerationQueueQuery;
 use App\Review\InterfaceRepository\ReviewRepositoryInterface;
 use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class ReviewRepository implements ReviewRepositoryInterface
 {
-    public function paginateForModeration(string $status, int $page, int $perPage, string $search = '', ?string $sentiment = null, ?string $reason = null): LengthAwarePaginator
+    public function paginateForModeration(ModerationQueueQuery $query): LengthAwarePaginator
     {
         $reviews = Review::query()->with(['user', 'reports']);
 
-        match ($status) {
+        match ($query->status) {
             'removed' => $reviews->whereNotNull('removed_at'),
             'flagged' => $this->flagged($reviews),
             'approved' => $this->standing($reviews)->where('is_approved', true)->whereDoesntHave('reports', $this->open(...)),
@@ -23,16 +27,21 @@ class ReviewRepository implements ReviewRepositoryInterface
         };
 
         return $reviews
-            ->when($search !== '', function (Builder $builder) use ($search) {
-                $pattern = LikePattern::contains(mb_strtolower($search));
+            ->when($query->userId !== null, fn (Builder $builder) => $builder->where('user_id', $query->userId))
+            ->when($query->tmdbId !== null, fn (Builder $builder) => $builder->where('tmdb_id', $query->tmdbId))
+            ->when($query->mediaType !== null, fn (Builder $builder) => $builder->where('media_type', $query->mediaType))
+            ->when($query->search !== '', function (Builder $builder) use ($query) {
+                $pattern = LikePattern::contains(mb_strtolower($query->search));
                 $builder->where(fn (Builder $match) => $match
                     ->whereRaw("LOWER(content) LIKE ? ESCAPE '!'", [$pattern])
                     ->orWhereHas('user', fn (Builder $author) => $author
                         ->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern])
                         ->orWhereRaw("LOWER(username) LIKE ? ESCAPE '!'", [$pattern])));
             })
-            ->when($sentiment !== null, fn (Builder $builder) => $builder->where('sentiment', $sentiment))
-            ->when($reason !== null, function (Builder $builder) use ($reason) {
+            ->when($query->sentiment !== null, fn (Builder $builder) => $builder->where('sentiment', $query->sentiment))
+            ->when($query->reason !== null, function (Builder $builder) use ($query) {
+                $reason = $query->reason;
+
                 if ($reason === 'awaiting classification') {
                     $builder->whereNull('moderation_labels');
                 } elseif (in_array($reason, ['offensive language', 'spoiler', 'spam'], true)) {
@@ -43,7 +52,7 @@ class ReviewRepository implements ReviewRepositoryInterface
             })
             ->latest()
             ->orderByDesc('id')
-            ->paginate($perPage, ['*'], 'page', $page);
+            ->paginate($query->perPage, ['*'], 'page', $query->page);
     }
 
     public function moderationTotals(): array
@@ -65,6 +74,11 @@ class ReviewRepository implements ReviewRepositoryInterface
         ];
     }
 
+    public function findMany(array $ids): Collection
+    {
+        return Review::query()->whereKey($ids)->get()->keyBy('id');
+    }
+
     public function lockForUpdate(Review $review): Review
     {
         return Review::query()->whereKey($review->getKey())->lockForUpdate()->firstOrFail();
@@ -73,6 +87,29 @@ class ReviewRepository implements ReviewRepositoryInterface
     public function openReportsCount(Review $review): int
     {
         return $review->reports()->open()->count();
+    }
+
+    public function helpfulVotesCount(Review $review): int
+    {
+        return $review->votes()->count();
+    }
+
+    public function authorModerationActivity(int $userId): array
+    {
+        $own = Review::query()->where('user_id', $userId);
+        $counts = (clone $own)
+            ->selectRaw("coalesce(sum(case when content is not null and content != '' then 1 else 0 end), 0) as with_text, coalesce(sum(case when removed_at is not null then 1 else 0 end), 0) as removed")
+            ->toBase()
+            ->first();
+
+        return [
+            'reviews_with_text' => (int) $counts->with_text,
+            'removed_reviews' => (int) $counts->removed,
+            'open_reports' => Report::query()->open()
+                ->where('target_type', ReportTargetType::Review)
+                ->whereIn('target_id', $own->select('id'))
+                ->count(),
+        ];
     }
 
     public function markApproved(Review $review): Review
@@ -84,9 +121,20 @@ class ReviewRepository implements ReviewRepositoryInterface
 
     public function clearText(Review $review): Review
     {
+        if ($review->removed_at !== null) {
+            return $review;
+        }
+
         // With no text left there is nothing to moderate, the same as a plain star rating.
         $review->votes()->delete();
         $review->update(['content' => null, 'sentiment' => null, 'moderation_labels' => null, 'has_spoilers' => false, 'is_approved' => true, 'removed_at' => now()]);
+
+        return $review;
+    }
+
+    public function setSpoilers(Review $review, bool $hasSpoilers): Review
+    {
+        $review->update(['has_spoilers' => $hasSpoilers]);
 
         return $review;
     }

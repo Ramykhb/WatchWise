@@ -136,8 +136,8 @@ All routes go under `/api/admin` with `auth.jwt` and `role:admin,moderator`, plu
     - The main nav shows an **Admin** link to admins and moderators only. The admin sidebar has a **Back to WatchWise** link, and shows the signed-in user instead of the old mock name.
 12. **Layout [Done]:**
     - `Controllers/AdminController` (one controller for the dashboard, users, reviews and movies).
-    - `FormRequests/` (`AdminStatsRequest`, `AdminUserIndexRequest`, `UpdateUserRequest`, `AdminReviewIndexRequest`, `ModerateReviewRequest`, `AdminMovieIndexRequest`, `UpdateLocalMovieRequest`).
-    - `DTOs/Requests/` (`AdminStatsQuery`, `AdminUserQuery`, `UpdateUserData`, `ReviewModerationQuery`, `ModerateReviewData`). The movie requests use the Movie module's `LocalMovieQuery` and `UpdateLocalMovieData`, because they are part of `MovieCatalogServiceInterface`.
+    - `FormRequests/` (`AdminStatsRequest`, `AdminUserIndexRequest`, `UpdateUserRequest`, `AdminReviewIndexRequest`, `UpdateReviewRequest`, `BulkModerateReviewsRequest`, `AdminMovieIndexRequest`, `UpdateLocalMovieRequest`).
+    - `DTOs/Requests/` (`AdminStatsQuery`, `AdminUserQuery`, `UpdateUserData`, `ReviewModerationQuery`, `ModerateReviewData`, `UpdateReviewData`, `BulkModerateReviewsData`). The movie requests use the Movie module's `LocalMovieQuery` and `UpdateLocalMovieData`, because they are part of `MovieCatalogServiceInterface`.
     - `DTOs/Responses/` (`AdminStatsResponse`, `RankedMovieResponse`, `GenreShareResponse`, `ActivityPointResponse`, `AdminUserResponse`, `AdminReviewResponse`, `AdminMovieResponse`, `AdminPageResponse`).
     - `InterfaceServices/AdminServiceInterface`, `Services/AdminService`.
     - `InterfaceRepository/AdminStatsRepositoryInterface` and `AdminUserRepositoryInterface`, with their `Repository/` implementations.

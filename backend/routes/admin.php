@@ -3,6 +3,7 @@
 use App\Admin\Controllers\AdminController;
 use App\Admin\Controllers\AdminGenreController;
 use App\Admin\Controllers\AdminReportController;
+use App\Admin\Controllers\AdminReviewToolsController;
 use App\Admin\Controllers\AdminSettingController;
 use Illuminate\Support\Facades\Route;
 
@@ -28,9 +29,15 @@ Route::prefix('admin')->middleware('throttle:admin')->group(function () {
             Route::patch('users/{user}', 'updateUser')->whereNumber('user');
 
             Route::get('reviews', 'reviews');
-            Route::patch('reviews/{review}', 'moderateReview')->whereNumber('review');
             Route::delete('reviews/{review}', 'destroyReview')->whereNumber('review');
         });
+    });
+
+    // Moderators and admins look at a review in full, flag its spoilers and decide on one review or several.
+    Route::middleware('role:admin,moderator')->controller(AdminReviewToolsController::class)->group(function () {
+        Route::post('reviews/bulk', 'bulk');
+        Route::get('reviews/{review}', 'show')->whereNumber('review');
+        Route::patch('reviews/{review}', 'update')->whereNumber('review');
     });
 
     // Moderators and admins triage the content reports.
