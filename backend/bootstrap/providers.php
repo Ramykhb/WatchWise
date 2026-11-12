@@ -15,6 +15,7 @@ use App\Person\Providers\PersonModuleServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\AuthorizationServiceProvider;
 use App\Rating\Providers\RatingModuleServiceProvider;
+use App\Report\Providers\ReportModuleServiceProvider;
 use App\Review\Providers\ReviewModuleServiceProvider;
 use App\Room\Providers\RoomModuleServiceProvider;
 use App\Setting\Providers\SettingModuleServiceProvider;
@@ -35,6 +36,7 @@ return [
     MovieNightModuleServiceProvider::class,
     NotificationModuleServiceProvider::class,
     RatingModuleServiceProvider::class,
+    ReportModuleServiceProvider::class,
     ReviewModuleServiceProvider::class,
     RoomModuleServiceProvider::class,
     SettingModuleServiceProvider::class,

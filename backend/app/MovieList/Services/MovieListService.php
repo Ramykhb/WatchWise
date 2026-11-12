@@ -11,6 +11,10 @@ use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\DTOs\Requests\UpdateMovieListData;
 use App\MovieList\InterfaceRepository\MovieListRepositoryInterface;
 use App\MovieList\InterfaceServices\MovieListServiceInterface;
+use App\Report\DTOs\Requests\ReportContentData;
+use App\Report\DTOs\Responses\ReportContentResponse;
+use App\Report\InterfaceServices\ReportServiceInterface;
+use App\Report\Support\ReportTargetType;
 use App\Support\HiddenMovies;
 use App\Support\MediaType;
 use Illuminate\Database\Eloquent\Collection;
@@ -21,6 +25,7 @@ class MovieListService implements MovieListServiceInterface
     public function __construct(
         private readonly MovieListRepositoryInterface $lists,
         private readonly MovieCatalogServiceInterface $catalog,
+        private readonly ReportServiceInterface $reports,
     ) {}
 
     public function search(MovieListSearchQuery $query, User $viewer): Collection
@@ -93,6 +98,11 @@ class MovieListService implements MovieListServiceInterface
         $this->lists->removeItem($list, $film);
 
         return $this->detail($list);
+    }
+
+    public function report(MovieList $list, User $reporter, ReportContentData $data): ReportContentResponse
+    {
+        return $this->reports->report($reporter, ReportTargetType::MovieList, $list->id, $data);
     }
 
     /**

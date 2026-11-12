@@ -2,6 +2,7 @@
 
 use App\Admin\Controllers\AdminController;
 use App\Admin\Controllers\AdminGenreController;
+use App\Admin\Controllers\AdminReportController;
 use App\Admin\Controllers\AdminSettingController;
 use Illuminate\Support\Facades\Route;
 
@@ -19,7 +20,7 @@ Route::prefix('admin')->middleware('throttle:admin')->group(function () {
             Route::get('audit-log', 'auditLog');
         });
 
-        // Moderators get read-only stats and users, may suspend or reinstate plain members, and moderate reviews.
+        // Moderators get read-only stats and users, may suspend or reinstate plain members and moderate reviews.
         Route::middleware('role:admin,moderator')->group(function () {
             Route::get('stats', 'stats');
 
@@ -30,6 +31,13 @@ Route::prefix('admin')->middleware('throttle:admin')->group(function () {
             Route::patch('reviews/{review}', 'moderateReview')->whereNumber('review');
             Route::delete('reviews/{review}', 'destroyReview')->whereNumber('review');
         });
+    });
+
+    // Moderators and admins triage the content reports.
+    Route::middleware('role:admin,moderator')->controller(AdminReportController::class)->group(function () {
+        Route::get('reports', 'index');
+        Route::get('reports/{report}', 'show')->whereNumber('report');
+        Route::patch('reports/{report}', 'update')->whereNumber('report');
     });
 
     // Moderators may look at the genres but only admins change them.

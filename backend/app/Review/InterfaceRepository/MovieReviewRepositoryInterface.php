@@ -38,13 +38,6 @@ interface MovieReviewRepositoryInterface
     /** Removes the text and its helpful votes; the member's stars stay. */
     public function clearText(User $user, int $tmdbId, string $mediaType): void;
 
-    /**
-     * Stores the member's report of the review, or changes the reason of the one they already filed.
-     *
-     * @return bool true when the report is new
-     */
-    public function saveReport(Review $review, User $reporter, string $reason): bool;
-
     /** Marks the review as helpful for the member; doing it twice is harmless. Returns whether the vote is new. */
     public function vote(Review $review, User $user): bool;
 

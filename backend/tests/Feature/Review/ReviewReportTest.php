@@ -3,8 +3,8 @@
 namespace Tests\Feature\Review;
 
 use App\Groq\InterfaceServices\GroqStructuredOutputInterface;
+use App\Models\Report;
 use App\Models\Review;
-use App\Models\ReviewReport;
 use App\Models\User;
 use Tests\Feature\Social\SocialTestCase;
 
@@ -35,7 +35,7 @@ class ReviewReportTest extends SocialTestCase
             ->assertCreated()
             ->assertJsonPath('reason', 'Spam');
 
-        $this->assertDatabaseHas('review_reports', ['review_id' => $review->id, 'user_id' => $reporter->id, 'reason' => 'Spam', 'resolved_at' => null]);
+        $this->assertDatabaseHas('reports', ['target_type' => 'review', 'target_id' => $review->id, 'reporter_id' => $reporter->id, 'reason' => 'Spam', 'status' => 'open', 'resolved_at' => null]);
     }
 
     public function test_a_review_by_an_author_hidden_from_the_reporter_cannot_be_reported(): void
@@ -45,7 +45,7 @@ class ReviewReportTest extends SocialTestCase
 
         $this->as($reporter)->postJson("/api/reviews/{$review->id}/report", ['reason' => 'Spam'])->assertForbidden();
 
-        $this->assertSame(0, ReviewReport::count());
+        $this->assertSame(0, Report::count());
     }
 
     public function test_reporting_twice_keeps_one_report_and_changes_the_reason(): void
@@ -56,8 +56,8 @@ class ReviewReportTest extends SocialTestCase
         $this->as($reporter)->postJson("/api/reviews/{$review->id}/report", ['reason' => 'Spam'])->assertCreated();
         $this->as($reporter)->postJson("/api/reviews/{$review->id}/report", ['reason' => 'Links'])->assertOk();
 
-        $this->assertSame(1, ReviewReport::count());
-        $this->assertSame('Links', ReviewReport::first()->reason);
+        $this->assertSame(1, Report::count());
+        $this->assertSame('Links', Report::first()->reason);
     }
 
     public function test_the_reason_must_be_one_of_the_known_reasons(): void
@@ -83,7 +83,7 @@ class ReviewReportTest extends SocialTestCase
             $this->as($reporter)->postJson("/api/reviews/{$review->id}/report", ['reason' => 'Spam'])->assertForbidden();
         }
 
-        $this->assertSame(0, ReviewReport::count());
+        $this->assertSame(0, Report::count());
     }
 
     public function test_reporting_needs_a_signed_in_member_and_an_existing_review(): void
@@ -99,11 +99,11 @@ class ReviewReportTest extends SocialTestCase
         $this->mock(GroqStructuredOutputInterface::class)->shouldReceive('askWithSchema')
             ->twice()->andReturn(['labels' => [], 'sentiment' => 'neutral']);
         $review = $this->published(['removed_at' => now()]);
-        ReviewReport::factory()->create(['review_id' => $review->id]);
+        Report::factory()->forReview($review)->create();
 
         $this->as($review->user)->putJson('/api/reviews/mine', ['tmdb_id' => 550, 'content' => 'Second thoughts.', 'rating' => 3])->assertOk();
 
-        $this->assertSame(0, ReviewReport::count());
+        $this->assertSame(0, Report::count());
         $this->assertNull($review->fresh()->removed_at);
         $this->assertSame([], $review->fresh()->moderation_labels);
         $this->assertTrue($review->fresh()->is_approved);

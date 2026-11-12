@@ -3,7 +3,6 @@
 namespace App\Review\Repository;
 
 use App\Models\Review;
-use App\Models\ReviewReport;
 use App\Models\ReviewVote;
 use App\Models\User;
 use App\Review\DTOs\Requests\MovieReviewQuery;
@@ -125,13 +124,6 @@ class MovieReviewRepository implements MovieReviewRepositoryInterface
         $review->votes()->delete();
         // A rating with no text has nothing to moderate.
         $review->update(['content' => null, 'sentiment' => null, 'moderation_labels' => null, 'has_spoilers' => false, 'is_approved' => true]);
-    }
-
-    public function saveReport(Review $review, User $reporter, string $reason): bool
-    {
-        $report = ReviewReport::updateOrCreate(['review_id' => $review->id, 'user_id' => $reporter->id], ['reason' => $reason]);
-
-        return $report->wasRecentlyCreated;
     }
 
     public function vote(Review $review, User $user): bool

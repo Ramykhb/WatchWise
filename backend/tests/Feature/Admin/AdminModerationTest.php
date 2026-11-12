@@ -3,17 +3,17 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\LocalMovie;
+use App\Models\Report;
 use App\Models\Review;
-use App\Models\ReviewReport;
 use App\Models\User;
 
 class AdminModerationTest extends AdminTestCase
 {
-    private function report(Review $review, string $reason = 'Spam', bool $resolved = false): ReviewReport
+    private function report(Review $review, string $reason = 'Spam', bool $resolved = false): Report
     {
-        $factory = ReviewReport::factory();
+        $factory = Report::factory();
 
-        return ($resolved ? $factory->resolved() : $factory)->create(['review_id' => $review->id, 'reason' => $reason]);
+        return ($resolved ? $factory->resolved() : $factory)->forReview($review)->create(['reason' => $reason]);
     }
 
     private function moderator(): User
@@ -70,7 +70,7 @@ class AdminModerationTest extends AdminTestCase
             ->assertJsonPath('review.reports_count', 1);
 
         $this->assertNotNull($review->fresh()->removed_at);
-        $this->assertNotNull(ReviewReport::first()->resolved_at);
+        $this->assertNotNull(Report::first()->resolved_at);
 
         $this->as($this->admin())->getJson('/api/admin/reviews?status=removed')
             ->assertJsonPath('meta.total', 1)
@@ -88,7 +88,7 @@ class AdminModerationTest extends AdminTestCase
             ->assertOk()
             ->assertJsonPath('review.status', 'approved');
 
-        $this->assertNotNull(ReviewReport::first()->resolved_at);
+        $this->assertNotNull(Report::first()->resolved_at);
     }
 
     public function test_the_summary_carries_the_sentiment_split(): void

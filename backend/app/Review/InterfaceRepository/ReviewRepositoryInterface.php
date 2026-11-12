@@ -30,11 +30,12 @@ interface ReviewRepositoryInterface
     /** How many reports on the review are still open. */
     public function openReportsCount(Review $review): int;
 
-    /** Approves the review and closes its open reports. */
+    /** Approves the review. */
     public function markApproved(Review $review): Review;
 
-    /** Removes the text and sentiment but keeps the star rating, marks the review removed and closes its open reports. */
+    /** Removes the text and sentiment but keeps the star rating, marks the review removed. */
     public function clearText(Review $review): Review;
 
+    /** Deletes the review with every report filed against it. */
     public function delete(Review $review): void;
 }

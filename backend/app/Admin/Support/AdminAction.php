@@ -16,6 +16,8 @@ enum AdminAction: string
     case GenreUpdated = 'genre.updated';
     case GenreReset = 'genre.reset';
     case SettingsUpdated = 'settings.updated';
+    case ReportResolved = 'report.resolved';
+    case ReportDismissed = 'report.dismissed';
 
     /** What kind of record the action is done to. */
     public function subjectType(): AdminSubjectType
@@ -26,6 +28,7 @@ enum AdminAction: string
             self::MovieUpdated => AdminSubjectType::Movie,
             self::GenreUpdated, self::GenreReset => AdminSubjectType::Genre,
             self::SettingsUpdated => AdminSubjectType::Setting,
+            self::ReportResolved, self::ReportDismissed => AdminSubjectType::Report,
         };
     }
 }

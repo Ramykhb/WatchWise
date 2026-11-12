@@ -2,7 +2,7 @@
 
 namespace App\Review\DTOs\Requests;
 
-use App\Models\ReviewReport;
+use App\Report\Support\ReportTargetType;
 
 /** Why a member reports someone's review. */
 final readonly class ReportReviewData
@@ -25,6 +25,6 @@ final readonly class ReportReviewData
      */
     public static function reasons(): array
     {
-        return ReviewReport::REASONS;
+        return ReportTargetType::Review->reasons();
     }
 }

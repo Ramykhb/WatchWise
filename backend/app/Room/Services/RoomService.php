@@ -8,6 +8,10 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Notification\InterfaceServices\NotificationServiceInterface;
+use App\Report\DTOs\Requests\ReportContentData;
+use App\Report\DTOs\Responses\ReportContentResponse;
+use App\Report\InterfaceServices\ReportServiceInterface;
+use App\Report\Support\ReportTargetType;
 use App\Room\DTOs\Requests\CreateRoomData;
 use App\Room\DTOs\Requests\InviteToRoomData;
 use App\Room\DTOs\Requests\ReadRoomMessagesData;
@@ -40,6 +44,7 @@ class RoomService implements RoomServiceInterface
         private readonly NotificationServiceInterface $notifications,
         private readonly MovieCatalogServiceInterface $catalog,
         private readonly SettingServiceInterface $settings,
+        private readonly ReportServiceInterface $reports,
     ) {}
 
     public function list(User $viewer): RoomListResponse
@@ -214,6 +219,16 @@ class RoomService implements RoomServiceInterface
         $this->broadcast(new RoomMessagesRead($room->id, $reader, $readIds, $deletedIds));
 
         return new ReadReceiptsResponse($readIds, $deletedIds);
+    }
+
+    public function reportMessage(Message $message, User $reporter, ReportContentData $data): ReportContentResponse
+    {
+        return $this->reports->report($reporter, ReportTargetType::Message, $message->id, $data);
+    }
+
+    public function report(DiscussionRoom $room, User $reporter, ReportContentData $data): ReportContentResponse
+    {
+        return $this->reports->report($reporter, ReportTargetType::Room, $room->id, $data);
     }
 
     public function pruneMessages(): int

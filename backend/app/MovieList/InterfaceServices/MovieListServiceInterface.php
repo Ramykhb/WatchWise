@@ -8,6 +8,8 @@ use App\MovieList\DTOs\Requests\CreateMovieListData;
 use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\DTOs\Requests\UpdateMovieListData;
+use App\Report\DTOs\Requests\ReportContentData;
+use App\Report\DTOs\Responses\ReportContentResponse;
 use Illuminate\Database\Eloquent\Collection;
 
 interface MovieListServiceInterface
@@ -34,4 +36,7 @@ interface MovieListServiceInterface
     public function addMovie(MovieList $list, ListFilmData $film): MovieList;
 
     public function removeMovie(MovieList $list, ListFilmData $film): MovieList;
+
+    /** Reports another member's list (the caller has checked the reporter can see it); reporting it twice files one report. */
+    public function report(MovieList $list, User $reporter, ReportContentData $data): ReportContentResponse;
 }
