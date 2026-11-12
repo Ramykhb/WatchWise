@@ -47,6 +47,9 @@ interface RefreshTokenRepositoryInterface
      */
     public function revokeAllForUser(User $user): int;
 
+    /** How many refresh tokens of the user are neither revoked nor expired, one per signed-in device. */
+    public function countActiveForUser(int $userId): int;
+
     /**
      * Deletes, `$chunkSize` rows per statement, every token that expired before `$cutoff`, and every token revoked
      * before `$cutoff` other than by rotation (no `replaced_by`). A rotated token is kept until it expires, so

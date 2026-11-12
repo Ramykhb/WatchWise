@@ -177,4 +177,9 @@ class MovieListRepository implements MovieListRepositoryInterface
 
         return $changed;
     }
+
+    public function countOwnedBy(User $user): int
+    {
+        return $user->movieLists()->count();
+    }
 }

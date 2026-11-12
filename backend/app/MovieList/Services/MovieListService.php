@@ -142,6 +142,11 @@ class MovieListService implements MovieListServiceInterface
         return $this->reports->report($reporter, ReportTargetType::MovieList, $list->id, $data);
     }
 
+    public function countOwnedBy(User $user): int
+    {
+        return $this->lists->countOwnedBy($user);
+    }
+
     /**
      * The local catalogue (admin "Movie data") only holds movies, so TV shows are skipped.
      *

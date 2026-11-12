@@ -82,4 +82,7 @@ interface MovieListRepositoryInterface
      * reloaded either way, so it shows the list as it is now. False when it was private already.
      */
     public function makePrivate(MovieList $list): bool;
+
+    /** How many lists the user owns, public or not. */
+    public function countOwnedBy(User $user): int;
 }

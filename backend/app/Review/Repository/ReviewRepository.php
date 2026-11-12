@@ -4,6 +4,7 @@ namespace App\Review\Repository;
 
 use App\Models\Report;
 use App\Models\Review;
+use App\Models\User;
 use App\Report\Support\ReportStatus;
 use App\Report\Support\ReportTargetType;
 use App\Review\DTOs\Requests\ModerationQueueQuery;
@@ -143,6 +144,18 @@ class ReviewRepository implements ReviewRepositoryInterface
     {
         $review->reports()->delete();
         $review->delete();
+    }
+
+    public function countsForUser(User $user): array
+    {
+        $counts = Review::query()
+            ->where('user_id', $user->id)
+            ->selectRaw("sum(case when content is not null and content != '' then 1 else 0 end) as with_text")
+            ->selectRaw('sum(case when rating is not null then 1 else 0 end) as rated')
+            ->toBase()
+            ->first();
+
+        return ['reviews_with_text' => (int) $counts->with_text, 'ratings' => (int) $counts->rated];
     }
 
     /**

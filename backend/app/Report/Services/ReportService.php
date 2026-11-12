@@ -134,6 +134,14 @@ class ReportService implements ReportServiceInterface
         ];
     }
 
+    public function countsForMember(User $member): array
+    {
+        return [
+            'against_open' => $this->reports->openCountForTarget(ReportTargetType::Profile, $member->id),
+            'filed' => $this->reports->filedByCount($member->id),
+        ];
+    }
+
     public function targets(iterable $reports): array
     {
         $idsByType = [];

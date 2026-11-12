@@ -13,6 +13,7 @@ use App\Auth\Exceptions\SocialLoginCancelled;
 use App\Auth\Exceptions\SocialLoginNotConfigured;
 use App\Auth\Exceptions\SocialProviderFailed;
 use App\Auth\Exceptions\UnverifiedProviderEmail;
+use App\Models\User;
 
 interface SocialAuthServiceInterface
 {
@@ -41,4 +42,12 @@ interface SocialAuthServiceInterface
      * @throws SocialAccountNotSaved when writing the account fails (a database error, or still colliding with concurrent sign-ins)
      */
     public function loginWithProvider(SocialCallbackData $callback): AuthResponse;
+
+    /**
+     * The names of the providers linked to the account (`github`, `google`...), alphabetically. Never the
+     * provider's ids for the account.
+     *
+     * @return list<string>
+     */
+    public function linkedProviders(User $user): array;
 }

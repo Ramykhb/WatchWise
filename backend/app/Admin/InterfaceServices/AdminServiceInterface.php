@@ -13,12 +13,14 @@ use App\Admin\DTOs\Responses\AdminReviewResponse;
 use App\Admin\DTOs\Responses\AdminStatsResponse;
 use App\Admin\DTOs\Responses\AdminUserResponse;
 use App\Admin\Exceptions\CannotModerateSelf;
+use App\Admin\Exceptions\CannotModerateStaff;
 use App\Admin\Support\ReviewDecision;
 use App\Models\Review;
 use App\Models\User;
 use App\Movie\DTOs\Requests\LocalMovieQuery;
 use App\Movie\DTOs\Requests\UpdateLocalMovieData;
 use App\Movie\Exceptions\MovieNotFound;
+use Carbon\CarbonInterface;
 
 interface AdminServiceInterface
 {
@@ -37,6 +39,17 @@ interface AdminServiceInterface
      * @throws CannotModerateSelf when `$admin` removes their own admin role or deactivates themselves
      */
     public function updateUser(User $admin, User $target, UpdateUserData $data): AdminUserResponse;
+
+    /**
+     * Suspends the member with the same rules, audit entry, email and sign-out as `updateUser()` with `is_active`
+     * false; `$reason` and `$until` are kept and shown to the member. Returns false when the account was already
+     * suspended (nothing changes, nothing is recorded). Once the suspension is saved a failure to end the member's sessions
+     * is only reported, so the caller still learns that the member is suspended.
+     *
+     * @throws CannotModerateSelf when `$admin` suspends themselves
+     * @throws CannotModerateStaff when a moderator suspends an admin or a moderator
+     */
+    public function suspendUser(User $admin, User $target, ?string $reason, ?CarbonInterface $until): bool;
 
     /** @throws CannotModerateSelf when `$admin` deletes themselves */
     public function deleteUser(User $admin, User $target): void;

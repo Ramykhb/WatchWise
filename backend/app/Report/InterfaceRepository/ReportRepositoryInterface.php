@@ -95,4 +95,10 @@ interface ReportRepositoryInterface
      * @param  list<int>  $ids
      */
     public function closeMany(array $ids, ReportStatus $status, ?int $resolvedBy, ?string $note): void;
+
+    /** How many reports on the target are still open. */
+    public function openCountForTarget(ReportTargetType $type, int $targetId): int;
+
+    /** How many reports the member filed, open or closed. */
+    public function filedByCount(int $reporterId): int;
 }

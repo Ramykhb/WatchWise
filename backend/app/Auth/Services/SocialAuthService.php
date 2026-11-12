@@ -75,6 +75,11 @@ class SocialAuthService implements SocialAuthServiceInterface
         return Socialite::driver($provider)->stateless()->with(['state' => $state])->redirect()->getTargetUrl();
     }
 
+    public function linkedProviders(User $user): array
+    {
+        return $this->socialAccounts->providerNamesOf($user->id);
+    }
+
     public function loginWithProvider(SocialCallbackData $callback): AuthResponse
     {
         if (! $callback->stateMatches) {

@@ -125,6 +125,11 @@ class AuthService implements AuthServiceInterface
         $this->tokens->revokeAllForUser($user);
     }
 
+    public function activeSessionCount(User $user): int
+    {
+        return $this->tokens->activeSessionCount($user);
+    }
+
     public function replaceSessions(User $user, Request $request): AuthResponse
     {
         // The refresh cookie never reaches routes outside /api/auth, so the presenting session's choice is read from

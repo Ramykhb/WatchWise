@@ -33,6 +33,11 @@ class ProfileService implements ProfileServiceInterface
         private readonly ReportServiceInterface $reports,
     ) {}
 
+    public function followCounts(User $user): array
+    {
+        return ['followers' => $this->profiles->followersCount($user), 'following' => $this->profiles->followingCount($user)];
+    }
+
     public function search(UserSearchQuery $query, CurrentUser $viewer): UserSearchResponse
     {
         $total = $this->profiles->countMatching($query, $viewer->id());

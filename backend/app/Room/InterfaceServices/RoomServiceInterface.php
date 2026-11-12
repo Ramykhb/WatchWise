@@ -108,4 +108,7 @@ interface RoomServiceInterface
      * them in time, or nobody else had to); returns how many.
      */
     public function pruneMessages(): int;
+
+    /** How many rooms the member created, public or private. */
+    public function countCreatedBy(User $user): int;
 }

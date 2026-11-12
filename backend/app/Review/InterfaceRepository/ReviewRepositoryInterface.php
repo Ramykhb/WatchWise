@@ -3,6 +3,7 @@
 namespace App\Review\InterfaceRepository;
 
 use App\Models\Review;
+use App\Models\User;
 use App\Review\DTOs\Requests\ModerationQueueQuery;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -62,4 +63,11 @@ interface ReviewRepositoryInterface
 
     /** Deletes the review with every report filed against it. */
     public function delete(Review $review): void;
+
+    /**
+     * What the user wrote and rated, in one query: reviews with text, and rows carrying stars (a rating-only row or a review with stars).
+     *
+     * @return array{reviews_with_text: int, ratings: int}
+     */
+    public function countsForUser(User $user): array;
 }

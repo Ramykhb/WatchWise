@@ -243,6 +243,11 @@ class RoomRepository implements RoomRepositoryInterface
         return $this->roomReceipts($room)->where('user_id', $userId)->whereNull('read_at')->count();
     }
 
+    public function countCreatedBy(int $userId): int
+    {
+        return DiscussionRoom::query()->where('created_by', $userId)->count();
+    }
+
     /**
      * The creator, members, invitees and the newest message `$shown` lets through, with its author.
      *

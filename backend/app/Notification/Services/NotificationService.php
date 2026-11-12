@@ -262,6 +262,11 @@ class NotificationService implements NotificationServiceInterface
         ]));
     }
 
+    public function profileChanged(User $member, string $action): void
+    {
+        $this->live->push($this->notifications->create($member->id, Notification::PROFILE_CHANGED, ['action' => $action]));
+    }
+
     public function listRestricted(MovieList $list, ListRestriction $restriction, ?array $film = null): void
     {
         $this->live->push($this->notifications->create((int) $list->user_id, Notification::LIST_RESTRICTED, [

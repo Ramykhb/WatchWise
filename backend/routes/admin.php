@@ -8,6 +8,7 @@ use App\Admin\Controllers\AdminReportController;
 use App\Admin\Controllers\AdminReviewToolsController;
 use App\Admin\Controllers\AdminRoomController;
 use App\Admin\Controllers\AdminSettingController;
+use App\Admin\Controllers\AdminUserToolsController;
 use Illuminate\Support\Facades\Route;
 
 // Loaded from routes/api.php inside its `auth.jwt` + `verified.email` group (already under the /api prefix),
@@ -41,6 +42,22 @@ Route::prefix('admin')->middleware('throttle:admin')->group(function () {
         Route::post('reviews/bulk', 'bulk');
         Route::get('reviews/{review}', 'show')->whereNumber('review');
         Route::patch('reviews/{review}', 'update')->whereNumber('review');
+    });
+
+    // One member's page and tools. Moderators may use them on plain members; admins on everyone but themselves.
+    Route::middleware('role:admin,moderator')->controller(AdminUserToolsController::class)->group(function () {
+        Route::post('users/bulk-suspend', 'bulkSuspend');
+
+        Route::prefix('users/{user}')->whereNumber('user')->group(function () {
+            Route::get('/', 'show');
+            Route::get('notes', 'notes');
+            Route::post('notes', 'addNote');
+            Route::delete('notes/{note}', 'deleteNote')->whereNumber('note');
+            Route::post('sign-out', 'signOut');
+            Route::delete('avatar', 'removeAvatar');
+            Route::delete('bio', 'removeBio');
+            Route::post('resend-verification', 'resendVerification');
+        });
     });
 
     // Moderators and admins triage the content reports.

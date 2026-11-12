@@ -108,9 +108,16 @@ class Notification extends Model
     public const ROOM_REMOVED = 'room_removed';
 
     /**
+     * Staff removed your profile picture or your bio (`data`: action `avatar_removed` or `bio_removed`). It carries
+     * no actor, so it shows as from the WatchWise team. Like `review_removed` it is about your own content: no switch,
+     * it always arrives.
+     */
+    public const PROFILE_CHANGED = 'profile_changed';
+
+    /**
      * The types a member can switch off (the keys of `settings.notifications`, all on by default). Follow
-     * requests and the notices from staff (removed review or message, restricted list, locked or unlocked room,
-     * removed room) are not among them: they always arrive.
+     * requests and the notices from staff (removed review, message or room, restricted list, locked or unlocked
+     * room, removed avatar or bio) are not among them: they always arrive.
      *
      * @var list<string>
      */
@@ -128,7 +135,7 @@ class Notification extends Model
      */
     public const FEED_TYPES = [
         self::FOLLOW_REQUEST, self::REVIEW_REMOVED, self::LIST_RESTRICTED,
-        self::MESSAGE_REMOVED, self::ROOM_LOCKED, self::ROOM_UNLOCKED, self::ROOM_REMOVED,
+        self::MESSAGE_REMOVED, self::ROOM_LOCKED, self::ROOM_UNLOCKED, self::ROOM_REMOVED, self::PROFILE_CHANGED,
         ...self::OPTIONAL_TYPES,
     ];
 
@@ -139,7 +146,7 @@ class Notification extends Model
      */
     public const TEAM_TYPES = [
         self::REVIEW_REMOVED, self::LIST_RESTRICTED,
-        self::MESSAGE_REMOVED, self::ROOM_LOCKED, self::ROOM_UNLOCKED, self::ROOM_REMOVED,
+        self::MESSAGE_REMOVED, self::ROOM_LOCKED, self::ROOM_UNLOCKED, self::ROOM_REMOVED, self::PROFILE_CHANGED,
     ];
 
     protected function casts(): array

@@ -20,6 +20,11 @@ class AdminAuditService implements AdminAuditServiceInterface
         $this->entries->insert($actor, $action, $subjectId, $subjectLabel, $changes);
     }
 
+    public function recordAsSystem(AdminAction $action, ?int $subjectId, ?string $subjectLabel, ?array $changes = null): void
+    {
+        $this->entries->insert(null, $action, $subjectId, $subjectLabel, $changes);
+    }
+
     public function list(AdminAuditQuery $query): AdminPageResponse
     {
         $paginator = $this->entries->paginate($query);

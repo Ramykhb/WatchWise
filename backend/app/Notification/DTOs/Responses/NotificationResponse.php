@@ -76,6 +76,7 @@ final readonly class NotificationResponse implements JsonSerializable
             Notification::ROOM_LOCKED => self::staffRoomNotice($data, 'locked your room'),
             Notification::ROOM_UNLOCKED => self::staffRoomNotice($data, 'unlocked your room'),
             Notification::ROOM_REMOVED => ['text' => 'deleted your room', 'target' => (string) ($data['room_name'] ?? 'a room'), 'film' => self::film($data, (string) ($data['media_type'] ?? 'movie')), 'to' => '/rooms', 'action' => 'See rooms'],
+            Notification::PROFILE_CHANGED => self::changedProfile($data),
             default => null,
         };
 
@@ -218,6 +219,21 @@ final readonly class NotificationResponse implements JsonSerializable
         $room = self::room($data, $text, 'Open room');
 
         return $room === null ? null : [...$room, 'film' => self::film($data, (string) ($data['media_type'] ?? 'movie'))];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array{text: string, to: string, action: string}|null
+     */
+    private static function changedProfile(array $data): ?array
+    {
+        $text = match ($data['action'] ?? null) {
+            'avatar_removed' => 'removed your profile picture',
+            'bio_removed' => 'removed your bio',
+            default => null,
+        };
+
+        return $text === null ? null : ['text' => $text, 'to' => '/settings', 'action' => 'Open settings'];
     }
 
     /**

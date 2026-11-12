@@ -12,9 +12,11 @@ use Illuminate\Pagination\LengthAwarePaginator;
 interface AdminAuditRepositoryInterface
 {
     /**
+     * A null `$actor` is the system itself (a scheduled job): the entry is kept with no actor and the role `system`.
+     *
      * @param  array<string, mixed>|null  $changes
      */
-    public function insert(User $actor, AdminAction $action, ?int $subjectId, ?string $subjectLabel, ?array $changes): void;
+    public function insert(?User $actor, AdminAction $action, ?int $subjectId, ?string $subjectLabel, ?array $changes): void;
 
     /**
      * Newest first (ties broken by id), each with its `actor` loaded.
