@@ -315,8 +315,8 @@ class MovieService implements MovieServiceInterface
      * One page of movies and tv shows ordered together by the chosen sort.
      *
      * Each source is already sorted by TMDB, so the combined page N is the slice at offset (N - 1) * 20 of the
-     * two lists merged. That needs the first N pages of each source, which is why combined results stop at
-     * MERGED_MAX_PAGES: deeper pages would cost more and more TMDB calls.
+     * two lists merged. Each source needs N * 20 visible titles (or every title if it runs out), which can
+     * require extra source pages when movies are hidden. TMDB never serves beyond source page 500.
      *
      * @param  Closure(int): array<string, mixed>  $fetchMovies  TMDB's page payload of movies, by page number
      * @param  Closure(int): array<string, mixed>  $fetchShows  TMDB's page payload of tv shows, by page number
@@ -330,16 +330,21 @@ class MovieService implements MovieServiceInterface
         $items = [];
         $totalResults = 0;
         $dropped = 0;
+        $needed = $page * self::MERGED_PAGE_SIZE;
 
         foreach (['movie' => $fetchMovies, 'tv' => $fetchShows] as $type => $fetch) {
-            for ($number = 1; $number <= $page; $number++) {
-                $payload = $fetch($number);
+            $visible = 0;
 
-                foreach ($payload['results'] ?? [] as $item) {
+            for ($number = 1; $number <= 500; $number++) {
+                $payload = $fetch($number);
+                $results = $payload['results'] ?? [];
+
+                foreach ($results as $item) {
                     if ($hidden->hides($type, $item['id'])) {
                         $dropped++;
                     } else {
                         $items[] = ['type' => $type, 'item' => $item];
+                        $visible++;
                     }
                 }
 
@@ -347,7 +352,7 @@ class MovieService implements MovieServiceInterface
                     $totalResults += (int) ($payload['total_results'] ?? 0);
                 }
 
-                if ($number >= (int) ($payload['total_pages'] ?? 0)) {
+                if ($visible >= $needed || $number >= (int) ($payload['total_pages'] ?? 0) || count($results) < self::MERGED_PAGE_SIZE) {
                     break;
                 }
             }

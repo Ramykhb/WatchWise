@@ -4,6 +4,8 @@ namespace Tests\Feature\Movie;
 
 use App\Models\LocalMovie;
 use App\Models\User;
+use GuzzleHttp\Promise\PromiseInterface;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Concerns\UsesMovieCatalogue;
@@ -83,6 +85,59 @@ class HiddenMoviesTest extends SocialTestCase
 
             $this->assertSame([100, 100, self::HIDDEN, 102, 102], $movies->pluck('id')->sort()->values()->all(), $url);
             $this->assertSame(['tv'], $movies->where('id', self::HIDDEN)->pluck('media_type')->all(), $url);
+        }
+    }
+
+    /** @return array<string, array{string, int}> */
+    public static function combinedPaginationCases(): array
+    {
+        return [
+            'search with one hidden movie' => ['/api/movies/search?q=film&type=all', 1],
+            'discover with one hidden movie' => ['/api/movies/discover?type=all', 1],
+            'search with a hidden source page' => ['/api/movies/search?q=film&type=all', 25],
+            'discover with a hidden source page' => ['/api/movies/discover?type=all', 25],
+            'search with every movie hidden' => ['/api/movies/search?q=film&type=all', 40],
+            'discover with every movie hidden' => ['/api/movies/discover?type=all', 40],
+        ];
+    }
+
+    #[DataProvider('combinedPaginationCases')]
+    public function test_combined_pages_do_not_skip_or_repeat_visible_titles_when_movies_are_hidden(string $url, int $hiddenCount): void
+    {
+        LocalMovie::query()->delete();
+        foreach (range(1, $hiddenCount) as $id) {
+            $this->hide($id);
+        }
+        $movies = array_map(fn (int $id): array => ['id' => $id, 'title' => 'Movie '.$id, 'popularity' => 1000 - $id], range(1, 40));
+        $shows = array_map(fn (int $id): array => ['id' => $id, 'name' => 'Show '.$id, 'popularity' => 200 - $id], range(101, 120));
+        Http::preventStrayRequests();
+        $respond = function (Request $request) use ($movies, $shows): PromiseInterface {
+            $titles = str_contains($request->url(), '/tv?') ? $shows : $movies;
+
+            return Http::response([
+                'page' => (int) $request['page'],
+                'total_results' => count($titles),
+                'total_pages' => (int) ceil(count($titles) / 20),
+                'results' => array_slice($titles, ((int) $request['page'] - 1) * 20, 20),
+            ]);
+        };
+        Http::fake([
+            'https://api.themoviedb.org/3/search/*' => $respond,
+            'https://api.themoviedb.org/3/discover/*' => $respond,
+        ]);
+        $expected = [
+            ...array_map(fn (int $id): string => 'movie:'.$id, array_column(array_slice($movies, $hiddenCount), 'id')),
+            ...array_map(fn (int $id): string => 'tv:'.$id, range(101, 120)),
+        ];
+
+        foreach ([1, 2, 3] as $page) {
+            $titles = $this->getJson($url.'&page='.$page)->assertOk()->json('movies');
+
+            $this->assertSame(
+                array_slice($expected, ($page - 1) * 20, 20),
+                array_map(fn (array $title): string => $title['media_type'].':'.$title['id'], $titles),
+                'Combined page '.$page,
+            );
         }
     }
 
