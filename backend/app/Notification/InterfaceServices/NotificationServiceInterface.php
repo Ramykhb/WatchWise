@@ -60,12 +60,31 @@ interface NotificationServiceInterface
     public function roomRead(DiscussionRoom $room, User $reader): void;
 
     /**
-     * The room was deleted: notifications that open it are removed, and its members and invitees hear who
-     * deleted it.
+     * The room was deleted: notifications that open it (including the staff notices about it) are removed, and its
+     * members and invitees hear who deleted it.
      *
      * @param  list<int>  $audienceIds  the room's members and invitees
      */
     public function roomDeleted(DiscussionRoom $room, User $deleter, array $audienceIds): void;
+
+    /**
+     * Staff deleted the room. Its notifications are removed like roomDeleted() does, but its members and invitees
+     * hear it from the WatchWise team, not from the staff member (`room_deleted` without an actor, which still
+     * respects their switch), and the room's creator, unless they are the staff member, always gets `room_removed`,
+     * which has no switch. The creator is not sent `room_deleted` as well.
+     *
+     * @param  list<int>  $audienceIds  the room's members and invitees
+     */
+    public function roomRemovedByStaff(DiscussionRoom $room, User $staff, array $audienceIds): void;
+
+    /**
+     * A message was deleted by staff, so nothing may still quote it: the mentions of it are withdrawn, and the
+     * room's "new messages" notifications stop quoting it and count one fewer for each member who had yet to read it.
+     * Rows from before they stored a message id are matched by the quoted text.
+     *
+     * @param  list<int>  $unreadByIds  the members who had not read the message
+     */
+    public function roomMessageDeleted(DiscussionRoom $room, Message $message, array $unreadByIds): void;
 
     /**
      * @param  list<int>  $guestIds
@@ -93,4 +112,16 @@ interface NotificationServiceInterface
      * notice carries neither the review's text nor who removed it, and ignores the author's notification settings.
      */
     public function reviewRemoved(Review $review): void;
+
+    /**
+     * Staff removed the message and its author is told which room and film it was in. The notice carries neither
+     * the message's text nor who removed it, and ignores the author's notification settings.
+     */
+    public function messageRemoved(DiscussionRoom $room, Message $message): void;
+
+    /**
+     * Staff locked or unlocked the room and its creator is told (nobody when the creator's account is gone). The
+     * notice carries no staff identity and ignores the creator's notification settings.
+     */
+    public function roomLockChanged(DiscussionRoom $room, bool $locked): void;
 }

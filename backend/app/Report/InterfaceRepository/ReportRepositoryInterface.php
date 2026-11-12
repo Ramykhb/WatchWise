@@ -6,6 +6,7 @@ use App\Models\Report;
 use App\Report\DTOs\Requests\ReportQueueQuery;
 use App\Report\Support\ReportStatus;
 use App\Report\Support\ReportTargetType;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -64,12 +65,28 @@ interface ReportRepositoryInterface
     public function lockForUpdate(Report $report): Report;
 
     /**
-     * The ids of the open reports on the target, in ascending order, row-locked until the surrounding transaction
-     * ends. Locking in one fixed order keeps two staff members closing reports of the same target from deadlocking.
+     * The ids of the open reports on any of the targets, in ascending order, row-locked until the surrounding
+     * transaction ends. Locking in one fixed order keeps two staff members closing reports of the same target from deadlocking.
      *
+     * @param  list<int>  $targetIds
      * @return list<int>
      */
-    public function lockOpenForTarget(ReportTargetType $type, int $targetId): array;
+    public function lockOpenForTargets(ReportTargetType $type, array $targetIds): array;
+
+    /**
+     * Open reports per target, for the targets that have any (one grouped query per few hundred ids).
+     *
+     * @param  list<int>  $targetIds
+     * @return array<int, int> target id => open reports
+     */
+    public function openCountsFor(ReportTargetType $type, array $targetIds): array;
+
+    /**
+     * The open reports on one target, oldest first, with their `reporter` loaded.
+     *
+     * @return Collection<int, Report>
+     */
+    public function openFor(ReportTargetType $type, int $targetId): Collection;
 
     /**
      * Closes the reports that are still open among `$ids`.

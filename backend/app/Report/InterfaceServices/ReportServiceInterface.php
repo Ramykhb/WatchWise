@@ -10,6 +10,7 @@ use App\Report\DTOs\Responses\ReportContentResponse;
 use App\Report\DTOs\Responses\ReportedTargetResponse;
 use App\Report\Exceptions\ReportAlreadyClosed;
 use App\Report\Support\ReportTargetType;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 /**
@@ -35,6 +36,31 @@ interface ReportServiceInterface
      * @param  'resolved'|'dismissed'  $status
      */
     public function resolveForTarget(ReportTargetType $type, int $targetId, ?User $by, string $status): int;
+
+    /**
+     * Closes every open report on any of the targets with one decision, like resolveForTarget() for many targets of
+     * one kind at once (a deleted room and the messages in it). Returns how many it closed.
+     *
+     * @param  list<int>  $targetIds
+     * @param  'resolved'|'dismissed'  $status
+     */
+    public function resolveForTargets(ReportTargetType $type, array $targetIds, ?User $by, string $status): int;
+
+    /**
+     * How many open reports each of the targets has, in one query however many ids there are; a target without one
+     * is present with 0.
+     *
+     * @param  list<int>  $targetIds
+     * @return array<int, int> target id => open reports
+     */
+    public function openCountsFor(ReportTargetType $type, array $targetIds): array;
+
+    /**
+     * The open reports on one target, oldest first, with their `reporter` loaded.
+     *
+     * @return Collection<int, Report>
+     */
+    public function openFor(ReportTargetType $type, int $targetId): Collection;
 
     /**
      * Closes one report as `resolved` or `dismissed` by `$by`, with an optional note, and, with `$applyToTarget`,

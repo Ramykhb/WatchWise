@@ -11,4 +11,6 @@ enum AdminSubjectType: string
     case Genre = 'genre';
     case Setting = 'setting';
     case Report = 'report';
+    case Room = 'room';
+    case Message = 'message';
 }

@@ -19,6 +19,11 @@ enum AdminAction: string
     case ReportResolved = 'report.resolved';
     case ReportDismissed = 'report.dismissed';
 
+    case RoomLocked = 'room.locked';
+    case RoomUnlocked = 'room.unlocked';
+    case RoomDeleted = 'room.deleted';
+    case MessageDeleted = 'message.deleted';
+
     /** What kind of record the action is done to. */
     public function subjectType(): AdminSubjectType
     {
@@ -29,6 +34,8 @@ enum AdminAction: string
             self::GenreUpdated, self::GenreReset => AdminSubjectType::Genre,
             self::SettingsUpdated => AdminSubjectType::Setting,
             self::ReportResolved, self::ReportDismissed => AdminSubjectType::Report,
+            self::RoomLocked, self::RoomUnlocked, self::RoomDeleted => AdminSubjectType::Room,
+            self::MessageDeleted => AdminSubjectType::Message,
         };
     }
 }

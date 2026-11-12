@@ -13,10 +13,14 @@ use App\Report\InterfaceRepository\ReportRepositoryInterface;
 use App\Report\Support\ReportStatus;
 use App\Report\Support\ReportTargetType;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class ReportRepository implements ReportRepositoryInterface
 {
+    /** Ids per query, so a room with a great many messages stays under the database parameter limit. */
+    private const ID_CHUNK = 500;
+
     public function createOrFirst(int $reporterId, ReportTargetType $type, int $targetId, string $reason, ?string $details, array $snapshot): Report
     {
         return Report::query()->createOrFirst(
@@ -102,17 +106,56 @@ class ReportRepository implements ReportRepositoryInterface
         return Report::query()->whereKey($report->getKey())->lockForUpdate()->firstOrFail();
     }
 
-    public function lockOpenForTarget(ReportTargetType $type, int $targetId): array
+    public function lockOpenForTargets(ReportTargetType $type, array $targetIds): array
+    {
+        $ids = [];
+
+        foreach (array_chunk($targetIds, self::ID_CHUNK) as $chunk) {
+            array_push($ids, ...Report::query()
+                ->open()
+                ->where('target_type', $type)
+                ->whereIn('target_id', $chunk)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->pluck('id')
+                ->map(fn ($id): int => (int) $id)
+                ->all());
+        }
+
+        sort($ids);
+
+        return $ids;
+    }
+
+    public function openCountsFor(ReportTargetType $type, array $targetIds): array
+    {
+        $counts = [];
+
+        foreach (array_chunk($targetIds, self::ID_CHUNK) as $chunk) {
+            $counts += Report::query()
+                ->open()
+                ->where('target_type', $type)
+                ->whereIn('target_id', $chunk)
+                ->selectRaw('target_id, count(*) as total')
+                ->groupBy('target_id')
+                ->pluck('total', 'target_id')
+                ->map(fn ($total): int => (int) $total)
+                ->all();
+        }
+
+        return $counts;
+    }
+
+    public function openFor(ReportTargetType $type, int $targetId): Collection
     {
         return Report::query()
             ->open()
             ->where('target_type', $type)
             ->where('target_id', $targetId)
+            ->with('reporter:id,name,username')
+            ->orderBy('created_at')
             ->orderBy('id')
-            ->lockForUpdate()
-            ->pluck('id')
-            ->map(fn ($id): int => (int) $id)
-            ->all();
+            ->get();
     }
 
     public function closeMany(array $ids, ReportStatus $status, ?int $resolvedBy, ?string $note): void

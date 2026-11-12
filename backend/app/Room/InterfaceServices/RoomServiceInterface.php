@@ -17,6 +17,7 @@ use App\Room\DTOs\Responses\RoomMessageResponse;
 use App\Room\DTOs\Responses\RoomMessagesResponse;
 use App\Room\DTOs\Responses\RoomResponse;
 use App\Room\Exceptions\RoomCreationDisabled;
+use App\Room\Exceptions\RoomLocked;
 
 /**
  * Discussion rooms: group chats about a film. A public room can be read and joined by anyone; a private one
@@ -50,8 +51,33 @@ interface RoomServiceInterface
     /** Turns down the user's invitation to a private room. */
     public function decline(DiscussionRoom $room, User $user): void;
 
-    /** Deletes the room with its messages, members and invitations; its members and invitees are told who did it. */
+    /**
+     * Deletes the room with its messages, members and invitations; its members and invitees are told who did it.
+     * The lists are refreshed and the notices sent once the outermost transaction commits, so a caller may wrap
+     * the deletion in its own transaction.
+     */
     public function delete(DiscussionRoom $room, User $deleter): void;
+
+    /**
+     * Deletes the room as delete() does when staff remove it: the same deletion, lists and cleanup, but its members and
+     * invitees hear it from the WatchWise team instead of from `$staff`, and its creator always does (even with
+     * `room_deleted` switched off) unless they are `$staff`.
+     */
+    public function deleteByStaff(DiscussionRoom $room, User $staff): void;
+
+    /**
+     * Deletes one message of the room with its read receipts, so nobody has it left to read and the unread counts
+     * drop with it. Whoever has the room open is told over `message.deleted`, and the room lists reload. The text is
+     * withdrawn from the mention and "new messages" notifications that quote it. Like delete(), the pushes and
+     * notices wait for the outermost transaction to commit.
+     */
+    public function deleteMessage(DiscussionRoom $room, Message $message): void;
+
+    /**
+     * Locks or unlocks the room and returns whether that changed anything (it did not when the room was already in
+     * that state). Every list that shows the room reloads once the outermost transaction commits.
+     */
+    public function setLocked(DiscussionRoom $room, bool $locked): bool;
 
     /** The stored messages the viewer can still see, with who has read each one. */
     public function messages(DiscussionRoom $room, User $viewer): RoomMessagesResponse;
@@ -60,6 +86,8 @@ interface RoomServiceInterface
      * The message is read by its sender (a member), waits for every other member and is pushed to the room's
      * socket channel and the room-list channels. It is kept for at least its 24 hours, even with nobody else to
      * read it.
+     *
+     * @throws RoomLocked when staff locked the room: nobody posts in it, its creator included
      */
     public function send(DiscussionRoom $room, SendRoomMessageData $data, User $sender): RoomMessageResponse;
 

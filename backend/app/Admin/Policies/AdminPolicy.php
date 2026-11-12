@@ -67,6 +67,18 @@ class AdminPolicy
         return $current->isAdmin();
     }
 
+    /** Reading rooms, removing their messages and locking them; moderators may too. */
+    public function moderateRooms(CurrentUser $current): bool
+    {
+        return $this->isStaff($current);
+    }
+
+    /** Deleting a whole room stays with admins. */
+    public function deleteRooms(CurrentUser $current): bool
+    {
+        return $current->isAdmin();
+    }
+
     private function isStaff(CurrentUser $current): bool
     {
         return $current->isAdmin() || $current->role() === 'moderator';

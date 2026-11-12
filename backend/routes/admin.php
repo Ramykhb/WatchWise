@@ -3,6 +3,7 @@
 use App\Admin\Controllers\AdminController;
 use App\Admin\Controllers\AdminGenreController;
 use App\Admin\Controllers\AdminReportController;
+use App\Admin\Controllers\AdminRoomController;
 use App\Admin\Controllers\AdminSettingController;
 use Illuminate\Support\Facades\Route;
 
@@ -38,6 +39,21 @@ Route::prefix('admin')->middleware('throttle:admin')->group(function () {
         Route::get('reports', 'index');
         Route::get('reports/{report}', 'show')->whereNumber('report');
         Route::patch('reports/{report}', 'update')->whereNumber('report');
+    });
+
+    // Moderators and admins read discussion rooms, remove their messages and lock them; only admins delete a room.
+    Route::controller(AdminRoomController::class)->group(function () {
+        Route::middleware('role:admin')->group(function () {
+            Route::delete('rooms/{room}', 'destroy')->whereNumber('room');
+        });
+
+        Route::middleware('role:admin,moderator')->group(function () {
+            Route::get('rooms', 'index');
+            Route::get('rooms/{room}', 'show')->whereNumber('room');
+            Route::patch('rooms/{room}', 'update')->whereNumber('room');
+            Route::get('rooms/{room}/messages', 'messages')->whereNumber('room');
+            Route::delete('rooms/{room}/messages/{message}', 'destroyMessage')->whereNumber(['room', 'message'])->scopeBindings();
+        });
     });
 
     // Moderators may look at the genres but only admins change them.
