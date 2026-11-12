@@ -8,6 +8,7 @@ use App\Admin\InterfaceRepository\AdminUserRepositoryInterface;
 use App\Admin\InterfaceServices\AdminAuditServiceInterface;
 use App\Admin\InterfaceServices\AdminGenreServiceInterface;
 use App\Admin\InterfaceServices\AdminReportServiceInterface;
+use App\Admin\InterfaceServices\AdminReviewToolsServiceInterface;
 use App\Admin\InterfaceServices\AdminServiceInterface;
 use App\Admin\InterfaceServices\AdminSettingServiceInterface;
 use App\Admin\Repository\AdminAuditRepository;
@@ -16,6 +17,7 @@ use App\Admin\Repository\AdminUserRepository;
 use App\Admin\Services\AdminAuditService;
 use App\Admin\Services\AdminGenreService;
 use App\Admin\Services\AdminReportService;
+use App\Admin\Services\AdminReviewToolsService;
 use App\Admin\Services\AdminService;
 use App\Admin\Services\AdminSettingService;
 use App\Auth\CurrentUser\CurrentUser;
@@ -40,6 +42,7 @@ class AdminModuleServiceProvider extends ServiceProvider
         AdminGenreServiceInterface::class => AdminGenreService::class,
         AdminSettingServiceInterface::class => AdminSettingService::class,
         AdminReportServiceInterface::class => AdminReportService::class,
+        AdminReviewToolsServiceInterface::class => AdminReviewToolsService::class,
     ];
 
     public function boot(): void

@@ -24,6 +24,8 @@ use App\Admin\InterfaceServices\AdminServiceInterface;
 use App\Admin\Mail\AccountReinstatedMail;
 use App\Admin\Mail\AccountSuspendedMail;
 use App\Admin\Support\AdminAction;
+use App\Admin\Support\AuditLabel;
+use App\Admin\Support\ReviewDecision;
 use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Genre\DTOs\Responses\GenreResponse;
 use App\Genre\InterfaceServices\GenreServiceInterface;
@@ -34,6 +36,7 @@ use App\Movie\DTOs\Requests\LocalMovieQuery;
 use App\Movie\DTOs\Requests\UpdateLocalMovieData;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Notification\InterfaceServices\NotificationServiceInterface;
+use App\Review\DTOs\Requests\ModerationQueueQuery;
 use App\Review\InterfaceServices\ReviewServiceInterface;
 use App\Support\Exceptions\TmdbUnavailable;
 use App\Support\MediaType;
@@ -273,7 +276,17 @@ class AdminService implements AdminServiceInterface
 
     public function reviews(ReviewModerationQuery $query): AdminPageResponse
     {
-        $paginator = $this->reviews->moderationQueue($query->status, $query->page, $query->perPage, $query->search, $query->sentiment, $query->reason);
+        $paginator = $this->reviews->moderationQueue(new ModerationQueueQuery(
+            $query->status,
+            $query->page,
+            $query->perPage,
+            $query->search,
+            $query->sentiment,
+            $query->reason,
+            $query->userId,
+            $query->tmdbId,
+            $query->mediaType,
+        ));
         $films = $this->filmsOf(collect($paginator->items()));
 
         return $this->page(
@@ -282,45 +295,57 @@ class AdminService implements AdminServiceInterface
         )->withSummary($this->reviewSummary());
     }
 
-    public function moderateReview(User $moderator, Review $review, ModerateReviewData $data): AdminReviewResponse
+    public function decideReview(User $moderator, Review $review, ModerateReviewData $data): ReviewDecision
     {
-        [$moderated, $removedText] = DB::transaction(function () use ($moderator, $review, $data): array {
-            $current = $this->reviews->lockForUpdate($review)->loadMissing('user');
-            $was = $this->reviewState($current);
-            $removedText = ! $data->isApproval() && filled($current->content);
-            $reportsResolved = $this->reviews->openReportsCount($current);
+        $current = $this->reviews->lockForUpdate($review)->loadMissing('user');
+        $was = $this->reviewState($current);
+        $removedText = ! $data->isApproval() && filled($current->content);
+        $reportsResolved = $this->reviews->openReportsCount($current);
 
-            $moderated = $data->isApproval() ? $this->reviews->approve($current, $moderator) : $this->reviews->reject($current, $moderator);
-            $now = $this->reviewState($moderated);
+        $moderated = $data->isApproval() ? $this->reviews->approve($current, $moderator) : $this->reviews->reject($current, $moderator);
+        $now = $this->reviewState($moderated);
+        $changed = $now !== $was || $reportsResolved > 0;
 
-            if ($now !== $was || $reportsResolved > 0) {
-                $this->audit->record(
-                    $moderator,
-                    $data->isApproval() ? AdminAction::ReviewApproved : AdminAction::ReviewRejected,
-                    $moderated->id,
-                    $this->reviewLabel($moderated),
-                    ['status' => ['from' => $was, 'to' => $now], 'reports_resolved' => $reportsResolved],
-                );
-            }
-
-            return [$moderated, $removedText];
-        });
-        $this->forgetStats();
-
-        if ($removedText) {
-            $this->tellAuthorReviewRemoved($moderated);
+        if ($changed) {
+            $this->audit->record(
+                $moderator,
+                $data->isApproval() ? AdminAction::ReviewApproved : AdminAction::ReviewRejected,
+                $moderated->id,
+                AuditLabel::review($moderated),
+                ['status' => ['from' => $was, 'to' => $now], 'reports_resolved' => $reportsResolved],
+            );
         }
 
-        $moderated->loadMissing(['user', 'reports']);
+        return new ReviewDecision($moderated, $changed, $removedText);
+    }
 
-        return AdminReviewResponse::fromModel($moderated, $this->filmOf($moderated, $this->filmsOf(collect([$moderated]))));
+    public function settleReviewDecisions(array $decisions): void
+    {
+        if ($decisions === []) {
+            return;
+        }
+
+        $this->forgetStats();
+
+        foreach ($decisions as $decision) {
+            if ($decision->removedText) {
+                $this->tellAuthorReviewRemoved($decision->review);
+            }
+        }
+    }
+
+    public function reviewResponse(Review $review): AdminReviewResponse
+    {
+        $review->loadMissing(['user', 'reports']);
+
+        return AdminReviewResponse::fromModel($review, $this->filmOf($review, $this->filmsOf(collect([$review]))));
     }
 
     public function deleteReview(User $moderator, Review $review): void
     {
         $review->loadMissing('user');
         $id = $review->id;
-        $label = $this->reviewLabel($review);
+        $label = AuditLabel::review($review);
         $hadText = filled($review->content);
 
         DB::transaction(function () use ($moderator, $review, $id, $label): void {
@@ -393,15 +418,9 @@ class AdminService implements AdminServiceInterface
         return $value instanceof CarbonInterface ? $value->toDateString() : $value;
     }
 
-    /** Usernames are what the log keeps as an account's label; emails never are. */
     private function userLabel(User $user): string
     {
-        return $user->username ?? $user->name;
-    }
-
-    private function reviewLabel(Review $review): ?string
-    {
-        return $review->user === null ? null : 'Review by '.$this->userLabel($review->user);
+        return AuditLabel::user($user);
     }
 
     /** Where a review stands in moderation, ignoring open reports (those only make it show as flagged). */

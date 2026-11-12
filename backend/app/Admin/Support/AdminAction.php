@@ -12,6 +12,7 @@ enum AdminAction: string
     case ReviewApproved = 'review.approved';
     case ReviewRejected = 'review.rejected';
     case ReviewDeleted = 'review.deleted';
+    case ReviewSpoilerChanged = 'review.spoiler_changed';
     case MovieUpdated = 'movie.updated';
     case GenreUpdated = 'genre.updated';
     case GenreReset = 'genre.reset';
@@ -24,7 +25,7 @@ enum AdminAction: string
     {
         return match ($this) {
             self::UserRoleChanged, self::UserSuspended, self::UserReinstated, self::UserDeleted => AdminSubjectType::User,
-            self::ReviewApproved, self::ReviewRejected, self::ReviewDeleted => AdminSubjectType::Review,
+            self::ReviewApproved, self::ReviewRejected, self::ReviewDeleted, self::ReviewSpoilerChanged => AdminSubjectType::Review,
             self::MovieUpdated => AdminSubjectType::Movie,
             self::GenreUpdated, self::GenreReset => AdminSubjectType::Genre,
             self::SettingsUpdated => AdminSubjectType::Setting,
