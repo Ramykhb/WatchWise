@@ -288,6 +288,10 @@
   text-decoration: underline;
 }
 
+.loadMore {
+  align-self: flex-start;
+}
+
 .primary {
   padding: 10px 22px;
   border-radius: var(--radius-pill);

@@ -25,7 +25,10 @@ class UpdateMovieListRequest extends FormRequest
             'is_public' => ['sometimes', 'boolean'],
             // Movies as TMDB ids (550) and TV shows as "tv-1399", in list order.
             'tmdb_ids' => ['sometimes', 'array', 'max:500'],
-            'tmdb_ids.*' => ['distinct', 'regex:'.ListFilmData::KEY_PATTERN],
+            'tmdb_ids.*' => ListFilmData::keyRules(),
+            // The list's updated_at as the client last saw it; a mismatch means the list changed meanwhile (409).
+            'expected_updated_at' => ['sometimes', 'date'],
+            'expected_revision' => ['sometimes', 'integer', 'min:1'],
         ];
     }
 

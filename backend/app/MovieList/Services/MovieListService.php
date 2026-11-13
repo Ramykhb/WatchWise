@@ -10,6 +10,7 @@ use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\DTOs\Requests\StaffListQuery;
 use App\MovieList\DTOs\Requests\UpdateMovieListData;
+use App\MovieList\Exceptions\ListChangedElsewhere;
 use App\MovieList\InterfaceRepository\MovieListRepositoryInterface;
 use App\MovieList\InterfaceServices\MovieListServiceInterface;
 use App\Report\DTOs\Requests\ReportContentData;
@@ -18,8 +19,9 @@ use App\Report\InterfaceServices\ReportServiceInterface;
 use App\Report\Support\ReportTargetType;
 use App\Support\HiddenMovies;
 use App\Support\MediaType;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
@@ -31,7 +33,7 @@ class MovieListService implements MovieListServiceInterface
         private readonly ReportServiceInterface $reports,
     ) {}
 
-    public function search(MovieListSearchQuery $query, User $viewer): Collection
+    public function search(MovieListSearchQuery $query, User $viewer): Paginator
     {
         // Hidden movies stay in the viewer's own lists; other members' lists leave them out.
         $hidden = $query->scope === 'mine' ? HiddenMovies::none() : $this->catalog->hiddenMovies();
@@ -41,18 +43,14 @@ class MovieListService implements MovieListServiceInterface
 
     public function create(CreateMovieListData $data, User $owner): MovieList
     {
-        $list = DB::transaction(function () use ($data, $owner) {
-            $list = $this->lists->create([
-                'user_id' => $owner->id,
-                'title' => $data->title,
-                'description' => $data->description,
-                'is_public' => $data->isPublic,
-            ]);
-            $this->lists->syncItems($list, $data->films);
+        $added = [];
+        $list = DB::transaction(function () use ($data, $owner, &$added) {
+            $list = $this->lists->create($data, $owner->id);
+            $added = $this->lists->syncItems($list, $data->films)->added;
 
             return $list;
         });
-        $this->rememberAll($data->films);
+        $this->rememberAfterResponse($added);
 
         return $this->detail($list);
     }
@@ -71,14 +69,28 @@ class MovieListService implements MovieListServiceInterface
 
     public function update(MovieList $list, UpdateMovieListData $data): MovieList
     {
-        DB::transaction(function () use ($list, $data) {
+        $added = [];
+        $list = DB::transaction(function () use ($list, $data, &$added) {
+            $list = $this->lists->lock($list);
+            if ($data->expectedRevision !== null && $list->revision !== $data->expectedRevision) {
+                throw new ListChangedElsewhere;
+            }
+            if ($data->expectedUpdatedAt !== null) {
+                // Compatibility for older clients; revision is the reliable concurrency token.
+                if ($list->updated_at->getTimestamp() !== Carbon::parse($data->expectedUpdatedAt)->getTimestamp()) {
+                    throw new ListChangedElsewhere;
+                }
+            }
+
             $this->lists->update($list, $data->attributes);
 
             if ($data->films !== null) {
-                $this->lists->syncItems($list, $data->films);
+                $added = $this->lists->syncItems($list, $data->films)->added;
             }
+
+            return $list;
         });
-        $this->rememberAll($data->films ?? []);
+        $this->rememberAfterResponse($added);
 
         return $this->detail($list);
     }
@@ -90,22 +102,37 @@ class MovieListService implements MovieListServiceInterface
 
     public function addMovie(MovieList $list, ListFilmData $film): MovieList
     {
-        $this->lists->addItem($list, $film);
-        $this->rememberAll([$film]);
+        [$list, $added] = DB::transaction(function () use ($list, $film) {
+            $list = $this->lists->lock($list);
+
+            return [$list, $this->lists->addItem($list, $film)];
+        });
+        if ($added) {
+            $this->rememberAfterResponse([$film]);
+        }
 
         return $this->detail($list);
     }
 
     public function removeMovie(MovieList $list, ListFilmData $film): MovieList
     {
-        $this->lists->removeItem($list, $film);
+        $list = DB::transaction(function () use ($list, $film) {
+            $list = $this->lists->lock($list);
+            $this->lists->removeItem($list, $film);
+
+            return $list;
+        });
 
         return $this->detail($list);
     }
 
     public function removeItem(MovieList $list, ListFilmData $film): bool
     {
-        return $this->lists->removeItem($list, $film);
+        return DB::transaction(function () use ($list, $film): bool {
+            $current = $this->lists->lockForUpdate($list);
+
+            return $current !== null && $this->lists->removeItem($current, $film);
+        });
     }
 
     public function paginateForStaff(StaffListQuery $query): LengthAwarePaginator
@@ -154,16 +181,29 @@ class MovieListService implements MovieListServiceInterface
     }
 
     /**
-     * The local catalogue (admin "Movie data") only holds movies, so TV shows are skipped.
+     * Adds newly listed movies to the local catalogue (admin "Movie data") once the response is sent, so a slow
+     * or unreachable TMDB never holds up the request. TV shows are skipped: the catalogue only holds movies.
+     * A failure for one film is reported and does not stop the others.
      *
      * @param  list<ListFilmData>  $films
      */
-    private function rememberAll(array $films): void
+    private function rememberAfterResponse(array $films): void
     {
+        $movieIds = [];
         foreach ($films as $film) {
             if ($film->mediaType === MediaType::MOVIE) {
-                $this->catalog->remember($film->tmdbId);
+                $movieIds[] = $film->tmdbId;
             }
         }
+
+        if ($movieIds === []) {
+            return;
+        }
+
+        defer(function () use ($movieIds): void {
+            foreach ($movieIds as $tmdbId) {
+                rescue(fn () => $this->catalog->remember($tmdbId));
+            }
+        });
     }
 }

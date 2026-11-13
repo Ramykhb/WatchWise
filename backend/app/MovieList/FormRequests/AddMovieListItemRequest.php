@@ -22,13 +22,13 @@ class AddMovieListItemRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'tmdb_id' => ['required', 'integer', 'min:1'],
+            'tmdb_id' => ['required', 'integer', 'min:1', 'max:'.ListFilmData::MAX_ID],
             'media_type' => ['sometimes', Rule::in(MediaType::ALL)],
         ];
     }
 
     /** The title to add: a movie unless `media_type` is "tv" (as on POST /api/watchlist). */
-    public function film(): ListFilmData
+    public function toDto(): ListFilmData
     {
         return new ListFilmData((int) $this->validated('tmdb_id'), $this->validated('media_type') ?? MediaType::MOVIE);
     }

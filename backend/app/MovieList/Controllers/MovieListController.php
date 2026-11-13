@@ -4,7 +4,7 @@ namespace App\MovieList\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\MovieList;
-use App\MovieList\DTOs\Requests\ListFilmData;
+use App\MovieList\DTOs\Responses\MovieListPageResponse;
 use App\MovieList\FormRequests\AddMovieListItemRequest;
 use App\MovieList\FormRequests\MovieListIndexRequest;
 use App\MovieList\FormRequests\RemoveMovieListItemRequest;
@@ -30,7 +30,7 @@ class MovieListController
     {
         $lists = $this->lists->search($request->toDto(), $current->user());
 
-        return response()->json(['lists' => MovieListResource::collection($lists)]);
+        return response()->json(new MovieListPageResponse($lists));
     }
 
     /** POST /api/lists */
@@ -77,15 +77,13 @@ class MovieListController
     /** POST /api/lists/{list}/items — adds one movie or TV show at the end; adding it twice is harmless. */
     public function addItem(AddMovieListItemRequest $request, MovieList $list): JsonResponse
     {
-        return response()->json(['list' => $this->present($this->lists->addMovie($list, $request->film()))]);
+        return response()->json(['list' => $this->present($this->lists->addMovie($list, $request->toDto()))]);
     }
 
     /** DELETE /api/lists/{list}/items/{tmdbId}?type=movie|tv */
-    public function removeItem(RemoveMovieListItemRequest $request, MovieList $list, int $tmdbId): JsonResponse
+    public function removeItem(RemoveMovieListItemRequest $request, MovieList $list): JsonResponse
     {
-        $film = new ListFilmData($tmdbId, $request->mediaType());
-
-        return response()->json(['list' => $this->present($this->lists->removeMovie($list, $film))]);
+        return response()->json(['list' => $this->present($this->lists->removeMovie($list, $request->toDto()))]);
     }
 
     private function present(MovieList $list): MovieListResource

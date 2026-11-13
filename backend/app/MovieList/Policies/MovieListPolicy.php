@@ -4,17 +4,21 @@ namespace App\MovieList\Policies;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\MovieList;
+use App\User\Services\ProfilePrivacy;
 
 class MovieListPolicy
 {
+    public function __construct(private readonly ProfilePrivacy $privacy) {}
+
     public function viewAny(CurrentUser $current): bool
     {
         return true;
     }
 
     /**
-     * A public list is open to everyone, unless its owner's profile is followers-only or private: then only to
-     * their followers. The owner and admins always see it.
+     * Someone else's list is shown when it is public, its owner's account is active and the owner's profile
+     * lets this viewer see their lists (profile visibility + the Settings > Privacy "lists" switch).
+     * The owner and admins always see it.
      */
     public function view(CurrentUser $current, MovieList $movieList): bool
     {
@@ -53,6 +57,6 @@ class MovieListPolicy
     {
         $owner = $movieList->user;
 
-        return $owner !== null && ($owner->profile_visibility === 'public' || $owner->isFollowedBy($current->id()));
+        return $owner !== null && $owner->is_active && $this->privacy->shows($owner, $current, 'lists');
     }
 }

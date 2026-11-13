@@ -1,10 +1,11 @@
 <?php
 
-namespace Tests\Feature\Social;
+namespace Tests\Feature\MovieList;
 
 use App\Models\MovieList;
 use App\Models\MovieListItem;
 use App\Models\User;
+use Tests\Feature\Social\SocialTestCase;
 
 class ListItemsTest extends SocialTestCase
 {

@@ -9,7 +9,7 @@ import { api } from '../../lib/api.ts'
 import { apiErrorMessage } from '../../lib/auth.ts'
 import { posterAt, useMovies } from '../../lib/movieDetails.ts'
 import { itemKey, type FilmKey, type MediaType } from '../../lib/movies.ts'
-import type { ApiList } from '../../lib/types.ts'
+import type { ApiList, ApiListsPage } from '../../lib/types.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { addMovieToList, createList, removeMovieFromList } from '../Lists/myListsStore.ts'
 import styles from './AddToListDialog.module.css'
@@ -18,8 +18,8 @@ const CLOSE_MS = 220
 
 /** A list's first title, as a key (a show's cover isn't mistaken for the movie with the same id). */
 const coverKeyOf = (list: ApiList): FilmKey | undefined => {
-  const first = list.cover?.[0]
-  return first ? itemKey(first) : list.posters[0]
+  const first = list.cover[0]
+  return first ? itemKey(first) : undefined
 }
 
 type AddToListDialogProps = {
@@ -43,6 +43,8 @@ export default function AddToListDialog({ open, tmdbId, mediaType, title, onClos
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const [lists, setLists] = useState<ApiList[] | null>(null)
+  // The lists come a page at a time: the last page loaded, and whether another follows.
+  const [paging, setPaging] = useState({ page: 1, hasMore: false, loading: false })
   const [loadFailed, setLoadFailed] = useState(false)
   const [retries, setRetries] = useState(0)
   // Lists whose request is running, so their row can't be clicked twice.
@@ -58,10 +60,11 @@ export default function AddToListDialog({ open, tmdbId, mediaType, title, onClos
   useEffect(() => {
     let active = true
     api
-      .get<{ lists: ApiList[] }>('/lists', { params: { scope: 'mine', contains: tmdbId, contains_type: mediaType } })
+      .get<ApiListsPage>('/lists', { params: { scope: 'mine', contains: tmdbId, contains_type: mediaType } })
       .then((response) => {
         if (!active) return
         setLists(response.data.lists)
+        setPaging({ page: 1, hasMore: response.data.meta.has_more, loading: false })
         setLoadFailed(false)
       })
       .catch(() => active && setLoadFailed(true))
@@ -69,6 +72,24 @@ export default function AddToListDialog({ open, tmdbId, mediaType, title, onClos
       active = false
     }
   }, [tmdbId, mediaType, retries])
+
+  const loadMore = async () => {
+    if (!paging.hasMore || paging.loading) return
+    const { page } = paging
+    setPaging({ ...paging, loading: true })
+    try {
+      const response = await api.get<ApiListsPage>('/lists', { params: { scope: 'mine', contains: tmdbId, contains_type: mediaType, page: page + 1 } })
+      // Lists created here are already shown, so skip any the server sends again.
+      setLists((current) => {
+        const known = new Set((current ?? []).map((list) => list.id))
+        return [...(current ?? []), ...response.data.lists.filter((list) => !known.has(list.id))]
+      })
+      setPaging({ page: page + 1, hasMore: response.data.meta.has_more, loading: false })
+    } catch {
+      // The button stays, so the member can try again.
+      setPaging((current) => ({ ...current, loading: false }))
+    }
+  }
 
   // Cover thumbnails: the first film of each list.
   const coverIds = (lists ?? []).map(coverKeyOf).filter((key): key is FilmKey => key !== undefined)
@@ -250,6 +271,12 @@ export default function AddToListDialog({ open, tmdbId, mediaType, title, onClos
               )
             })}
           </ul>
+        )}
+
+        {lists && paging.hasMore && (
+          <button type="button" className={`${styles.textButton} ${styles.loadMore}`} onClick={() => void loadMore()} disabled={paging.loading}>
+            {paging.loading ? 'Loading…' : 'Load more lists'}
+          </button>
         )}
 
         {error && (
