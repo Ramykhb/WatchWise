@@ -41,18 +41,14 @@ class MovieListService implements MovieListServiceInterface
 
     public function create(CreateMovieListData $data, User $owner): MovieList
     {
-        $list = DB::transaction(function () use ($data, $owner) {
-            $list = $this->lists->create([
-                'user_id' => $owner->id,
-                'title' => $data->title,
-                'description' => $data->description,
-                'is_public' => $data->isPublic,
-            ]);
-            $this->lists->syncItems($list, $data->films);
+        $added = [];
+        $list = DB::transaction(function () use ($data, $owner, &$added) {
+            $list = $this->lists->create($data, $owner->id);
+            $added = $this->lists->syncItems($list, $data->films)->added;
 
             return $list;
         });
-        $this->rememberAll($data->films);
+        $this->rememberAfterResponse($added);
 
         return $this->detail($list);
     }
@@ -71,14 +67,15 @@ class MovieListService implements MovieListServiceInterface
 
     public function update(MovieList $list, UpdateMovieListData $data): MovieList
     {
-        DB::transaction(function () use ($list, $data) {
+        $added = [];
+        DB::transaction(function () use ($list, $data, &$added) {
             $this->lists->update($list, $data->attributes);
 
             if ($data->films !== null) {
-                $this->lists->syncItems($list, $data->films);
+                $added = $this->lists->syncItems($list, $data->films)->added;
             }
         });
-        $this->rememberAll($data->films ?? []);
+        $this->rememberAfterResponse($added);
 
         return $this->detail($list);
     }
@@ -90,8 +87,9 @@ class MovieListService implements MovieListServiceInterface
 
     public function addMovie(MovieList $list, ListFilmData $film): MovieList
     {
-        $this->lists->addItem($list, $film);
-        $this->rememberAll([$film]);
+        if ($this->lists->addItem($list, $film)) {
+            $this->rememberAfterResponse([$film]);
+        }
 
         return $this->detail($list);
     }
@@ -154,16 +152,29 @@ class MovieListService implements MovieListServiceInterface
     }
 
     /**
-     * The local catalogue (admin "Movie data") only holds movies, so TV shows are skipped.
+     * Adds newly listed movies to the local catalogue (admin "Movie data") once the response is sent, so a slow
+     * or unreachable TMDB never holds up the request. TV shows are skipped: the catalogue only holds movies.
+     * A failure for one film is reported and does not stop the others.
      *
      * @param  list<ListFilmData>  $films
      */
-    private function rememberAll(array $films): void
+    private function rememberAfterResponse(array $films): void
     {
+        $movieIds = [];
         foreach ($films as $film) {
             if ($film->mediaType === MediaType::MOVIE) {
-                $this->catalog->remember($film->tmdbId);
+                $movieIds[] = $film->tmdbId;
             }
         }
+
+        if ($movieIds === []) {
+            return;
+        }
+
+        defer(function () use ($movieIds): void {
+            foreach ($movieIds as $tmdbId) {
+                rescue(fn () => $this->catalog->remember($tmdbId));
+            }
+        });
     }
 }

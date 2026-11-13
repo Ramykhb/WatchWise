@@ -4,6 +4,8 @@ namespace App\MovieList\InterfaceRepository;
 
 use App\Models\MovieList;
 use App\Models\User;
+use App\MovieList\DTOs\ListSyncResult;
+use App\MovieList\DTOs\Requests\CreateMovieListData;
 use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\DTOs\Requests\StaffListQuery;
@@ -22,17 +24,16 @@ interface MovieListRepositoryInterface
      */
     public function search(MovieListSearchQuery $query, User $viewer, HiddenMovies $hidden): Collection;
 
-    /**
-     * @param  array{user_id: int, title: string, description: string|null, is_public: bool}  $attributes
-     */
-    public function create(array $attributes): MovieList;
+    /** Creates the list (without its films) for the owner. */
+    public function create(CreateMovieListData $data, int $ownerId): MovieList;
 
     /**
-     * Saves the fields and bumps updated_at even when none of them changed.
+     * Saves the fields; updated_at only moves when one of them changed.
      *
      * @param  array<string, mixed>  $attributes
+     * @return bool whether any field changed
      */
-    public function update(MovieList $list, array $attributes): void;
+    public function update(MovieList $list, array $attributes): bool;
 
     /** Deletes the list (its films go with it) and says whether this call removed a row: false when it was already gone. */
     public function delete(MovieList $list): bool;
@@ -41,20 +42,21 @@ interface MovieListRepositoryInterface
     public function lockForUpdate(MovieList $list): ?MovieList;
 
     /**
-     * Makes the list hold exactly these movies and TV shows in this order, keeping notes of titles that stay.
+     * Makes the list hold exactly these movies and TV shows in this order (positions from 0) in a few bulk
+     * queries. Titles that stay keep their note and the date they were added. Bumps updated_at when titles
+     * were added or removed or their order changed, not when the list already matched.
      *
      * @param  list<ListFilmData>  $films
-     * @return list<ListFilmData> titles that were not in the list before
      */
-    public function syncItems(MovieList $list, array $films): array;
+    public function syncItems(MovieList $list, array $films): ListSyncResult;
 
-    /** Adds the title at the end of the list; false when it is already there. */
+    /** Adds the title after the last one (position 0 on an empty list); false when it is already there. */
     public function addItem(MovieList $list, ListFilmData $film): bool;
 
     /** Removes the title; false when it was not in the list. */
     public function removeItem(MovieList $list, ListFilmData $film): bool;
 
-    /** Loads the owner, the films and the film count, leaving the hidden movies out of both. */
+    /** Loads the owner (unless already loaded), the films and the film count, leaving the hidden movies out of both. */
     public function loadDetail(MovieList $list, HiddenMovies $hidden): MovieList;
 
     /**
