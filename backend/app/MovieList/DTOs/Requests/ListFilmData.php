@@ -11,7 +11,7 @@ final readonly class ListFilmData
     /** How list requests write a title: 550 for a movie, "tv-1399" for a TV show. */
     public const KEY_PATTERN = '/^(tv-)?[1-9][0-9]{0,9}$/';
 
-    /** The largest TMDB id accepted: the signed 32-bit integer the database column holds. */
+    /** The largest TMDB id accepted (signed 32-bit max): far above any real TMDB id, and safe to cast to int. */
     public const MAX_ID = 2147483647;
 
     /**
