@@ -19,10 +19,10 @@ use App\Report\InterfaceServices\ReportServiceInterface;
 use App\Report\Support\ReportTargetType;
 use App\Support\HiddenMovies;
 use App\Support\MediaType;
-use Carbon\CarbonInterface;
 use Carbon\Carbon;
-use Illuminate\Pagination\LengthAwarePaginator;
+use Carbon\CarbonInterface;
 use Illuminate\Contracts\Pagination\Paginator;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 class MovieListService implements MovieListServiceInterface
@@ -128,7 +128,11 @@ class MovieListService implements MovieListServiceInterface
 
     public function removeItem(MovieList $list, ListFilmData $film): bool
     {
-        return $this->lists->removeItem($list, $film);
+        return DB::transaction(function () use ($list, $film): bool {
+            $current = $this->lists->lockForUpdate($list);
+
+            return $current !== null && $this->lists->removeItem($current, $film);
+        });
     }
 
     public function paginateForStaff(StaffListQuery $query): LengthAwarePaginator

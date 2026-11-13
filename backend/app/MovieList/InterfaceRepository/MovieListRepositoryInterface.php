@@ -11,8 +11,8 @@ use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\DTOs\Requests\StaffListQuery;
 use App\Support\HiddenMovies;
 use Carbon\CarbonInterface;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\Pagination\Paginator;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 interface MovieListRepositoryInterface
 {
@@ -40,9 +40,9 @@ interface MovieListRepositoryInterface
 
     /** A fresh copy of the list, row-locked until the surrounding transaction ends (call inside one); null when it no longer exists. */
     public function lockForUpdate(MovieList $list): ?MovieList;
+
     /** Reloads the list and locks its row until the transaction ends; all writes must hold this lock. */
     public function lock(MovieList $list): MovieList;
-
 
     /**
      * Makes the list hold exactly these movies and TV shows in this order (positions from 0) in a few bulk

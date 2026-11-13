@@ -12,8 +12,8 @@ use App\MovieList\DTOs\Requests\UpdateMovieListData;
 use App\Report\DTOs\Requests\ReportContentData;
 use App\Report\DTOs\Responses\ReportContentResponse;
 use Carbon\CarbonInterface;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\Pagination\Paginator;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 interface MovieListServiceInterface
 {

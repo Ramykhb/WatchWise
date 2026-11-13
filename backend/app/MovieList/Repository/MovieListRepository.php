@@ -247,7 +247,7 @@ class MovieListRepository implements MovieListRepositoryInterface
 
     public function makePrivate(MovieList $list): bool
     {
-        $changed = MovieList::query()->whereKey($list->getKey())->where('is_public', true)->update(['is_public' => false, 'updated_at' => now()]) > 0;
+        $changed = MovieList::query()->whereKey($list->getKey())->where('is_public', true)->increment('revision', 1, ['is_public' => false, 'updated_at' => now()]) > 0;
         $list->refresh();
 
         return $changed;

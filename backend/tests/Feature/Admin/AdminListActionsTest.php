@@ -22,6 +22,35 @@ use RuntimeException;
 /** What staff do to a list: make it private, remove a title, delete it. Rules, reports, audit entries, notices and rollbacks. */
 class AdminListActionsTest extends AdminListsTestCase
 {
+    public function test_staff_visibility_changes_invalidate_the_owners_loaded_revision(): void
+    {
+        $this->freezeTime();
+        $owner = $this->owner();
+        $list = $this->listOf($owner);
+        $loaded = $this->as($owner)->getJson("/api/lists/{$list->id}")->assertOk()->json('list');
+
+        $this->as($this->moderator())->patchJson("/api/admin/lists/{$list->id}", ['visibility' => 'private'])->assertOk();
+
+        $this->as($owner)->patchJson("/api/lists/{$list->id}", ['is_public' => true, 'expected_revision' => $loaded['revision']])
+            ->assertStatus(409);
+        $this->assertDatabaseHas('movie_lists', ['id' => $list->id, 'is_public' => false, 'revision' => 2]);
+    }
+
+    public function test_staff_item_removals_invalidate_the_owners_loaded_revision(): void
+    {
+        $this->freezeTime();
+        $owner = $this->owner();
+        $list = $this->listOf($owner, films: [[550], [603]]);
+        $loaded = $this->as($owner)->getJson("/api/lists/{$list->id}")->assertOk()->json('list');
+
+        $this->as($this->moderator())->deleteJson("/api/admin/lists/{$list->id}/items/550")->assertOk();
+
+        $this->as($owner)->patchJson("/api/lists/{$list->id}", ['tmdb_ids' => [550, 603], 'expected_revision' => $loaded['revision']])
+            ->assertStatus(409);
+        $this->assertDatabaseMissing('movie_list_items', ['movie_list_id' => $list->id, 'tmdb_id' => 550]);
+        $this->assertDatabaseHas('movie_lists', ['id' => $list->id, 'revision' => 2]);
+    }
+
     /** @return list<array{type: string, data: array<string, mixed>}> */
     private function noticesOf(User $member): array
     {

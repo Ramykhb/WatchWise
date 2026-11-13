@@ -58,7 +58,10 @@ class HiddenMoviesMemberViewsTest extends SocialTestCase
                 ->assertOk()
                 ->assertJsonPath('lists.0.films', 2)
                 ->assertJsonPath('lists.0.cover.0.media_type', 'tv')
-                ->assertJsonPath('lists.0.posters', [self::HIDDEN, 7]);
+                ->assertJsonPath('lists.0.cover', [
+                    ['tmdb_id' => self::HIDDEN, 'media_type' => 'tv'],
+                    ['tmdb_id' => 7, 'media_type' => 'movie'],
+                ]);
         }
     }
 
@@ -74,7 +77,10 @@ class HiddenMoviesMemberViewsTest extends SocialTestCase
         $this->as($owner)->getJson('/api/lists?scope=mine')
             ->assertOk()
             ->assertJsonPath('lists.0.films', 2)
-            ->assertJsonPath('lists.0.posters', [self::HIDDEN, 7]);
+            ->assertJsonPath('lists.0.cover', [
+                ['tmdb_id' => self::HIDDEN, 'media_type' => 'movie'],
+                ['tmdb_id' => 7, 'media_type' => 'movie'],
+            ]);
         $this->assertDatabaseCount('movie_list_items', 2);
     }
 
@@ -94,7 +100,7 @@ class HiddenMoviesMemberViewsTest extends SocialTestCase
             ->assertJsonPath('top4', [7])
             ->assertJsonPath('counts.films', 1)
             ->assertJsonPath('lists.0.films', 1)
-            ->assertJsonPath('lists.0.posters', [7]);
+            ->assertJsonPath('lists.0.cover', [['tmdb_id' => 7, 'media_type' => 'movie']]);
 
         $this->as($owner)->getJson('/api/users/'.$owner->username)
             ->assertOk()
