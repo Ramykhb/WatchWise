@@ -59,6 +59,16 @@ interface AccountServiceInterface
     public function deleteAvatar(User $user): AccountResponse;
 
     /**
+     * Clears the avatar of a member who did not ask for it (staff moderation). An uploaded picture's file is deleted
+     * only once the surrounding transaction commits (straight away outside one), so a rolled-back moderation leaves
+     * the file; an external URL is only forgotten. Authorization is the caller's job.
+     */
+    public function removeAvatar(User $user): void;
+
+    /** Empties the member's bio (staff moderation). Authorization is the caller's job. */
+    public function clearBio(User $user): void;
+
+    /**
      * Unlinks a provider (nothing happens when it is not linked). An account without a password
      * cannot unlink its last provider, since nothing else would let it sign in.
      *

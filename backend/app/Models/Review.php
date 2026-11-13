@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Report\Support\ReportTargetType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -31,10 +32,26 @@ class Review extends Model
         $query->whereNotNull('content')->where('content', '!=', '');
     }
 
+    /**
+     * Star ratings: rows without any text.
+     *
+     * @param  Builder<Review>  $query
+     */
+    public function scopeStarOnly(Builder $query): void
+    {
+        $query->where(fn (Builder $stars) => $stars->whereNull('content')->orWhere('content', ''));
+    }
+
+    /** Whether the row is only a star rating, with no text. */
+    public function isStarOnly(): bool
+    {
+        return $this->content === null || $this->content === '';
+    }
+
     /** Reports members filed against this review. */
     public function reports(): HasMany
     {
-        return $this->hasMany(ReviewReport::class);
+        return $this->hasMany(Report::class, 'target_id')->where('target_type', ReportTargetType::Review);
     }
 
     /** Members who marked this review as helpful. */

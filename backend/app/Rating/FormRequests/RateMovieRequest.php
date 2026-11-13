@@ -2,6 +2,7 @@
 
 namespace App\Rating\FormRequests;
 
+use App\Rating\Support\Stars;
 use App\Support\MediaType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -20,7 +21,7 @@ class RateMovieRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'rating' => ['required', 'integer', 'between:1,5'],
+            'rating' => ['required', 'integer', 'between:'.Stars::MIN.','.Stars::MAX],
             'type' => ['sometimes', Rule::in(MediaType::ALL)],
         ];
     }

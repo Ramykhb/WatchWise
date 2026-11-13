@@ -22,6 +22,15 @@ class UserPolicy
         return $current->isAuthenticated() && ! $this->isSelf($current, $profile);
     }
 
+    /**
+     * Any signed-in member can report another active member's profile, never their own. A private or followers-only
+     * profile still shows its owner's name and handle to everyone, so reporting it reveals nothing more.
+     */
+    public function report(CurrentUser $current, User $profile): bool
+    {
+        return $current->isAuthenticated() && ! $this->isSelf($current, $profile) && (bool) $profile->is_active;
+    }
+
     private function isSelf(CurrentUser $current, User $profile): bool
     {
         return $current->isAuthenticated() && $current->id() === $profile->id;

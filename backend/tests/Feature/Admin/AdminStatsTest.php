@@ -21,7 +21,7 @@ class AdminStatsTest extends AdminTestCase
         parent::setUp();
 
         $this->app->instance(GenreServiceInterface::class, Mockery::mock(GenreServiceInterface::class, fn ($mock) => $mock
-            ->shouldReceive('all')->andReturn([new GenreResponse(18, 'Drama'), new GenreResponse(35, 'Comedy')])));
+            ->shouldReceive('allIncludingHidden')->andReturn([new GenreResponse(18, 'Drama'), new GenreResponse(35, 'Comedy')])));
     }
 
     public function test_it_counts_users_and_only_reviews_with_text(): void
@@ -152,7 +152,7 @@ class AdminStatsTest extends AdminTestCase
     public function test_genres_fall_back_when_tmdb_names_are_unavailable(): void
     {
         $this->app->instance(GenreServiceInterface::class, Mockery::mock(GenreServiceInterface::class, fn ($mock) => $mock
-            ->shouldReceive('all')->andThrow(new TmdbUnavailable)));
+            ->shouldReceive('allIncludingHidden')->andThrow(new TmdbUnavailable)));
 
         LocalMovie::factory()->create(['tmdb_id' => 10, 'genre_ids' => [18]]);
         $this->review(['tmdb_id' => 10, 'content' => null, 'sentiment' => null, 'is_approved' => true]);

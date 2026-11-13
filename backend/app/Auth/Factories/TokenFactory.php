@@ -200,6 +200,12 @@ class TokenFactory
         return $this->refreshTokens->revokeAllForUser($user);
     }
 
+    /** How many sessions the user has open: refresh tokens that are neither revoked nor expired. */
+    public function activeSessionCount(User $user): int
+    {
+        return $this->refreshTokens->countActiveForUser($user->id);
+    }
+
     public function hash(string $plain): string
     {
         return hash('sha256', $plain);

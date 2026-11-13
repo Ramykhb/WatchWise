@@ -29,6 +29,7 @@ Route::prefix('users/{user:username}')->controller(UserController::class)->group
     Route::get('/', 'show');
     Route::get('followers', 'followers');
     Route::get('following', 'following');
+    Route::post('report', 'report')->middleware('throttle:report');
     Route::post('follow', 'follow')->middleware('throttle:user-follows');
     Route::delete('follow', 'unfollow')->middleware('throttle:user-follows');
 });

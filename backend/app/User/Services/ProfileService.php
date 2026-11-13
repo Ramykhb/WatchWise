@@ -7,6 +7,10 @@ use App\Models\User;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\MovieList\Resources\MovieListResource;
 use App\Notification\InterfaceServices\NotificationServiceInterface;
+use App\Report\DTOs\Requests\ReportContentData;
+use App\Report\DTOs\Responses\ReportContentResponse;
+use App\Report\InterfaceServices\ReportServiceInterface;
+use App\Report\Support\ReportTargetType;
 use App\Support\HiddenMovies;
 use App\User\DTOs\Requests\UserSearchQuery;
 use App\User\DTOs\Responses\FollowResponse;
@@ -26,7 +30,13 @@ class ProfileService implements ProfileServiceInterface
         private readonly ProfilePrivacy $privacy,
         private readonly NotificationServiceInterface $notifications,
         private readonly MovieCatalogServiceInterface $catalog,
+        private readonly ReportServiceInterface $reports,
     ) {}
+
+    public function followCounts(User $user): array
+    {
+        return ['followers' => $this->profiles->followersCount($user), 'following' => $this->profiles->followingCount($user)];
+    }
 
     public function search(UserSearchQuery $query, CurrentUser $viewer): UserSearchResponse
     {
@@ -161,6 +171,11 @@ class ProfileService implements ProfileServiceInterface
         }
 
         return new FollowResponse(true, false, $this->profiles->followersCount($target));
+    }
+
+    public function report(User $profile, User $reporter, ReportContentData $data): ReportContentResponse
+    {
+        return $this->reports->report($reporter, ReportTargetType::Profile, $profile->id, $data);
     }
 
     public function unfollow(User $follower, User $target): FollowResponse

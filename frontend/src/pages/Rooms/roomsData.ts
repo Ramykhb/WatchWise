@@ -26,6 +26,7 @@ export type Room = {
   spoilers: boolean
   /** Private rooms are seen only by their members and the people they invite. */
   isPrivate: boolean
+  isLocked: boolean
   joined: boolean
   /** You are invited to this private room: you can read it, then join or decline. */
   invited: boolean
@@ -86,6 +87,7 @@ export function toRoom(room: ApiRoom, now: number): Room {
     host: room.host ? toRoomMember(room.host) : null,
     spoilers: room.spoilers,
     isPrivate: room.is_private,
+    isLocked: room.is_locked,
     joined: room.joined,
     invited: room.invited,
     invitedBy: room.invited_by ? toRoomMember(room.invited_by) : null,

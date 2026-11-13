@@ -2,16 +2,16 @@
 
 namespace App\Admin\FormRequests;
 
-use App\Admin\DTOs\Requests\ModerateReviewData;
+use App\Support\MediaType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
-class ModerateReviewRequest extends FormRequest
+class AdminRatingFilmRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return Gate::allows('admin.reviews');
+        return Gate::allows('admin.ratings');
     }
 
     /**
@@ -20,12 +20,12 @@ class ModerateReviewRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', Rule::in(ModerateReviewData::DECISIONS)],
+            'media_type' => ['sometimes', 'nullable', Rule::in(MediaType::ALL)],
         ];
     }
 
-    public function toDto(): ModerateReviewData
+    public function mediaType(): string
     {
-        return ModerateReviewData::fromValidated($this->validated());
+        return $this->validated('media_type') ?? MediaType::MOVIE;
     }
 }

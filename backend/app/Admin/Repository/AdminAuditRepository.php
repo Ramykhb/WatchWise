@@ -11,11 +11,14 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class AdminAuditRepository implements AdminAuditRepositoryInterface
 {
-    public function insert(User $actor, AdminAction $action, ?int $subjectId, ?string $subjectLabel, ?array $changes): void
+    /** The `actor_role` of an entry the system itself made. */
+    public const SYSTEM_ROLE = 'system';
+
+    public function insert(?User $actor, AdminAction $action, ?int $subjectId, ?string $subjectLabel, ?array $changes): void
     {
         AdminAuditLog::query()->forceCreate([
-            'actor_id' => $actor->id,
-            'actor_role' => $actor->role,
+            'actor_id' => $actor?->id,
+            'actor_role' => $actor === null ? self::SYSTEM_ROLE : $actor->role,
             'action' => $action,
             'subject_type' => $action->subjectType(),
             'subject_id' => $subjectId,

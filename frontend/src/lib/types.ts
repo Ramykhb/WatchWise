@@ -177,6 +177,8 @@ export type ApiRoom = {
   spoilers: boolean
   /** Private rooms are seen only by their members and the people they invite; public ones by everyone. */
   is_private: boolean
+  /** Staff may lock a room while leaving it readable and joinable. */
+  is_locked: boolean
   host: ApiMember | null
   /** The creator and everyone who joined; a message waits for all of them. */
   members: ApiMember[]
@@ -206,6 +208,9 @@ export type ApiMessage = {
 
 /** `messages.read` on a room's socket channel: `reader` has read these; `deleted_ids` were past their 24 hours and are now deleted. */
 export type ApiRoomRead = { reader: ApiMember; message_ids: number[]; deleted_ids: number[] }
+
+/** Staff removed a message from this room (`message.deleted`). */
+export type ApiRoomMessageDeleted = { room_id: number; message_id: number }
 
 export type ApiRsvp = 'pending' | 'accepted' | 'maybe' | 'declined'
 

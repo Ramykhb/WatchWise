@@ -6,7 +6,9 @@ use App\Admin\DTOs\Requests\AdminUserQuery;
 use App\Admin\InterfaceRepository\AdminUserRepositoryInterface;
 use App\Models\User;
 use App\Support\LikePattern;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
 
@@ -63,11 +65,35 @@ class AdminUserRepository implements AdminUserRepositoryInterface
         return User::query()->whereKey($user->getKey())->lockForUpdate()->firstOrFail();
     }
 
+    public function lockById(int $id): ?User
+    {
+        return User::query()->whereKey($id)->lockForUpdate()->first();
+    }
+
     public function update(User $user, array $changes): User
     {
         // Role and active state are not mass-assignable on purpose; only admin code sets them.
         $user->forceFill($changes)->save();
 
         return $user->loadCount(['reviews' => fn (Builder $reviews) => $reviews->withText()]);
+    }
+
+    public function findMany(array $ids): Collection
+    {
+        return User::query()->whereKey($ids)->get();
+    }
+
+    public function expiredSuspensionIds(CarbonInterface $now, int $afterId, int $limit): array
+    {
+        return User::query()
+            ->where('is_active', false)
+            ->whereNotNull('suspended_until')
+            ->where('suspended_until', '<=', $now)
+            ->where('id', '>', $afterId)
+            ->orderBy('id')
+            ->limit($limit)
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
     }
 }

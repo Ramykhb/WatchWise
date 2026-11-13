@@ -7,11 +7,13 @@ use App\Auth\DTOs\Responses\AuthResponse;
 use App\Auth\Exceptions\AccountDisabled;
 use App\Auth\Exceptions\EmailRequired;
 use App\Auth\Exceptions\InvalidOAuthState;
+use App\Auth\Exceptions\RegistrationClosed;
 use App\Auth\Exceptions\SocialAccountNotSaved;
 use App\Auth\Exceptions\SocialLoginCancelled;
 use App\Auth\Exceptions\SocialLoginNotConfigured;
 use App\Auth\Exceptions\SocialProviderFailed;
 use App\Auth\Exceptions\UnverifiedProviderEmail;
+use App\Models\User;
 
 interface SocialAuthServiceInterface
 {
@@ -36,7 +38,16 @@ interface SocialAuthServiceInterface
      * @throws EmailRequired when the provider identity is not linked yet and the provider gave no email
      * @throws UnverifiedProviderEmail when the provider has not verified the email
      * @throws AccountDisabled when the account is inactive
+     * @throws RegistrationClosed when the sign-in would create a new account and an admin closed registration
      * @throws SocialAccountNotSaved when writing the account fails (a database error, or still colliding with concurrent sign-ins)
      */
     public function loginWithProvider(SocialCallbackData $callback): AuthResponse;
+
+    /**
+     * The names of the providers linked to the account (`github`, `google`...), alphabetically. Never the
+     * provider's ids for the account.
+     *
+     * @return list<string>
+     */
+    public function linkedProviders(User $user): array;
 }

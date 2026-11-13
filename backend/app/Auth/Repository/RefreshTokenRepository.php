@@ -77,6 +77,11 @@ class RefreshTokenRepository implements RefreshTokenRepositoryInterface
         });
     }
 
+    public function countActiveForUser(int $userId): int
+    {
+        return RefreshToken::query()->where('user_id', $userId)->whereNull('revoked_at')->where('expires_at', '>', now())->count();
+    }
+
     public function deleteExpiredOrRevokedBefore(DateTimeInterface $cutoff, int $chunkSize): int
     {
         $deleted = 0;

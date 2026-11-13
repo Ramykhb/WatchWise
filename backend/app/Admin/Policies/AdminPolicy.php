@@ -33,13 +33,66 @@ class AdminPolicy
         return $this->isStaff($current);
     }
 
+    /** Triaging member reports of reviews, messages, lists, rooms and profiles. */
+    public function handleReports(CurrentUser $current): bool
+    {
+        return $this->isStaff($current);
+    }
+
     public function manageMovies(CurrentUser $current): bool
+    {
+        return $current->isAdmin();
+    }
+
+    /** Moderators may see the genre overrides but not change them. */
+    public function viewGenres(CurrentUser $current): bool
+    {
+        return $this->isStaff($current);
+    }
+
+    public function manageGenres(CurrentUser $current): bool
     {
         return $current->isAdmin();
     }
 
     /** The log of what staff did is for admins only. */
     public function viewAuditLog(CurrentUser $current): bool
+    {
+        return $current->isAdmin();
+    }
+
+    /** App-wide settings are for admins only; moderators get no access. */
+    public function manageSettings(CurrentUser $current): bool
+    {
+        return $current->isAdmin();
+    }
+
+    /** Looking through star ratings, spotting rating bursts and removing ratings; the service limits whose ratings a moderator may clear in bulk. */
+    public function moderateRatings(CurrentUser $current): bool
+    {
+        return $this->isStaff($current);
+    }
+
+    /** Reading every member's lists, making one private and removing a film from one. */
+    public function moderateLists(CurrentUser $current): bool
+    {
+        return $this->isStaff($current);
+    }
+
+    /** Deleting a whole list stays with admins. */
+    public function deleteLists(CurrentUser $current): bool
+    {
+        return $current->isAdmin();
+    }
+
+    /** Reading rooms, removing their messages and locking them; moderators may too. */
+    public function moderateRooms(CurrentUser $current): bool
+    {
+        return $this->isStaff($current);
+    }
+
+    /** Deleting a whole room stays with admins. */
+    public function deleteRooms(CurrentUser $current): bool
     {
         return $current->isAdmin();
     }

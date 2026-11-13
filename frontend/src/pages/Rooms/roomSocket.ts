@@ -1,9 +1,9 @@
 import Echo from 'laravel-echo'
 import Pusher from 'pusher-js'
 import { api } from '../../lib/api.ts'
-import type { ApiMessage, ApiRoomRead } from '../../lib/types.ts'
+import type { ApiMessage, ApiRoomMessageDeleted, ApiRoomRead } from '../../lib/types.ts'
 
-// Live updates over Reverb. The open room: new messages (`message.sent`) and read receipts (`messages.read`)
+// Live updates over Reverb. The open room: new messages (`message.sent`), deletions (`message.deleted`) and read receipts (`messages.read`)
 // on the private channel `room.{id}`. The room list: new messages (`message.sent`) and room changes
 // (`rooms.changed`) on `rooms.public` (public rooms) and `rooms.user.{id}` (your private rooms and
 // invitations). Loaded on demand, like the chat assistant's socket.
@@ -16,6 +16,7 @@ type Connection = { key: string; host: string; port: number; scheme: 'http' | 'h
 type RoomHandlers = {
   onMessage: (message: ApiMessage) => void
   onRead: (read: ApiRoomRead) => void
+  onDeleted: (deleted: ApiRoomMessageDeleted) => void
   /** Subscribed, first time and after every reconnect: anything sent meanwhile is fetched again. */
   onReady: () => void
 }
@@ -64,12 +65,13 @@ export async function openRoomSocket(onStatus: (status: RoomSocketStatus) => voi
   })
 
   return {
-    join(roomId, { onMessage, onRead, onReady }) {
+    join(roomId, { onMessage, onRead, onDeleted, onReady }) {
       const name = `room.${roomId}`
       echo.private(name)
         .subscribed(onReady)
         .listen('.message.sent', onMessage)
         .listen('.messages.read', onRead)
+        .listen('.message.deleted', onDeleted)
       return () => echo.leave(name)
     },
     watchList(userId, { onMessage, onChange, onReady }) {

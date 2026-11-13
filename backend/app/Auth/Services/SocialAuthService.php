@@ -8,6 +8,7 @@ use App\Auth\DTOs\Responses\AuthResponse;
 use App\Auth\Exceptions\AccountDisabled;
 use App\Auth\Exceptions\EmailRequired;
 use App\Auth\Exceptions\InvalidOAuthState;
+use App\Auth\Exceptions\RegistrationClosed;
 use App\Auth\Exceptions\SocialAccountNotSaved;
 use App\Auth\Exceptions\SocialLoginCancelled;
 use App\Auth\Exceptions\SocialLoginNotConfigured;
@@ -21,6 +22,7 @@ use App\Auth\InterfaceServices\DiscordOAuthClientInterface;
 use App\Auth\InterfaceServices\GooglePhotoInterface;
 use App\Auth\InterfaceServices\SocialAuthServiceInterface;
 use App\Models\User;
+use App\Setting\InterfaceServices\SettingServiceInterface;
 use App\Support\EmailAddress;
 use App\User\InterfaceServices\EmailChangeServiceInterface;
 use Illuminate\Database\QueryException;
@@ -59,6 +61,7 @@ class SocialAuthService implements SocialAuthServiceInterface
         private readonly DiscordOAuthClientInterface $discord,
         private readonly GooglePhotoInterface $googlePhoto,
         private readonly EmailChangeServiceInterface $emailChanges,
+        private readonly SettingServiceInterface $settings,
     ) {}
 
     public function redirectUrl(string $provider, string $state): string
@@ -70,6 +73,11 @@ class SocialAuthService implements SocialAuthServiceInterface
         }
 
         return Socialite::driver($provider)->stateless()->with(['state' => $state])->redirect()->getTargetUrl();
+    }
+
+    public function linkedProviders(User $user): array
+    {
+        return $this->socialAccounts->providerNamesOf($user->id);
     }
 
     public function loginWithProvider(SocialCallbackData $callback): AuthResponse
@@ -166,7 +174,10 @@ class SocialAuthService implements SocialAuthServiceInterface
     /**
      * Every rule is checked before the first write, so a refused sign-in leaves the account untouched.
      *
-     * @throws EmailRequired|UnverifiedProviderEmail|AccountDisabled
+     * Creating a new account is the only step registration being closed refuses: a linked identity, and an existing
+     * account matched by email, still sign in.
+     *
+     * @throws EmailRequired|UnverifiedProviderEmail|AccountDisabled|RegistrationClosed
      */
     private function findLinkOrCreateUser(SocialLoginData $data): User
     {
@@ -214,6 +225,10 @@ class SocialAuthService implements SocialAuthServiceInterface
                     $this->emailChanges->discardPendingChange($user);
                 }
             } else {
+                if (! $this->settings->registrationOpen()) {
+                    throw new RegistrationClosed;
+                }
+
                 $user = $this->users->create([
                     'name' => $data->name ?: ($data->nickname ?: Str::before($email, '@')),
                     'email' => $email,

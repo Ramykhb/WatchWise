@@ -4,8 +4,11 @@ namespace App\Room\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\DiscussionRoom;
+use App\Models\Message;
 use App\Room\FormRequests\InviteToRoomRequest;
 use App\Room\FormRequests\ReadRoomMessagesRequest;
+use App\Room\FormRequests\ReportRoomMessageRequest;
+use App\Room\FormRequests\ReportRoomRequest;
 use App\Room\FormRequests\SendRoomMessageRequest;
 use App\Room\FormRequests\StoreRoomRequest;
 use App\Room\InterfaceServices\RoomServiceInterface;
@@ -78,6 +81,22 @@ class RoomController
     public function send(SendRoomMessageRequest $request, DiscussionRoom $room, CurrentUser $current): JsonResponse
     {
         return response()->json(['message' => $this->rooms->send($room, $request->toDto(), $current->user())], 201);
+    }
+
+    /** POST /api/rooms/{room}/messages/{message}/report — `reason`: spam, harassment, hate, spoilers or other; `details` up to 500 characters. 201 when new, 200 when you had already reported it. */
+    public function reportMessage(ReportRoomMessageRequest $request, DiscussionRoom $room, Message $message, CurrentUser $current): JsonResponse
+    {
+        $result = $this->rooms->reportMessage($message, $current->user(), $request->toDto());
+
+        return response()->json($result, $result->created ? 201 : 200);
+    }
+
+    /** POST /api/rooms/{room}/report — `reason`: spam, harassment, inappropriate or other; `details` up to 500 characters. 201 when new, 200 when you had already reported it. */
+    public function report(ReportRoomRequest $request, DiscussionRoom $room, CurrentUser $current): JsonResponse
+    {
+        $result = $this->rooms->report($room, $current->user(), $request->toDto());
+
+        return response()->json($result, $result->created ? 201 : 200);
     }
 
     /** POST /api/rooms/{room}/read — the signed-in member has seen these messages. */

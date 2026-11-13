@@ -1,6 +1,6 @@
 import { AdminUsersSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import AdminPagination from '../../components/AdminPagination/AdminPagination.tsx'
 import searchIcon from '../../assets/listdetail/icon-search.svg'
 import chevDownIcon from '../../assets/watchlist/icon-chev-down.svg'
@@ -16,6 +16,8 @@ import { apiErrorMessage } from '../../lib/auth.ts'
 import { colorOf, initialsOf, longDate, timeAgo } from '../../lib/format.ts'
 import { USER_ROLES, USER_ROLE_LABEL, type UserStatus } from './adminData.ts'
 import styles from './AdminUsers.module.css'
+import { bulkSummary, mutate } from '../../lib/adminTools.ts'
+import { SuspensionFields } from './AdminUserDetail.tsx'
 
 const ROLE_CLASS: Record<AdminUserRole, string> = {
   user: styles.chipCream,
@@ -49,6 +51,9 @@ export default function AdminUsers() {
   const [selected, setSelected] = useState<number[]>([])
   const [menu, setMenu] = useState<Menu>(null)
   const [note, setNote] = useState('')
+  const [bulkReason, setBulkReason] = useState('')
+  const [bulkUntil, setBulkUntil] = useState('')
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   // Search the API once typing pauses.
   useEffect(() => {
@@ -150,13 +155,16 @@ export default function AdminUsers() {
       return
     }
     if (!window.confirm(`Suspend ${targets.length} user${targets.length > 1 ? 's' : ''}?`)) return
-    const results = await Promise.allSettled(targets.map((u) => adminApi.updateUser(u.id, { is_active: false })))
-    const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-    setNote(
-      failed.length === 0
-        ? `${targets.length} user${targets.length > 1 ? 's' : ''} suspended`
-        : apiErrorMessage(failed[0].reason, `${failed.length} of ${targets.length} users could not be suspended.`),
-    )
+    if (bulkBusy) return
+    setBulkBusy(true)
+    try {
+      const response = await mutate('users/bulk-suspend', 'post', { user_ids: targets.map((u) => u.id), reason: bulkReason || null, suspended_until: bulkUntil ? new Date(bulkUntil).toISOString() : null })
+      setNote(bulkSummary(response.results ?? []))
+    } catch (error) {
+      setNote(apiErrorMessage(error, 'Unable to suspend selected members.'))
+    } finally {
+      setBulkBusy(false)
+    }
     setSelected([])
     setPage(1)
     reload()
@@ -246,6 +254,7 @@ export default function AdminUsers() {
 
       {selected.length > 0 && (
         <div className={styles.bulk}>
+          <SuspensionFields reason={bulkReason} until={bulkUntil} setReason={setBulkReason} setUntil={setBulkUntil} />
           <p className={styles.bulkCount}>
             {selected.length} user{selected.length > 1 ? 's' : ''} selected
           </p>
@@ -253,7 +262,7 @@ export default function AdminUsers() {
             <img src={mailSmIcon} width={14} height={14} alt="" />
             Email
           </button>
-          <button type="button" className={styles.bulkSuspend} onClick={() => void suspendSelected()}>
+          <button type="button" className={styles.bulkSuspend} disabled={bulkBusy} onClick={() => void suspendSelected()}>
             <img src={banWhiteIcon} width={14} height={14} alt="" />
             Suspend
           </button>
@@ -331,7 +340,7 @@ export default function AdminUsers() {
                           {initialsOf(user.name)}
                         </span>
                         <span className={styles.userText}>
-                          <span className={styles.userName}>{user.name}</span>
+                          <Link to={`/admin/users/${user.id}`} className={styles.userName}>{user.name}</Link>
                           <span className={styles.userEmail}>{user.email}</span>
                         </span>
                       </span>

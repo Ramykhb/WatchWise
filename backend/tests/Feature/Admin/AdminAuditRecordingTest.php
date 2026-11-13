@@ -6,8 +6,8 @@ use App\Admin\Support\AdminAction;
 use App\Admin\Support\AdminSubjectType;
 use App\Models\AdminAuditLog;
 use App\Models\LocalMovie;
+use App\Models\Report;
 use App\Models\Review;
-use App\Models\ReviewReport;
 use App\Models\User;
 use Illuminate\Database\Eloquent\MassAssignmentException;
 use Illuminate\Support\Facades\Storage;
@@ -157,8 +157,8 @@ class AdminAuditRecordingTest extends AdminTestCase
     public function test_a_decision_records_how_many_open_reports_it_closed(): void
     {
         $review = $this->review();
-        ReviewReport::factory()->count(2)->create(['review_id' => $review->id]);
-        ReviewReport::factory()->resolved()->create(['review_id' => $review->id]);
+        Report::factory()->count(2)->forReview($review)->create();
+        Report::factory()->resolved()->forReview($review)->create();
 
         $this->as($this->admin())->patchJson("/api/admin/reviews/{$review->id}", ['status' => 'approved'])->assertOk();
 
@@ -168,7 +168,7 @@ class AdminAuditRecordingTest extends AdminTestCase
     public function test_approving_a_flagged_review_is_recorded_even_though_its_status_stays(): void
     {
         $review = $this->review(['is_approved' => true]);
-        ReviewReport::factory()->create(['review_id' => $review->id]);
+        Report::factory()->forReview($review)->create();
 
         $this->as($this->admin())->patchJson("/api/admin/reviews/{$review->id}", ['status' => 'approved'])->assertOk();
 
@@ -371,7 +371,7 @@ class AdminAuditRecordingTest extends AdminTestCase
     {
         $admin = $this->admin();
         $review = $this->review(['content' => 'Keep me.']);
-        ReviewReport::factory()->create(['review_id' => $review->id]);
+        Report::factory()->forReview($review)->create();
         LocalMovie::factory()->create(['tmdb_id' => 550, 'title' => 'Fight Club']);
         $this->failAuditInserts();
 
@@ -382,7 +382,7 @@ class AdminAuditRecordingTest extends AdminTestCase
         $review = Review::query()->findOrFail($review->id);
         $this->assertSame('Keep me.', $review->content);
         $this->assertNull($review->removed_at);
-        $this->assertNull(ReviewReport::first()->resolved_at);
+        $this->assertNull(Report::first()->resolved_at);
         $this->assertDatabaseHas('movies', ['tmdb_id' => 550, 'title' => 'Fight Club']);
     }
 

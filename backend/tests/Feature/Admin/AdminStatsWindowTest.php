@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
-use App\Models\ReviewReport;
+use App\Models\Report;
 use App\Models\User;
 
 class AdminStatsWindowTest extends AdminTestCase
@@ -13,7 +13,7 @@ class AdminStatsWindowTest extends AdminTestCase
         User::factory()->create(['last_active_at' => now()->subDay()]);
         User::factory()->create(['last_active_at' => now()->subDays(5)]);
         $flagged = $this->review(['is_approved' => true]);
-        ReviewReport::factory()->create(['review_id' => $flagged->id]);
+        Report::factory()->forReview($flagged)->create();
         $this->review(['tmdb_id' => 2]);
 
         $this->as($this->admin())->getJson('/api/admin/stats')

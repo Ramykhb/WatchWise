@@ -18,6 +18,13 @@ import Profile from './pages/Profile/Profile.tsx'
 import Settings from './pages/Settings/Settings.tsx'
 import EditProfile from './pages/EditProfile/EditProfile.tsx'
 import Cinemas from './pages/Cinemas/Cinemas.tsx'
+import { AdminContentIndex, AdminListDetail, AdminRoomDetail } from './pages/Admin/AdminContent.tsx'
+import { AdminReports, AdminReportDetail } from './pages/Admin/AdminReports.tsx'
+import { AdminRatings, AdminRatingFilm, AdminRatingBursts } from './pages/Admin/AdminRatings.tsx'
+import { AdminGenres, AdminSettings } from './pages/Admin/AdminConfiguration.tsx'
+import AdminAudit from './pages/Admin/AdminAudit.tsx'
+import AdminUserDetail from './pages/Admin/AdminUserDetail.tsx'
+import AdminReviewDetail from './pages/Admin/AdminReviewDetail.tsx'
 import AdminLayout from './pages/Admin/AdminLayout.tsx'
 import AdminOverview from './pages/Admin/AdminOverview.tsx'
 import AdminUsers from './pages/Admin/AdminUsers.tsx'
@@ -91,6 +98,20 @@ export const router = createBrowserRouter([
                   { path: 'users', element: <AdminUsers /> },
                   { path: 'reviews', element: <AdminReviews /> },
                   { path: 'movies', element: <AdminMovies /> },
+                  { path: 'users/:id', element: <AdminUserDetail /> },
+                  { path: 'reviews/:id', element: <AdminReviewDetail /> },
+                  { path: 'reports', element: <AdminReports /> },
+                  { path: 'reports/:id', element: <AdminReportDetail /> },
+                  { path: 'ratings', element: <AdminRatings /> },
+                  { path: 'ratings/bursts', element: <AdminRatingBursts /> },
+                  { path: 'ratings/films/:id', element: <AdminRatingFilm /> },
+                  { path: 'lists', element: <AdminContentIndex kind="lists" /> },
+                  { path: 'lists/:id', element: <AdminListDetail /> },
+                  { path: 'rooms', element: <AdminContentIndex kind="rooms" /> },
+                  { path: 'rooms/:id', element: <AdminRoomDetail /> },
+                  { path: 'genres', element: <AdminGenres /> },
+                  { path: 'settings', element: <AdminSettings /> },
+                  { path: 'audit-log', element: <AdminAudit /> },
                 ],
               },
             ],

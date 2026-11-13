@@ -108,6 +108,13 @@ interface RoomRepositoryInterface
     public function markRead(DiscussionRoom $room, int $userId, array $messageIds): array;
 
     /**
+     * The members who still have to read the message.
+     *
+     * @return list<int>
+     */
+    public function unreadReaderIds(DiscussionRoom $room, int $messageId): array;
+
+    /**
      * Of these messages, the ones sent at or before `$sentBy` that no receipt is waiting on any more.
      *
      * @param  list<int>  $messageIds
@@ -128,6 +135,18 @@ interface RoomRepositoryInterface
      */
     public function deleteMessages(DiscussionRoom $room, array $messageIds): void;
 
+    /** A fresh copy of the room, row-locked until the surrounding transaction ends (call inside one). */
+    public function lockForUpdate(DiscussionRoom $room): DiscussionRoom;
+
+    /**
+     * Whether the room is locked, read under a shared row lock (call inside a transaction) so it waits for a lock
+     * that is being switched at that moment instead of reading the old state.
+     */
+    public function isLocked(DiscussionRoom $room): bool;
+
+    /** Stores whether the room is locked. */
+    public function setLocked(DiscussionRoom $room, bool $locked): void;
+
     /** Deletes the room; its messages, members and invitations go with it (foreign keys), its receipts here. */
     public function delete(DiscussionRoom $room): void;
 
@@ -140,4 +159,7 @@ interface RoomRepositoryInterface
 
     /** How many of the room's messages the user still has to read. */
     public function unreadCount(DiscussionRoom $room, int $userId): int;
+
+    /** How many rooms the user created, public or private. */
+    public function countCreatedBy(int $userId): int;
 }

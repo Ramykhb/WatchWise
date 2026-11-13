@@ -8,6 +8,7 @@ use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\FormRequests\AddMovieListItemRequest;
 use App\MovieList\FormRequests\MovieListIndexRequest;
 use App\MovieList\FormRequests\RemoveMovieListItemRequest;
+use App\MovieList\FormRequests\ReportMovieListRequest;
 use App\MovieList\FormRequests\StoreMovieListRequest;
 use App\MovieList\FormRequests\UpdateMovieListRequest;
 use App\MovieList\InterfaceServices\MovieListServiceInterface;
@@ -54,6 +55,14 @@ class MovieListController
         $list = $this->lists->update($list, $request->toDto());
 
         return response()->json(['list' => $this->present($list)]);
+    }
+
+    /** POST /api/lists/{list}/report — `reason`: spam, harassment, inappropriate or other; `details` up to 500 characters. 201 when new, 200 when you had already reported it. */
+    public function report(ReportMovieListRequest $request, MovieList $list, CurrentUser $current): JsonResponse
+    {
+        $result = $this->lists->report($list, $current->user(), $request->toDto());
+
+        return response()->json($result, $result->created ? 201 : 200);
     }
 
     /** DELETE /api/lists/{list} */

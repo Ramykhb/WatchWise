@@ -69,7 +69,16 @@ class AuthorizationServiceProvider extends ServiceProvider
         Gate::define('admin.users', [AdminPolicy::class, 'viewUsers']);
         Gate::define('admin.users.manage', [AdminPolicy::class, 'manageUsers']);
         Gate::define('admin.reviews', [AdminPolicy::class, 'moderateReviews']);
+        Gate::define('admin.reports', [AdminPolicy::class, 'handleReports']);
         Gate::define('admin.movies', [AdminPolicy::class, 'manageMovies']);
+        Gate::define('admin.genres.view', [AdminPolicy::class, 'viewGenres']);
+        Gate::define('admin.genres', [AdminPolicy::class, 'manageGenres']);
         Gate::define('admin.audit', [AdminPolicy::class, 'viewAuditLog']);
+        Gate::define('admin.settings', [AdminPolicy::class, 'manageSettings']);
+        Gate::define('admin.ratings', [AdminPolicy::class, 'moderateRatings']);
+        Gate::define('admin.lists', [AdminPolicy::class, 'moderateLists']);
+        Gate::define('admin.lists.delete', [AdminPolicy::class, 'deleteLists']);
+        Gate::define('admin.rooms', [AdminPolicy::class, 'moderateRooms']);
+        Gate::define('admin.rooms.delete', [AdminPolicy::class, 'deleteRooms']);
     }
 }

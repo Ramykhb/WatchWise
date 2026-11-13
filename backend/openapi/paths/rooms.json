@@ -56,6 +56,7 @@
                         }
                     },
                     "401": { "description": "Not signed in." },
+                    "403": { "description": "An admin turned room creation off (setting `rooms_creation_enabled`): body `{\"message\": \"Creating discussion rooms is turned off right now.\", \"code\": \"rooms_creation_disabled\"}`. Existing rooms keep working." },
                     "422": { "description": "Invalid input.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } } }
                 }
             }
@@ -206,13 +207,15 @@
                         }
                     },
                     "401": { "description": "Not signed in." },
-                    "403": { "description": "You are not a member of the room." },
+                    "403": { "description": "You are not a member of the room, or staff locked it: body `{\"message\": \"This room is locked. Nobody can post in it right now.\", \"code\": \"room_locked\"}`. Nobody can post in a locked room, its creator included; reading, joining and invitations still work." },
                     "404": { "description": "Unknown room." },
                     "422": { "description": "Empty or too long.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } } },
                     "429": { "description": "More than 30 messages a minute." }
                 }
             }
         },
+        "/api/rooms/{room}/report": {"post": {"summary": "Report a discussion room", "description": "One report per member and room; reporting it again answers 200 with the first report and adds nothing while that report is open; once staff closed it, reporting again reopens it as new (reason and details replaced, closing cleared, sorted as the newest). The report keeps a snapshot of the content's label and excerpt from when it was filed. Staff see it in the report queue (GET /api/admin/reports).", "tags": ["Social"], "security": [{"cookieAuth": []}, {"bearerAuth": []}], "parameters": [{"name": "room", "in": "path", "required": true, "schema": {"type": "integer"}}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["reason"], "properties": {"reason": {"type": "string", "enum": ["spam", "harassment", "inappropriate", "other"]}, "details": {"type": "string", "maxLength": 500, "nullable": true, "description": "An optional note of your own."}}}}}}, "responses": {"200": {"description": "You had already reported it: the earlier report comes back (`message`, `report` {id, target_type, target_id, reason, details, status, created_at}), unchanged while it is open, reopened as new with your new reason and details if staff had closed it; no row is added."}, "201": {"description": "Reported (same body)."}, "401": {"description": "Not authenticated."}, "403": {"description": "A room you created, or one you cannot see (a private room you are not a member of or invited to)."}, "404": {"description": "Room not found."}, "422": {"description": "Validation failed (unknown reason, details over 500 characters)."}, "429": {"description": "Too many reports (20 an hour per user, shared by the message, list, room and profile reports)."}}}},
+        "/api/rooms/{room}/messages/{message}/report": {"post": {"summary": "Report a room message", "description": "One report per member and message; reporting it again answers 200 with the first report and adds nothing while that report is open; once staff closed it, reporting again reopens it as new (reason and details replaced, closing cleared, sorted as the newest). The report keeps a snapshot of the content's label and excerpt from when it was filed. Staff see it in the report queue (GET /api/admin/reports).", "tags": ["Social"], "security": [{"cookieAuth": []}, {"bearerAuth": []}], "parameters": [{"name": "room", "in": "path", "required": true, "schema": {"type": "integer"}}, {"name": "message", "in": "path", "required": true, "schema": {"type": "integer"}}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["reason"], "properties": {"reason": {"type": "string", "enum": ["spam", "harassment", "hate", "spoilers", "other"]}, "details": {"type": "string", "maxLength": 500, "nullable": true, "description": "An optional note of your own."}}}}}}, "responses": {"200": {"description": "You had already reported it: the earlier report comes back (`message`, `report` {id, target_type, target_id, reason, details, status, created_at}), unchanged while it is open, reopened as new with your new reason and details if staff had closed it; no row is added."}, "201": {"description": "Reported (same body)."}, "401": {"description": "Not authenticated."}, "403": {"description": "Your own message, or a room you cannot see (a private room you are not a member of or invited to)."}, "404": {"description": "Room not found, or the message is not in that room."}, "422": {"description": "Validation failed (unknown reason, details over 500 characters)."}, "429": {"description": "Too many reports (20 an hour per user, shared by the message, list, room and profile reports)."}}}},
         "/api/rooms/{room}/read": {
             "parameters": [{ "name": "room", "in": "path", "required": true, "schema": { "type": "integer" } }],
             "post": {
@@ -309,6 +312,7 @@
                     "media_type": { "type": "string", "enum": ["movie", "tv"] },
                     "spoilers": { "type": "boolean" },
                     "is_private": { "type": "boolean" },
+                    "is_locked": { "type": "boolean", "description": "Staff locked the room: nobody can post in it, but it can still be read and joined." },
                     "host": { "allOf": [{ "$ref": "#/components/schemas/RoomMember" }], "nullable": true },
                     "members": { "type": "array", "items": { "$ref": "#/components/schemas/RoomMember" } },
                     "joined": { "type": "boolean" },
