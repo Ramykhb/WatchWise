@@ -47,6 +47,12 @@ export type ApiList = {
   items?: { tmdb_id: number; media_type?: 'movie' | 'tv'; note: string | null; added_at: string | null }[]
 }
 
+/** GET /api/lists: one page; `has_more` says whether `?page=` + 1 has more lists (there is no total). */
+export type ApiListsPage = {
+  lists: ApiList[]
+  meta: { current_page: number; per_page: number; has_more: boolean }
+}
+
 export type ApiActivity = {
   id: number
   user: ApiMember

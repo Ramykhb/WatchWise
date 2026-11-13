@@ -11,18 +11,18 @@ use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\DTOs\Requests\StaffListQuery;
 use App\Support\HiddenMovies;
 use Carbon\CarbonInterface;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Contracts\Pagination\Paginator;
 
 interface MovieListRepositoryInterface
 {
     /**
-     * Lists in the query's scope, newest activity first, with their owner, films and film count. Hidden movies
-     * are left out of the films and the count.
+     * One page of the lists in the query's scope, newest activity first (then newest id), with their owner, films
+     * and film count. Simple paging: it knows whether another page follows, without counting them all.
      *
-     * @return Collection<int, MovieList>
+     * @return Paginator<int, MovieList>
      */
-    public function search(MovieListSearchQuery $query, User $viewer, HiddenMovies $hidden): Collection;
+    public function search(MovieListSearchQuery $query, User $viewer, HiddenMovies $hidden): Paginator;
 
     /** Creates the list (without its films) for the owner. */
     public function create(CreateMovieListData $data, int $ownerId): MovieList;

@@ -5,6 +5,7 @@ import AppNav from '../../components/AppNav/AppNav.tsx'
 import ButtonPrimary from '../../components/ButtonPrimary/ButtonPrimary.tsx'
 import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog.tsx'
 import ListCover from '../../components/PosterCollage/ListCover.tsx'
+import PillButton from '../../components/PillButton/PillButton.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import Toast from '../../components/Toast/Toast.tsx'
 import globeIcon from '../../assets/lists/icon-globe.svg'
@@ -13,13 +14,12 @@ import editIcon from '../../assets/lists/icon-edit.svg'
 import trashIcon from '../../assets/lists/icon-trash.svg'
 import plusIcon from '../../assets/lists/icon-plus.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
-import { useApi } from '../../lib/api.ts'
 import { itemKey } from '../../lib/movies.ts'
-import type { ApiList } from '../../lib/types.ts'
 import { useWatchlist } from '../../lib/watchlist.ts'
 import { posterGradients } from '../Profile/profileData.ts'
 import { toPublicList, type MyList, type PublicList } from './listsData.ts'
-import { deleteList, useMyLists } from './myListsStore.ts'
+import { deleteList, loadMoreMyLists, useMyLists } from './myListsStore.ts'
+import { usePagedLists } from './usePagedLists.ts'
 import styles from './Lists.module.css'
 
 type Tab = 'mine' | 'public' | 'following'
@@ -115,17 +115,18 @@ export default function Lists() {
   const tabsRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
 
-  const { lists: myLists, loaded } = useMyLists()
+  const { lists: myLists, loaded, hasMore: myHasMore, loadingMore: myLoadingMore } = useMyLists()
   const [tab, setTab] = useState<Tab>('mine')
-  // Other members' public lists, and those by people you follow.
-  const publicQuery = useApi<{ lists: ApiList[] }>('/lists?scope=public')
-  const followingQuery = useApi<{ lists: ApiList[] }>('/lists?scope=following')
-  const publicLists = (publicQuery.data?.lists ?? []).map(toPublicList)
-  const followingLists = (followingQuery.data?.lists ?? []).map(toPublicList)
+  // Other members' public lists, and those by people you follow, a page at a time.
+  const publicQuery = usePagedLists('/lists?scope=public')
+  const followingQuery = usePagedLists('/lists?scope=following')
+  const publicLists = publicQuery.lists.map(toPublicList)
+  const followingLists = followingQuery.lists.map(toPublicList)
   // Still waiting for the first answer (a failed load shows the empty message instead of shimmering forever).
-  const publicLoading = !publicQuery.data && !publicQuery.error
-  const followingLoading = !followingQuery.data && !followingQuery.error
+  const publicLoading = publicQuery.loading
+  const followingLoading = followingQuery.loading
   const tabLoading = tab === 'public' ? publicLoading : followingLoading
+  const tabQuery = tab === 'public' ? publicQuery : followingQuery
   // The list waiting for "Delete list?"; `open` turns false first so the dialog can animate out.
   const [confirming, setConfirming] = useState<{ list: MyList; open: boolean } | null>(null)
   // The card fading out after a successful delete.
@@ -151,11 +152,12 @@ export default function Lists() {
     tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  const tabs: { id: Tab; label: string; count?: number }[] = [
+  // "30+" while more pages are waiting, so the number never claims to be the total.
+  const tabs: { id: Tab; label: string; count?: number | string }[] = [
     // +1 for the default Watchlist.
-    { id: 'mine', label: 'My lists', count: myLists.length + 1 },
+    { id: 'mine', label: 'My lists', count: `${myLists.length + 1}${myHasMore ? '+' : ''}` },
     { id: 'public', label: 'Public lists' },
-    { id: 'following', label: 'Following', count: followingLists.length },
+    { id: 'following', label: 'Following', count: `${followingLists.length}${followingQuery.hasMore ? '+' : ''}` },
   ]
 
   return (
@@ -248,6 +250,14 @@ export default function Lists() {
           </ul>
         )}
 
+        {tab === 'mine' && myHasMore && (
+          <div className={styles.more}>
+            <PillButton variant="outline" onClick={() => void loadMoreMyLists().catch(() => {})} disabled={myLoadingMore}>
+              {myLoadingMore ? <LoadingIndicator label="Loading…" /> : 'Load more lists'}
+            </PillButton>
+          </div>
+        )}
+
         {tab !== 'mine' && (
           <ul className={styles.publicGrid} aria-busy={tabLoading}>
             {tabLoading && SKELETONS.map((n) => <PublicCardSkeleton key={n} />)}
@@ -262,6 +272,14 @@ export default function Lists() {
               </li>
             )}
           </ul>
+        )}
+
+        {tab !== 'mine' && tabQuery.hasMore && (
+          <div className={styles.more}>
+            <PillButton variant="outline" onClick={() => void tabQuery.loadMore()} disabled={tabQuery.loadingMore}>
+              {tabQuery.loadingMore ? <LoadingIndicator label="Loading…" /> : 'Load more lists'}
+            </PillButton>
+          </div>
         )}
 
         {tab === 'mine' && (

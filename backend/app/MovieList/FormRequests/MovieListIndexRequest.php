@@ -27,6 +27,8 @@ class MovieListIndexRequest extends FormRequest
             'q' => ['sometimes', 'nullable', 'string', 'max:100'],
             'contains' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:'.ListFilmData::MAX_ID],
             'contains_type' => ['sometimes', Rule::in(MediaType::ALL)],
+            'page' => ['sometimes', 'integer', 'min:1', 'max:100000'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:'.MovieListSearchQuery::MAX_PER_PAGE],
         ];
     }
 

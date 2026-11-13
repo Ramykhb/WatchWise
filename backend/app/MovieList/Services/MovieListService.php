@@ -21,8 +21,8 @@ use App\Support\HiddenMovies;
 use App\Support\MediaType;
 use Carbon\CarbonInterface;
 use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Support\Facades\DB;
 
 class MovieListService implements MovieListServiceInterface
@@ -33,7 +33,7 @@ class MovieListService implements MovieListServiceInterface
         private readonly ReportServiceInterface $reports,
     ) {}
 
-    public function search(MovieListSearchQuery $query, User $viewer): Collection
+    public function search(MovieListSearchQuery $query, User $viewer): Paginator
     {
         // Hidden movies stay in the viewer's own lists; other members' lists leave them out.
         $hidden = $query->scope === 'mine' ? HiddenMovies::none() : $this->catalog->hiddenMovies();

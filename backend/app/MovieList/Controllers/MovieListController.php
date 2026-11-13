@@ -4,6 +4,7 @@ namespace App\MovieList\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\MovieList;
+use App\MovieList\DTOs\Responses\MovieListPageResponse;
 use App\MovieList\FormRequests\AddMovieListItemRequest;
 use App\MovieList\FormRequests\MovieListIndexRequest;
 use App\MovieList\FormRequests\RemoveMovieListItemRequest;
@@ -29,7 +30,7 @@ class MovieListController
     {
         $lists = $this->lists->search($request->toDto(), $current->user());
 
-        return response()->json(['lists' => MovieListResource::collection($lists)]);
+        return response()->json(new MovieListPageResponse($lists));
     }
 
     /** POST /api/lists */

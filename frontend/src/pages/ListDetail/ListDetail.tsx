@@ -22,7 +22,7 @@ import { useAuth } from '../../contexts/useAuth.ts'
 import { api, isStatus, useApi } from '../../lib/api.ts'
 import { isLoading, posterAt, useMovies } from '../../lib/movieDetails.ts'
 import { filmKeyOf, itemKey } from '../../lib/movies.ts'
-import type { ApiList } from '../../lib/types.ts'
+import type { ApiList, ApiListsPage } from '../../lib/types.ts'
 import { listIdFrom } from '../Lists/listsData.ts'
 import { updateList } from '../Lists/myListsStore.ts'
 import { runtimeFor, toListDetail, toSimilarList, type ListDetail as Detail, type ListEntry } from './listDetailData.ts'
@@ -86,7 +86,8 @@ function ListDetailPage({ detail, updatedAt }: { detail: Detail; updatedAt: stri
   const resolved = entries.map((entry) => ({ ...entry, movie: movieOf(filmKeyOf(entry.movie), entry.movie) }))
   // The header collage shows the list's first three films, so it follows reorders and removals.
   const cover = resolved.slice(0, 3)
-  const similar = (useApi<{ lists: ApiList[] }>('/lists?scope=public').data?.lists ?? [])
+  // Three are shown; one more is asked for in case this list is among them.
+  const similar = (useApi<ApiListsPage>('/lists?scope=public&per_page=4').data?.lists ?? [])
     .filter((list) => list.id !== detail.id)
     .slice(0, 3)
     .map(toSimilarList)

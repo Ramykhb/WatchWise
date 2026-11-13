@@ -15,14 +15,14 @@ use App\Support\HiddenMovies;
 use App\Support\LikePattern;
 use App\Support\MediaType;
 use Carbon\CarbonInterface;
+use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class MovieListRepository implements MovieListRepositoryInterface
 {
-    public function search(MovieListSearchQuery $query, User $viewer, HiddenMovies $hidden): Collection
+    public function search(MovieListSearchQuery $query, User $viewer, HiddenMovies $hidden): Paginator
     {
         $scope = $query->scope;
         $visibleItems = fn ($items) => $hidden->exclude($items);
@@ -43,8 +43,7 @@ class MovieListRepository implements MovieListRepositoryInterface
                 ->whereHas('user', fn ($owner) => $this->sharesLists($owner, $viewer)))
             ->latest('updated_at')
             ->orderByDesc('id')
-            ->limit($scope === 'mine' ? 200 : 30)
-            ->get();
+            ->simplePaginate($query->perPage(), ['*'], 'page', $query->page);
     }
 
     /** @param Builder<User> $owner */

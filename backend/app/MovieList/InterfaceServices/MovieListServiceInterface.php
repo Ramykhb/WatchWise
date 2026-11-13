@@ -12,15 +12,17 @@ use App\MovieList\DTOs\Requests\UpdateMovieListData;
 use App\Report\DTOs\Requests\ReportContentData;
 use App\Report\DTOs\Responses\ReportContentResponse;
 use Carbon\CarbonInterface;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Contracts\Pagination\Paginator;
 
 interface MovieListServiceInterface
 {
     /**
-     * @return Collection<int, MovieList>
+     * One page of the lists visible to the viewer in the query's scope.
+     *
+     * @return Paginator<int, MovieList>
      */
-    public function search(MovieListSearchQuery $query, User $viewer): Collection;
+    public function search(MovieListSearchQuery $query, User $viewer): Paginator;
 
     /** Creates the list with its films; newly listed movies join the local catalogue after the response is sent. */
     public function create(CreateMovieListData $data, User $owner): MovieList;
