@@ -8,13 +8,11 @@ use App\Auth\CurrentUser\GuestUser;
 use App\Models\DiscussionRoom;
 use App\Models\Message;
 use App\Models\MovieList;
-use App\Models\MovieListItem;
 use App\Models\MovieNight;
 use App\Models\Notification;
 use App\Models\Review;
 use App\Models\User;
 use App\Models\Watchlist;
-use App\MovieList\Policies\MovieListItemPolicy;
 use App\MovieList\Policies\MovieListPolicy;
 use App\MovieNight\Policies\MovieNightPolicy;
 use App\Notification\Policies\NotificationPolicy;
@@ -37,7 +35,6 @@ class AuthorizationServiceProvider extends ServiceProvider
         Review::class => ReviewPolicy::class,
         Watchlist::class => WatchlistPolicy::class,
         MovieList::class => MovieListPolicy::class,
-        MovieListItem::class => MovieListItemPolicy::class,
         MovieNight::class => MovieNightPolicy::class,
         DiscussionRoom::class => DiscussionRoomPolicy::class,
         Message::class => MessagePolicy::class,

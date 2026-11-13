@@ -83,7 +83,7 @@ export const toProfileList = (list: ApiList): ProfileList => ({
   slug: listSlug(list),
   title: list.title,
   meta: `${list.films} film${list.films === 1 ? '' : 's'} · ${list.is_public ? 'Public' : 'Private'}`,
-  posters: posterGradients(list.posters),
+  posters: posterGradients(list.cover.map((entry) => entry.tmdb_id)),
 })
 
 export function toActivity(item: ApiActivity): ActivityItem {

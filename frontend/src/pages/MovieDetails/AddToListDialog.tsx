@@ -18,8 +18,8 @@ const CLOSE_MS = 220
 
 /** A list's first title, as a key (a show's cover isn't mistaken for the movie with the same id). */
 const coverKeyOf = (list: ApiList): FilmKey | undefined => {
-  const first = list.cover?.[0]
-  return first ? itemKey(first) : list.posters[0]
+  const first = list.cover[0]
+  return first ? itemKey(first) : undefined
 }
 
 type AddToListDialogProps = {

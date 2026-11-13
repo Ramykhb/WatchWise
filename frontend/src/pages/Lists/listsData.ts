@@ -36,9 +36,9 @@ export type PublicList = {
 }
 
 /** Three cover posters; empty lists show the neutral placeholder poster. */
-const coverOf = (list: ApiList) => posterGradients(list.posters.length ? list.posters.slice(0, 3) : [0])
-// `cover` says which ids are TV shows; `posters` (ids only) is the fallback for older responses.
-const coverIdsOf = (list: ApiList): FilmKey[] => (list.cover ?? list.posters.map((tmdb_id) => ({ tmdb_id }))).slice(0, 3).map(itemKey)
+const coverOf = (list: ApiList) => posterGradients(list.cover.length ? list.cover.slice(0, 3).map((entry) => entry.tmdb_id) : [0])
+// `cover` says which ids are TV shows.
+const coverIdsOf = (list: ApiList): FilmKey[] => list.cover.slice(0, 3).map(itemKey)
 
 export const toMyList = (list: ApiList): MyList => ({
   id: list.id,

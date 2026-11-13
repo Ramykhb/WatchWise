@@ -51,7 +51,7 @@ export function toListDetail(list: ApiList, viewerId: number | undefined): ListD
       ? { name: shortName(owner.name), handle: owner.username, ...look(owner) }
       : { name: 'Member', handle: '', initials: '?', color: 'var(--surface-cream-deep)' },
     isOwner: owner !== null && owner.id === viewerId,
-    posters: posterGradients(list.posters.length ? list.posters.slice(0, 3) : [0]),
+    posters: posterGradients(list.cover.length ? list.cover.slice(0, 3).map((entry) => entry.tmdb_id) : [0]),
     entries: (list.items ?? []).map((item) => ({ movie: movieForKey(itemKey(item)), note: item.note ?? undefined })),
   }
 }
@@ -60,6 +60,6 @@ export const toSimilarList = (list: ApiList): SimilarList => ({
   slug: listSlug(list),
   title: list.title,
   author: list.owner ? shortName(list.owner.name) : 'Member',
-  poster: movieFor(list.posters[0] ?? 0).gradient,
-  posterId: list.cover?.[0] ? itemKey(list.cover[0]) : (list.posters[0] ?? 0),
+  poster: movieFor(list.cover[0]?.tmdb_id ?? 0).gradient,
+  posterId: list.cover[0] ? itemKey(list.cover[0]) : 0,
 })
