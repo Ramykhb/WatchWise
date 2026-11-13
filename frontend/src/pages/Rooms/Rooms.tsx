@@ -176,6 +176,8 @@ export default function Rooms() {
     let active = true
     let syncing = false
     let again = false
+    // A response already in flight must not bring back text removed by staff.
+    const deletedIds = new Set<number>()
 
     const sync = () => {
       if (syncing) {
@@ -192,7 +194,7 @@ export default function Rooms() {
           if (!active) return
           setThread((thread) =>
             thread.key === key
-              ? { ...thread, messages: syncWithServer(thread.messages, data.messages, knownBefore, thread.readLate), loaded: true }
+              ? { ...thread, messages: syncWithServer(thread.messages, data.messages.filter((message) => !deletedIds.has(message.id)), knownBefore, thread.readLate), loaded: true }
               : thread,
           )
           setSyncError('')
@@ -206,8 +208,17 @@ export default function Rooms() {
 
     sync()
     const leave = socket?.join(Number(openRoomId), {
-      onMessage: (message) => active && setThread((thread) => (thread.key === key ? { ...thread, messages: mergeMessages(thread.messages, [message]) } : thread)),
+      onMessage: (message) => active && !deletedIds.has(message.id) && setThread((thread) => (thread.key === key ? { ...thread, messages: mergeMessages(thread.messages, [message]) } : thread)),
       onRead: (read) => active && setThread((thread) => (thread.key === key ? { ...thread, messages: applyRead(thread.messages, read) } : thread)),
+      onDeleted: (deleted) => {
+        if (!active || deleted.room_id !== Number(openRoomId)) return
+        deletedIds.add(deleted.message_id)
+        setThread((thread) => thread.key === key ? {
+          ...thread,
+          messages: thread.messages.filter((message) => message.id !== deleted.message_id),
+          readLate: thread.readLate.filter((id) => id !== deleted.message_id),
+        } : thread)
+      },
       onReady: sync,
     })
     return () => {
@@ -320,7 +331,7 @@ export default function Rooms() {
 
   const send = (text: string) => {
     const body = text.trim()
-    if (!body || !room || viewerId === undefined) return
+    if (!body || !room || room.isLocked || viewerId === undefined) return
     const item: OutgoingMessage = {
       id: crypto.randomUUID(), threadKey, userId: viewerId, content: body,
       createdAt: new Date().toISOString(), status: 'sending',
@@ -934,7 +945,7 @@ export default function Rooms() {
                 <p className={styles.time} role="status">
                   {clockTime(new Date(message.createdAt))} · {message.status === 'sending' ? 'Sending…' : 'Not sent'}
                   {message.status === 'failed' && (
-                    <> · <button type="button" className={styles.retrySend} onClick={() => void deliver(message, room.id)}>Retry</button></>
+                    <> · <button type="button" className={styles.retrySend} disabled={room.isLocked} onClick={() => void deliver(message, room.id)}>Retry</button></>
                   )}
                 </p>
                 {message.error && <p className={styles.receipt}>{message.error}</p>}
@@ -952,6 +963,7 @@ export default function Rooms() {
             </p>
           )}
 
+          {room.isLocked && <p className={styles.menuNote} role="status">Staff locked this room. You can read messages, but posting is paused.</p>}
           {/* Only members write. Anyone else reads (their reading counts for nothing) until they join. */}
           {!room.joined ? (
             <div className={styles.joinBar}>
@@ -975,7 +987,7 @@ export default function Rooms() {
                 <PillButton onClick={() => void joinRoom()}>Join room</PillButton>
               </div>
             </div>
-          ) : (
+          ) : room.isLocked ? null : (
           <form className={styles.composer} onSubmit={handleSubmit}>
             <div className={styles.inputWrap}>
               <div className={styles.emojiWrap}>

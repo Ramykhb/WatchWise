@@ -1,6 +1,6 @@
 import { AdminReviewsSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import AdminPagination from '../../components/AdminPagination/AdminPagination.tsx'
 import Sentiment from '../../components/Sentiment/Sentiment.tsx'
 import RatingStars from '../../components/RatingStars/RatingStars.tsx'
@@ -24,6 +24,9 @@ import { apiErrorMessage } from '../../lib/auth.ts'
 import { colorOf, initialsOf, timeAgo } from '../../lib/format.ts'
 import { GUIDELINES, REVIEW_SENTIMENTS } from './adminData.ts'
 import styles from './AdminReviews.module.css'
+import { bulkSummary, mutate } from '../../lib/adminTools.ts'
+import { Field, Select } from './AdminToolsUI.tsx'
+import { s } from './adminToolsState.tsx'
 
 const TABS: { id: AdminReviewStatus; label: string }[] = [
   { id: 'flagged', label: 'Flagged' },
@@ -41,7 +44,12 @@ const movieOf = (review: AdminReview) => review.movie.title ?? `${review.media_t
 const reviewPath = (review: AdminReview) => `/movies/${review.media_type === 'tv' ? 'tv-' : ''}${review.tmdb_id}`
 
 export default function AdminReviews() {
-  const [tab, setTab] = useState<AdminReviewStatus>('flagged')
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState<AdminReviewStatus>(params.has('user_id') ? 'approved' : 'flagged')
+  const [authorId, setAuthorId] = useState(params.get('user_id') ?? '')
+  const [filmId, setFilmId] = useState('')
+  const [mediaType, setMediaType] = useState('')
+  const [selection, setSelection] = useState<number[]>([])
   const [page, setPage] = useState(1)
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
@@ -50,17 +58,29 @@ export default function AdminReviews() {
   const [reason, setReason] = useState('all')
   const [note, setNote] = useState('')
 
-  const { data, error, loading, setData, reload } = useAdminReviews({ status: tab, page, per_page: PER_PAGE, q: search, sentiment: sentiment === 'all' ? undefined : sentiment, reason: reason === 'all' ? undefined : reason })
+  const { data, error, loading, setData, reload } = useAdminReviews({ status: tab, page, per_page: PER_PAGE, q: search, user_id: authorId ? Number(authorId) : undefined, tmdb_id: filmId ? Number(filmId) : undefined, media_type: mediaType || undefined, sentiment: sentiment === 'all' ? undefined : sentiment, reason: reason === 'all' ? undefined : reason })
   const { data: stats, reload: reloadStats } = useAdminStats()
   const reviews = useMemo(() => data?.data ?? [], [data])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setSearch(query.trim())
+      setSelection([])
       setPage(1)
     }, 300)
     return () => window.clearTimeout(timer)
   }, [query])
+
+  const bulk = async (status: 'approved' | 'rejected') => {
+    if (busy || !selection.length) return
+    if (!window.confirm(`${status === 'approved' ? 'Approve' : 'Remove text from'} ${selection.length} selected reviews?`)) return
+    setBusy(true)
+    try {
+      const response = await mutate('reviews/bulk', 'post', { ids: selection, status })
+      setNote(bulkSummary(response.results ?? [])); setSelection([]); reload(); reloadStats()
+    } catch (error) { setNote(apiErrorMessage(error, 'Unable to moderate the selected reviews.')) }
+    finally { setBusy(false) }
+  }
 
   const reasons = ['Spam', 'Links', 'Spoilers', 'Offensive language', 'offensive language', 'spoiler', 'spam', 'awaiting classification']
   const visible = reviews
@@ -117,7 +137,7 @@ export default function AdminReviews() {
           </label>
           <label className={styles.select}>
             <span className="sr-only">Sentiment</span>
-            <select value={sentiment} onChange={(event) => { setSentiment(event.target.value as typeof sentiment); setPage(1) }}>
+            <select value={sentiment} onChange={(event) => { setSentiment(event.target.value as typeof sentiment); setSelection([]); setPage(1) }}>
               <option value="all">Sentiment: All</option>
               {REVIEW_SENTIMENTS.map((s) => (
                 <option key={s} value={s}>
@@ -130,7 +150,7 @@ export default function AdminReviews() {
           {reasons.length > 0 && (
             <label className={styles.select}>
               <span className="sr-only">Reason</span>
-              <select value={reason} onChange={(event) => { setReason(event.target.value); setPage(1) }}>
+              <select value={reason} onChange={(event) => { setReason(event.target.value); setSelection([]); setPage(1) }}>
                 <option value="all">Reason: All</option>
                 {reasons.map((r) => (
                   <option key={r} value={r}>
@@ -144,6 +164,14 @@ export default function AdminReviews() {
         </div>
       </header>
 
+      <div className={s.page}><div className={s.bar}>
+        <Field label="Author ID"><input type="number" min="1" value={authorId} onChange={(e) => { setAuthorId(e.target.value); setPage(1); setSelection([]) }} /></Field>
+        <Field label="Film TMDB ID"><input type="number" min="1" value={filmId} onChange={(e) => { setFilmId(e.target.value); setPage(1); setSelection([]) }} /></Field>
+        <Select label="Media" value={mediaType} options={['', 'movie', 'tv']} onChange={(v) => { setMediaType(v); setPage(1); setSelection([]) }} />
+        <button onClick={() => setSelection(reviews.map((r) => r.id))}>Select this page</button><button onClick={() => setSelection([])}>Clear selection</button>
+        <button disabled={busy || !selection.length} onClick={() => void bulk('approved')}>Approve {selection.length} selected</button>
+        <button disabled={busy || !selection.length} onClick={() => void bulk('rejected')}>Remove selected text</button>
+      </div></div>
       <div className={styles.tabs} role="tablist" aria-label="Review status">
         {TABS.map((t) => (
           <button
@@ -156,6 +184,7 @@ export default function AdminReviews() {
             className={tab === t.id ? styles.tabOn : styles.tab}
             onClick={() => {
               setTab(t.id)
+              setSelection([])
               setPage(1)
             }}
           >
@@ -202,6 +231,7 @@ export default function AdminReviews() {
             const poster = adminPosterUrl(review.movie.poster_path)
             return (
               <article key={review.id} className={styles.review} aria-label={`Review by ${author}`}>
+                <label className={s.check}><input type="checkbox" checked={selection.includes(review.id)} onChange={(e) => setSelection((ids) => e.target.checked ? [...ids, review.id] : ids.filter((id) => id !== review.id))} />Select review #{review.id}</label>
                 <div className={styles.head}>
                   <span className={styles.avatar} style={{ background: colorOf(review.author.id ?? 0) }} aria-hidden="true">
                     {initialsOf(author)}
@@ -238,7 +268,7 @@ export default function AdminReviews() {
                   </div>
 
                   <div className={styles.actions}>
-                    <Link to={reviewPath(review)} className={styles.view}>
+                    <Link to={`/admin/reviews/${review.id}`} className={styles.view}>
                       <img src={eyeIcon} width={14} height={14} alt="" />
                       View
                     </Link>
@@ -260,7 +290,7 @@ export default function AdminReviews() {
             )
           })}
 
-          {data && <AdminPagination meta={data.meta} shown={reviews.length} onPage={setPage} />}
+          {data && <AdminPagination meta={data.meta} shown={reviews.length} onPage={(next) => { setPage(next); setSelection([]) }} />}
         </div>
 
         <aside className={styles.side}>
@@ -289,7 +319,7 @@ export default function AdminReviews() {
                         type="button"
                         className={styles.share}
                         aria-pressed={sentiment === s.type}
-                        onClick={() => { setSentiment(sentiment === s.type ? 'all' : s.type); setPage(1) }}
+                        onClick={() => { setSentiment(sentiment === s.type ? 'all' : s.type); setSelection([]); setPage(1) }}
                         title={`Show ${s.type} reviews only`}
                       >
                         <Sentiment type={s.type} />
