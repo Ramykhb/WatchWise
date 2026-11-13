@@ -11,9 +11,11 @@ class MovieList extends Model
 {
     protected $fillable = ['user_id', 'title', 'description', 'is_public'];
 
+    protected $attributes = ['revision' => 1];
+
     protected function casts(): array
     {
-        return ['is_public' => 'boolean'];
+        return ['is_public' => 'boolean', 'revision' => 'integer'];
     }
 
     public function user(): BelongsTo

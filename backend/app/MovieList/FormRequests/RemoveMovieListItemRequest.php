@@ -2,6 +2,7 @@
 
 namespace App\MovieList\FormRequests;
 
+use App\MovieList\DTOs\Requests\ListFilmData;
 use App\Support\MediaType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
@@ -26,8 +27,8 @@ class RemoveMovieListItemRequest extends FormRequest
     }
 
     /** Which title the id names: a movie unless `?type=tv` (as on the ratings endpoints). */
-    public function mediaType(): string
+    public function toDto(): ListFilmData
     {
-        return $this->validated('type') ?? MediaType::MOVIE;
+        return new ListFilmData((int) $this->route('tmdbId'), $this->validated('type') ?? MediaType::MOVIE);
     }
 }

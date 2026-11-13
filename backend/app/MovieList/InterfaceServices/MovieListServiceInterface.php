@@ -12,16 +12,19 @@ use App\MovieList\DTOs\Requests\UpdateMovieListData;
 use App\Report\DTOs\Requests\ReportContentData;
 use App\Report\DTOs\Responses\ReportContentResponse;
 use Carbon\CarbonInterface;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 interface MovieListServiceInterface
 {
     /**
-     * @return Collection<int, MovieList>
+     * One page of the lists visible to the viewer in the query's scope.
+     *
+     * @return Paginator<int, MovieList>
      */
-    public function search(MovieListSearchQuery $query, User $viewer): Collection;
+    public function search(MovieListSearchQuery $query, User $viewer): Paginator;
 
+    /** Creates the list with its films; newly listed movies join the local catalogue after the response is sent. */
     public function create(CreateMovieListData $data, User $owner): MovieList;
 
     /** The list with its owner, films and film count loaded, for the person who changes it. */
@@ -30,7 +33,10 @@ interface MovieListServiceInterface
     /** The list as the viewer sees it: other members do not see the movies admins hid from browsing. */
     public function show(MovieList $list, User $viewer): MovieList;
 
-    /** Replaces the movies and TV shows in the given order when `films` is set (add, remove, reorder). */
+    /**
+     * Replaces the movies and TV shows in the given order when `films` is set (add, remove, reorder). The list's
+     * updated_at only moves when a field, the films or their order actually changed.
+     */
     public function update(MovieList $list, UpdateMovieListData $data): MovieList;
 
     /** Deletes the list with its films. False when it was already gone (another request deleted it first). */

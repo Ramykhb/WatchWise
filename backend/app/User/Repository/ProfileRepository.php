@@ -81,7 +81,7 @@ class ProfileRepository implements ProfileRepositoryInterface
         $visibleItems = fn ($items) => $hidden->exclude($items);
 
         return $user->movieLists()->when($publicOnly, fn ($builder) => $builder->where('is_public', true))
-            ->with(['user', 'items' => $visibleItems])->withCount(['items' => $visibleItems])->latest('updated_at')->get();
+            ->with(['user', 'items' => fn ($items) => $hidden->exclude($items)->limit(5)])->withCount(['items' => $visibleItems])->latest('updated_at')->get();
     }
 
     public function watchedCount(User $user, HiddenMovies $hidden): int

@@ -61,17 +61,21 @@ class PolicyTest extends TestCase
         $this->assertFalse($this->can($this->current($other), 'update', $list));
     }
 
-    public function test_public_lists_of_private_profiles_are_for_followers(): void
+    public function test_public_lists_follow_their_owners_profile_visibility(): void
     {
-        $owner = User::factory()->private()->create();
+        $private = User::factory()->private()->create();
+        $followersOnly = User::factory()->create(['profile_visibility' => 'followers']);
         $follower = User::factory()->create();
         $other = User::factory()->create();
-        $follower->following()->attach($owner->id);
-        $list = new MovieList(['user_id' => $owner->id, 'is_public' => true]);
+        $follower->following()->attach([$private->id, $followersOnly->id]);
+        $privateList = new MovieList(['user_id' => $private->id, 'is_public' => true]);
+        $followersList = new MovieList(['user_id' => $followersOnly->id, 'is_public' => true]);
 
-        $this->assertTrue($this->can($this->current($follower), 'view', $list));
-        $this->assertFalse($this->can($this->current($other), 'view', $list));
-        $this->assertFalse($this->can(new GuestUser, 'view', $list));
+        $this->assertFalse($this->can($this->current($follower), 'view', $privateList));
+        $this->assertTrue($this->can($this->current($private), 'view', $privateList));
+        $this->assertTrue($this->can($this->current($follower), 'view', $followersList));
+        $this->assertFalse($this->can($this->current($other), 'view', $followersList));
+        $this->assertFalse($this->can(new GuestUser, 'view', $followersList));
     }
 
     public function test_private_profile_visibility(): void

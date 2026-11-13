@@ -36,17 +36,22 @@ export type ApiList = {
   description: string | null
   is_public: boolean
   films: number
-  /** First five films, for covers. */
-  posters: number[]
   owner: ApiMember | null
   created_at: string
   updated_at: string
+  revision: number
   /** Only with `?contains={tmdbId}`: whether the list already holds that film. */
   has_movie?: boolean
+  /** The first five titles with their type, for covers. */
+  cover: { tmdb_id: number; media_type: 'movie' | 'tv' }[]
   /** Only on a single list (GET /lists/:id, create, update). */
-  /** The first five titles with their type (posters holds the same ids without it). */
-  cover?: { tmdb_id: number; media_type: 'movie' | 'tv' }[]
   items?: { tmdb_id: number; media_type?: 'movie' | 'tv'; note: string | null; added_at: string | null }[]
+}
+
+/** GET /api/lists: one page; `has_more` says whether `?page=` + 1 has more lists (there is no total). */
+export type ApiListsPage = {
+  lists: ApiList[]
+  meta: { current_page: number; per_page: number; has_more: boolean }
 }
 
 export type ApiActivity = {

@@ -9,6 +9,8 @@ import MovieTile from '../../components/MovieTile/MovieTile.tsx'
 import AvatarImage from '../../components/AvatarImage/AvatarImage.tsx'
 import FollowButton from '../../components/FollowButton/FollowButton.tsx'
 import ListCover from '../../components/PosterCollage/ListCover.tsx'
+import PillButton from '../../components/PillButton/PillButton.tsx'
+import { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import searchIcon from '../../assets/discover/icon-search.svg'
 import chevDownSmIcon from '../../assets/discover/icon-chev-down-sm.svg'
@@ -40,8 +42,9 @@ import {
 import { TV_GENRE_IDS, fetchMovies, loadGenres, toTileMovie, type MoviePage } from './discoverApi.ts'
 import { useApi } from '../../lib/api.ts'
 import { colorOf, initialsOf } from '../../lib/format.ts'
-import type { ApiList, ApiUserSearch } from '../../lib/types.ts'
+import type { ApiUserSearch } from '../../lib/types.ts'
 import { toPublicList } from '../Lists/listsData.ts'
+import { usePagedLists } from '../Lists/usePagedLists.ts'
 import styles from './Discover.module.css'
 
 /** URL params for a search: `?q=` and, for people or lists, `&type=`. */
@@ -89,10 +92,10 @@ export default function Discover() {
   // Members and public lists matching the search (all of them while the search is empty).
   const encodedQuery = submittedQuery ? `&q=${encodeURIComponent(submittedQuery)}` : ''
   const peopleQuery = useApi<ApiUserSearch>(`/users?limit=30${encodedQuery}`)
-  const listsQuery = useApi<{ lists: ApiList[] }>(`/lists?scope=public${encodedQuery}`)
+  const listsQuery = usePagedLists(`/lists?scope=public${encodedQuery}`)
   const people = peopleQuery.data?.users ?? []
   const peopleTotal = peopleQuery.data?.total ?? 0
-  const lists = (listsQuery.data?.lists ?? []).map(toPublicList)
+  const lists = listsQuery.lists.map(toPublicList)
 
   // Draft = what the panel shows; applied = what the results use (committed by "Apply filters").
   const [draft, setDraft] = useState<Filters>(() => ({ ...DEFAULT_FILTERS, ...tasteGenreFilters(searchParams) }))
@@ -602,11 +605,12 @@ export default function Discover() {
                     Try again
                   </button>
                 </p>
-              ) : !listsQuery.data ? (
+              ) : listsQuery.loading ? (
                 <DiscoverListsSkeleton />
               ) : lists.length === 0 ? (
                 <p className={styles.empty}>{submittedQuery ? `No public lists match “${submittedQuery}”.` : 'No public lists yet.'}</p>
               ) : (
+                <>
                 <ul className={styles.listGrid}>
                   {lists.map((list) => (
                     <li key={list.id}>
@@ -622,6 +626,14 @@ export default function Discover() {
                     </li>
                   ))}
                 </ul>
+                {listsQuery.hasMore && (
+                  <div className={styles.moreLists}>
+                    <PillButton variant="outline" onClick={() => void listsQuery.loadMore()} disabled={listsQuery.loadingMore}>
+                      {listsQuery.loadingMore ? <LoadingIndicator label="Loading…" /> : 'Load more lists'}
+                    </PillButton>
+                  </div>
+                )}
+                </>
               )
             ) : failed ? (
               <p className={styles.empty} role="alert">

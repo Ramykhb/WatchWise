@@ -4,35 +4,36 @@ namespace App\MovieList\InterfaceRepository;
 
 use App\Models\MovieList;
 use App\Models\User;
+use App\MovieList\DTOs\ListSyncResult;
+use App\MovieList\DTOs\Requests\CreateMovieListData;
 use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\DTOs\Requests\StaffListQuery;
 use App\Support\HiddenMovies;
 use Carbon\CarbonInterface;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 interface MovieListRepositoryInterface
 {
     /**
-     * Lists in the query's scope, newest activity first, with their owner, films and film count. Hidden movies
-     * are left out of the films and the count.
+     * One page of the lists in the query's scope, newest activity first (then newest id), with their owner, films
+     * and film count. Simple paging: it knows whether another page follows, without counting them all.
      *
-     * @return Collection<int, MovieList>
+     * @return Paginator<int, MovieList>
      */
-    public function search(MovieListSearchQuery $query, User $viewer, HiddenMovies $hidden): Collection;
+    public function search(MovieListSearchQuery $query, User $viewer, HiddenMovies $hidden): Paginator;
+
+    /** Creates the list (without its films) for the owner. */
+    public function create(CreateMovieListData $data, int $ownerId): MovieList;
 
     /**
-     * @param  array{user_id: int, title: string, description: string|null, is_public: bool}  $attributes
-     */
-    public function create(array $attributes): MovieList;
-
-    /**
-     * Saves the fields and bumps updated_at even when none of them changed.
+     * Saves the fields; updated_at only moves when one of them changed.
      *
      * @param  array<string, mixed>  $attributes
+     * @return bool whether any field changed
      */
-    public function update(MovieList $list, array $attributes): void;
+    public function update(MovieList $list, array $attributes): bool;
 
     /** Deletes the list (its films go with it) and says whether this call removed a row: false when it was already gone. */
     public function delete(MovieList $list): bool;
@@ -40,21 +41,25 @@ interface MovieListRepositoryInterface
     /** A fresh copy of the list, row-locked until the surrounding transaction ends (call inside one); null when it no longer exists. */
     public function lockForUpdate(MovieList $list): ?MovieList;
 
+    /** Reloads the list and locks its row until the transaction ends; all writes must hold this lock. */
+    public function lock(MovieList $list): MovieList;
+
     /**
-     * Makes the list hold exactly these movies and TV shows in this order, keeping notes of titles that stay.
+     * Makes the list hold exactly these movies and TV shows in this order (positions from 0) in a few bulk
+     * queries. Titles that stay keep their note and the date they were added. Bumps updated_at when titles
+     * were added or removed or their order changed, not when the list already matched.
      *
      * @param  list<ListFilmData>  $films
-     * @return list<ListFilmData> titles that were not in the list before
      */
-    public function syncItems(MovieList $list, array $films): array;
+    public function syncItems(MovieList $list, array $films): ListSyncResult;
 
-    /** Adds the title at the end of the list; false when it is already there. */
+    /** Adds the title after the last one (position 0 on an empty list); false when it is already there. */
     public function addItem(MovieList $list, ListFilmData $film): bool;
 
     /** Removes the title; false when it was not in the list. */
     public function removeItem(MovieList $list, ListFilmData $film): bool;
 
-    /** Loads the owner, the films and the film count, leaving the hidden movies out of both. */
+    /** Loads the owner (unless already loaded), the films and the film count, leaving the hidden movies out of both. */
     public function loadDetail(MovieList $list, HiddenMovies $hidden): MovieList;
 
     /**

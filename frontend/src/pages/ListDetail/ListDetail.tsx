@@ -19,11 +19,12 @@ import xIcon from '../../assets/listdetail/icon-x.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
-import { isStatus, useApi } from '../../lib/api.ts'
+import { api, isStatus, useApi } from '../../lib/api.ts'
 import { isLoading, posterAt, useMovies } from '../../lib/movieDetails.ts'
 import { filmKeyOf, itemKey } from '../../lib/movies.ts'
-import type { ApiList } from '../../lib/types.ts'
+import type { ApiList, ApiListsPage } from '../../lib/types.ts'
 import { listIdFrom } from '../Lists/listsData.ts'
+import { createSaveQueue } from './saveQueue.ts'
 import { updateList } from '../Lists/myListsStore.ts'
 import { runtimeFor, toListDetail, toSimilarList, type ListDetail as Detail, type ListEntry } from './listDetailData.ts'
 import styles from './ListDetail.module.css'
@@ -70,22 +71,24 @@ export default function ListDetail() {
   // Keyed by the list and its films, so local state (order, search) resets when moving between lists
   // and when a fresh copy arrives after an edit (the first render may use the copy from an earlier visit).
   const films = (data.list.items ?? []).map(itemKey).join(',')
-  return <ListDetailPage key={`${data.list.id}:${films}`} detail={toListDetail(data.list, user?.id)} />
+  return <ListDetailPage key={`${data.list.id}:${films}`} detail={toListDetail(data.list, user?.id)} revision={data.list.revision} />
 }
 
-function ListDetailPage({ detail }: { detail: Detail }) {
+function ListDetailPage({ detail, revision }: { detail: Detail; revision: number }) {
+  const { user } = useAuth()
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
 
   // The owner's reorder and remove are saved through PATCH /api/lists/{id}; others only read.
   const [entries, setEntries] = useState(detail.entries)
   // The films arrive as ids only; load their real titles and posters.
-  const [savedIds] = useState(() => detail.entries.map((entry) => filmKeyOf(entry.movie)))
+  const [savedIds, setSavedIds] = useState(() => detail.entries.map((entry) => filmKeyOf(entry.movie)))
   const movieOf = useMovies(savedIds)
   const resolved = entries.map((entry) => ({ ...entry, movie: movieOf(filmKeyOf(entry.movie), entry.movie) }))
   // The header collage shows the list's first three films, so it follows reorders and removals.
   const cover = resolved.slice(0, 3)
-  const similar = (useApi<{ lists: ApiList[] }>('/lists?scope=public').data?.lists ?? [])
+  // Three are shown; one more is asked for in case this list is among them.
+  const similar = (useApi<ApiListsPage>('/lists?scope=public&per_page=4').data?.lists ?? [])
     .filter((list) => list.id !== detail.id)
     .slice(0, 3)
     .map(toSimilarList)
@@ -127,6 +130,10 @@ function ListDetailPage({ detail }: { detail: Detail }) {
   }, [dragging, lenis])
   const [shareNote, setShareNote] = useState('')
   const [status, setStatus] = useState('')
+  // The list's revision as this page last saw it; saves send it so a change made in another tab is not overwritten.
+  const knownRevision = useRef(revision)
+  // Saves run one after another, so each one starts from the revision the previous response returned.
+  const saveQueue = useRef(createSaveQueue())
 
   const filmsCount = entries.length
 
@@ -144,9 +151,34 @@ function ListDetailPage({ detail }: { detail: Detail }) {
     const previous = entries
     setEntries(next)
     setStatus(message)
-    updateList(detail.id, { tmdb_ids: next.map((entry) => filmKeyOf(entry.movie)) }).catch(() => {
-      setEntries(previous)
-      setStatus("Couldn't save that change. Please try again.")
+    const tmdbIds = next.map((entry) => filmKeyOf(entry.movie))
+    void saveQueue.current.enqueue(async () => {
+      try {
+        const saved = await updateList(detail.id, { tmdb_ids: tmdbIds }, knownRevision.current)
+        knownRevision.current = saved.revision
+      } catch (error) {
+        if (!isStatus(error, 409)) {
+          setEntries(previous)
+          setStatus("Couldn't save that change. Please try again.")
+          return
+        }
+        // Changed elsewhere (e.g. a film added from another tab): show the server's copy instead.
+        try {
+          const { data: fresh } = await api.get<{ list: ApiList }>(`/lists/${detail.id}`)
+          const reloaded = toListDetail(fresh.list, user?.id)
+          knownRevision.current = fresh.list.revision
+          setSavedIds(reloaded.entries.map((entry) => filmKeyOf(entry.movie)))
+          setEntries(reloaded.entries)
+          setStatus('This list changed in another tab — we reloaded it.')
+          setShareNote('This list changed in another tab — we reloaded it.')
+        } catch {
+          setEntries(previous)
+          setStatus("Couldn't save that change. Please try again.")
+        } finally {
+          // Every pending edit was based on the stale copy, including edits made during the reload.
+          saveQueue.current.invalidate()
+        }
+      }
     })
   }
 
