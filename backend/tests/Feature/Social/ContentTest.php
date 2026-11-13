@@ -52,7 +52,7 @@ class ContentTest extends SocialTestCase
         $this->as($me)->getJson('/api/lists?scope=public')->assertJsonCount(2, 'lists');
     }
 
-    public function test_public_lists_of_private_and_followers_only_profiles_are_for_their_followers(): void
+    public function test_lists_follow_the_profile_visibility_rule(): void
     {
         $follower = User::factory()->create();
         $stranger = User::factory()->create();
@@ -67,11 +67,12 @@ class ContentTest extends SocialTestCase
         $privateList = MovieList::where('user_id', $private->id)->sole();
 
         $this->as($stranger)->getJson('/api/lists?scope=public')->assertJsonCount(1, 'lists')->assertJsonPath('lists.0.title', 'public picks');
-        $this->as($follower)->getJson('/api/lists?scope=public')->assertJsonCount(3, 'lists');
-        $this->as($follower)->getJson('/api/lists?scope=following')->assertJsonCount(2, 'lists');
+        // Public profile: everyone; followers-only: followers; private: nobody but the owner and admins.
+        $this->as($follower)->getJson('/api/lists?scope=public')->assertJsonCount(2, 'lists');
+        $this->as($follower)->getJson('/api/lists?scope=following')->assertJsonCount(1, 'lists')->assertJsonPath('lists.0.title', 'followers picks');
 
         $this->as($stranger)->getJson("/api/lists/{$privateList->id}")->assertForbidden();
-        $this->as($follower)->getJson("/api/lists/{$privateList->id}")->assertOk();
+        $this->as($follower)->getJson("/api/lists/{$privateList->id}")->assertForbidden();
         $this->as($private)->getJson("/api/lists/{$privateList->id}")->assertOk();
         $this->as($admin)->getJson("/api/lists/{$privateList->id}")->assertOk();
     }

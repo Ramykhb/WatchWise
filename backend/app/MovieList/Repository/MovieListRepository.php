@@ -25,23 +25,35 @@ class MovieListRepository implements MovieListRepositoryInterface
         $scope = $query->scope;
         $visibleItems = fn ($items) => $hidden->exclude($items);
 
-        return MovieList::with(['user', 'items' => $visibleItems])->withCount(['items' => $visibleItems])
+        return MovieList::with(['user', 'items' => fn ($items) => $hidden->exclude($items)->limit(5)])->withCount(['items' => $visibleItems])
             ->when($query->contains !== null, fn ($builder) => $builder->withExists([
                 'items as has_movie' => fn ($items) => $items->where('tmdb_id', $query->contains)->where('media_type', $query->containsType),
             ]))
             ->when($query->q !== '', fn ($builder) => $builder->whereRaw("title LIKE ? ESCAPE '!'", [LikePattern::contains($query->q)]))
             ->when($scope === 'mine', fn ($builder) => $builder->where('user_id', $viewer->id))
+            // Other people's lists follow the profile rule: public list, active owner, profile visible to the
+            // viewer (public, or followers-only for a follower; private only for the owner) and "lists" shared.
             ->when($scope === 'public', fn ($builder) => $builder->where('is_public', true)->where('user_id', '!=', $viewer->id)
-                // Followers-only and private profiles share their public lists with their followers only.
-                ->whereHas('user', fn ($owner) => $owner->where(fn ($visible) => $visible
-                    ->where('profile_visibility', 'public')
-                    ->orWhereHas('followers', fn ($followers) => $followers->whereKey($viewer->id)))))
-            // Public lists by people the user follows.
+                ->whereHas('user', fn ($owner) => $this->sharesLists($owner, $viewer)))
+            // Public lists by people the user follows, under the same rule.
             ->when($scope === 'following', fn ($builder) => $builder->where('is_public', true)
-                ->whereIn('user_id', $viewer->following()->select('users.id')))
+                ->whereIn('user_id', $viewer->following()->select('users.id'))
+                ->whereHas('user', fn ($owner) => $this->sharesLists($owner, $viewer)))
             ->latest('updated_at')
+            ->orderByDesc('id')
             ->limit($scope === 'mine' ? 200 : 30)
             ->get();
+    }
+
+    /** @param Builder<User> $owner */
+    private function sharesLists(Builder $owner, User $viewer): void
+    {
+        $owner->where('is_active', true)
+            ->where(fn (Builder $visible) => $visible
+                ->where('profile_visibility', 'public')
+                ->orWhere(fn (Builder $followersOnly) => $followersOnly->where('profile_visibility', 'followers')
+                    ->whereHas('followers', fn (Builder $followers) => $followers->whereKey($viewer->id))))
+            ->whereDoesntHave('preferences', fn (Builder $preferences) => $preferences->where('settings->privacy->lists', false));
     }
 
     public function create(array $attributes): MovieList
