@@ -73,13 +73,16 @@ class MovieListRepository implements MovieListRepositoryInterface
         $changed = $list->isDirty();
         // save() bumps updated_at only when a field changed.
         $list->save();
+        if ($changed) {
+            $this->bumpRevision($list);
+        }
 
         return $changed;
     }
 
-    public function lockUpdatedAt(MovieList $list): ?CarbonInterface
+    public function lock(MovieList $list): MovieList
     {
-        return MovieList::query()->whereKey($list->getKey())->lockForUpdate()->first(['id', 'updated_at'])?->updated_at;
+        return MovieList::query()->lockForUpdate()->findOrFail($list->getKey());
     }
 
     public function delete(MovieList $list): bool
@@ -110,7 +113,7 @@ class MovieListRepository implements MovieListRepositoryInterface
             // Another request added the same title between the check and the insert: it's there either way.
             return false;
         }
-        $list->touch();
+        $this->bumpRevision($list);
 
         return true;
     }
@@ -119,7 +122,7 @@ class MovieListRepository implements MovieListRepositoryInterface
     {
         $removed = $list->items()->where('tmdb_id', $film->tmdbId)->where('media_type', $film->mediaType)->delete() > 0;
         if ($removed) {
-            $list->touch();
+            $this->bumpRevision($list);
         }
 
         return $removed;
@@ -174,10 +177,15 @@ class MovieListRepository implements MovieListRepositoryInterface
         // PHP turns numeric keys like "550" into ints, so the order is compared as strings.
         $changed = array_map(strval(...), array_keys($positions)) !== $wanted;
         if ($changed) {
-            $list->touch();
+            $this->bumpRevision($list);
         }
 
         return new ListSyncResult($added, $changed);
+    }
+
+    private function bumpRevision(MovieList $list): void
+    {
+        $list->increment('revision', 1, ['updated_at' => now()]);
     }
 
     public function loadDetail(MovieList $list, HiddenMovies $hidden): MovieList

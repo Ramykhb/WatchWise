@@ -108,8 +108,8 @@ function Dialog({ existing }: { existing?: ApiList }) {
   const [picked, setPicked] = useState<Movie[]>(() => existing?.items?.map((item) => movieForKey(itemKey(item))) ?? [])
   // The list's saved films arrive as ids only; load their real titles and posters.
   const [savedIds, setSavedIds] = useState(() => existing?.items?.map(itemKey) ?? [])
-  // The list's updated_at as loaded; the save sends it so a change made in another tab is not overwritten.
-  const [knownUpdatedAt, setKnownUpdatedAt] = useState(existing?.updated_at)
+  // The list's revision as loaded; the save sends it so a change made in another tab is not overwritten.
+  const [knownRevision, setKnownRevision] = useState(existing?.revision)
   const movieOf = useMovies(savedIds)
   const [query, setQuery] = useState('')
   const [titleError, setTitleError] = useState('')
@@ -183,7 +183,7 @@ function Dialog({ existing }: { existing?: ApiList }) {
     setSaving(true)
     setFormError('')
     try {
-      const saved = existing ? await updateList(existing.id, input, knownUpdatedAt) : await createList(input)
+      const saved = existing ? await updateList(existing.id, input, knownRevision) : await createList(input)
       close(isEdit ? '/lists' : `/lists/${listSlug(saved)}`)
     } catch (error) {
       if (existing && isStatus(error, 409)) {
@@ -191,7 +191,7 @@ function Dialog({ existing }: { existing?: ApiList }) {
         try {
           const { data: fresh } = await api.get<{ list: ApiList }>(`/lists/${existing.id}`)
           const keys = (fresh.list.items ?? []).map(itemKey)
-          setKnownUpdatedAt(fresh.list.updated_at)
+          setKnownRevision(fresh.list.revision)
           setSavedIds(keys)
           setPicked(keys.map(movieForKey))
           setFormError('This list changed in another tab — we reloaded its films. Check them and save again.')

@@ -39,6 +39,7 @@ export type ApiList = {
   owner: ApiMember | null
   created_at: string
   updated_at: string
+  revision: number
   /** Only with `?contains={tmdbId}`: whether the list already holds that film. */
   has_movie?: boolean
   /** The first five titles with their type, for covers. */

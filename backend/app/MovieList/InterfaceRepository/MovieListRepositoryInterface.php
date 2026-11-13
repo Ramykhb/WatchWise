@@ -40,8 +40,8 @@ interface MovieListRepositoryInterface
 
     /** A fresh copy of the list, row-locked until the surrounding transaction ends (call inside one); null when it no longer exists. */
     public function lockForUpdate(MovieList $list): ?MovieList;
-    /** Reads the list's current updated_at from the database and locks the row until the transaction ends. */
-    public function lockUpdatedAt(MovieList $list): ?CarbonInterface;
+    /** Reloads the list and locks its row until the transaction ends; all writes must hold this lock. */
+    public function lock(MovieList $list): MovieList;
 
 
     /**

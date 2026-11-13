@@ -95,12 +95,12 @@ export async function createList(input: ListInput) {
 }
 
 /**
- * Saves fields and/or the films (in order); returns the updated list. `expectedUpdatedAt` is the list's
- * `updated_at` as last loaded: if the list was saved since, the server answers 409 instead of overwriting it.
+ * Saves fields and/or the films (in order); returns the updated list. `expectedRevision` is the list's
+ * revision as last loaded: if the list was saved since, the server answers 409 instead of overwriting it.
  */
-export async function updateList(id: number, input: Partial<ListInput>, expectedUpdatedAt?: string) {
+export async function updateList(id: number, input: Partial<ListInput>, expectedRevision?: number) {
   const started = generation
-  const body = expectedUpdatedAt ? { ...input, expected_updated_at: expectedUpdatedAt } : input
+  const body = expectedRevision !== undefined ? { ...input, expected_revision: expectedRevision } : input
   const response = await api.patch<{ list: ApiList }>(`/lists/${id}`, body)
   const updated = toMyList(response.data.list)
   if (started === generation) emit(state.lists.map((list) => (list.id === id ? updated : list)))

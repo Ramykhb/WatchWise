@@ -70,11 +70,14 @@ class MovieListService implements MovieListServiceInterface
     public function update(MovieList $list, UpdateMovieListData $data): MovieList
     {
         $added = [];
-        DB::transaction(function () use ($list, $data, &$added) {
+        $list = DB::transaction(function () use ($list, $data, &$added) {
+            $list = $this->lists->lock($list);
+            if ($data->expectedRevision !== null && $list->revision !== $data->expectedRevision) {
+                throw new ListChangedElsewhere;
+            }
             if ($data->expectedUpdatedAt !== null) {
-                // Locked read, so two concurrent saves cannot both pass. Second precision: that is what the column stores.
-                $current = $this->lists->lockUpdatedAt($list);
-                if ($current === null || $current->getTimestamp() !== Carbon::parse($data->expectedUpdatedAt)->getTimestamp()) {
+                // Compatibility for older clients; revision is the reliable concurrency token.
+                if ($list->updated_at->getTimestamp() !== Carbon::parse($data->expectedUpdatedAt)->getTimestamp()) {
                     throw new ListChangedElsewhere;
                 }
             }
@@ -84,6 +87,8 @@ class MovieListService implements MovieListServiceInterface
             if ($data->films !== null) {
                 $added = $this->lists->syncItems($list, $data->films)->added;
             }
+
+            return $list;
         });
         $this->rememberAfterResponse($added);
 
@@ -97,7 +102,12 @@ class MovieListService implements MovieListServiceInterface
 
     public function addMovie(MovieList $list, ListFilmData $film): MovieList
     {
-        if ($this->lists->addItem($list, $film)) {
+        [$list, $added] = DB::transaction(function () use ($list, $film) {
+            $list = $this->lists->lock($list);
+
+            return [$list, $this->lists->addItem($list, $film)];
+        });
+        if ($added) {
             $this->rememberAfterResponse([$film]);
         }
 
@@ -106,7 +116,12 @@ class MovieListService implements MovieListServiceInterface
 
     public function removeMovie(MovieList $list, ListFilmData $film): MovieList
     {
-        $this->lists->removeItem($list, $film);
+        $list = DB::transaction(function () use ($list, $film) {
+            $list = $this->lists->lock($list);
+            $this->lists->removeItem($list, $film);
+
+            return $list;
+        });
 
         return $this->detail($list);
     }

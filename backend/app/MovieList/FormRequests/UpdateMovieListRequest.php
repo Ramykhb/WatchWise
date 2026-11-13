@@ -28,6 +28,7 @@ class UpdateMovieListRequest extends FormRequest
             'tmdb_ids.*' => ListFilmData::keyRules(),
             // The list's updated_at as the client last saw it; a mismatch means the list changed meanwhile (409).
             'expected_updated_at' => ['sometimes', 'date'],
+            'expected_revision' => ['sometimes', 'integer', 'min:1'],
         ];
     }
 

@@ -24,6 +24,7 @@ import { isLoading, posterAt, useMovies } from '../../lib/movieDetails.ts'
 import { filmKeyOf, itemKey } from '../../lib/movies.ts'
 import type { ApiList, ApiListsPage } from '../../lib/types.ts'
 import { listIdFrom } from '../Lists/listsData.ts'
+import { createSaveQueue } from './saveQueue.ts'
 import { updateList } from '../Lists/myListsStore.ts'
 import { runtimeFor, toListDetail, toSimilarList, type ListDetail as Detail, type ListEntry } from './listDetailData.ts'
 import styles from './ListDetail.module.css'
@@ -70,10 +71,10 @@ export default function ListDetail() {
   // Keyed by the list and its films, so local state (order, search) resets when moving between lists
   // and when a fresh copy arrives after an edit (the first render may use the copy from an earlier visit).
   const films = (data.list.items ?? []).map(itemKey).join(',')
-  return <ListDetailPage key={`${data.list.id}:${films}`} detail={toListDetail(data.list, user?.id)} updatedAt={data.list.updated_at} />
+  return <ListDetailPage key={`${data.list.id}:${films}`} detail={toListDetail(data.list, user?.id)} revision={data.list.revision} />
 }
 
-function ListDetailPage({ detail, updatedAt }: { detail: Detail; updatedAt: string }) {
+function ListDetailPage({ detail, revision }: { detail: Detail; revision: number }) {
   const { user } = useAuth()
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
@@ -129,10 +130,10 @@ function ListDetailPage({ detail, updatedAt }: { detail: Detail; updatedAt: stri
   }, [dragging, lenis])
   const [shareNote, setShareNote] = useState('')
   const [status, setStatus] = useState('')
-  // The list's updated_at as this page last saw it; saves send it so a change made in another tab is not overwritten.
-  const knownUpdatedAt = useRef(updatedAt)
-  // Saves run one after another, so each one starts from the updated_at the previous response returned.
-  const saveQueue = useRef<Promise<unknown>>(Promise.resolve())
+  // The list's revision as this page last saw it; saves send it so a change made in another tab is not overwritten.
+  const knownRevision = useRef(revision)
+  // Saves run one after another, so each one starts from the revision the previous response returned.
+  const saveQueue = useRef(createSaveQueue())
 
   const filmsCount = entries.length
 
@@ -151,10 +152,10 @@ function ListDetailPage({ detail, updatedAt }: { detail: Detail; updatedAt: stri
     setEntries(next)
     setStatus(message)
     const tmdbIds = next.map((entry) => filmKeyOf(entry.movie))
-    saveQueue.current = saveQueue.current.then(async () => {
+    void saveQueue.current.enqueue(async () => {
       try {
-        const saved = await updateList(detail.id, { tmdb_ids: tmdbIds }, knownUpdatedAt.current)
-        knownUpdatedAt.current = saved.updated_at
+        const saved = await updateList(detail.id, { tmdb_ids: tmdbIds }, knownRevision.current)
+        knownRevision.current = saved.revision
       } catch (error) {
         if (!isStatus(error, 409)) {
           setEntries(previous)
@@ -165,7 +166,7 @@ function ListDetailPage({ detail, updatedAt }: { detail: Detail; updatedAt: stri
         try {
           const { data: fresh } = await api.get<{ list: ApiList }>(`/lists/${detail.id}`)
           const reloaded = toListDetail(fresh.list, user?.id)
-          knownUpdatedAt.current = fresh.list.updated_at
+          knownRevision.current = fresh.list.revision
           setSavedIds(reloaded.entries.map((entry) => filmKeyOf(entry.movie)))
           setEntries(reloaded.entries)
           setStatus('This list changed in another tab — we reloaded it.')
@@ -173,6 +174,9 @@ function ListDetailPage({ detail, updatedAt }: { detail: Detail; updatedAt: stri
         } catch {
           setEntries(previous)
           setStatus("Couldn't save that change. Please try again.")
+        } finally {
+          // Every pending edit was based on the stale copy, including edits made during the reload.
+          saveQueue.current.invalidate()
         }
       }
     })
