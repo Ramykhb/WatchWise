@@ -11,7 +11,7 @@ import searchIcon from '../../assets/home/icon-search.svg'
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import { gradientCss } from '../Home/homeData.ts'
 import { apiErrorMessage } from '../../lib/auth.ts'
-import { api, useApi } from '../../lib/api.ts'
+import { api, isStatus, useApi } from '../../lib/api.ts'
 import { isLoading, posterAt, rememberMovie, useMovies } from '../../lib/movieDetails.ts'
 import { filmKeyOf, itemKey, movieForKey } from '../../lib/movies.ts'
 import type { ApiList } from '../../lib/types.ts'
@@ -107,7 +107,9 @@ function Dialog({ existing }: { existing?: ApiList }) {
   const [isPublic, setIsPublic] = useState(existing?.is_public ?? true)
   const [picked, setPicked] = useState<Movie[]>(() => existing?.items?.map((item) => movieForKey(itemKey(item))) ?? [])
   // The list's saved films arrive as ids only; load their real titles and posters.
-  const [savedIds] = useState(() => existing?.items?.map(itemKey) ?? [])
+  const [savedIds, setSavedIds] = useState(() => existing?.items?.map(itemKey) ?? [])
+  // The list's updated_at as loaded; the save sends it so a change made in another tab is not overwritten.
+  const [knownUpdatedAt, setKnownUpdatedAt] = useState(existing?.updated_at)
   const movieOf = useMovies(savedIds)
   const [query, setQuery] = useState('')
   const [titleError, setTitleError] = useState('')
@@ -181,9 +183,24 @@ function Dialog({ existing }: { existing?: ApiList }) {
     setSaving(true)
     setFormError('')
     try {
-      const saved = existing ? await updateList(existing.id, input) : await createList(input)
+      const saved = existing ? await updateList(existing.id, input, knownUpdatedAt) : await createList(input)
       close(isEdit ? '/lists' : `/lists/${listSlug(saved)}`)
     } catch (error) {
+      if (existing && isStatus(error, 409)) {
+        // Changed elsewhere: take the server's films (keeping the typed fields) and let the user save again.
+        try {
+          const { data: fresh } = await api.get<{ list: ApiList }>(`/lists/${existing.id}`)
+          const keys = (fresh.list.items ?? []).map(itemKey)
+          setKnownUpdatedAt(fresh.list.updated_at)
+          setSavedIds(keys)
+          setPicked(keys.map(movieForKey))
+          setFormError('This list changed in another tab — we reloaded its films. Check them and save again.')
+          setSaving(false)
+          return
+        } catch {
+          // Fall through to the generic message.
+        }
+      }
       setFormError(apiErrorMessage(error, "Couldn't save the list. Please try again."))
       setSaving(false)
     }

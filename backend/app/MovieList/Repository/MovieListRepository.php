@@ -78,6 +78,11 @@ class MovieListRepository implements MovieListRepositoryInterface
         return $changed;
     }
 
+    public function lockUpdatedAt(MovieList $list): ?CarbonInterface
+    {
+        return MovieList::query()->whereKey($list->getKey())->lockForUpdate()->first(['id', 'updated_at'])?->updated_at;
+    }
+
     public function delete(MovieList $list): bool
     {
         return MovieList::query()->whereKey($list->getKey())->delete() > 0;

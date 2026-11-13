@@ -40,6 +40,9 @@ interface MovieListRepositoryInterface
 
     /** A fresh copy of the list, row-locked until the surrounding transaction ends (call inside one); null when it no longer exists. */
     public function lockForUpdate(MovieList $list): ?MovieList;
+    /** Reads the list's current updated_at from the database and locks the row until the transaction ends. */
+    public function lockUpdatedAt(MovieList $list): ?CarbonInterface;
+
 
     /**
      * Makes the list hold exactly these movies and TV shows in this order (positions from 0) in a few bulk

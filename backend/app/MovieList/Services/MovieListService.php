@@ -10,6 +10,7 @@ use App\MovieList\DTOs\Requests\ListFilmData;
 use App\MovieList\DTOs\Requests\MovieListSearchQuery;
 use App\MovieList\DTOs\Requests\StaffListQuery;
 use App\MovieList\DTOs\Requests\UpdateMovieListData;
+use App\MovieList\Exceptions\ListChangedElsewhere;
 use App\MovieList\InterfaceRepository\MovieListRepositoryInterface;
 use App\MovieList\InterfaceServices\MovieListServiceInterface;
 use App\Report\DTOs\Requests\ReportContentData;
@@ -19,6 +20,7 @@ use App\Report\Support\ReportTargetType;
 use App\Support\HiddenMovies;
 use App\Support\MediaType;
 use Carbon\CarbonInterface;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -69,6 +71,14 @@ class MovieListService implements MovieListServiceInterface
     {
         $added = [];
         DB::transaction(function () use ($list, $data, &$added) {
+            if ($data->expectedUpdatedAt !== null) {
+                // Locked read, so two concurrent saves cannot both pass. Second precision: that is what the column stores.
+                $current = $this->lists->lockUpdatedAt($list);
+                if ($current === null || $current->getTimestamp() !== Carbon::parse($data->expectedUpdatedAt)->getTimestamp()) {
+                    throw new ListChangedElsewhere;
+                }
+            }
+
             $this->lists->update($list, $data->attributes);
 
             if ($data->films !== null) {
