@@ -43,6 +43,7 @@ Route::middleware(['auth.jwt', 'verified.email'])->group(function () {
 require __DIR__.'/email_change.php';
 require __DIR__.'/account_deletion.php';
 require __DIR__.'/weather.php';
+require __DIR__.'/setting.php';
 require __DIR__.'/recommendations_public.php';
 require __DIR__.'/cinemas.php';
 require __DIR__.'/movies.php';

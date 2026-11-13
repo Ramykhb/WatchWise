@@ -16,4 +16,9 @@ class SocialAccountRepository implements SocialAccountRepositoryInterface
     {
         return SocialAccount::create($attributes);
     }
+
+    public function providerNamesOf(int $userId): array
+    {
+        return SocialAccount::query()->where('user_id', $userId)->orderBy('provider')->pluck('provider')->all();
+    }
 }

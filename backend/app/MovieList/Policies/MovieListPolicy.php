@@ -38,6 +38,12 @@ class MovieListPolicy
         return $this->owns($current, $movieList) || $current->isAdmin();
     }
 
+    /** Members report other members' lists they can see. */
+    public function report(CurrentUser $current, MovieList $movieList): bool
+    {
+        return $current->isAuthenticated() && ! $this->owns($current, $movieList) && $this->view($current, $movieList);
+    }
+
     private function owns(CurrentUser $current, MovieList $movieList): bool
     {
         return $current->isAuthenticated() && $current->id() === $movieList->user_id;

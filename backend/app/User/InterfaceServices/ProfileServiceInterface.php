@@ -4,6 +4,8 @@ namespace App\User\InterfaceServices;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\User;
+use App\Report\DTOs\Requests\ReportContentData;
+use App\Report\DTOs\Responses\ReportContentResponse;
 use App\User\DTOs\Requests\UserSearchQuery;
 use App\User\DTOs\Responses\FollowResponse;
 use App\User\DTOs\Responses\ProfileResponse;
@@ -43,6 +45,9 @@ interface ProfileServiceInterface
      */
     public function follow(User $follower, User $target): FollowResponse;
 
+    /** Reports another member's profile (the caller has checked the reporter may report it); reporting it twice files one report, reopened if staff had closed it. */
+    public function report(User $profile, User $reporter, ReportContentData $data): ReportContentResponse;
+
     /** Unfollows, or withdraws a pending follow request. */
     public function unfollow(User $follower, User $target): FollowResponse;
 
@@ -55,4 +60,11 @@ interface ProfileServiceInterface
 
     /** `$me` declines `$requester`'s follow request; nothing happens when there is none. */
     public function declineFollowRequest(User $me, User $requester): void;
+
+    /**
+     * How many members follow the member and how many they follow, whatever their privacy settings say.
+     *
+     * @return array{followers: int, following: int}
+     */
+    public function followCounts(User $user): array;
 }

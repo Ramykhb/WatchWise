@@ -6,6 +6,9 @@ use App\Models\Review;
 use App\Models\User;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Notification\InterfaceServices\NotificationServiceInterface;
+use App\Report\DTOs\Requests\ReportContentData;
+use App\Report\InterfaceServices\ReportServiceInterface;
+use App\Report\Support\ReportTargetType;
 use App\Review\DTOs\Requests\MovieReviewQuery;
 use App\Review\DTOs\Requests\ReportReviewData;
 use App\Review\DTOs\Requests\SaveReviewData;
@@ -14,6 +17,7 @@ use App\Review\DTOs\Responses\ReportReviewResponse;
 use App\Review\InterfaceRepository\MovieReviewRepositoryInterface;
 use App\Review\InterfaceServices\MovieReviewServiceInterface;
 use App\Review\InterfaceServices\ReviewModerationServiceInterface;
+use App\Setting\InterfaceServices\SettingServiceInterface;
 use App\Support\MediaType;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Validation\ValidationException;
@@ -26,6 +30,8 @@ class MovieReviewService implements MovieReviewServiceInterface
         private readonly MovieCatalogServiceInterface $catalog,
         private readonly ReviewModerationServiceInterface $moderation,
         private readonly NotificationServiceInterface $notifications,
+        private readonly SettingServiceInterface $settings,
+        private readonly ReportServiceInterface $reports,
     ) {}
 
     public function forTitle(MovieReviewQuery $query, User $viewer): array
@@ -43,13 +49,14 @@ class MovieReviewService implements MovieReviewServiceInterface
 
     public function save(User $user, SaveReviewData $data): MovieReviewResponse
     {
-        $labels = $this->moderation->classify($data->content);
+        $autoModeration = $this->settings->reviewAutoModeration();
+        $labels = $autoModeration ? $this->moderation->classify($data->content) : null;
         if ($data->hasSpoilers && $labels !== null && ! in_array('spoiler', $labels, true)) {
             $labels[] = 'spoiler';
         }
         $review = $this->reviews->save(
             $user, $data, $this->sentiment->classify($data->content, $data->rating),
-            $labels, $labels === [], $data->hasSpoilers || in_array('spoiler', $labels ?? [], true),
+            $labels, $this->startsApproved($autoModeration, $labels), $data->hasSpoilers || in_array('spoiler', $labels ?? [], true),
         );
         // The local catalogue (admin "Movie data") only holds movies.
         if ($data->mediaType === MediaType::MOVIE) {
@@ -71,7 +78,9 @@ class MovieReviewService implements MovieReviewServiceInterface
             throw new AuthorizationException;
         }
 
-        return new ReportReviewResponse($this->reviews->saveReport($review, $reporter, $data->reason), $data->reason);
+        $result = $this->reports->report($reporter, ReportTargetType::Review, $review->id, new ReportContentData($data->reason));
+
+        return new ReportReviewResponse($result->created, $result->reason);
     }
 
     public function markHelpful(Review $review, User $user, bool $helpful): int
@@ -103,6 +112,22 @@ class MovieReviewService implements MovieReviewServiceInterface
         }
 
         return $this->reviews->votesCount($review);
+    }
+
+    /**
+     * Whether review text is published at once. When approval is required every review waits for a moderator.
+     * Otherwise, with auto moderation on it is published only when no label was found (no answer from Groq, a
+     * null, waits too), and with it off nothing was checked, so it is published.
+     *
+     * @param  list<string>|null  $labels
+     */
+    private function startsApproved(bool $autoModeration, ?array $labels): bool
+    {
+        if ($this->settings->reviewsRequireApproval()) {
+            return false;
+        }
+
+        return ! $autoModeration || $labels === [];
     }
 
     /**

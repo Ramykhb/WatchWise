@@ -8,6 +8,10 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\Notification\InterfaceServices\NotificationServiceInterface;
+use App\Report\DTOs\Requests\ReportContentData;
+use App\Report\DTOs\Responses\ReportContentResponse;
+use App\Report\InterfaceServices\ReportServiceInterface;
+use App\Report\Support\ReportTargetType;
 use App\Room\DTOs\Requests\CreateRoomData;
 use App\Room\DTOs\Requests\InviteToRoomData;
 use App\Room\DTOs\Requests\ReadRoomMessagesData;
@@ -17,11 +21,15 @@ use App\Room\DTOs\Responses\RoomListResponse;
 use App\Room\DTOs\Responses\RoomMessageResponse;
 use App\Room\DTOs\Responses\RoomMessagesResponse;
 use App\Room\DTOs\Responses\RoomResponse;
+use App\Room\Events\RoomMessageDeleted;
 use App\Room\Events\RoomMessageSent;
 use App\Room\Events\RoomMessagesRead;
 use App\Room\Events\RoomsChanged;
+use App\Room\Exceptions\RoomCreationDisabled;
+use App\Room\Exceptions\RoomLocked;
 use App\Room\InterfaceRepository\RoomRepositoryInterface;
 use App\Room\InterfaceServices\RoomServiceInterface;
+use App\Setting\InterfaceServices\SettingServiceInterface;
 use Carbon\CarbonInterface;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Support\Collection;
@@ -37,6 +45,8 @@ class RoomService implements RoomServiceInterface
         private readonly RoomRepositoryInterface $rooms,
         private readonly NotificationServiceInterface $notifications,
         private readonly MovieCatalogServiceInterface $catalog,
+        private readonly SettingServiceInterface $settings,
+        private readonly ReportServiceInterface $reports,
     ) {}
 
     public function list(User $viewer): RoomListResponse
@@ -54,6 +64,10 @@ class RoomService implements RoomServiceInterface
 
     public function create(CreateRoomData $data, User $creator): RoomResponse
     {
+        if (! $this->settings->roomsCreationEnabled()) {
+            throw new RoomCreationDisabled;
+        }
+
         $room = DB::transaction(function () use ($data, $creator): DiscussionRoom {
             $room = $this->rooms->create([
                 'name' => $data->name,
@@ -118,15 +132,49 @@ class RoomService implements RoomServiceInterface
 
     public function delete(DiscussionRoom $room, User $deleter): void
     {
-        // Worked out first: the members and invitations are deleted with the room.
-        $listChannels = $this->listChannels($room, [$deleter->id]);
-        $audience = array_values(array_unique([...$this->rooms->memberIds($room), ...$this->rooms->inviteeIds($room)]));
+        $this->remove($room, $deleter, byStaff: false);
+    }
 
-        DB::transaction(fn () => $this->rooms->delete($room));
+    public function deleteByStaff(DiscussionRoom $room, User $staff): void
+    {
+        $this->remove($room, $staff, byStaff: true);
+    }
 
-        // Every list that showed the room loads again without it.
-        $this->broadcast(new RoomsChanged($room->id, $listChannels));
-        $this->notifications->roomDeleted($room, $deleter, $audience);
+    public function deleteMessage(DiscussionRoom $room, Message $message): void
+    {
+        $unreadBy = $this->rooms->unreadReaderIds($room, $message->id);
+
+        DB::transaction(fn () => $this->rooms->deleteMessages($room, [$message->id]));
+
+        $this->afterCommit(function () use ($room, $message): void {
+            $listChannels = $this->listChannels($room);
+
+            $this->broadcast(new RoomMessageDeleted($room->id, $message->id));
+            $this->broadcast(new RoomsChanged($room->id, $listChannels));
+        });
+        $this->afterCommit(fn () => $this->notifications->roomMessageDeleted($room, $message, $unreadBy));
+    }
+
+    public function setLocked(DiscussionRoom $room, bool $locked): bool
+    {
+        $changed = DB::transaction(function () use ($room, $locked): bool {
+            $current = $this->rooms->lockForUpdate($room);
+
+            if ((bool) $current->is_locked === $locked) {
+                return false;
+            }
+
+            $this->rooms->setLocked($current, $locked);
+            $room->forceFill(['is_locked' => $locked])->syncOriginalAttribute('is_locked');
+
+            return true;
+        });
+
+        if ($changed) {
+            $this->afterCommit(fn () => $this->broadcast(new RoomsChanged($room->id, $this->listChannels($room))));
+        }
+
+        return $changed;
     }
 
     public function messages(DiscussionRoom $room, User $viewer): RoomMessagesResponse
@@ -174,6 +222,10 @@ class RoomService implements RoomServiceInterface
     public function send(DiscussionRoom $room, SendRoomMessageData $data, User $sender): RoomMessageResponse
     {
         [$message, $recipientIds] = DB::transaction(function () use ($room, $data, $sender): array {
+            if ($this->rooms->isLocked($room)) {
+                throw new RoomLocked;
+            }
+
             $recipientIds = array_values(array_diff($this->rooms->memberIds($room), [$sender->id]));
             $message = $this->rooms->createMessage($room, $sender->id, $data->content);
             $this->rooms->createReceipts($message, $recipientIds);
@@ -209,9 +261,24 @@ class RoomService implements RoomServiceInterface
         return new ReadReceiptsResponse($readIds, $deletedIds);
     }
 
+    public function reportMessage(Message $message, User $reporter, ReportContentData $data): ReportContentResponse
+    {
+        return $this->reports->report($reporter, ReportTargetType::Message, $message->id, $data);
+    }
+
+    public function report(DiscussionRoom $room, User $reporter, ReportContentData $data): ReportContentResponse
+    {
+        return $this->reports->report($reporter, ReportTargetType::Room, $room->id, $data);
+    }
+
     public function pruneMessages(): int
     {
         return $this->rooms->deleteFullyRead($this->lifetimeCutoff());
+    }
+
+    public function countCreatedBy(User $user): int
+    {
+        return $this->rooms->countCreatedBy($user->id);
     }
 
     /**
@@ -331,6 +398,39 @@ class RoomService implements RoomServiceInterface
         sort($userIds);
 
         return array_map(fn (int $userId): PrivateChannel => new PrivateChannel("rooms.user.{$userId}"), $userIds);
+    }
+
+    /**
+     * Deletes the room and, once that committed, refreshes every list that showed it and tells whoever was in it. The
+     * deleter is named to them, unless staff deleted it: then it comes from the WatchWise team.
+     */
+    private function remove(DiscussionRoom $room, User $deleter, bool $byStaff): void
+    {
+        // Worked out first: the members and invitations are deleted with the room.
+        $listChannels = $this->listChannels($room, [$deleter->id]);
+        $audience = array_values(array_unique([...$this->rooms->memberIds($room), ...$this->rooms->inviteeIds($room)]));
+
+        DB::transaction(fn () => $this->rooms->delete($room));
+
+        // Every list that showed the room loads again without it.
+        $this->afterCommit(function () use ($room, $listChannels, $deleter, $audience, $byStaff): void {
+            $this->broadcast(new RoomsChanged($room->id, $listChannels));
+
+            if ($byStaff) {
+                $this->notifications->roomRemovedByStaff($room, $deleter, $audience);
+            } else {
+                $this->notifications->roomDeleted($room, $deleter, $audience);
+            }
+        });
+    }
+
+    /**
+     * Runs the callback once the outermost transaction commits (at once outside one), so a caller that wraps this
+     * service in its own transaction and then rolls back sends nothing. A failure is reported and never undoes the change.
+     */
+    private function afterCommit(callable $sendNotices): void
+    {
+        DB::afterCommit(fn () => rescue($sendNotices));
     }
 
     /**

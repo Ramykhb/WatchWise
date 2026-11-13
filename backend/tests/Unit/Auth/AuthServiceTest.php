@@ -13,6 +13,7 @@ use App\Auth\Services\AuthService;
 use App\Auth\Support\DummyPassword;
 use App\Auth\Support\TokenPair;
 use App\Models\User;
+use App\Setting\InterfaceServices\SettingServiceInterface;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -54,6 +55,11 @@ class AuthServiceTest extends TestCase
         return Mockery::mock(TokenFactory::class);
     }
 
+    private function settings(): MockInterface
+    {
+        return Mockery::mock(SettingServiceInterface::class, ['registrationOpen' => true]);
+    }
+
     private function dummy(): DummyPassword
     {
         return new DummyPassword;
@@ -66,7 +72,7 @@ class AuthServiceTest extends TestCase
 
         $this->expectException(InvalidCredentials::class);
 
-        (new AuthService($users, $this->tokens(), $this->dummy()))->login(new LoginData('a@example.com', 'secret-pass'), Request::create('/'));
+        (new AuthService($users, $this->tokens(), $this->dummy(), $this->settings()))->login(new LoginData('a@example.com', 'secret-pass'), Request::create('/'));
     }
 
     public function test_login_rejects_wrong_password(): void
@@ -76,7 +82,7 @@ class AuthServiceTest extends TestCase
 
         $this->expectException(InvalidCredentials::class);
 
-        (new AuthService($users, $this->tokens(), $this->dummy()))->login(new LoginData('a@example.com', 'nope'), Request::create('/'));
+        (new AuthService($users, $this->tokens(), $this->dummy(), $this->settings()))->login(new LoginData('a@example.com', 'nope'), Request::create('/'));
     }
 
     public function test_login_rejects_inactive_user(): void
@@ -86,7 +92,7 @@ class AuthServiceTest extends TestCase
 
         $this->expectException(InvalidCredentials::class);
 
-        (new AuthService($users, $this->tokens(), $this->dummy()))->login(new LoginData('a@example.com', 'secret-pass'), Request::create('/'));
+        (new AuthService($users, $this->tokens(), $this->dummy(), $this->settings()))->login(new LoginData('a@example.com', 'secret-pass'), Request::create('/'));
     }
 
     public function test_login_issues_tokens(): void
@@ -99,7 +105,7 @@ class AuthServiceTest extends TestCase
         $tokens = $this->tokens();
         $tokens->shouldReceive('issue')->once()->with($user, $request, null, true)->andReturn($pair);
 
-        $result = (new AuthService($users, $tokens, $this->dummy()))->login(new LoginData('a@example.com', 'secret-pass'), $request);
+        $result = (new AuthService($users, $tokens, $this->dummy(), $this->settings()))->login(new LoginData('a@example.com', 'secret-pass'), $request);
 
         $this->assertInstanceOf(AuthResponse::class, $result);
         $this->assertSame('a', $result->accessToken);
@@ -120,7 +126,7 @@ class AuthServiceTest extends TestCase
         $tokens = $this->tokens();
         $tokens->shouldReceive('issue')->once()->with($user, $request)->andReturn($pair);
 
-        $result = (new AuthService($users, $tokens, $this->dummy()))->register(
+        $result = (new AuthService($users, $tokens, $this->dummy(), $this->settings()))->register(
             new RegisterData('A', 'a@example.com', 'secret-pass'),
             $request,
         );
@@ -136,7 +142,7 @@ class AuthServiceTest extends TestCase
         $tokens = $this->tokens();
         $tokens->shouldReceive('rotate')->with('good', $request)->andReturn($pair);
         $tokens->shouldReceive('rotate')->with('bad', $request)->andThrow(new InvalidRefreshToken);
-        $service = new AuthService($this->users(), $tokens, $this->dummy());
+        $service = new AuthService($this->users(), $tokens, $this->dummy(), $this->settings());
 
         $this->assertSame('r', $service->refresh('good', $request)->refreshToken);
 
@@ -149,7 +155,7 @@ class AuthServiceTest extends TestCase
         $tokens = $this->tokens();
         $tokens->shouldReceive('revoke')->once()->with('tok');
 
-        (new AuthService($this->users(), $tokens, $this->dummy()))->logout('tok');
+        (new AuthService($this->users(), $tokens, $this->dummy(), $this->settings()))->logout('tok');
 
         $this->addToAssertionCount(1);
     }

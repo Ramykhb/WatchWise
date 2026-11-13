@@ -3,8 +3,10 @@
 namespace App\Admin\DTOs\Responses;
 
 use App\Models\LocalMovie;
+use App\Models\Report;
 use App\Models\Review;
-use App\Models\ReviewReport;
+use App\Report\Support\ReportStatus;
+use App\Report\Support\ReportTargetType;
 use JsonSerializable;
 
 /** A review in the moderation queue, with its reports and the film it is about. */
@@ -54,13 +56,13 @@ final readonly class AdminReviewResponse implements JsonSerializable
             isApproved: (bool) $review->is_approved,
             status: match (true) {
                 $review->removed_at !== null => 'removed',
-                $reports->contains(fn (ReviewReport $report): bool => $report->resolved_at === null) => 'flagged',
+                $reports->contains(fn (Report $report): bool => $report->status === ReportStatus::Open) => 'flagged',
                 (bool) $review->is_approved => 'approved',
                 default => 'pending',
             },
             reportsCount: $reports->count(),
             reasons: array_values(array_filter(
-                ReviewReport::REASONS,
+                ReportTargetType::Review->reasons(),
                 fn (string $reason): bool => $reports->contains('reason', $reason),
             )),
             authorId: $review->user?->id,

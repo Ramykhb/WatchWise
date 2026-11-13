@@ -13,6 +13,8 @@ import { adminPosterUrl, useAdminStats, type AdminActivityPoint, type AdminRanke
 import { apiErrorMessage } from '../../lib/auth.ts'
 import { RANGES } from './adminData.ts'
 import styles from './AdminOverview.module.css'
+import { Metrics } from './AdminToolsUI.tsx'
+import { s } from './adminToolsState.tsx'
 
 const GENRE_COLORS = [
   'var(--accent-coral)',
@@ -48,6 +50,12 @@ function statItems(stats: AdminStats): StatItem[] {
     { label: 'Registered users', value: fmt(stats.users_total), delta: delta(range.new_users, range.previous_new_users, 'new', period), tone: 'up' },
     { label: 'Reviews', value: fmt(stats.reviews_total), delta: delta(range.new_reviews, range.previous_new_reviews, 'new', period), tone: 'up' },
     { label: 'Active today', value: fmt(stats.active_today), delta: delta(stats.active_today, stats.active_yesterday, 'active', 'today'), tone: 'up' },
+    { label: 'Suspended users', value: fmt(stats.users_suspended), delta: 'Account access disabled', tone: 'attention' },
+    { label: 'Unverified users', value: fmt(stats.users_unverified), delta: 'Awaiting email verification', tone: 'attention' },
+    { label: 'Open reports', value: fmt(stats.reports.open), delta: `${fmt(stats.reports.resolved_last_7_days)} resolved in 7 days`, tone: 'attention' },
+    { label: 'Star ratings', value: fmt(stats.ratings.total), delta: delta(range.new_ratings, range.previous_new_ratings, 'new', period), tone: 'up' },
+    { label: 'Lists', value: fmt(stats.lists.total), delta: delta(range.new_lists, range.previous_new_lists, 'new', period), tone: 'up' },
+    { label: 'Discussion rooms', value: fmt(stats.rooms.total), delta: `${stats.rooms.locked} locked · ${stats.rooms.reported} reported`, tone: 'attention' },
     { label: 'Flagged reviews', value: fmt(stats.flagged_reviews), delta: 'Needs moderation', tone: 'attention' },
   ]
 }
@@ -210,6 +218,8 @@ export default function AdminOverview() {
           </button>
         </div>
       </header>
+
+      {stats && <section className={s.page} aria-label="Moderation overview"><div className={s.grid}><section className={s.card}><h2>Open reports by content</h2><Metrics values={stats.reports.by_target_type} /><Link to="/admin/reports">Review reports</Link></section><section className={s.card}><h2>Content visibility</h2><Metrics values={{ public_lists: stats.lists.public, private_lists: stats.lists.private, reported_lists: stats.lists.reported, public_rooms: stats.rooms.public, private_rooms: stats.rooms.private }} /></section><section className={s.card}><h2>Recent star ratings</h2><Metrics values={{ average: stats.ratings.average, last_7_days: stats.ratings.new_last_7_days, last_30_days: stats.ratings.new_last_30_days }} /><Link to="/admin/ratings">Inspect ratings</Link></section></div></section>}
 
       {!stats ? (
         <div className={styles.lead} role={error ? 'alert' : undefined}>

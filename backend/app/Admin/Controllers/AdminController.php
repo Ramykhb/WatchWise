@@ -7,7 +7,6 @@ use App\Admin\FormRequests\AdminMovieIndexRequest;
 use App\Admin\FormRequests\AdminReviewIndexRequest;
 use App\Admin\FormRequests\AdminStatsRequest;
 use App\Admin\FormRequests\AdminUserIndexRequest;
-use App\Admin\FormRequests\ModerateReviewRequest;
 use App\Admin\FormRequests\UpdateLocalMovieRequest;
 use App\Admin\FormRequests\UpdateUserRequest;
 use App\Admin\InterfaceServices\AdminAuditServiceInterface;
@@ -57,12 +56,6 @@ class AdminController
     public function reviews(AdminReviewIndexRequest $request): JsonResponse
     {
         return response()->json($this->admin->reviews($request->toDto()));
-    }
-
-    /** PATCH /api/admin/reviews/{review} — approve or reject. */
-    public function moderateReview(ModerateReviewRequest $request, Review $review, CurrentUser $current): JsonResponse
-    {
-        return response()->json(['review' => $this->admin->moderateReview($current->user(), $review, $request->toDto())]);
     }
 
     /** DELETE /api/admin/reviews/{review} */

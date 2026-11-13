@@ -26,8 +26,8 @@ final readonly class AdminUserResponse implements JsonSerializable
         public ?string $createdAt,
     ) {}
 
-    /** Needs the user's `reviews_count` loaded (`withCount`/`loadCount`); it reads as 0 otherwise. */
-    public static function fromModel(User $user): self
+    /** Needs the user's `reviews_count` loaded (`withCount`/`loadCount`) unless `$reviewsCount` is given; it reads as 0 otherwise. */
+    public static function fromModel(User $user, ?int $reviewsCount = null): self
     {
         return new self(
             id: $user->id,
@@ -42,7 +42,7 @@ final readonly class AdminUserResponse implements JsonSerializable
                 $user->email_verified_at === null => 'unverified',
                 default => 'active',
             },
-            reviewsCount: (int) ($user->reviews_count ?? 0),
+            reviewsCount: $reviewsCount ?? (int) ($user->reviews_count ?? 0),
             emailVerifiedAt: $user->email_verified_at?->toJSON(),
             lastActiveAt: $user->last_active_at?->toJSON(),
             createdAt: $user->created_at?->toJSON(),

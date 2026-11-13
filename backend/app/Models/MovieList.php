@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Report\Support\ReportTargetType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -18,6 +19,12 @@ class MovieList extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Reports members filed against this list. */
+    public function reports(): HasMany
+    {
+        return $this->hasMany(Report::class, 'target_id')->where('target_type', ReportTargetType::MovieList);
     }
 
     public function items(): HasMany

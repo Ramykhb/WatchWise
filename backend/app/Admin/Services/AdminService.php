@@ -17,6 +17,7 @@ use App\Admin\DTOs\Responses\GenreShareResponse;
 use App\Admin\DTOs\Responses\RankedMovieResponse;
 use App\Admin\Exceptions\CannotModerateSelf;
 use App\Admin\Exceptions\CannotModerateStaff;
+use App\Admin\InterfaceRepository\AdminRoomRepositoryInterface;
 use App\Admin\InterfaceRepository\AdminStatsRepositoryInterface;
 use App\Admin\InterfaceRepository\AdminUserRepositoryInterface;
 use App\Admin\InterfaceServices\AdminAuditServiceInterface;
@@ -24,6 +25,8 @@ use App\Admin\InterfaceServices\AdminServiceInterface;
 use App\Admin\Mail\AccountReinstatedMail;
 use App\Admin\Mail\AccountSuspendedMail;
 use App\Admin\Support\AdminAction;
+use App\Admin\Support\AuditLabel;
+use App\Admin\Support\ReviewDecision;
 use App\Auth\InterfaceServices\AuthServiceInterface;
 use App\Genre\DTOs\Responses\GenreResponse;
 use App\Genre\InterfaceServices\GenreServiceInterface;
@@ -33,7 +36,13 @@ use App\Models\User;
 use App\Movie\DTOs\Requests\LocalMovieQuery;
 use App\Movie\DTOs\Requests\UpdateLocalMovieData;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
+use App\MovieList\InterfaceServices\MovieListServiceInterface;
 use App\Notification\InterfaceServices\NotificationServiceInterface;
+use App\Rating\DTOs\Requests\RatingQuery;
+use App\Rating\InterfaceServices\RatingServiceInterface;
+use App\Report\InterfaceServices\ReportServiceInterface;
+use App\Report\Support\ReportStatus;
+use App\Review\DTOs\Requests\ModerationQueueQuery;
 use App\Review\InterfaceServices\ReviewServiceInterface;
 use App\Support\Exceptions\TmdbUnavailable;
 use App\Support\MediaType;
@@ -78,7 +87,11 @@ class AdminService implements AdminServiceInterface
         private readonly AdminStatsRepositoryInterface $stats,
         private readonly AdminUserRepositoryInterface $users,
         private readonly AuthServiceInterface $auth,
+        private readonly AdminRoomRepositoryInterface $rooms,
         private readonly ReviewServiceInterface $reviews,
+        private readonly ReportServiceInterface $reports,
+        private readonly RatingServiceInterface $ratings,
+        private readonly MovieListServiceInterface $lists,
         private readonly MovieCatalogServiceInterface $catalog,
         private readonly GenreServiceInterface $genres,
         private readonly AccountServiceInterface $accounts,
@@ -105,10 +118,7 @@ class AdminService implements AdminServiceInterface
         return AdminStatsResponse::fromPayload($payload);
     }
 
-    /**
-     * Retires every cached stats window, so the next request counts afresh.
-     */
-    private function forgetStats(): void
+    public function forgetStats(): void
     {
         Cache::forever(self::STATS_VERSION_KEY, (string) Str::uuid());
     }
@@ -129,8 +139,14 @@ class AdminService implements AdminServiceInterface
             ...array_column($rated, 'tmdb_id'),
         ])));
 
+        $members = $this->users->totals();
+        $ratings = $this->ratings->summary(new RatingQuery);
+        $reports = $this->reports->summary();
+
         return new AdminStatsResponse(
-            usersTotal: $this->stats->usersTotal(),
+            usersTotal: $members['total'],
+            usersSuspended: $members['inactive'],
+            usersUnverified: $members['unverified'],
             newUsers: [
                 'last_7_days' => $this->stats->usersCreatedSince($lastWeek),
                 'last_30_days' => $this->stats->usersCreatedSince($lastMonth),
@@ -144,6 +160,19 @@ class AdminService implements AdminServiceInterface
             activeToday: $this->stats->usersActiveBetween(today(), $tomorrow),
             activeYesterday: $this->stats->usersActiveBetween(today()->subDay(), today()),
             flaggedReviews: $this->reviews->moderationTotals()['flagged'],
+            reports: [
+                'open' => $reports['by_status'][ReportStatus::Open->value],
+                'by_target_type' => $reports['by_target_type'],
+                'resolved_last_7_days' => $this->reports->resolvedSince($lastWeek),
+            ],
+            ratings: [
+                'total' => $ratings['total'],
+                'new_last_7_days' => $this->ratings->countCreated($lastWeek),
+                'new_last_30_days' => $this->ratings->countCreated($lastMonth),
+                'average' => $ratings['average'],
+            ],
+            rooms: $this->rooms->totals(),
+            lists: $this->lists->staffTotals(),
             range: [
                 'name' => $query->range ?? (string) $query->days,
                 'days' => $query->days,
@@ -151,6 +180,10 @@ class AdminService implements AdminServiceInterface
                 'previous_new_users' => $this->stats->usersCreatedBetween($previousStart, $windowStart),
                 'new_reviews' => $this->stats->reviewsCreatedBetween($windowStart, $tomorrow),
                 'previous_new_reviews' => $this->stats->reviewsCreatedBetween($previousStart, $windowStart),
+                'new_ratings' => $this->ratings->countCreated($windowStart, $tomorrow),
+                'previous_new_ratings' => $this->ratings->countCreated($previousStart, $windowStart),
+                'new_lists' => $this->lists->countCreatedBetween($windowStart, $tomorrow),
+                'previous_new_lists' => $this->lists->countCreatedBetween($previousStart, $windowStart),
             ],
             mostWatched: array_map(
                 fn (array $row): RankedMovieResponse => $this->ranked($row['tmdb_id'], $row['count'], $titles),
@@ -173,6 +206,32 @@ class AdminService implements AdminServiceInterface
 
     public function updateUser(User $admin, User $target, UpdateUserData $data): AdminUserResponse
     {
+        [$updated] = $this->saveUserUpdate($admin, $target, $data);
+
+        if ($data->isActive === false) {
+            $this->auth->revokeSessions($updated);
+        }
+
+        return AdminUserResponse::fromModel($updated);
+    }
+
+    public function suspendUser(User $admin, User $target, ?string $reason, ?CarbonInterface $until): bool
+    {
+        [$updated, $wasActive] = $this->saveUserUpdate($admin, $target, new UpdateUserData(isActive: false, reason: $reason, suspendedUntil: $until?->toImmutable()));
+
+        rescue(fn () => $this->auth->revokeSessions($updated));
+
+        return $wasActive;
+    }
+
+    /**
+     * The checks, the locked update, the audit entries and the member's email shared by `updateUser()` and `suspendUser()`; the caller signs
+     * the member out afterwards. A suspension keeps its reason and end only when it really starts; reinstating clears both.
+     *
+     * @return array{0: User, 1: bool} the saved user and whether it was active before
+     */
+    private function saveUserUpdate(User $admin, User $target, UpdateUserData $data): array
+    {
         if ($admin->role !== 'admin') {
             $this->assertModeratorMayUpdate($admin, $target, $data);
         }
@@ -192,24 +251,39 @@ class AdminService implements AdminServiceInterface
             $wasRole = $current->role;
             $wasActive = (bool) $current->is_active;
 
-            $updated = $this->users->update($current, $data->changes());
+            $updated = $this->users->update($current, [...$data->changes(), ...$this->suspensionChanges($data, $wasActive)]);
             $this->auditUserUpdate($admin, $updated, $wasRole, $wasActive);
 
             return [$updated, $wasActive];
         });
 
-        $this->tellMemberOfActiveChange($updated, $wasActive);
-
-        if ($data->isActive === false) {
-            $this->auth->revokeSessions($updated);
+        if ((bool) $updated->is_active !== $wasActive) {
+            $this->forgetStats();
         }
 
-        return AdminUserResponse::fromModel($updated);
+        $this->tellMemberOfActiveChange($updated, $wasActive);
+
+        return [$updated, $wasActive];
+    }
+
+    /**
+     * The suspension columns to write: the reason and end of a suspension that starts now, both cleared by a reinstatement.
+     *
+     * @return array<string, mixed>
+     */
+    private function suspensionChanges(UpdateUserData $data, bool $wasActive): array
+    {
+        return match (true) {
+            $data->isActive === false && $wasActive => ['suspension_reason' => $data->reason, 'suspended_until' => $data->suspendedUntil],
+            $data->isActive === true && ! $wasActive => ['suspension_reason' => null, 'suspended_until' => null],
+            default => [],
+        };
     }
 
     /**
      * Emails the member's stored address, verified or not, once their active state really changed: a suspended member
-     * can't sign in, so the email is the only way they hear of it. It names neither the staff member nor a reason.
+     * can't sign in, so the email is the only way they hear of it. A suspension email carries the reason and end when
+     * staff gave them; it never names the staff member.
      * Called after the transaction committed; sending is deferred and a failure is only reported.
      */
     private function tellMemberOfActiveChange(User $user, bool $wasActive): void
@@ -218,7 +292,9 @@ class AdminService implements AdminServiceInterface
             return;
         }
 
-        $this->mailLater($user->email, $user->is_active ? new AccountReinstatedMail($user->name) : new AccountSuspendedMail($user->name));
+        $this->mailLater($user->email, $user->is_active
+            ? new AccountReinstatedMail($user->name)
+            : new AccountSuspendedMail($user->name, $user->suspension_reason, $user->suspended_until));
     }
 
     /** One entry for each of the role and the active state that really changed; sending the value a member already has records nothing. */
@@ -232,8 +308,29 @@ class AdminService implements AdminServiceInterface
 
         if ((bool) $user->is_active !== $wasActive) {
             $action = $user->is_active ? AdminAction::UserReinstated : AdminAction::UserSuspended;
-            $this->audit->record($admin, $action, $user->id, $label, ['is_active' => ['from' => $wasActive, 'to' => (bool) $user->is_active]]);
+            $this->audit->record($admin, $action, $user->id, $label, $this->activeChange($user, $wasActive));
         }
+    }
+
+    /**
+     * The `is_active` change, with the reason and end of a suspension that has them. The reason is short text staff
+     * wrote for the member, not personal data, so the log keeps it.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function activeChange(User $user, bool $wasActive): array
+    {
+        $changes = ['is_active' => ['from' => $wasActive, 'to' => (bool) $user->is_active]];
+
+        if (! $user->is_active && $user->suspension_reason !== null) {
+            $changes['reason'] = ['from' => null, 'to' => $user->suspension_reason];
+        }
+
+        if (! $user->is_active && $user->suspended_until !== null) {
+            $changes['until'] = ['from' => null, 'to' => $user->suspended_until->toJSON()];
+        }
+
+        return $changes;
     }
 
     /** A moderator may only suspend or reinstate plain members; sending the role the member already has changes nothing, so it is allowed. */
@@ -273,7 +370,17 @@ class AdminService implements AdminServiceInterface
 
     public function reviews(ReviewModerationQuery $query): AdminPageResponse
     {
-        $paginator = $this->reviews->moderationQueue($query->status, $query->page, $query->perPage, $query->search, $query->sentiment, $query->reason);
+        $paginator = $this->reviews->moderationQueue(new ModerationQueueQuery(
+            $query->status,
+            $query->page,
+            $query->perPage,
+            $query->search,
+            $query->sentiment,
+            $query->reason,
+            $query->userId,
+            $query->tmdbId,
+            $query->mediaType,
+        ));
         $films = $this->filmsOf(collect($paginator->items()));
 
         return $this->page(
@@ -282,45 +389,57 @@ class AdminService implements AdminServiceInterface
         )->withSummary($this->reviewSummary());
     }
 
-    public function moderateReview(User $moderator, Review $review, ModerateReviewData $data): AdminReviewResponse
+    public function decideReview(User $moderator, Review $review, ModerateReviewData $data): ReviewDecision
     {
-        [$moderated, $removedText] = DB::transaction(function () use ($moderator, $review, $data): array {
-            $current = $this->reviews->lockForUpdate($review)->loadMissing('user');
-            $was = $this->reviewState($current);
-            $removedText = ! $data->isApproval() && filled($current->content);
-            $reportsResolved = $this->reviews->openReportsCount($current);
+        $current = $this->reviews->lockForUpdate($review)->loadMissing('user');
+        $was = $this->reviewState($current);
+        $removedText = ! $data->isApproval() && filled($current->content);
+        $reportsResolved = $this->reviews->openReportsCount($current);
 
-            $moderated = $data->isApproval() ? $this->reviews->approve($current) : $this->reviews->reject($current);
-            $now = $this->reviewState($moderated);
+        $moderated = $data->isApproval() ? $this->reviews->approve($current, $moderator) : $this->reviews->reject($current, $moderator);
+        $now = $this->reviewState($moderated);
+        $changed = $now !== $was || $reportsResolved > 0;
 
-            if ($now !== $was || $reportsResolved > 0) {
-                $this->audit->record(
-                    $moderator,
-                    $data->isApproval() ? AdminAction::ReviewApproved : AdminAction::ReviewRejected,
-                    $moderated->id,
-                    $this->reviewLabel($moderated),
-                    ['status' => ['from' => $was, 'to' => $now], 'reports_resolved' => $reportsResolved],
-                );
-            }
-
-            return [$moderated, $removedText];
-        });
-        $this->forgetStats();
-
-        if ($removedText) {
-            $this->tellAuthorReviewRemoved($moderated);
+        if ($changed) {
+            $this->audit->record(
+                $moderator,
+                $data->isApproval() ? AdminAction::ReviewApproved : AdminAction::ReviewRejected,
+                $moderated->id,
+                AuditLabel::review($moderated),
+                ['status' => ['from' => $was, 'to' => $now], 'reports_resolved' => $reportsResolved],
+            );
         }
 
-        $moderated->loadMissing(['user', 'reports']);
+        return new ReviewDecision($moderated, $changed, $removedText);
+    }
 
-        return AdminReviewResponse::fromModel($moderated, $this->filmOf($moderated, $this->filmsOf(collect([$moderated]))));
+    public function settleReviewDecisions(array $decisions): void
+    {
+        if ($decisions === []) {
+            return;
+        }
+
+        $this->forgetStats();
+
+        foreach ($decisions as $decision) {
+            if ($decision->removedText) {
+                $this->tellAuthorReviewRemoved($decision->review);
+            }
+        }
+    }
+
+    public function reviewResponse(Review $review): AdminReviewResponse
+    {
+        $review->loadMissing(['user', 'reports']);
+
+        return AdminReviewResponse::fromModel($review, $this->filmOf($review, $this->filmsOf(collect([$review]))));
     }
 
     public function deleteReview(User $moderator, Review $review): void
     {
         $review->loadMissing('user');
         $id = $review->id;
-        $label = $this->reviewLabel($review);
+        $label = AuditLabel::review($review);
         $hadText = filled($review->content);
 
         DB::transaction(function () use ($moderator, $review, $id, $label): void {
@@ -393,15 +512,9 @@ class AdminService implements AdminServiceInterface
         return $value instanceof CarbonInterface ? $value->toDateString() : $value;
     }
 
-    /** Usernames are what the log keeps as an account's label; emails never are. */
     private function userLabel(User $user): string
     {
-        return $user->username ?? $user->name;
-    }
-
-    private function reviewLabel(Review $review): ?string
-    {
-        return $review->user === null ? null : 'Review by '.$this->userLabel($review->user);
+        return AuditLabel::user($user);
     }
 
     /** Where a review stands in moderation, ignoring open reports (those only make it show as flagged). */
@@ -515,12 +628,14 @@ class AdminService implements AdminServiceInterface
     }
 
     /**
+     * Display names, including those of genres hidden from members: a hidden genre still sits on films, so it keeps its row.
+     *
      * @return array<int, string>
      */
     private function genreNames(): array
     {
         try {
-            $all = $this->genres->all();
+            $all = $this->genres->allIncludingHidden();
         } catch (TmdbUnavailable) {
             return [];
         }

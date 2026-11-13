@@ -7,11 +7,15 @@ use App\Auth\DTOs\Requests\RegisterData;
 use App\Auth\DTOs\Responses\AuthResponse;
 use App\Auth\Exceptions\InvalidCredentials;
 use App\Auth\Exceptions\InvalidRefreshToken;
+use App\Auth\Exceptions\RegistrationClosed;
 use App\Models\User;
 use Illuminate\Http\Request;
 
 interface AuthServiceInterface
 {
+    /**
+     * @throws RegistrationClosed when an admin closed registration
+     */
     public function register(RegisterData $data, Request $request): AuthResponse;
 
     /** @throws InvalidCredentials */
@@ -24,6 +28,9 @@ interface AuthServiceInterface
 
     /** Signs the user out everywhere by revoking every refresh token they hold. */
     public function revokeSessions(User $user): void;
+
+    /** How many sessions the user has open: one per device whose refresh token is neither revoked nor expired. */
+    public function activeSessionCount(User $user): int;
 
     /**
      * Signs the user out everywhere, then starts one fresh session for the caller so the device that

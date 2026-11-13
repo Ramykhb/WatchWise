@@ -15,11 +15,6 @@ use Illuminate\Support\Facades\DB;
 
 class AdminStatsRepository implements AdminStatsRepositoryInterface
 {
-    public function usersTotal(): int
-    {
-        return User::count();
-    }
-
     public function usersCreatedSince(CarbonInterface $since): int
     {
         return User::where('created_at', '>=', $since)->count();

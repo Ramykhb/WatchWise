@@ -5,7 +5,10 @@ namespace App\Admin\DTOs\Responses;
 use App\Models\AdminAuditLog;
 use JsonSerializable;
 
-/** One entry of the audit log. The actor's role and the subject's label are the ones recorded at the time. */
+/**
+ * One entry of the audit log. The actor's role and the subject's label are the ones recorded at the time. The actor's
+ * id, name and username are null once that account is deleted, and for an entry the system made itself (role `system`).
+ */
 final readonly class AdminAuditLogResponse implements JsonSerializable
 {
     /**

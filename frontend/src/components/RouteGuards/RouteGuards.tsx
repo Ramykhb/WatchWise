@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router'
 import { useAuth } from '../../contexts/useAuth.ts'
-import { isAdminRole, isModeratorRole } from '../../lib/adminApi.ts'
+import { canEnterAdminPath } from '../../lib/adminApi.ts'
 import SessionStatus from './SessionStatus.tsx'
 
 /**
@@ -27,7 +27,7 @@ export function RequireGuest({ children }: { children: ReactNode }) {
 }
 
 /**
- * Administrator pages: admins open all of them, moderators everything except Movies, everyone else goes
+ * Administrator pages: admins open all of them, moderators share moderation tools; Movies, Settings and Audit history stay with admins, everyone else goes
  * Home. The API checks the role too.
  */
 export function RequireAdmin() {
@@ -36,9 +36,7 @@ export function RequireAdmin() {
   if (loading || sessionError) return <SessionStatus />
   if (!user) return <Navigate to="/signin" replace state={{ from: location }} />
   if (!user.email_verified_at) return <Navigate to="/verify-email" replace />
-  if (isAdminRole(user.role)) return <Outlet key={user.id} />
-  if (isModeratorRole(user.role)) {
-    return location.pathname.startsWith('/admin/movies') ? <Navigate to="/admin" replace /> : <Outlet key={user.id} />
-  }
+  if (canEnterAdminPath(user.role, location.pathname)) return <Outlet key={user.id} />
+  if (user.role === 'moderator') return <Navigate to="/admin" replace />
   return <Navigate to="/home-page" replace />
 }

@@ -5,7 +5,7 @@ namespace App\Room\Events;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 
-/** A room was created, or someone joined it, was invited to it or declined: the Rooms lists that show it reload. */
+/** A room was created, deleted, locked or unlocked, or someone joined it, was invited to it or declined, or staff removed a message: the Rooms lists that show it reload. */
 class RoomsChanged implements ShouldBroadcastNow
 {
     /**

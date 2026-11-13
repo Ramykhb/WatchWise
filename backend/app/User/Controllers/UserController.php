@@ -9,6 +9,7 @@ use App\Support\AccountLink;
 use App\User\DTOs\Requests\AccountDeletionLinkData;
 use App\User\DTOs\Requests\EmailChangeLinkData;
 use App\User\FormRequests\DeleteAccountRequest;
+use App\User\FormRequests\ReportUserRequest;
 use App\User\FormRequests\RequestEmailChangeRequest;
 use App\User\FormRequests\SetPasswordRequest;
 use App\User\FormRequests\UpdatePasswordRequest;
@@ -236,6 +237,14 @@ class UserController
         Gate::authorize('follow', $user);
 
         return response()->json($this->profiles->follow($current->user(), $user));
+    }
+
+    /** POST /api/users/{username}/report — `reason`: spam, harassment, inappropriate or other; `details` up to 500 characters. 201 when new, 200 when you had already reported them. */
+    public function report(ReportUserRequest $request, User $user, CurrentUser $current): JsonResponse
+    {
+        $result = $this->profiles->report($user, $current->user(), $request->toDto());
+
+        return response()->json($result, $result->created ? 201 : 200);
     }
 
     /** DELETE /api/users/{username}/follow — also withdraws a pending follow request. */

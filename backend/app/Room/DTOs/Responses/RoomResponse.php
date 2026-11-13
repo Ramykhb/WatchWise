@@ -29,6 +29,7 @@ final readonly class RoomResponse implements JsonSerializable
             'media_type' => $room->media_type,
             'spoilers' => $room->spoilers,
             'is_private' => $room->is_private,
+            'is_locked' => (bool) $room->is_locked,
             'host' => $room->creator ? (new MemberResource($room->creator))->resolve() : null,
             'members' => MemberResource::collection($room->members)->resolve(),
             'joined' => $room->members->contains('id', $viewerId),

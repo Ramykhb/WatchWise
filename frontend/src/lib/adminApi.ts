@@ -26,6 +26,12 @@ export type AdminActivityPoint = {
 }
 export type AdminRangeKey = '7' | '30' | '90' | 'year'
 export type AdminStats = {
+  users_suspended: number
+  users_unverified: number
+  reports: { open: number; by_target_type: Record<string, number>; resolved_last_7_days: number }
+  ratings: { total: number; new_last_7_days: number; new_last_30_days: number; average: number | null }
+  rooms: { total: number; public: number; private: number; locked: number; reported: number }
+  lists: { total: number; public: number; private: number; reported: number }
   users_total: number
   new_users: { last_7_days: number; last_30_days: number }
   reviews_total: number
@@ -42,6 +48,10 @@ export type AdminStats = {
     previous_new_users: number
     new_reviews: number
     previous_new_reviews: number
+    new_ratings: number
+    previous_new_ratings: number
+    new_lists: number
+    previous_new_lists: number
   }
   most_watched: AdminRankedMovie[]
   top_rated: AdminRankedMovie[]
@@ -56,6 +66,12 @@ export type AdminUserRole = 'user' | 'moderator' | 'admin'
 /** Role checks for the admin area: admins can do everything, moderators only read and suspend plain users. */
 export const isAdminRole = (role: string | undefined) => role === 'admin'
 export const isModeratorRole = (role: string | undefined) => role === 'moderator'
+
+/** Staff route permissions; the backend remains authoritative for each action. */
+export function canEnterAdminPath(role: string | undefined, pathname: string) {
+  if (isAdminRole(role)) return true
+  return isModeratorRole(role) && !['movies', 'settings', 'audit-log'].some((section) => pathname === `/admin/${section}` || pathname.startsWith(`/admin/${section}/`))
+}
 
 /** Whether the viewer may suspend or reinstate this account (moderators: plain users only, never themselves). */
 export function canSuspendUser(viewer: { id: number; role: string } | null | undefined, target: Pick<AdminUser, 'id' | 'role'>) {
@@ -95,7 +111,7 @@ export type AdminUserFilters = {
   page?: number
   per_page?: number
 }
-export type AdminUserChanges = { role?: AdminUserRole; is_active?: boolean }
+export type AdminUserChanges = { role?: AdminUserRole; is_active?: boolean; reason?: string | null; suspended_until?: string | null }
 
 // ---------- Reviews ----------
 
@@ -125,7 +141,7 @@ export type AdminReviewSummary = {
   sentiment: Record<AdminReviewSentiment, { count: number; percent: number }>
 }
 export type AdminReviewPage = AdminPage<AdminReview> & { summary: AdminReviewSummary }
-export type AdminReviewFilters = { q?: string; sentiment?: AdminReviewSentiment; reason?: string; status?: AdminReviewStatus; page?: number; per_page?: number }
+export type AdminReviewFilters = { q?: string; sentiment?: AdminReviewSentiment; reason?: string; user_id?: number; tmdb_id?: number; media_type?: string; status?: AdminReviewStatus; page?: number; per_page?: number }
 
 // ---------- Movies ----------
 
@@ -189,4 +205,4 @@ export const adminApi = {
 export const adminPosterUrl = (path: string | null | undefined) => (path ? `https://image.tmdb.org/t/p/w154${path}` : null)
 
 /** TMDB movie genres (id and name), for naming the `genre_ids` of a catalogue movie. */
-export const useMovieGenres = () => useApi<{ genres: { id: number; name: string }[] }>('/genres')
+export const useMovieGenres = () => useApi<{ genres: { id: number; name: string }[] }>('/genres?include_hidden=1')

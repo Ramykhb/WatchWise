@@ -17,3 +17,4 @@ Artisan::command('rooms:prune-messages', function (RoomServiceInterface $rooms) 
 Schedule::command('rooms:prune-messages')->everyMinute();
 Schedule::command('users:prune-pending')->hourly()->withoutOverlapping();
 Schedule::command('auth:prune-refresh-tokens')->hourly()->withoutOverlapping();
+Schedule::command('admin:lift-suspensions')->hourly()->withoutOverlapping();

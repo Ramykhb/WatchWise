@@ -19,5 +19,12 @@ interface AdminAuditServiceInterface
      */
     public function record(User $actor, AdminAction $action, ?int $subjectId, ?string $subjectLabel, ?array $changes = null): void;
 
+    /**
+     * Adds one entry for something the system did on its own (a scheduled job): no actor, the role `system`. Same rules as record().
+     *
+     * @param  array<string, mixed>|null  $changes
+     */
+    public function recordAsSystem(AdminAction $action, ?int $subjectId, ?string $subjectLabel, ?array $changes = null): void;
+
     public function list(AdminAuditQuery $query): AdminPageResponse;
 }

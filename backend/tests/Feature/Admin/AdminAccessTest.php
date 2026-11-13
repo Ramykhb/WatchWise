@@ -24,6 +24,8 @@ class AdminAccessTest extends AdminTestCase
             'list movies' => ['getJson', '/api/admin/movies'],
             'update movie' => ['patchJson', '/api/admin/movies/550'],
             'audit log' => ['getJson', '/api/admin/audit-log'],
+            'get settings' => ['getJson', '/api/admin/settings'],
+            'update settings' => ['patchJson', '/api/admin/settings'],
         ];
     }
 

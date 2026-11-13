@@ -16,4 +16,6 @@ Route::prefix('rooms/{room}')->whereNumber('room')->controller(RoomController::c
     Route::get('messages', 'messages');
     Route::post('messages', 'send')->middleware('throttle:room-messages');
     Route::post('read', 'read')->middleware('throttle:room-reads');
+    Route::post('report', 'report')->middleware('throttle:report');
+    Route::post('messages/{message}/report', 'reportMessage')->whereNumber('message')->scopeBindings()->middleware('throttle:report');
 });

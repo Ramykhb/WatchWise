@@ -17,7 +17,7 @@ class AdminStatsCacheTest extends AdminTestCase
         parent::setUp();
 
         $this->app->instance(GenreServiceInterface::class, Mockery::mock(GenreServiceInterface::class, fn ($mock) => $mock
-            ->shouldReceive('all')->andReturn([new GenreResponse(18, 'Drama')])));
+            ->shouldReceive('allIncludingHidden')->andReturn([new GenreResponse(18, 'Drama')])));
     }
 
     private function watch(int $tmdbId, int $times): void

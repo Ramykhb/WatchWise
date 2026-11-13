@@ -15,19 +15,20 @@ import { isAdminRole } from '../../lib/adminApi.ts'
 import { initialsOf } from '../../lib/format.ts'
 import styles from './AdminLayout.module.css'
 
-// Screens with a Figma design. Genres, Reports and Settings appear in the sidebar but have no screen yet.
+// Route access mirrors the backend: shared moderation tools plus administrator-only configuration.
 const LINKS: { to: string; label: string; icon: string; end?: boolean; adminOnly?: boolean }[] = [
   { to: '/admin', label: 'Overview', icon: gridIcon, end: true },
   { to: '/admin/users', label: 'Users', icon: usersIcon },
   { to: '/admin/reviews', label: 'Reviews', icon: chatIcon },
+  { to: '/admin/reports', label: 'Reports', icon: flagIcon },
+  { to: '/admin/ratings', label: 'Ratings', icon: chartIcon },
+  { to: '/admin/lists', label: 'Lists', icon: filmIcon },
+  { to: '/admin/rooms', label: 'Rooms', icon: chatIcon },
+  { to: '/admin/genres', label: 'Genres', icon: chartIcon },
+  { to: '/admin/settings', label: 'Settings', icon: settingsIcon, adminOnly: true },
+  { to: '/admin/audit-log', label: 'Audit history', icon: chartIcon, adminOnly: true },
   { to: '/admin/movies', label: 'Movies', icon: filmIcon, adminOnly: true },
 ]
-const UPCOMING = [
-  { label: 'Genres', icon: chartIcon },
-  { label: 'Reports', icon: flagIcon },
-  { label: 'Settings', icon: settingsIcon },
-]
-
 /** The icon is a CSS mask filled with the text colour, so it follows the active/inactive colour exactly. */
 function MaskIcon({ src, size = 20 }: { src: string; size?: number }) {
   return (
@@ -74,12 +75,6 @@ export default function AdminLayout() {
               <MaskIcon src={link.icon} />
               {link.label}
             </NavLink>
-          ))}
-          {isAdmin && UPCOMING.map((item) => (
-            <span key={item.label} className={styles.itemDisabled} aria-disabled="true" title="Coming soon">
-              <MaskIcon src={item.icon} />
-              {item.label}
-            </span>
           ))}
         </nav>
 
