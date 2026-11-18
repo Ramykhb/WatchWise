@@ -28,6 +28,7 @@ import { dateTile, formatWhen, toGuest, toNight, type Night } from './nightsData
 import { apiRsvp, toNightDetail, type NightDetail, type Rsvp } from './nightDetailData.ts'
 import MovieSearch from '../../components/MovieSearch/MovieSearch.tsx'
 import { useMovies } from '../../lib/movieDetails.ts'
+import { useIntegrations } from '../../lib/integrations.ts'
 import { Thumb } from '../Lists/ListDialog.tsx'
 import styles from './NightDetail.module.css'
 import { downloadWatchEvent, googleCalendarUrl, outlookCalendarUrl, toCalendarTime } from '../MovieDetails/calendar.ts'
@@ -72,6 +73,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
   const { user } = useAuth()
+  const calendarOn = useIntegrations().isOn('calendar')
 
   const [suggesting, setSuggesting] = useState(false)
   const [inviting, setInviting] = useState(false)
@@ -199,7 +201,8 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                   ))}
                 </div>
                 )}
-                <details className={styles.calendarPicker} onKeyDown={(event) => {
+                {/* Settings › Integrations › Calendar: off hides "Add to calendar". */}
+                {calendarOn && <details className={styles.calendarPicker} onKeyDown={(event) => {
                   if (event.key === 'Escape') {
                     event.currentTarget.open = false
                     event.currentTarget.querySelector('summary')?.focus()
@@ -223,7 +226,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                       Outlook Calendar
                     </a>
                   </div>
-                </details>
+                </details>}
                 <button type="button" className={styles.heroBtn} onClick={handleShare}>
                   <img src={shareIcon} width={16} height={16} alt="" />
                   Share invite

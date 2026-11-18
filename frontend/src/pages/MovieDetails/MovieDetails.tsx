@@ -41,6 +41,7 @@ import { filmKeyOf, titleOf, type FilmKey } from '../../lib/movies.ts'
 import { api } from '../../lib/api.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { useWatchlist } from '../../lib/watchlist.ts'
+import { useIntegrations } from '../../lib/integrations.ts'
 import { downloadWatchEvent, googleCalendarUrl, outlookCalendarUrl, toCalendarTime } from './calendar.ts'
 import styles from './MovieDetails.module.css'
 
@@ -499,6 +500,8 @@ function MovieDetailsPage({ details }: { details: Details }) {
   // The ratings API needs a signed-in member: a guest's 401 would be taken for an expired session and
   // sign them out of the page, so nothing is requested until there is a user.
   const { user } = useAuth()
+  // Settings › Integrations › Calendar: off hides the calendar actions.
+  const calendarOn = useIntegrations().isOn('calendar')
   const navigate = useNavigate()
   const location = useLocation()
   const lenis = useLenis()
@@ -773,13 +776,15 @@ function MovieDetailsPage({ details }: { details: Details }) {
                     Out {releaseDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                 )}
-                <AddToCalendar
-                  title={movie.title}
-                  runtimeMinutes={details.runtimeMinutes ?? null}
-                  runtime={details.runtime}
-                  isShow={movie.mediaType === 'tv'}
-                  releaseDay={unreleased ? releaseDay : null}
-                />
+                {calendarOn && (
+                  <AddToCalendar
+                    title={movie.title}
+                    runtimeMinutes={details.runtimeMinutes ?? null}
+                    runtime={details.runtime}
+                    isShow={movie.mediaType === 'tv'}
+                    releaseDay={unreleased ? releaseDay : null}
+                  />
+                )}
                 {/* aria-disabled (not disabled) keeps it focusable, so keyboard and screen-reader users reach the reason. */}
                 <button
                   type="button"
@@ -951,12 +956,14 @@ function MovieDetailsPage({ details }: { details: Details }) {
                       <p className={styles.calendarWhen}>{community.premiere.when}</p>
                     </div>
                   </div>
-                  <div className={styles.calendarButtons}>
-                    <PillButton href={googleCalendarUrl(`${movie.title} — ${community.premiere.title}`, community.premiere.start, community.premiere.end)}>Google Calendar</PillButton>
-                    <PillButton variant="outline" onClick={() => downloadIcs(movie.slug, movie.title, community.premiere)}>
-                      Download .ics
-                    </PillButton>
-                  </div>
+                  {calendarOn && (
+                    <div className={styles.calendarButtons}>
+                      <PillButton href={googleCalendarUrl(`${movie.title} — ${community.premiere.title}`, community.premiere.start, community.premiere.end)}>Google Calendar</PillButton>
+                      <PillButton variant="outline" onClick={() => downloadIcs(movie.slug, movie.title, community.premiere)}>
+                        Download .ics
+                      </PillButton>
+                    </div>
+                  )}
                 </section>
     
                 <section className={styles.showtimes} aria-labelledby="showtimes-title">

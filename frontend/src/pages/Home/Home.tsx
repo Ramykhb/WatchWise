@@ -27,6 +27,7 @@ import FeaturedRow from './FeaturedRow.tsx'
 import FollowingActivity from './FollowingActivity.tsx'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, useApi } from '../../lib/api.ts'
+import { useIntegrations } from '../../lib/integrations.ts'
 import { look } from '../../lib/format.ts'
 import { movieFor, tmdbIdOf } from '../../lib/movies.ts'
 import { useWatchlist } from '../../lib/watchlist.ts'
@@ -214,8 +215,11 @@ export default function Home() {
     }
   }, [fetchWeatherRecommendations, initialRecommendationCache, initialWeatherCache])
 
+  // Settings › Integrations › Location: off means the browser is never asked and the default city is used.
+  const integrations = useIntegrations()
+  const locationOn = integrations.isOn('location')
   const requestLocation = useCallback(() => {
-    if (!navigator.geolocation) {
+    if (!locationOn || !navigator.geolocation) {
       setLocationStatus('unavailable')
       if (!initialWeatherCache?.weather.location.is_default) useDefaultLocation()
       return
@@ -231,9 +235,14 @@ export default function Home() {
         if (!initialWeatherCache?.weather.location.is_default) useDefaultLocation()
       },
     )
-  }, [fetchWeather, initialWeatherCache, useDefaultLocation])
+  }, [fetchWeather, initialWeatherCache, locationOn, useDefaultLocation])
 
   useEffect(() => {
+    if (!integrations.loaded) return
+    if (!locationOn) {
+      requestLocation()
+      return
+    }
     let active = true
     let permission: PermissionStatus | null = null
     const syncPermission = () => {
@@ -263,7 +272,7 @@ export default function Home() {
       active = false
       permission?.removeEventListener('change', syncPermission)
     }
-  }, [initialWeatherCache, requestLocation, useDefaultLocation])
+  }, [initialWeatherCache, integrations.loaded, locationOn, requestLocation, useDefaultLocation])
 
   const requestFreshWeather = useCallback(() => {
     if (locationStatus === 'unavailable') useDefaultLocation()
@@ -484,6 +493,8 @@ export default function Home() {
 /** Coming soon: the next big releases from TMDB, each linking to its movie page. */
 function ComingSoon() {
   const { data, error, loading, reload } = useApi<MoviePage>('/movies?list=upcoming')
+  // Settings › Integrations › Calendar: off hides the "add to calendar" buttons.
+  const calendarOn = useIntegrations().isOn('calendar')
   // Genre names for the meta line. Loaded on the side: the releases never wait for them.
   const [genres, setGenres] = useState<Map<number, string>>(() => new Map())
 
@@ -539,7 +550,7 @@ function ComingSoon() {
                   </p>
                   <p className={styles.releaseMeta}>{release.meta}</p>
                 </div>
-                <button
+                {calendarOn && <button
                   type="button"
                   className={styles.calendar}
                   aria-label={`Add ${release.title}'s release day to Google Calendar`}
@@ -551,7 +562,7 @@ function ComingSoon() {
                   }}
                 >
                   <img src={calendarIcon} width={20} height={20} alt="" />
-                </button>
+                </button>}
               </div>
             )
           }) : Array.from({ length: 3 }, (_, index) => (
