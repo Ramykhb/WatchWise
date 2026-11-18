@@ -95,6 +95,21 @@ class ProfileRepository implements ProfileRepositoryInterface
         return $hidden->exclude($user->watchlists()->where('status', 'watched')->where('media_type', 'movie'))->latest('watched_at')->limit($limit)->pluck('tmdb_id');
     }
 
+    public function recentReviews(User $user, bool $approvedOnly, int $limit, HiddenMovies $hidden): Collection
+    {
+        return $hidden->exclude($this->reviews($user, $approvedOnly)->withText())->with('user')->latest('updated_at')->limit($limit)->get();
+    }
+
+    public function recentRatings(User $user, bool $approvedOnly, int $limit, HiddenMovies $hidden): Collection
+    {
+        return $hidden->exclude($this->reviews($user, $approvedOnly)->starOnly())->latest('updated_at')->limit($limit)->get();
+    }
+
+    public function recentWatchlist(User $user, int $limit, HiddenMovies $hidden): Collection
+    {
+        return $hidden->exclude($user->watchlists()->whereIn('status', ['to_watch', 'watching']))->latest()->limit($limit)->get();
+    }
+
     public function recentFollowers(User $user, int $limit): Collection
     {
         return $user->followers()->orderByDesc('follows.id')->limit($limit)->get();

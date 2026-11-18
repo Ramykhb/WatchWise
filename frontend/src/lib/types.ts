@@ -23,9 +23,11 @@ export type ApiUserSearch = { total: number; users: ApiSearchUser[] }
 export type ApiReview = {
   id: number
   tmdb_id: number
+  media_type: 'movie' | 'tv'
   rating: number
   sentiment: 'positive' | 'neutral' | 'negative'
   content: string
+  has_spoilers: boolean
   author: ApiMember | null
   created_at: string
 }
@@ -55,12 +57,15 @@ export type ApiListsPage = {
 }
 
 export type ApiActivity = {
-  id: number
+  /** "review:12", "rating:3", "list:7" or "watchlist:5". */
+  id: string
   user: ApiMember
   tmdb_id: number | null
+  media_type: 'movie' | 'tv'
   created_at: string
 } & (
-  | { kind: 'rated' | 'reviewed'; rating: number; review: ApiReview }
+  | { kind: 'rated'; rating: number }
+  | { kind: 'reviewed'; rating: number; review: ApiReview }
   | { kind: 'list'; list: ApiList }
   | { kind: 'watchlist' }
 )

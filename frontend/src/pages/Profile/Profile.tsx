@@ -27,6 +27,7 @@ import Toast from '../../components/Toast/Toast.tsx'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, isStatus, useApi } from '../../lib/api.ts'
 import { setFollowing as saveFollow } from '../../lib/follow.ts'
+import { useMovies } from '../../lib/movieDetails.ts'
 import type { ApiMember, ApiProfile } from '../../lib/types.ts'
 
 type Tab = 'activity' | 'reviews' | 'lists' | 'watched'
@@ -58,6 +59,9 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
   useEntranceAnimation(pageRef)
 
   const isMe = profile.isMe
+  // Real titles and posters for the activity cards (the API sends only ids).
+  const movieOf = useMovies(profile.activity.flatMap((item) => ('movie' in item ? [item.movie.slug] : [])))
+  const activity = profile.activity.map((item) => ('movie' in item ? { ...item, movie: movieOf(item.movie.slug, item.movie) } : item))
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [toast, setToast] = useState<{ id: number; message: string } | null>(null)
@@ -260,8 +264,8 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
           <div className={styles.body}>
             <section className={styles.feed} aria-label={tabs.find((t) => t.id === tab)!.label} data-enter data-enter-delay="0.35">
               {tab === 'activity' &&
-                (profile.activity.length > 0 ? (
-                  profile.activity.map((item) => <ActivityCard key={item.id} item={item} firstName={firstName} />)
+                (activity.length > 0 ? (
+                  activity.map((item) => <ActivityCard key={item.id} item={item} firstName={firstName} />)
                 ) : (
                   <p className={styles.empty}>No activity yet.</p>
                 ))}

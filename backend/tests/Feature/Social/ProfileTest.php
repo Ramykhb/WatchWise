@@ -3,7 +3,9 @@
 namespace Tests\Feature\Social;
 
 use App\Models\MovieList;
+use App\Models\Review;
 use App\Models\User;
+use App\Models\UserPreference;
 
 class ProfileTest extends SocialTestCase
 {
@@ -80,6 +82,40 @@ class ProfileTest extends SocialTestCase
         $this->as($owner)->getJson("/api/users/{$owner->username}")
             ->assertJsonPath('is_me', true)
             ->assertJsonCount(2, 'lists');
+    }
+
+    public function test_profile_shows_reviews_and_activity(): void
+    {
+        $viewer = User::factory()->create();
+        $owner = User::factory()->create();
+        $review = Review::create(['user_id' => $owner->id, 'tmdb_id' => 550, 'rating' => 5, 'content' => 'A classic', 'sentiment' => 'positive', 'is_approved' => true]);
+        Review::create(['user_id' => $owner->id, 'tmdb_id' => 1399, 'media_type' => 'tv', 'rating' => 4, 'is_approved' => true]);
+        Review::create(['user_id' => $owner->id, 'tmdb_id' => 680, 'rating' => 2, 'content' => 'Waiting for moderation', 'sentiment' => 'negative', 'is_approved' => false]);
+        MovieList::create(['user_id' => $owner->id, 'title' => 'Public', 'is_public' => true]);
+
+        $response = $this->as($viewer)->getJson("/api/users/{$owner->username}")
+            ->assertOk()
+            ->assertJsonPath('counts.reviews', 1)
+            ->assertJsonCount(1, 'reviews')
+            ->assertJsonPath('reviews.0.id', $review->id)
+            ->assertJsonPath('reviews.0.content', 'A classic')
+            ->assertJsonPath('reviews.0.author.username', $owner->username)
+            ->assertJsonCount(3, 'activity');
+        $this->assertEqualsCanonicalizing(['reviewed', 'rated', 'list'], array_column($response->json('activity'), 'kind'));
+        $this->assertSame('tv', collect($response->json('activity'))->firstWhere('kind', 'rated')['media_type']);
+
+        // Hidden sections leave the tabs empty, while what is still shared stays.
+        UserPreference::create(['user_id' => $owner->id, 'settings' => ['privacy' => ['reviews' => false, 'ratings' => false]]]);
+        $this->as($viewer)->getJson("/api/users/{$owner->username}")
+            ->assertJsonPath('counts.reviews', null)
+            ->assertJsonCount(0, 'reviews')
+            ->assertJsonCount(1, 'activity')
+            ->assertJsonPath('activity.0.kind', 'list');
+
+        // Your own profile shows everything, including a review still waiting for approval.
+        $this->as($owner)->getJson("/api/users/{$owner->username}")
+            ->assertJsonCount(2, 'reviews')
+            ->assertJsonCount(4, 'activity');
     }
 
     public function test_private_and_followers_only_profiles_are_restricted(): void
