@@ -651,6 +651,14 @@ export default function ForYou() {
               <span className={styles.switchTrack} aria-hidden="true" />
               Adapt suggestions to weather
             </label>
+            {integrations.failed && (
+              <p className={styles.locationNote} role="alert">
+                Couldn't load your settings.{" "}
+                <button type="button" className={styles.retryLocation} onClick={integrations.retry}>
+                  Try again
+                </button>
+              </p>
+            )}
             {weatherNote && (
               <p className={styles.locationNote} role="alert">
                 {weatherNote}

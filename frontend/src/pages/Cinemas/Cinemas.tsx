@@ -336,7 +336,15 @@ export default function Cinemas() {
           <div className={styles.locationRequired} role="status">
             <div className={styles.locationPrompt}>
               <img src={pinIcon} width={24} height={24} alt="" />
-              {locationOff ? (
+              {integrations.failed ? (
+                <>
+                  <h2>Couldn't load your settings</h2>
+                  <p>We need your Location setting before looking for cinemas near you.</p>
+                  <button type="button" className={styles.retryLocation} onClick={integrations.retry}>
+                    Try again
+                  </button>
+                </>
+              ) : locationOff ? (
                 <>
                   <h2>Location is turned off</h2>
                   <p>Turn on Location in Settings › Integrations to see cinemas around you.</p>

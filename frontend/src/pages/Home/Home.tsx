@@ -128,8 +128,19 @@ export default function Home() {
   const [weatherLoading, setWeatherLoading] = useState(initialWeatherCache === null)
   const [weatherError, setWeatherError] = useState(false)
   const [locationStatus, setLocationStatus] = useState<'checking' | 'requesting' | 'granted' | 'unavailable'>('checking')
+  // Settings › Integrations: Location off means the browser is never asked and the default city is used;
+  // Weather-based suggestions off means Tonight's pick comes from this week's trending films instead.
+  const integrations = useIntegrations()
+  const locationOn = integrations.isOn('location')
+  const weatherOn = integrations.isOn('weather')
+  // Days since 1970, read once: picks a different trending film each day.
+  const [today] = useState(() => Math.floor(Date.now() / 86_400_000))
+  const { data: trending, loading: trendingLoading } = useApi<MoviePage>('/movies/trending?type=movie', {
+    enabled: integrations.loaded && !weatherOn,
+  })
 
   const fetchWeatherRecommendations = useCallback(async (latitude: number, longitude: number) => {
+    if (!weatherOn) return
     const cached = readTonightPick({ latitude, longitude })
     if (cached) {
       setWeatherPick(toRecommendationMovie(cached.movie))
@@ -160,7 +171,7 @@ export default function Home() {
     } finally {
       setPickLoading(false)
     }
-  }, [])
+  }, [weatherOn])
 
   const fetchWeather = useCallback(async (latitude?: number, longitude?: number) => {
     setWeatherLoading(true)
@@ -215,9 +226,6 @@ export default function Home() {
     }
   }, [fetchWeatherRecommendations, initialRecommendationCache, initialWeatherCache])
 
-  // Settings › Integrations › Location: off means the browser is never asked and the default city is used.
-  const integrations = useIntegrations()
-  const locationOn = integrations.isOn('location')
   const requestLocation = useCallback(() => {
     if (!locationOn || !navigator.geolocation) {
       setLocationStatus('unavailable')
@@ -313,7 +321,13 @@ export default function Home() {
       ? 'Weather is temporarily unavailable.'
       : `${Math.round(currentWeather?.current.temperature_2m ?? 0)}° · ${conditionText ?? 'Current conditions'} in ${currentWeather?.location.is_default ? 'Beirut' : 'your area'}`
 
-  const pick = weatherPick
+  // The same list as Weekly Trending (one shared request); a different film each day.
+  const trendingMovies = trending?.movies ?? []
+  const trendingPick = trendingMovies.length > 0
+    ? { ...toTileMovie(trendingMovies[today % trendingMovies.length], new Map()), recommendationReason: 'Trending on TMDB this week.' }
+    : null
+  const pick = !integrations.loaded ? null : weatherOn ? weatherPick : trendingPick
+  const pickBusy = !integrations.loaded || (weatherOn ? pickLoading : trendingLoading)
   const pickId = pick ? tmdbIdOf(pick) : 0
   const onWatchlist = pickId > 0 && watchlist.has(pickId)
   const togglePick = () => {
@@ -361,7 +375,7 @@ export default function Home() {
           <article
             className={styles.pick}
             style={{ background: gradientCss(pick?.gradient ?? ['#ccbfff', '#8c66d9', '#331a66']) }}
-            aria-busy={pickLoading}
+            aria-busy={pickBusy}
             data-enter
             data-enter-delay="0.3"
             data-enter-rise="80"
@@ -374,7 +388,7 @@ export default function Home() {
                 <div className={styles.pickInfo}>
                   <span className={styles.chipYellow}>
                     <img src={sparkleIcon} width={14} height={14} alt="" />
-                    Tonight&apos;s pick · {currentWeather ? `a ${conditionText?.toLowerCase()}-weather pick` : 'a weather-inspired pick'}
+                    Tonight&apos;s pick · {!weatherOn ? 'trending this week' : currentWeather ? `a ${conditionText?.toLowerCase()}-weather pick` : 'a weather-inspired pick'}
                   </span>
                   <h2 className={styles.pickTitle}>
                     <Link to={`/movies/${pick.slug}`} className={styles.pickLink}>{pick.title}</Link>
@@ -398,7 +412,7 @@ export default function Home() {
                   </div>
                 </div>
               </>
-            ) : pickLoading ? (
+            ) : pickBusy ? (
               <div className={styles.pickLoading} role="status" aria-label="Loading tonight’s movie pick">
                 <span className={`${styles.pickSkeleton} ${styles.pickSkeletonLabel}`} />
                 <span className={`${styles.pickSkeleton} ${styles.pickSkeletonTitle}`} />
