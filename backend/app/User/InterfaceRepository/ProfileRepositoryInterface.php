@@ -3,7 +3,9 @@
 namespace App\User\InterfaceRepository;
 
 use App\Models\MovieList;
+use App\Models\Review;
 use App\Models\User;
+use App\Models\Watchlist;
 use App\Support\HiddenMovies;
 use App\User\DTOs\Requests\UserSearchQuery;
 use Illuminate\Database\Eloquent\Collection;
@@ -70,6 +72,22 @@ interface ProfileRepositoryInterface
      * @return SupportCollection<int, int> the most recently watched movies, without the hidden ones
      */
     public function watchedTmdbIds(User $user, int $limit, HiddenMovies $hidden): SupportCollection;
+
+    /**
+     * @return Collection<int, Review> the member's latest written reviews (with author, `votes_count` and whether
+     *                                 the viewer marked each one helpful, `voted`), without the hidden movies
+     */
+    public function recentReviews(User $user, bool $approvedOnly, int $limit, HiddenMovies $hidden, int $viewerId): Collection;
+
+    /**
+     * @return Collection<int, Review> the member's latest star-only ratings, without the hidden movies
+     */
+    public function recentRatings(User $user, bool $approvedOnly, int $limit, HiddenMovies $hidden): Collection;
+
+    /**
+     * @return Collection<int, Watchlist> titles the member queued to watch, newest first, without the hidden movies
+     */
+    public function recentWatchlist(User $user, int $limit, HiddenMovies $hidden): Collection;
 
     /**
      * @return Collection<int, User>
