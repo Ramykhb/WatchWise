@@ -28,6 +28,9 @@ export type ApiReview = {
   sentiment: 'positive' | 'neutral' | 'negative'
   content: string
   has_spoilers: boolean
+  helpful: number
+  /** Whether you marked it helpful. */
+  marked_helpful: boolean
   author: ApiMember | null
   created_at: string
 }

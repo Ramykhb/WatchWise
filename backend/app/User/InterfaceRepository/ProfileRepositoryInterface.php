@@ -74,9 +74,10 @@ interface ProfileRepositoryInterface
     public function watchedTmdbIds(User $user, int $limit, HiddenMovies $hidden): SupportCollection;
 
     /**
-     * @return Collection<int, Review> the member's latest written reviews (with author), without the hidden movies
+     * @return Collection<int, Review> the member's latest written reviews (with author, `votes_count` and whether
+     *                                 the viewer marked each one helpful, `voted`), without the hidden movies
      */
-    public function recentReviews(User $user, bool $approvedOnly, int $limit, HiddenMovies $hidden): Collection;
+    public function recentReviews(User $user, bool $approvedOnly, int $limit, HiddenMovies $hidden, int $viewerId): Collection;
 
     /**
      * @return Collection<int, Review> the member's latest star-only ratings, without the hidden movies

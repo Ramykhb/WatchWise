@@ -46,6 +46,8 @@ export type Profile = Member & {
   films: number | null
   activity: ActivityItem[]
   reviewList: Review[]
+  /** Review ids you marked helpful (the same review can be in Reviews and in Activity). */
+  markedHelpful: string[]
   listCards: ProfileList[]
   watched: Movie[]
   top4: Movie[]
@@ -75,7 +77,7 @@ export function toReview(review: ApiReview): Review {
     rating: review.rating,
     sentiment: review.sentiment,
     body: review.content,
-    helpful: 0,
+    helpful: review.helpful,
     spoilers: review.has_spoilers,
   }
 }
@@ -123,6 +125,7 @@ export function toProfile(data: ApiProfile): Profile {
     films: data.counts?.films ?? null,
     activity: (data.activity ?? []).map(toActivity),
     reviewList: (data.reviews ?? []).map(toReview),
+    markedHelpful: (data.reviews ?? []).filter((review) => review.marked_helpful).map((review) => String(review.id)),
     listCards: (data.lists ?? []).map(toProfileList),
     watched: (data.watched ?? []).map(movieFor),
     top4: (data.top4 ?? []).map(movieFor),

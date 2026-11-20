@@ -117,7 +117,7 @@ class ProfileService implements ProfileServiceInterface
         // Sections the owner hid come back as null (counts) or empty (content).
         $count = fn (string $section, callable $count) => $shows($section) ? $count() : null;
         $lists = $shows('lists') ? $this->profiles->lists($user, $publicListsOnly, $hidden) : new Collection;
-        $reviews = $shows('reviews') ? $this->profiles->recentReviews($user, $approvedOnly, self::RECENT, $hidden) : new Collection;
+        $reviews = $shows('reviews') ? $this->profiles->recentReviews($user, $approvedOnly, self::RECENT, $hidden, $viewer->id()) : new Collection;
 
         return new ProfileResponse([
             ...$relation,
@@ -265,6 +265,9 @@ class ProfileService implements ProfileServiceInterface
             'sentiment' => $review->sentiment,
             'content' => $review->content,
             'has_spoilers' => (bool) $review->has_spoilers,
+            // Same fields as the Movie page's reviews, so the Helpful button shows and saves the real votes.
+            'helpful' => (int) ($review->votes_count ?? 0),
+            'marked_helpful' => (bool) ($review->voted ?? false),
             'author' => (new MemberResource($review->user))->resolve(),
             'created_at' => $review->created_at?->toJSON(),
         ];

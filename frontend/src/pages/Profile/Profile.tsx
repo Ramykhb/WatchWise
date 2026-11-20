@@ -1,13 +1,13 @@
 import { ProfileSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
-import { useRef, useState } from 'react'
+import { useRef, useState, type ComponentProps } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import AvatarImage from '../../components/AvatarImage/AvatarImage.tsx'
 import MovieTile from '../../components/MovieTile/MovieTile.tsx'
 import PillButton from '../../components/PillButton/PillButton.tsx'
 import RatingStars from '../../components/RatingStars/RatingStars.tsx'
-import ReviewCard from '../../components/ReviewCard/ReviewCard.tsx'
+import ReviewCard, { type Review } from '../../components/ReviewCard/ReviewCard.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
 import Placeholder from '../Placeholder/Placeholder.tsx'
 import headerWave from '../../assets/movie/hero-wave.svg'
@@ -62,6 +62,25 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
   // Real titles and posters for the activity cards (the API sends only ids).
   const movieOf = useMovies(profile.activity.flatMap((item) => ('movie' in item ? [item.movie.slug] : [])))
   const activity = profile.activity.map((item) => ('movie' in item ? { ...item, movie: movieOf(item.movie.slug, item.movie) } : item))
+
+  // "Helpful" on these reviews is saved like on the Movie page (POST/DELETE /api/reviews/{id}/helpful);
+  // changes are kept by review id, since one review can show in both Reviews and Activity.
+  const [votes, setVotes] = useState<Record<string, { helpful: number; marked: boolean }>>({})
+  const voteOf = (review: Review) => votes[review.id] ?? { helpful: review.helpful, marked: profile.markedHelpful.includes(review.id) }
+  const toggleHelpful = (review: Review) => {
+    const before = voteOf(review)
+    const marked = !before.marked
+    const set = (vote: { helpful: number; marked: boolean }) => setVotes((current) => ({ ...current, [review.id]: vote }))
+    set({ helpful: before.helpful + (marked ? 1 : -1), marked })
+    const path = `/reviews/${review.id}/helpful`
+    const request = marked ? api.post<{ helpful: number }>(path) : api.delete<{ helpful: number }>(path)
+    request.then((response) => set({ helpful: response.data.helpful, marked })).catch(() => set(before))
+  }
+  // Your own reviews show their count without a button (you can't vote for yourself).
+  const helpfulProps = (review: Review) => {
+    const vote = voteOf(review)
+    return { review: { ...review, helpful: vote.helpful }, markedHelpful: vote.marked, own: isMe, onHelpful: () => toggleHelpful(review) }
+  }
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [toast, setToast] = useState<{ id: number; message: string } | null>(null)
@@ -265,13 +284,13 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
             <section className={styles.feed} aria-label={tabs.find((t) => t.id === tab)!.label} data-enter data-enter-delay="0.35">
               {tab === 'activity' &&
                 (activity.length > 0 ? (
-                  activity.map((item) => <ActivityCard key={item.id} item={item} firstName={firstName} />)
+                  activity.map((item) => <ActivityCard key={item.id} item={item} firstName={firstName} helpfulProps={helpfulProps} />)
                 ) : (
                   <p className={styles.empty}>No activity yet.</p>
                 ))}
               {tab === 'reviews' &&
                 (profile.reviewList.length > 0 ? (
-                  profile.reviewList.map((review) => <ReviewCard key={review.id} review={review} />)
+                  profile.reviewList.map((review) => <ReviewCard key={review.id} {...helpfulProps(review)} />)
                 ) : (
                   <p className={styles.empty}>No reviews yet.</p>
                 ))}
@@ -417,13 +436,13 @@ function ActivityHead({ item, firstName }: { item: ActivityItem; firstName: stri
   )
 }
 
-function ActivityCard({ item, firstName }: { item: ActivityItem; firstName: string }) {
+function ActivityCard({ item, firstName, helpfulProps }: { item: ActivityItem; firstName: string; helpfulProps: (review: Review) => ComponentProps<typeof ReviewCard> }) {
   if (item.kind === 'reviewed') {
     // Figma: the review card sits under a bare heading instead of inside an activity card.
     return (
       <article className={styles.reviewActivity}>
         <ActivityHead item={item} firstName={firstName} />
-        <ReviewCard review={item.review} />
+        <ReviewCard {...helpfulProps(item.review)} />
       </article>
     )
   }

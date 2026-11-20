@@ -95,14 +95,18 @@ class ProfileRepository implements ProfileRepositoryInterface
         return $hidden->exclude($user->watchlists()->where('status', 'watched')->where('media_type', 'movie'))->latest('watched_at')->limit($limit)->pluck('tmdb_id');
     }
 
-    public function recentReviews(User $user, bool $approvedOnly, int $limit, HiddenMovies $hidden): Collection
+    public function recentReviews(User $user, bool $approvedOnly, int $limit, HiddenMovies $hidden, int $viewerId): Collection
     {
-        return $hidden->exclude($this->reviews($user, $approvedOnly)->withText())->with('user')->latest('updated_at')->limit($limit)->get();
+        return $hidden->exclude($this->reviews($user, $approvedOnly)->withText())->with('user')
+            ->withCount('votes')
+            ->withExists(['votes as voted' => fn ($votes) => $votes->where('user_id', $viewerId)])
+            ->latest('updated_at')->limit($limit)->get();
     }
 
     public function recentRatings(User $user, bool $approvedOnly, int $limit, HiddenMovies $hidden): Collection
     {
-        return $hidden->exclude($this->reviews($user, $approvedOnly)->starOnly())->latest('updated_at')->limit($limit)->get();
+        // A moderator removing a review's text leaves its stars with a fresh updated_at; that isn't the member's activity.
+        return $hidden->exclude($this->reviews($user, $approvedOnly)->starOnly())->whereNull('removed_at')->latest('updated_at')->limit($limit)->get();
     }
 
     public function recentWatchlist(User $user, int $limit, HiddenMovies $hidden): Collection

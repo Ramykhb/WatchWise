@@ -118,6 +118,29 @@ class ProfileTest extends SocialTestCase
             ->assertJsonCount(4, 'activity');
     }
 
+    public function test_profile_reviews_carry_helpful_votes_and_skip_removed_text(): void
+    {
+        $viewer = User::factory()->create();
+        $other = User::factory()->create();
+        $owner = User::factory()->create();
+        $review = Review::create(['user_id' => $owner->id, 'tmdb_id' => 550, 'rating' => 5, 'content' => 'A classic', 'sentiment' => 'positive', 'is_approved' => true]);
+        $review->votes()->create(['user_id' => $viewer->id]);
+        $review->votes()->create(['user_id' => $other->id]);
+        // Text a moderator removed: only the stars are left, with a fresh updated_at.
+        Review::create(['user_id' => $owner->id, 'tmdb_id' => 680, 'rating' => 1, 'is_approved' => true, 'removed_at' => now()]);
+
+        $this->as($viewer)->getJson("/api/users/{$owner->username}")
+            ->assertJsonPath('reviews.0.helpful', 2)
+            ->assertJsonPath('reviews.0.marked_helpful', true)
+            ->assertJsonCount(1, 'activity')
+            ->assertJsonPath('activity.0.kind', 'reviewed')
+            ->assertJsonPath('activity.0.review.helpful', 2);
+
+        $this->as($owner)->getJson("/api/users/{$owner->username}")
+            ->assertJsonPath('reviews.0.helpful', 2)
+            ->assertJsonPath('reviews.0.marked_helpful', false);
+    }
+
     public function test_private_and_followers_only_profiles_are_restricted(): void
     {
         $viewer = User::factory()->create();
