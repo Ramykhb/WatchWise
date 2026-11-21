@@ -52,47 +52,50 @@ class PeopleRecommendationService
             MediaType::key($entry->media_type, $entry->tmdb_id) => $taste->rating($entry->media_type, $entry->tmdb_id) ?? 1,
         ])->all();
         ['director' => $director, 'actor' => $actor] = WatchedPeople::leaders($titles === [] ? [] : $this->movies->credits($titles), $weights);
-        // Explicit selections take precedence over people inferred from watched credits.
+        $selected = ['actor' => [], 'director' => []];
         foreach (['actor' => $taste->actors, 'director' => $taste->directors] as $role => $ids) {
             foreach ($ids as $id) {
                 try {
-                    $person = $this->people->find($id);
-                    $$role = ['id' => $id, 'name' => $person['name'], 'watched_count' => 0];
-                    break;
+                    $person = Cache::remember('recommendations.people.filmography.'.$id, now()->addHours(6), fn (): array => $this->people->find($id));
+                    $selected[$role][] = ['id' => $id, 'name' => $person['name'], 'watched_count' => 0];
                 } catch (PersonNotFound) {
                     continue;
                 }
             }
         }
+        $actor = $selected['actor'][0] ?? $actor;
+        $director = $selected['director'][0] ?? $director;
         $watchedKeys = $watched->mapWithKeys(fn ($entry): array => [MediaType::key($entry->media_type, $entry->tmdb_id) => true]);
         $candidates = collect();
         $creditsByRole = [];
-        foreach (['director' => $director, 'actor' => $actor] as $role => $person) {
-            if ($person === null) {
-                continue;
+        foreach (['director' => $director, 'actor' => $actor] as $role => $leader) {
+            foreach ($selected[$role] ?: [$leader] as $person) {
+                if ($person === null) {
+                    continue;
+                }
+                try {
+                    $profile = Cache::remember('recommendations.people.filmography.'.$person['id'], now()->addHours(6),
+                        fn (): array => $this->people->find($person['id']));
+                } catch (PersonNotFound) {
+                    continue;
+                }
+                $credits = $role === 'actor' ? ($profile['movie_credits']['cast'] ?? [])
+                    : array_filter($profile['movie_credits']['crew'] ?? [], fn (array $credit): bool => ($credit['job'] ?? null) === 'Director');
+                // Keep a pool from each person's actual filmography so both can be represented.
+                $pool = collect($credits)->reject(fn (array $credit): bool => $watchedKeys->has(MediaType::key('movie', $credit['id']))
+                    || $taste->dislikes('movie', $credit['id'])
+                    || ($credit['adult'] ?? false) || empty($credit['release_date']) || $credit['release_date'] > now()->toDateString())
+                    ->unique('id')->sortByDesc('vote_count')->take(12)
+                    ->map(fn (array $credit): MovieResponse => new MovieResponse(
+                        $credit['id'], $credit['title'], $credit['overview'] ?? '', $credit['release_date'],
+                        (int) substr($credit['release_date'], 0, 4), round(($credit['vote_average'] ?? 0) / 2, 1),
+                        $credit['vote_count'] ?? 0, $credit['genre_ids'] ?? [],
+                        empty($credit['poster_path']) ? null : 'https://image.tmdb.org/t/p/w500'.$credit['poster_path'],
+                        empty($credit['backdrop_path']) ? null : 'https://image.tmdb.org/t/p/w1280'.$credit['backdrop_path'],
+                    ));
+                $creditsByRole[$role] = [...($creditsByRole[$role] ?? []), ...$pool->pluck('id')->values()->all()];
+                $candidates = $candidates->concat($pool);
             }
-            try {
-                $profile = Cache::remember('recommendations.people.filmography.'.$person['id'], now()->addHours(6),
-                    fn (): array => $this->people->find($person['id']));
-            } catch (PersonNotFound) {
-                continue;
-            }
-            $credits = $role === 'actor' ? ($profile['movie_credits']['cast'] ?? [])
-                : array_filter($profile['movie_credits']['crew'] ?? [], fn (array $credit): bool => ($credit['job'] ?? null) === 'Director');
-            // Keep a pool from each person's actual filmography so both can be represented.
-            $pool = collect($credits)->reject(fn (array $credit): bool => $watchedKeys->has(MediaType::key('movie', $credit['id']))
-                || $taste->dislikes('movie', $credit['id'])
-                || ($credit['adult'] ?? false) || empty($credit['release_date']) || $credit['release_date'] > now()->toDateString())
-                ->unique('id')->sortByDesc('vote_count')->take(12)
-                ->map(fn (array $credit): MovieResponse => new MovieResponse(
-                    $credit['id'], $credit['title'], $credit['overview'] ?? '', $credit['release_date'],
-                    (int) substr($credit['release_date'], 0, 4), round(($credit['vote_average'] ?? 0) / 2, 1),
-                    $credit['vote_count'] ?? 0, $credit['genre_ids'] ?? [],
-                    empty($credit['poster_path']) ? null : 'https://image.tmdb.org/t/p/w500'.$credit['poster_path'],
-                    empty($credit['backdrop_path']) ? null : 'https://image.tmdb.org/t/p/w1280'.$credit['backdrop_path'],
-                ));
-            $creditsByRole[$role] = $pool->pluck('id')->values()->all();
-            $candidates = $candidates->concat($pool);
         }
         $candidates = $taste->rank($candidates->unique('id')->values());
         if ($candidates->isEmpty()) {

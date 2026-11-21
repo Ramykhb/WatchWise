@@ -13,6 +13,7 @@ Route::middleware('throttle:tmdb')->group(function () {
     Route::get('/movies/search', [MovieController::class, 'search']);
     Route::get('/movies/discover', [MovieController::class, 'discover']);
     Route::get('/movies/{id}', [MovieController::class, 'show'])->whereNumber('id');
+    Route::get('/people/search', [PersonController::class, 'search']);
     Route::get('/people/{id}', [PersonController::class, 'show'])->whereNumber('id');
     Route::get('/people/{id}/collaborators', [PersonController::class, 'collaborators'])->whereNumber('id');
     Route::get('/genres', [GenreController::class, 'index']);

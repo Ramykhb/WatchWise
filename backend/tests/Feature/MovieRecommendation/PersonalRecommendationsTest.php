@@ -11,6 +11,7 @@ use App\Movie\DTOs\Responses\MoviePageResponse;
 use App\Movie\DTOs\Responses\MovieResponse;
 use App\Movie\InterfaceServices\MovieServiceInterface;
 use App\MovieRecommendation\Support\WatchedPeople;
+use App\Person\InterfaceRepository\PersonRepositoryInterface;
 use Tests\Feature\Social\SocialTestCase;
 
 class PersonalRecommendationsTest extends SocialTestCase
@@ -68,6 +69,22 @@ class PersonalRecommendationsTest extends SocialTestCase
         $this->mock(MovieServiceInterface::class)->shouldNotReceive('find', 'discover', 'credits');
         $this->as($user)->getJson('/api/watched-recommendations')->assertOk()->assertExactJson(['source' => null, 'movies' => []]);
         $this->getJson('/api/people-recommendations')->assertOk()->assertExactJson(['director' => null, 'actor' => null, 'movies' => []]);
+    }
+
+    public function test_every_explicit_favorite_contributes_candidates_without_watch_history(): void
+    {
+        $user = User::factory()->create();
+        $user->preferences()->create(['favorite_actor_ids' => [10, 20], 'favorite_director_ids' => [30]]);
+        $this->mock(MovieServiceInterface::class)->shouldNotReceive('credits');
+        $people = $this->mock(PersonRepositoryInterface::class);
+        foreach ([10, 20, 30] as $id) {
+            $films = array_map(fn ($film): array => ['id' => $film, 'title' => "Film $film", 'release_date' => '2020-01-01', 'job' => 'Director'], [$id * 10 + 1, $id * 10 + 2]);
+            $people->shouldReceive('find')->once()->with($id)->andReturn(['id' => $id, 'name' => "Person $id", 'movie_credits' => ['cast' => $films, 'crew' => $films]]);
+        }
+        $this->mock(GroqStructuredOutputInterface::class)->shouldReceive('askWithSchema')->once()
+            ->andReturn(['movies' => array_map(fn ($id): array => ['id' => $id, 'media_type' => 'movie', 'reason' => 'A favorite person.'], [101, 102, 201, 202, 301, 302])]);
+        $this->as($user)->getJson('/api/people-recommendations')->assertOk()->assertJsonCount(6, 'movies')
+            ->assertJsonPath('actor.id', 10)->assertJsonPath('director.id', 30);
     }
 
     public function test_people_are_weighted_by_personal_ratings_rather_than_frequency_alone(): void

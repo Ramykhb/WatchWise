@@ -10,6 +10,8 @@ use App\Support\Exceptions\TmdbUnavailable;
  */
 interface PersonRepositoryInterface
 {
+    public function search(string $query): array;
+
     /**
      * One person with their movie credits (cast and crew).
      *

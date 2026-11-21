@@ -5,6 +5,7 @@ namespace App\User\DTOs\Responses;
 use App\Auth\DTOs\Responses\UserResponse;
 use App\Models\Notification;
 use App\Models\User;
+use App\MovieRecommendation\Support\PersonalTaste;
 use App\User\DTOs\Requests\UpdatePreferencesData;
 use App\User\InterfaceServices\AccountDeletionServiceInterface;
 use JsonSerializable;
@@ -39,6 +40,9 @@ final readonly class AccountResponse implements JsonSerializable
             'user' => UserResponse::fromModel($user),
             'preferences' => [
                 'favorite_genres' => $user->preferences?->favorite_genres ?? [],
+                'favorite_genre_options' => array_keys(PersonalTaste::GENRES),
+                'favorite_actor_ids' => $user->preferences?->favorite_actor_ids ?? [],
+                'favorite_director_ids' => $user->preferences?->favorite_director_ids ?? [],
                 'privacy' => $privacy,
                 'integrations' => [...['calendar' => true, 'location' => true, 'weather' => true, 'digest' => false], ...($settings['integrations'] ?? [])],
                 'notifications' => $notifications,

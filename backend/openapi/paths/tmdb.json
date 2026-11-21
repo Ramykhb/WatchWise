@@ -1,5 +1,6 @@
 {
   "paths": {
+    "/api/people/search": {"get": {"summary": "Search actors and directors by name", "tags": ["People"], "parameters": [{"name": "q", "in": "query", "required": true, "schema": {"type": "string", "minLength": 2, "maxLength": 100}}], "responses": {"200": {"description": "Up to ten people with id, name, department and profile_url."}, "422": {"description": "Invalid query."}, "429": {"description": "Too many requests."}, "502": {"description": "TMDB unavailable."}}}},
     "/api/movies/trending": {
       "get": {
         "summary": "Weekly trending movies or TV shows",

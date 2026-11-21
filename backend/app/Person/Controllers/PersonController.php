@@ -2,12 +2,18 @@
 
 namespace App\Person\Controllers;
 
+use App\Person\FormRequests\PersonSearchRequest;
 use App\Person\InterfaceServices\PersonServiceInterface;
 use Illuminate\Http\JsonResponse;
 
 class PersonController
 {
     public function __construct(private readonly PersonServiceInterface $people) {}
+
+    public function search(PersonSearchRequest $request): JsonResponse
+    {
+        return response()->json(['people' => $this->people->search($request->validated('q'))]);
+    }
 
     /**
      * One TMDB person (actor, director, …) with their best-known films and full filmography.
