@@ -18,6 +18,7 @@ use App\MovieNight\InterfaceRepository\MovieNightRepositoryInterface;
 use App\MovieNight\InterfaceServices\MovieNightServiceInterface;
 use App\Notification\InterfaceServices\NotificationServiceInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class MovieNightService implements MovieNightServiceInterface
 {
@@ -76,6 +77,9 @@ class MovieNightService implements MovieNightServiceInterface
 
     public function invite(MovieNight $night, InviteGuestsData $data, User $organizer): MovieNightResponse
     {
+        if ($night->status === 'cancelled') {
+            throw ValidationException::withMessages(['night' => 'This movie night is cancelled.']);
+        }
         $this->inviteUsers($night, $data->invitees, $organizer, $this->nights->invitedUserIds($night));
 
         return $this->present($night, $organizer->id);
@@ -83,6 +87,9 @@ class MovieNightService implements MovieNightServiceInterface
 
     public function rsvp(MovieNight $night, RsvpData $data, User $guest): MovieNightResponse
     {
+        if ($night->status === 'cancelled') {
+            throw ValidationException::withMessages(['night' => 'This movie night is cancelled.']);
+        }
         $invite = $this->nights->findInvite($night, $guest->id);
 
         if ($invite === null) {

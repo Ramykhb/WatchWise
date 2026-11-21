@@ -5,7 +5,7 @@ import type { ApiMember, ApiNight } from '../../lib/types.ts'
 
 // Turns movie nights from GET /api/movie-nights into the cards and invites the planner draws.
 
-export type NightStatus = 'voting' | 'picked' | 'shortlisting'
+export type NightStatus = 'voting' | 'picked' | 'shortlisting' | 'cancelled'
 
 export type Guest = { id: number; handle: string; name: string; initials: string; color: string }
 
@@ -61,7 +61,7 @@ export function toNight(night: ApiNight, viewerId: number | undefined): Night {
   const when = new Date(night.scheduled_at)
   const past = when.getTime() < Date.now()
   const picked = night.winning_tmdb_id !== null || night.status === 'confirmed'
-  const status: NightStatus = picked ? 'picked' : night.candidates.length > 1 ? 'voting' : 'shortlisting'
+  const status: NightStatus = night.status === 'cancelled' ? 'cancelled' : picked ? 'picked' : night.candidates.length > 1 ? 'voting' : 'shortlisting'
   const leader = leaderOf(night)
   const leaderVotes = leader?.voters.length ?? 0
   const leaderTitle = leader ? movieFor(leader.tmdb_id).title : ''
@@ -73,7 +73,7 @@ export function toNight(night: ApiNight, viewerId: number | undefined): Night {
     title: night.title,
     ...localDateTime(night.scheduled_at),
     status,
-    statusLabel: past ? 'Watched' : status === 'picked' ? 'Movie picked' : status === 'voting' ? 'Voting open' : 'Shortlisting',
+    statusLabel: night.status === 'cancelled' ? 'Cancelled' : past ? 'Watched' : status === 'picked' ? 'Movie picked' : status === 'voting' ? 'Voting open' : 'Shortlisting',
     lead:
       status === 'picked' && leader
         ? `${leaderTitle} · ${leaderVotes} vote${leaderVotes === 1 ? '' : 's'}`

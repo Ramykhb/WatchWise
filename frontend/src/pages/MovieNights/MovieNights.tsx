@@ -34,7 +34,8 @@ import styles from './MovieNights.module.css'
 
 type Tab = 'upcoming' | 'invitations' | 'past'
 
-const STATUS_CLASS = { voting: styles.statusVoting, picked: styles.statusPicked, shortlisting: styles.statusShortlist }
+const STATUS_CLASS = {
+  cancelled: styles.statusShortlisting, voting: styles.statusVoting, picked: styles.statusPicked, shortlisting: styles.statusShortlist }
 
 const HOW_IT_WORKS = [
   { title: 'Plan & invite', text: 'Pick a date, where you will watch, and the friends to invite.' },
