@@ -755,3 +755,5 @@
     flex: 1;
   }
 }
+
+.inviteLink { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; align-items: flex-end; }.inviteLink label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }.inviteLink input { width: 100%; padding: 10px; border-radius: 12px; border: 1px solid #b9aacd; color: var(--ink-900); }
