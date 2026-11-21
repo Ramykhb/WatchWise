@@ -1,5 +1,6 @@
 <?php
 
+use App\MovieNight\Services\MovieNightCalendarService;
 use App\Room\InterfaceServices\RoomServiceInterface;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -18,3 +19,8 @@ Schedule::command('rooms:prune-messages')->everyMinute();
 Schedule::command('users:prune-pending')->hourly()->withoutOverlapping();
 Schedule::command('auth:prune-refresh-tokens')->hourly()->withoutOverlapping();
 Schedule::command('admin:lift-suspensions')->hourly()->withoutOverlapping();
+
+Artisan::command('movie-nights:retry-calendar-mail', function (MovieNightCalendarService $calendar) {
+    $this->info("Processed {$calendar->retryPending()} pending movie-night calendar invitations.");
+})->purpose('Retry movie-night calendar email deliveries that have not been sent');
+Schedule::command('movie-nights:retry-calendar-mail')->everyMinute()->withoutOverlapping();

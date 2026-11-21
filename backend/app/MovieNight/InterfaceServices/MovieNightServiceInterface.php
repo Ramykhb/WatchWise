@@ -17,6 +17,14 @@ use App\MovieNight\Exceptions\VotingClosed;
 
 interface MovieNightServiceInterface
 {
+    public function shareLink(MovieNight $night): array;
+
+    public function revokeShareLink(MovieNight $night): void;
+
+    public function invitation(MovieNight $night, string $token): array;
+
+    public function joinFromLink(MovieNight $night, string $token, User $guest): MovieNightResponse;
+
     /** Upcoming nights, pending invitations and past nights. */
     public function overview(User $viewer): MovieNightOverviewResponse;
 

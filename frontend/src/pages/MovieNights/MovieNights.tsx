@@ -1,3 +1,4 @@
+import MemberSearch from './MemberSearch.tsx'
 import { MovieNightsSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { Link } from 'react-router'
@@ -16,15 +17,12 @@ import crownIcon from '../../assets/nights/icon-crown.svg'
 import pinIcon from '../../assets/nights/icon-pin.svg'
 import homeIcon from '../../assets/nights/icon-home.svg'
 import videoIcon from '../../assets/nights/icon-video.svg'
-import searchIcon from '../../assets/home/icon-search.svg'
 import xIcon from '../../assets/listmodal/icon-x-sm.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
-import { useApi } from '../../lib/api.ts'
 import { apiErrorMessage } from '../../lib/auth.ts'
 import { tmdbIdOf } from '../../lib/movies.ts'
-import type { ApiMember } from '../../lib/types.ts'
 import { dateTile, formatWhen, toGuest, toNight, type Guest, type Night } from './nightsData.ts'
 import { answerInvitation, createNight, useNights } from './nightsStore.ts'
 import MovieSearch from '../../components/MovieSearch/MovieSearch.tsx'
@@ -34,12 +32,13 @@ import styles from './MovieNights.module.css'
 
 type Tab = 'upcoming' | 'invitations' | 'past'
 
-const STATUS_CLASS = { voting: styles.statusVoting, picked: styles.statusPicked, shortlisting: styles.statusShortlist }
+const STATUS_CLASS = {
+  cancelled: styles.statusShortlisting, voting: styles.statusVoting, picked: styles.statusPicked, shortlisting: styles.statusShortlist }
 
 const HOW_IT_WORKS = [
   { title: 'Plan & invite', text: 'Pick a date, where you will watch, and the friends to invite.' },
   { title: 'Shortlist & vote', text: 'Everyone adds candidates and votes until voting closes.' },
-  { title: 'Watch together', text: 'The winning film is announced and added to everyone’s calendar.' },
+  { title: 'Watch together', text: 'The winner is announced and calendar invitations are emailed to participants with Calendar enabled.' },
 ]
 
 /** Segmented-control icons are masks filled with the text colour, so they follow the selected option. */
@@ -62,14 +61,9 @@ export default function MovieNights() {
   const [showHelp, setShowHelp] = useState(false)
   const [answerError, setAnswerError] = useState('')
 
-  // People the user follows can be invited.
-  const followingQuery = useApi<{ users: ApiMember[] }>(`/users/${user?.username ?? ''}/following`)
-  const people = (followingQuery.data?.users ?? []).map((m) => toGuest(m, user?.id))
-
   // "Plan a movie night" form.
   const [online, setOnline] = useState(false)
   const [friends, setFriends] = useState<Guest[]>([])
-  const [friendQuery, setFriendQuery] = useState('')
   const [films, setFilms] = useState<Movie[]>([])
   const [errors, setErrors] = useState<FormErrors>({})
   const [created, setCreated] = useState('')
@@ -83,19 +77,6 @@ export default function MovieNights() {
       block: 'center',
       behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
     })
-  }
-
-  const friendMatches = friendQuery.trim()
-    ? people.filter(
-        (f) =>
-          !friends.some((p) => p.id === f.id) &&
-          `${f.name} ${f.handle}`.toLowerCase().includes(friendQuery.trim().replace(/^@/, '').toLowerCase()),
-      )
-    : []
-
-  const addFriend = (friend: Guest) => {
-    setFriends((list) => [...list, friend])
-    setFriendQuery('')
   }
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
@@ -347,40 +328,9 @@ export default function MovieNights() {
               </div>
 
               <div className={styles.group}>
-                <label className={styles.label} htmlFor="invite-search">
-                  Invite friends
-                </label>
-                <div className={styles.searchWrap}>
-                  <div className={styles.search}>
-                    <img src={searchIcon} width={18} height={18} alt="" />
-                    <input
-                      id="invite-search"
-                      type="search"
-                      value={friendQuery}
-                      onChange={(event) => setFriendQuery(event.target.value)}
-                      placeholder="Search people you follow…"
-                      autoComplete="off"
-                    />
-                  </div>
-                  {friendMatches.length > 0 && (
-                    <ul className={styles.suggestions}>
-                      {friendMatches.map((friend) => (
-                        <li key={friend.id}>
-                          <button type="button" onClick={() => addFriend(friend)}>
-                            <span className={styles.avatarSm} style={{ background: friend.color }} aria-hidden="true">
-                              {friend.initials}
-                            </span>
-                            {friend.name}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {friendQuery.trim() && friendMatches.length === 0 && <p className={styles.hint}>No one you follow matches “{friendQuery}”.</p>}
-                  {!friendQuery.trim() && people.length === 0 && followingQuery.data && (
-                    <p className={styles.hint}>Follow people from their profiles to invite them here.</p>
-                  )}
-                </div>
+                <span className={styles.label}>Invite members</span>
+                <MemberSearch excludedIds={friends.map((friend) => friend.id)} disabled={saving || friends.length >= 30}
+                  onPick={(member) => setFriends((current) => [...current, toGuest(member, user?.id)])} />
                 <ul className={styles.chips}>
                   {friends.map((friend) => (
                     <li key={friend.id} className={styles.person}>

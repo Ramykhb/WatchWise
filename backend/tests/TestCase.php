@@ -29,6 +29,7 @@ abstract class TestCase extends BaseTestCase
             $catalog->shouldIgnoreMissing();
             $catalog->shouldReceive('hiddenMovies')->andReturn(HiddenMovies::none());
             $catalog->shouldReceive('featured')->andReturn(new Collection);
+            $catalog->shouldReceive('summaries')->andReturn(collect());
         });
 
         // Likewise no test should reach a socket server.

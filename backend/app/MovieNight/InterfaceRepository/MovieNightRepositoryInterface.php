@@ -17,6 +17,8 @@ interface MovieNightRepositoryInterface
     public function forUser(int $userId): Collection;
 
     /** Loads the organizer, invites with their users, candidates with who added them, and votes with their users. */
+    public function lock(MovieNight $night): MovieNight;
+
     public function loadRelations(MovieNight $night): MovieNight;
 
     /**

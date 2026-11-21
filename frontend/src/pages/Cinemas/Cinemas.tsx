@@ -3,6 +3,7 @@ import { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ExternalLink, Navigation, X } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
+import { Link } from 'react-router'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import AppNav from '../../components/AppNav/AppNav.tsx'
 import SplitHeadline from '../../components/SplitHeadline/SplitHeadline.tsx'
@@ -10,6 +11,7 @@ import pinIcon from '../../assets/cinemas/icon-pin.svg'
 import filmIcon from '../../assets/cinemas/icon-film.svg'
 import locateIcon from '../../assets/cinemas/icon-locate.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
+import { useIntegrations } from '../../lib/integrations.ts'
 import { fetchNearbyCinemas, formatDistance, type NearbyCinema } from './cinemasApi.ts'
 import styles from './Cinemas.module.css'
 
@@ -213,11 +215,15 @@ export default function Cinemas() {
     )
   }, [])
 
+  // Settings › Integrations › Location: only ask the browser once the saved switch says it's on.
+  const integrations = useIntegrations()
+  const locationOn = integrations.isOn('location')
   useEffect(() => {
-    if (requestedLocation.current) return
+    if (!locationOn || requestedLocation.current) return
     requestedLocation.current = true
     useMyLocation()
-  }, [useMyLocation])
+  }, [locationOn, useMyLocation])
+  const locationOff = integrations.loaded && !locationOn
 
   return (
     <div ref={pageRef} className={styles.page}>
@@ -330,7 +336,23 @@ export default function Cinemas() {
           <div className={styles.locationRequired} role="status">
             <div className={styles.locationPrompt}>
               <img src={pinIcon} width={24} height={24} alt="" />
-              {locating ? (
+              {integrations.failed ? (
+                <>
+                  <h2>Couldn't load your settings</h2>
+                  <p>We need your Location setting before looking for cinemas near you.</p>
+                  <button type="button" className={styles.retryLocation} onClick={integrations.retry}>
+                    Try again
+                  </button>
+                </>
+              ) : locationOff ? (
+                <>
+                  <h2>Location is turned off</h2>
+                  <p>Turn on Location in Settings › Integrations to see cinemas around you.</p>
+                  <Link className={styles.retryLocation} to="/settings">
+                    Open Settings
+                  </Link>
+                </>
+              ) : locating ? (
                 <>
                   <h2>Finding your location</h2>
                   <p>Allow your browser to share your location to access nearby cinemas.</p>

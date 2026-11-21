@@ -3,7 +3,10 @@
 namespace App\User\Services;
 
 use App\Auth\CurrentUser\CurrentUser;
+use App\Models\MovieList;
+use App\Models\Review;
 use App\Models\User;
+use App\Models\Watchlist;
 use App\Movie\InterfaceServices\MovieCatalogServiceInterface;
 use App\MovieList\Resources\MovieListResource;
 use App\Notification\InterfaceServices\NotificationServiceInterface;
@@ -12,6 +15,7 @@ use App\Report\DTOs\Responses\ReportContentResponse;
 use App\Report\InterfaceServices\ReportServiceInterface;
 use App\Report\Support\ReportTargetType;
 use App\Support\HiddenMovies;
+use App\Support\MediaType;
 use App\User\DTOs\Requests\UserSearchQuery;
 use App\User\DTOs\Responses\FollowResponse;
 use App\User\DTOs\Responses\ProfileResponse;
@@ -25,6 +29,9 @@ use Illuminate\Database\Eloquent\Collection;
 
 class ProfileService implements ProfileServiceInterface
 {
+    /** How many items the Activity and Reviews tabs show. */
+    private const RECENT = 20;
+
     public function __construct(
         private readonly ProfileRepositoryInterface $profiles,
         private readonly ProfilePrivacy $privacy,
@@ -109,6 +116,8 @@ class ProfileService implements ProfileServiceInterface
         $hidden = $isMe ? HiddenMovies::none() : $this->catalog->hiddenMovies();
         // Sections the owner hid come back as null (counts) or empty (content).
         $count = fn (string $section, callable $count) => $shows($section) ? $count() : null;
+        $lists = $shows('lists') ? $this->profiles->lists($user, $publicListsOnly, $hidden) : new Collection;
+        $reviews = $shows('reviews') ? $this->profiles->recentReviews($user, $approvedOnly, self::RECENT, $hidden, $viewer->id()) : new Collection;
 
         return new ProfileResponse([
             ...$relation,
@@ -128,7 +137,9 @@ class ProfileService implements ProfileServiceInterface
                 'films' => $count('history', fn () => $this->profiles->watchedCount($user, $hidden)),
             ],
             'restricted' => false,
-            'lists' => MovieListResource::collection($shows('lists') ? $this->profiles->lists($user, $publicListsOnly, $hidden) : []),
+            'activity' => $this->activity($user, $shows, $approvedOnly, $hidden, $reviews, $lists),
+            'reviews' => $reviews->map(fn (Review $review) => $this->review($review, $shows('ratings')))->values()->all(),
+            'lists' => MovieListResource::collection($lists),
             'watched' => $shows('history') ? $this->profiles->watchedTmdbIds($user, 24, $hidden) : [],
             // Highest-rated films first; ties go to the most recent review.
             'top4' => $shows('ratings') ? $this->profiles->topRatedTmdbIds($user, $approvedOnly, 4, $hidden) : [],
@@ -199,6 +210,67 @@ class ProfileService implements ProfileServiceInterface
     public function declineFollowRequest(User $me, User $requester): void
     {
         $this->notifications->removeFollowRequest($requester, $me);
+    }
+
+    /**
+     * The Activity tab: reviews, ratings, public lists and queued titles the viewer may see, newest first.
+     *
+     * @param  callable(string): bool  $shows
+     * @param  Collection<int, Review>  $reviews
+     * @param  Collection<int, MovieList>  $lists
+     * @return list<array<string, mixed>>
+     */
+    private function activity(User $user, callable $shows, bool $approvedOnly, HiddenMovies $hidden, Collection $reviews, Collection $lists): array
+    {
+        $member = (new MemberResource($user))->resolve();
+        $showsRatings = $shows('ratings');
+        $item = fn (string $id, string $kind, ?int $tmdbId, ?string $mediaType, $at, array $extra = []) => [
+            'id' => $id,
+            'kind' => $kind,
+            'user' => $member,
+            'tmdb_id' => $tmdbId,
+            'media_type' => $mediaType ?? MediaType::MOVIE,
+            'created_at' => $at->toJSON(),
+            ...$extra,
+        ];
+
+        $ratings = $showsRatings ? $this->profiles->recentRatings($user, $approvedOnly, self::RECENT, $hidden) : new Collection;
+        $queued = $shows('watchlist') ? $this->profiles->recentWatchlist($user, self::RECENT, $hidden) : new Collection;
+
+        return collect()
+            ->concat($reviews->map(fn (Review $review) => $item('review:'.$review->id, 'reviewed', $review->tmdb_id, $review->media_type, $review->updated_at,
+                ['rating' => $showsRatings ? $review->rating : 0, 'review' => $this->review($review, $showsRatings)])))
+            ->concat($ratings->map(fn (Review $rating) => $item('rating:'.$rating->id, 'rated', $rating->tmdb_id, $rating->media_type, $rating->updated_at,
+                ['rating' => $rating->rating])))
+            // Only public lists are activity, also on your own profile.
+            ->concat($lists->where('is_public', true)->map(fn (MovieList $list) => $item('list:'.$list->id, 'list', $list->items->first()?->tmdb_id, $list->items->first()?->media_type, $list->updated_at,
+                ['list' => (new MovieListResource($list))->resolve()])))
+            ->concat($queued->map(fn (Watchlist $entry) => $item('watchlist:'.$entry->id, 'watchlist', $entry->tmdb_id, $entry->media_type, $entry->created_at)))
+            ->sortByDesc('created_at')->take(self::RECENT)->values()->all();
+    }
+
+    /**
+     * A written review as the profile's Reviews tab and activity cards show it.
+     *
+     * @return array<string, mixed>
+     */
+    private function review(Review $review, bool $showsRating): array
+    {
+        return [
+            'id' => $review->id,
+            'tmdb_id' => $review->tmdb_id,
+            'media_type' => $review->media_type ?? MediaType::MOVIE,
+            // A member who hides their ratings keeps the stars off their reviews too (same rule as the Home feed).
+            'rating' => $showsRating ? $review->rating : 0,
+            'sentiment' => $review->sentiment,
+            'content' => $review->content,
+            'has_spoilers' => (bool) $review->has_spoilers,
+            // Same fields as the Movie page's reviews, so the Helpful button shows and saves the real votes.
+            'helpful' => (int) ($review->votes_count ?? 0),
+            'marked_helpful' => (bool) ($review->voted ?? false),
+            'author' => (new MemberResource($review->user))->resolve(),
+            'created_at' => $review->created_at?->toJSON(),
+        ];
     }
 
     /**

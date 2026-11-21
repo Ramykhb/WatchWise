@@ -1,3 +1,7 @@
+import ChooseWinnerDialog from './ChooseWinnerDialog.tsx'
+import MemberSearch from './MemberSearch.tsx'
+import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog.tsx'
+import EditNightDialog from './EditNightDialog.tsx'
 import { NightDetailSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useRef, useState, type CSSProperties } from 'react'
 import { useParams } from 'react-router'
@@ -21,13 +25,15 @@ import xInkIcon from '../../assets/night/icon-x-ink.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
+import { apiErrorMessage } from '../../lib/auth.ts'
 import { api, isStatus, useApi } from '../../lib/api.ts'
 import { tmdbIdOf } from '../../lib/movies.ts'
-import type { ApiMember, ApiNight } from '../../lib/types.ts'
-import { dateTile, formatWhen, toGuest, toNight, type Night } from './nightsData.ts'
+import type { ApiNight } from '../../lib/types.ts'
+import { dateTile, formatWhen, toNight, type Night } from './nightsData.ts'
 import { apiRsvp, toNightDetail, type NightDetail, type Rsvp } from './nightDetailData.ts'
 import MovieSearch from '../../components/MovieSearch/MovieSearch.tsx'
 import { useMovies } from '../../lib/movieDetails.ts'
+import { useIntegrations } from '../../lib/integrations.ts'
 import { Thumb } from '../Lists/ListDialog.tsx'
 import styles from './NightDetail.module.css'
 import { downloadWatchEvent, googleCalendarUrl, outlookCalendarUrl, toCalendarTime } from '../MovieDetails/calendar.ts'
@@ -71,10 +77,15 @@ export default function NightDetailRoute() {
 function NightDetailPage({ night, detail, onChange }: { night: Night; detail: NightDetail; onChange: (night: ApiNight) => void }) {
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
-  const { user } = useAuth()
+  const calendarOn = useIntegrations().isOn('calendar')
 
+  const [choosingWinner, setChoosingWinner] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [inviting, setInviting] = useState(false)
+  const [inviteLink, setInviteLink] = useState('')
+  const [sharing, setSharing] = useState(false)
   const [shareNote, setShareNote] = useState('')
   const [actionError, setActionError] = useState('')
 
@@ -111,33 +122,39 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
     if (tmdbId !== myVote) save(api.put(`/movie-nights/${night.id}/vote`, { tmdb_id: tmdbId }))
   }
   const setRsvp = (option: Exclude<Rsvp, 'pending'>) => save(api.put(`/movie-nights/${night.id}/rsvp`, { status: apiRsvp(option) }))
-  const toggleVoting = () =>
-    save(
-      api.patch(`/movie-nights/${night.id}`, closed ? { status: 'pending', winning_tmdb_id: null } : { status: 'confirmed', winning_tmdb_id: leaders[0]?.tmdbId ?? null }),
-    )
-
-  // The host can invite more of the people they follow.
-  const following = useApi<{ users: ApiMember[] }>(`/users/${user?.username ?? ''}/following`)
-  const invitable = detail.isHost
-    ? (following.data?.users ?? []).filter((m) => !guests.some((g) => g.guest.id === m.id)).map((m) => toGuest(m, user?.id))
-    : []
+  const toggleVoting = () => {
+    if (closed) save(api.patch(`/movie-nights/${night.id}`, { status: 'pending', winning_tmdb_id: null }))
+    else setChoosingWinner(true)
+  }
 
   const handleShare = async () => {
-    const url = window.location.href
+    if (sharing) return
+    setSharing(true)
+    setShareNote('')
     try {
-      if (navigator.share) {
-        await navigator.share({ title: `${night.title} on WatchWise`, url })
-        return
+      const { data } = await api.post<{ url: string }>(`/movie-nights/${night.id}/invite-link`)
+      setInviteLink(data.url)
+      try {
+        await navigator.clipboard.writeText(data.url)
+        setShareNote('Invite link copied. Anyone with this link can sign in and join.')
+      } catch {
+        setShareNote('Copy the invite link below. Anyone with it can sign in and join.')
       }
-      await navigator.clipboard.writeText(url)
-      setShareNote('Invite link copied')
-    } catch {
-      setShareNote('')
-    }
+    } catch (error) { setShareNote(apiErrorMessage(error, "Couldn't create an invite link.")) }
+    finally { setSharing(false) }
+  }
+  const revokeLink = async () => {
+    setSharing(true)
+    try {
+      await api.delete(`/movie-nights/${night.id}/invite-link`)
+      setInviteLink('')
+      setShareNote('Invite link disabled. Previously shared copies no longer work.')
+    } catch (error) { setShareNote(apiErrorMessage(error, "Couldn't disable the invite link.")) }
+    finally { setSharing(false) }
   }
 
   const { month, day } = dateTile(night.date)
-  const statusText = closed
+  const statusText = detail.cancelled ? 'Cancelled' : closed
     ? winner
       ? `Voting closed · ${winner.title} wins`
       : 'Voting closed'
@@ -146,6 +163,13 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
   return (
     <div ref={pageRef} className={styles.page}>
       <AppNav />
+      {choosingWinner && <ChooseWinnerDialog nightId={night.id} candidates={candidates} titleOf={(id) => movieOf(id).title} onSaved={onChange} onClose={() => setChoosingWinner(false)} />}
+      {editing && <EditNightDialog night={night} detail={detail} onSaved={onChange} onClose={() => setEditing(false)} />}
+      <ConfirmDialog open={cancelling} title="Cancel this movie night?" message="Guests will be notified and voting will close." confirmLabel="Cancel movie night" busyLabel="Cancelling…" cancelLabel="Keep movie night" onCancel={() => setCancelling(false)} onConfirm={async () => {
+        const { data } = await api.patch<{ night: ApiNight }>(`/movie-nights/${night.id}`, { status: 'cancelled' })
+        onChange(data.night)
+        setCancelling(false)
+      }} />
 
       <main>
         <section className={styles.hero} aria-labelledby="night-title">
@@ -182,7 +206,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                 )}
               </ul>
               <div className={styles.actions}>
-                {rsvp !== null && (
+                {rsvp !== null && !detail.cancelled && (
                 <div className={styles.rsvp} role="radiogroup" aria-label="Your RSVP">
                   {RSVP_OPTIONS.map((option) => (
                     <button
@@ -199,7 +223,8 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                   ))}
                 </div>
                 )}
-                <details className={styles.calendarPicker} onKeyDown={(event) => {
+                {/* Settings › Integrations › Calendar: off hides "Add to calendar". */}
+                {calendarOn && !detail.cancelled && <details className={styles.calendarPicker} onKeyDown={(event) => {
                   if (event.key === 'Escape') {
                     event.currentTarget.open = false
                     event.currentTarget.querySelector('summary')?.focus()
@@ -223,15 +248,23 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                       Outlook Calendar
                     </a>
                   </div>
-                </details>
-                <button type="button" className={styles.heroBtn} onClick={handleShare}>
+                </details>}
+                {detail.isHost && !detail.cancelled && <>
+                  <PillButton variant="soft" onClick={() => setEditing(true)}>Edit details</PillButton>
+                  <PillButton variant="outline" onClick={() => setCancelling(true)}>Cancel movie night</PillButton>
+                </>}
+                {detail.isHost && !detail.cancelled && <button type="button" className={styles.heroBtn} disabled={sharing} onClick={handleShare}>
                   <img src={shareIcon} width={16} height={16} alt="" />
                   Share invite
-                </button>
+                </button>}
                 <span className={styles.shareNote} role="status">
                   {actionError || shareNote}
                 </span>
               </div>
+              {detail.isHost && !detail.cancelled && inviteLink && <div className={styles.inviteLink}>
+                <label>Invite link<input aria-label="Movie night invite link" readOnly value={inviteLink} onFocus={(event) => event.target.select()} /></label>
+                <PillButton variant="outline" disabled={sharing} onClick={() => void revokeLink()}>Disable invite link</PillButton>
+              </div>}
             </div>
           </div>
         </section>
@@ -266,7 +299,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
             <ul className={styles.candidates}>
               {candidates.map((candidate) => {
                 const movie = movieOf(candidate.tmdbId)
-                const leading = leaders.includes(candidate)
+                const leading = !detail.cancelled && leaders.includes(candidate)
                 const mine = myVote === candidate.tmdbId
                 const width = topVotes > 0 ? (candidate.voters.length / topVotes) * 80 : 0
                 return (
@@ -328,21 +361,22 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                 <img src={crownYellowIcon} width={25} height={25} alt="" />
               </span>
               <div className={styles.finalText}>
-                {closed ? (
+                {detail.cancelled ? <><span className={styles.finalLabel}>CANCELLED</span><span className={styles.finalTitle}>This movie night is cancelled.</span><span className={styles.finalBody}>Guests have been notified. Voting and invitations are closed.</span></> : closed ? (
                   <>
                     <span className={styles.finalLabel}>VOTING CLOSED</span>
                     <span className={styles.finalTitle}>{winner ? `${winner.title} it is!` : 'No votes were cast'}</span>
-                    <span className={styles.finalBody}>Everyone has been sent the final movie, time, place and link — plus a calendar invite.</span>
+                    <span className={styles.finalBody}>The final details are available to all participants. Calendar invitations are emailed to participants with Calendar enabled.</span>
                   </>
                 ) : (
                   <>
                     <span className={styles.finalLabel}>WHEN VOTING CLOSES</span>
                     <span className={styles.finalTitle}>The winner is announced to everyone</span>
-                    <span className={styles.finalBody}>All participants get the final movie, time, place and link — plus a calendar invite.</span>
+                    <span className={styles.finalBody}>Confirm a winning movie to notify participants and email calendar invitations to those with Calendar enabled.</span>
                   </>
                 )}
               </div>
-              {detail.isHost && <PillButton onClick={toggleVoting}>{closed ? 'Reopen voting' : 'Close voting now'}</PillButton>}
+              {detail.isHost && !detail.cancelled && <PillButton disabled={!closed && candidates.length === 0} onClick={toggleVoting}>{closed ? 'Reopen voting' : 'Close voting now'}</PillButton>}
+              {detail.isHost && !closed && candidates.length === 0 && <p>Add a candidate movie before closing voting.</p>}
             </div>
           </section>
 
@@ -352,30 +386,19 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                 <h2 id="guests-title" className={styles.cardTitle}>
                   Guests
                 </h2>
-                {invitable.length > 0 && (
+                {detail.isHost && !detail.cancelled && (
                   <div className={styles.popWrap}>
                     <button type="button" className={styles.textBtn} aria-expanded={inviting} onClick={() => setInviting((v) => !v)}>
                       Invite more
                     </button>
                     {inviting && (
-                      <ul className={`${styles.popover} ${styles.popoverRight}`}>
-                        {invitable.map((friend) => (
-                          <li key={friend.id}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                save(api.post(`/movie-nights/${night.id}/invites`, { invitees: [friend.handle] }))
-                                setInviting(false)
-                              }}
-                            >
-                              <span className={styles.faceSm} style={{ background: friend.color }} aria-hidden="true">
-                                {friend.initials}
-                              </span>
-                              {friend.name}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
+                      <div className={`${styles.popover} ${styles.popoverRight}`}>
+                        <MemberSearch excludedIds={guests.map((entry) => entry.guest.id)} onPick={async (member) => {
+                          const { data } = await api.post<{ night: ApiNight }>(`/movie-nights/${night.id}/invites`, { invitees: [member.username] })
+                          onChange(data.night)
+                          setInviting(false)
+                        }} />
+                      </div>
                     )}
                   </div>
                 )}
@@ -420,7 +443,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                 <DetailRow
                   icon={crownRowIcon}
                   label="MOVIE"
-                  value={winner ? `${winner.title} (${closed ? 'winner' : 'leading'})` : 'Still voting'}
+                  value={detail.cancelled ? 'Cancelled' : winner ? `${winner.title} (${closed ? 'winner' : 'leading'})` : 'Still voting'}
                 />
               </dl>
               {detail.note && <p className={styles.note}>{detail.note}</p>}

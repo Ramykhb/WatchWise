@@ -23,6 +23,7 @@ import githubIcon from '../../assets/auth/icon-github.svg'
 import discordIcon from '../../assets/auth/icon-discord.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { INTEGRATIONS, PRIVACY, VISIBILITY, type IntegrationKey, type Visibility } from './settingsData.ts'
+import FavoritePreferences from './FavoritePreferences.tsx'
 import ChangePasswordForm from './ChangePasswordForm.tsx'
 import SetPasswordForm from './SetPasswordForm.tsx'
 import { accountDeletionNotice, deleteAccountPrompt, pendingDeletionMessage } from './accountDeletion.ts'
@@ -33,11 +34,12 @@ import { api, useApi } from '../../lib/api.ts'
 import { apiErrorMessage } from '../../lib/auth.ts'
 import type { ApiMe } from '../../lib/types.ts'
 
-type Section = 'account' | 'privacy' | 'connected' | 'integrations' | 'notifications'
+type Section = 'taste' | 'account' | 'privacy' | 'connected' | 'integrations' | 'notifications'
 
 // The profile lives on its own Edit profile page.
 const MENU: { id: Section; label: string; icon: string }[] = [
   { id: 'account', label: 'Account & password', icon: lockIcon },
+  { id: 'taste', label: 'Movie preferences', icon: bellVioletIcon },
   { id: 'privacy', label: 'Privacy & activity', icon: shieldIcon },
   { id: 'connected', label: 'Connected accounts', icon: linkIcon },
   { id: 'integrations', label: 'Integrations', icon: plugIcon },
@@ -294,6 +296,8 @@ function SettingsPage({ me, onChange }: { me: ApiMe; onChange: (me: ApiMe) => vo
                 {deletionNote}
               </p>
             </section>
+
+            <FavoritePreferences me={me} onChange={onChange} />
 
             <section id="privacy" data-section className={styles.panel} aria-labelledby="privacy-title">
               <PanelHead id="privacy-title" title="Privacy & activity" text="Choose what appears on your public profile and in followers' feeds." />

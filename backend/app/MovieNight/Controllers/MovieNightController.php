@@ -4,6 +4,7 @@ namespace App\MovieNight\Controllers;
 
 use App\Auth\CurrentUser\CurrentUser;
 use App\Models\MovieNight;
+use App\MovieNight\FormRequests\InvitationTokenRequest;
 use App\MovieNight\FormRequests\InviteGuestsRequest;
 use App\MovieNight\FormRequests\RsvpRequest;
 use App\MovieNight\FormRequests\StoreMovieNightRequest;
@@ -17,6 +18,31 @@ use Illuminate\Support\Facades\Gate;
 class MovieNightController
 {
     public function __construct(private readonly MovieNightServiceInterface $nights) {}
+
+    public function shareLink(MovieNight $night): JsonResponse
+    {
+        Gate::authorize('update', $night);
+
+        return response()->json($this->nights->shareLink($night));
+    }
+
+    public function revokeShareLink(MovieNight $night): JsonResponse
+    {
+        Gate::authorize('update', $night);
+        $this->nights->revokeShareLink($night);
+
+        return response()->json(['message' => 'Invite link disabled.']);
+    }
+
+    public function invitation(InvitationTokenRequest $request, MovieNight $night): JsonResponse
+    {
+        return response()->json($this->nights->invitation($night, $request->validated('token')));
+    }
+
+    public function join(InvitationTokenRequest $request, MovieNight $night, CurrentUser $current): JsonResponse
+    {
+        return response()->json(['night' => $this->nights->joinFromLink($night, $request->validated('token'), $current->user())]);
+    }
 
     /** GET /api/movie-nights — upcoming, pending invitations and past nights. */
     public function index(CurrentUser $current): JsonResponse

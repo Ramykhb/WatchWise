@@ -2,7 +2,7 @@ import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import type { Review } from '../../components/ReviewCard/ReviewCard.tsx'
 import type { Gradient } from '../Home/homeData.ts'
 import { colorOf, initialsOf, longDate, look, timeAgo } from '../../lib/format.ts'
-import { movieFor } from '../../lib/movies.ts'
+import { itemKey, movieFor, movieForKey } from '../../lib/movies.ts'
 import type { ApiActivity, ApiList, ApiMember, ApiProfile, ApiReview } from '../../lib/types.ts'
 
 // Turns GET /api/users/{username} into what the Profile page draws.
@@ -46,6 +46,8 @@ export type Profile = Member & {
   films: number | null
   activity: ActivityItem[]
   reviewList: Review[]
+  /** Review ids you marked helpful (the same review can be in Reviews and in Activity). */
+  markedHelpful: string[]
   listCards: ProfileList[]
   watched: Movie[]
   top4: Movie[]
@@ -75,7 +77,8 @@ export function toReview(review: ApiReview): Review {
     rating: review.rating,
     sentiment: review.sentiment,
     body: review.content,
-    helpful: 0,
+    helpful: review.helpful,
+    spoilers: review.has_spoilers,
   }
 }
 
@@ -87,17 +90,19 @@ export const toProfileList = (list: ApiList): ProfileList => ({
 })
 
 export function toActivity(item: ApiActivity): ActivityItem {
-  const id = String(item.id)
+  const id = item.id
   const time = timeAgo(item.created_at)
+  // Placeholder until the page loads the details; a TV show keeps its "tv-" slug so it links to the show.
+  const movie = movieForKey(itemKey({ tmdb_id: item.tmdb_id ?? 0, media_type: item.media_type }))
   switch (item.kind) {
     case 'rated':
-      return { id, kind: 'rated', movie: movieFor(item.review.tmdb_id), rating: item.rating, time }
+      return { id, kind: 'rated', movie, rating: item.rating, time }
     case 'reviewed':
-      return { id, kind: 'reviewed', movie: movieFor(item.review.tmdb_id), review: toReview(item.review), time }
+      return { id, kind: 'reviewed', movie, review: toReview(item.review), time }
     case 'list':
       return { id, kind: 'list', list: toProfileList(item.list), time }
     case 'watchlist':
-      return { id, kind: 'watchlist', movie: movieFor(item.tmdb_id ?? 0), more: 0, time }
+      return { id, kind: 'watchlist', movie, more: 0, time }
   }
 }
 
@@ -120,6 +125,7 @@ export function toProfile(data: ApiProfile): Profile {
     films: data.counts?.films ?? null,
     activity: (data.activity ?? []).map(toActivity),
     reviewList: (data.reviews ?? []).map(toReview),
+    markedHelpful: (data.reviews ?? []).filter((review) => review.marked_helpful).map((review) => String(review.id)),
     listCards: (data.lists ?? []).map(toProfileList),
     watched: (data.watched ?? []).map(movieFor),
     top4: (data.top4 ?? []).map(movieFor),

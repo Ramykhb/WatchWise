@@ -25,7 +25,7 @@ import TasteProfile from "./TasteProfile.tsx";
 import { useEntranceAnimation } from "../../hooks/useEntranceAnimation.ts";
 import { useAuth } from "../../contexts/useAuth.ts";
 import { api } from "../../lib/api.ts";
-import type { WatchlistResponse } from "../../lib/watchlist.ts";
+import { useIntegrations } from "../../lib/integrations.ts";
 import { toTileMovie, type TmdbMovie } from "../Discover/discoverApi.ts";
 import {
   WEATHER_MOOD,
@@ -210,12 +210,7 @@ export default function ForYou() {
     let requestTimeout: number | undefined;
     const load = async () => {
       try {
-        const history = await api.get<WatchlistResponse>("/watchlist", { signal: controller.signal });
         if (controller.signal.aborted) return;
-        if (!history.data.items.some((item) => item.status === "watched")) {
-          setWatchedPicks(null);
-          return;
-        }
         setWatchedPicks({ userId, source: null, movies: [], status: "loading" });
         await new Promise<void>((resolve) => {
           requestTimeout = window.setTimeout(resolve, 1000);
@@ -295,8 +290,16 @@ export default function ForYou() {
   const moodRequestTimestamp = useRef<number | null>(null);
   useEntranceAnimation(pageRef);
 
-  // TODO: persist in the user's settings once the API exists.
-  const [adaptToWeather, setAdaptToWeather] = useState(true);
+  // Settings › Integrations: "Weather-based suggestions" is this page's weather switch, and with
+  // "Location" off the page never asks the browser and uses the default city.
+  const integrations = useIntegrations();
+  const adaptToWeather = integrations.isOn("weather");
+  const locationOn = integrations.isOn("location");
+  const [weatherNote, setWeatherNote] = useState("");
+  const toggleWeather = (on: boolean) => {
+    setWeatherNote("");
+    integrations.save("weather", on).catch(() => setWeatherNote("Couldn't save that setting. Please try again."));
+  };
 
   const fetchWeatherRecommendations = useCallback(async (latitude: number, longitude: number) => {
     setRecommendationsLoading(true);
@@ -421,7 +424,7 @@ export default function ForYou() {
   }, [fetchWeather]);
 
   const requestLocation = useCallback((forceDefault = false) => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
+    if (!locationOn || typeof navigator === "undefined" || !navigator.geolocation) {
       setLocationStatus("unavailable");
       if (forceDefault || !initialWeatherCache?.weather.location.is_default) useDefaultLocation();
       return;
@@ -442,9 +445,15 @@ export default function ForYou() {
         if (forceDefault || !initialWeatherCache?.weather.location.is_default) useDefaultLocation();
       },
     );
-  }, [initialWeatherCache, useDefaultLocation]);
+  }, [initialWeatherCache, locationOn, useDefaultLocation]);
 
   useEffect(() => {
+    // Wait for the saved Location switch; off means no browser prompt (requestLocation uses the default city).
+    if (!integrations.loaded) return;
+    if (!locationOn) {
+      requestLocation();
+      return;
+    }
     let active = true;
     let permission: PermissionStatus | null = null;
 
@@ -481,7 +490,7 @@ export default function ForYou() {
       active = false;
       permission?.removeEventListener("change", syncLocationPermission);
     };
-  }, [initialWeatherCache, requestLocation, useDefaultLocation]);
+  }, [initialWeatherCache, integrations.loaded, locationOn, requestLocation, useDefaultLocation]);
 
   useEffect(() => {
     if (!initialWeatherCache || initialRecommendationCache || locationStatus !== "granted") return;
@@ -630,12 +639,33 @@ export default function ForYou() {
                 type="checkbox"
                 role="switch"
                 checked={adaptToWeather}
-                onChange={(event) => setAdaptToWeather(event.target.checked)}
+                disabled={!integrations.loaded}
+                onChange={(event) => toggleWeather(event.target.checked)}
               />
               <span className={styles.switchTrack} aria-hidden="true" />
               Adapt suggestions to weather
             </label>
-            {locationStatus === "unavailable" && (
+            {integrations.failed && (
+              <p className={styles.locationNote} role="alert">
+                Couldn't load your settings.{" "}
+                <button type="button" className={styles.retryLocation} onClick={integrations.retry}>
+                  Try again
+                </button>
+              </p>
+            )}
+            {weatherNote && (
+              <p className={styles.locationNote} role="alert">
+                {weatherNote}
+              </p>
+            )}
+            {locationStatus === "unavailable" && !locationOn && integrations.loaded && (
+              <div className={styles.locationPrompt} role="status">
+                <p className={styles.locationNote}>
+                  Location is turned off in <Link to="/settings">Settings</Link>. Showing weather and movie picks for Beirut.
+                </p>
+              </div>
+            )}
+            {locationStatus === "unavailable" && locationOn && (
               <div className={styles.locationPrompt} role="status">
                 <p className={styles.locationNote}>
                   Location is off. Showing weather and movie picks for Beirut.
@@ -691,7 +721,7 @@ export default function ForYou() {
           <section className={styles.shelf} aria-labelledby="shelf-because">
             <div className={styles.sectionHeader}>
               <h2 id="shelf-because" className={styles.sectionTitle}>
-                Because you watched{watchedPicks.source ? ` ${watchedPicks.source.title}` : "…"}
+                {watchedPicks.source ? `Because you watched ${watchedPicks.source.title}` : "Picked for your taste"}
               </h2>
               {watchedPicks.source && (
                 <Link

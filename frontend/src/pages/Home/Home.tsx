@@ -27,6 +27,7 @@ import FeaturedRow from './FeaturedRow.tsx'
 import FollowingActivity from './FollowingActivity.tsx'
 import { useAuth } from '../../contexts/useAuth.ts'
 import { api, useApi } from '../../lib/api.ts'
+import { useIntegrations } from '../../lib/integrations.ts'
 import { look } from '../../lib/format.ts'
 import { movieFor, tmdbIdOf } from '../../lib/movies.ts'
 import { useWatchlist } from '../../lib/watchlist.ts'
@@ -127,8 +128,19 @@ export default function Home() {
   const [weatherLoading, setWeatherLoading] = useState(initialWeatherCache === null)
   const [weatherError, setWeatherError] = useState(false)
   const [locationStatus, setLocationStatus] = useState<'checking' | 'requesting' | 'granted' | 'unavailable'>('checking')
+  // Settings › Integrations: Location off means the browser is never asked and the default city is used;
+  // Weather-based suggestions off means Tonight's pick comes from this week's trending films instead.
+  const integrations = useIntegrations()
+  const locationOn = integrations.isOn('location')
+  const weatherOn = integrations.isOn('weather')
+  // Days since 1970, read once: picks a different trending film each day.
+  const [today] = useState(() => Math.floor(Date.now() / 86_400_000))
+  const { data: trending, loading: trendingLoading } = useApi<MoviePage>('/movies/trending?type=movie', {
+    enabled: integrations.loaded && !weatherOn,
+  })
 
   const fetchWeatherRecommendations = useCallback(async (latitude: number, longitude: number) => {
+    if (!weatherOn) return
     const cached = readTonightPick({ latitude, longitude })
     if (cached) {
       setWeatherPick(toRecommendationMovie(cached.movie))
@@ -159,7 +171,7 @@ export default function Home() {
     } finally {
       setPickLoading(false)
     }
-  }, [])
+  }, [weatherOn])
 
   const fetchWeather = useCallback(async (latitude?: number, longitude?: number) => {
     setWeatherLoading(true)
@@ -215,7 +227,7 @@ export default function Home() {
   }, [fetchWeatherRecommendations, initialRecommendationCache, initialWeatherCache])
 
   const requestLocation = useCallback(() => {
-    if (!navigator.geolocation) {
+    if (!locationOn || !navigator.geolocation) {
       setLocationStatus('unavailable')
       if (!initialWeatherCache?.weather.location.is_default) useDefaultLocation()
       return
@@ -231,9 +243,14 @@ export default function Home() {
         if (!initialWeatherCache?.weather.location.is_default) useDefaultLocation()
       },
     )
-  }, [fetchWeather, initialWeatherCache, useDefaultLocation])
+  }, [fetchWeather, initialWeatherCache, locationOn, useDefaultLocation])
 
   useEffect(() => {
+    if (!integrations.loaded) return
+    if (!locationOn) {
+      requestLocation()
+      return
+    }
     let active = true
     let permission: PermissionStatus | null = null
     const syncPermission = () => {
@@ -263,7 +280,7 @@ export default function Home() {
       active = false
       permission?.removeEventListener('change', syncPermission)
     }
-  }, [initialWeatherCache, requestLocation, useDefaultLocation])
+  }, [initialWeatherCache, integrations.loaded, locationOn, requestLocation, useDefaultLocation])
 
   const requestFreshWeather = useCallback(() => {
     if (locationStatus === 'unavailable') useDefaultLocation()
@@ -304,7 +321,13 @@ export default function Home() {
       ? 'Weather is temporarily unavailable.'
       : `${Math.round(currentWeather?.current.temperature_2m ?? 0)}° · ${conditionText ?? 'Current conditions'} in ${currentWeather?.location.is_default ? 'Beirut' : 'your area'}`
 
-  const pick = weatherPick
+  // The same list as Weekly Trending (one shared request); a different film each day.
+  const trendingMovies = trending?.movies ?? []
+  const trendingPick = trendingMovies.length > 0
+    ? { ...toTileMovie(trendingMovies[today % trendingMovies.length], new Map()), recommendationReason: 'Trending on TMDB this week.' }
+    : null
+  const pick = !integrations.loaded ? null : weatherOn ? weatherPick : trendingPick
+  const pickBusy = !integrations.loaded || (weatherOn ? pickLoading : trendingLoading)
   const pickId = pick ? tmdbIdOf(pick) : 0
   const onWatchlist = pickId > 0 && watchlist.has(pickId)
   const togglePick = () => {
@@ -352,7 +375,7 @@ export default function Home() {
           <article
             className={styles.pick}
             style={{ background: gradientCss(pick?.gradient ?? ['#ccbfff', '#8c66d9', '#331a66']) }}
-            aria-busy={pickLoading}
+            aria-busy={pickBusy}
             data-enter
             data-enter-delay="0.3"
             data-enter-rise="80"
@@ -365,7 +388,7 @@ export default function Home() {
                 <div className={styles.pickInfo}>
                   <span className={styles.chipYellow}>
                     <img src={sparkleIcon} width={14} height={14} alt="" />
-                    Tonight&apos;s pick · {currentWeather ? `a ${conditionText?.toLowerCase()}-weather pick` : 'a weather-inspired pick'}
+                    Tonight&apos;s pick · {!weatherOn ? 'trending this week' : currentWeather ? `a ${conditionText?.toLowerCase()}-weather pick` : 'a weather-inspired pick'}
                   </span>
                   <h2 className={styles.pickTitle}>
                     <Link to={`/movies/${pick.slug}`} className={styles.pickLink}>{pick.title}</Link>
@@ -389,7 +412,7 @@ export default function Home() {
                   </div>
                 </div>
               </>
-            ) : pickLoading ? (
+            ) : pickBusy ? (
               <div className={styles.pickLoading} role="status" aria-label="Loading tonight’s movie pick">
                 <span className={`${styles.pickSkeleton} ${styles.pickSkeletonLabel}`} />
                 <span className={`${styles.pickSkeleton} ${styles.pickSkeletonTitle}`} />
@@ -484,6 +507,8 @@ export default function Home() {
 /** Coming soon: the next big releases from TMDB, each linking to its movie page. */
 function ComingSoon() {
   const { data, error, loading, reload } = useApi<MoviePage>('/movies?list=upcoming')
+  // Settings › Integrations › Calendar: off hides the "add to calendar" buttons.
+  const calendarOn = useIntegrations().isOn('calendar')
   // Genre names for the meta line. Loaded on the side: the releases never wait for them.
   const [genres, setGenres] = useState<Map<number, string>>(() => new Map())
 
@@ -539,7 +564,7 @@ function ComingSoon() {
                   </p>
                   <p className={styles.releaseMeta}>{release.meta}</p>
                 </div>
-                <button
+                {calendarOn && <button
                   type="button"
                   className={styles.calendar}
                   aria-label={`Add ${release.title}'s release day to Google Calendar`}
@@ -551,7 +576,7 @@ function ComingSoon() {
                   }}
                 >
                   <img src={calendarIcon} width={20} height={20} alt="" />
-                </button>
+                </button>}
               </div>
             )
           }) : Array.from({ length: 3 }, (_, index) => (

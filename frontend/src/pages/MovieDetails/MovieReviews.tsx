@@ -369,6 +369,7 @@ export default function MovieReviews({ tmdbId, mediaType, me, stars, onStarsSave
         <ReviewCard
           key={review.id}
           review={toCard(review, false)}
+          reportId={review.id}
           markedHelpful={review.marked_helpful}
           onHelpful={() => toggleHelpful(review)}
           canReply={false}

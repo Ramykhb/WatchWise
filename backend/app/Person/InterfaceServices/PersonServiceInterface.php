@@ -9,6 +9,8 @@ use App\Support\Exceptions\TmdbUnavailable;
 
 interface PersonServiceInterface
 {
+    public function search(string $query): array;
+
     /**
      * One person with their best-known films and their filmography, newest first.
      *

@@ -16,6 +16,7 @@ use App\Movie\DTOs\Responses\TrailerResponse;
 use App\Movie\InterfaceRepository\MovieCatalogRepositoryInterface;
 use App\Movie\InterfaceRepository\MovieRepositoryInterface;
 use App\Movie\InterfaceServices\MovieServiceInterface;
+use App\Movie\Support\LocalMovieOverrides;
 use App\Support\HiddenMovies;
 use App\Support\MediaType;
 use Closure;
@@ -171,6 +172,10 @@ class MovieService implements MovieServiceInterface
         // Only successful answers are cached: MovieNotFound and TmdbUnavailable pass straight through.
         $movie = Cache::remember($this->detailsCacheKey($id, $type), now()->addHours(self::DETAILS_CACHE_HOURS), fn () => $this->movies->find($id, $type));
 
+        if ($type === MediaType::MOVIE) {
+            $movie = LocalMovieOverrides::apply($movie, $this->catalog->findByTmdbId($id));
+        }
+
         // TMDB's recommendations match far better than its "similar" list, which is only the fallback.
         $related = ($movie['recommendations']['results'] ?? []) ?: ($movie['similar']['results'] ?? []);
         // Only movies can be hidden, so the catalogue is asked only when there are related movies to check.
@@ -194,12 +199,12 @@ class MovieService implements MovieServiceInterface
             // A tv show has creators rather than directors.
             directors: $type === 'tv'
                 ? collect($movie['created_by'] ?? [])
-                    ->map(fn (array $person): PersonResponse => new PersonResponse($person['id'], $person['name']))
+                    ->map(fn (array $person): PersonResponse => new PersonResponse($person['id'] ?? null, $person['name']))
                     ->values()
                     ->all()
                 : collect($movie['credits']['crew'] ?? [])
                     ->where('job', 'Director')
-                    ->map(fn (array $person): PersonResponse => new PersonResponse($person['id'], $person['name']))
+                    ->map(fn (array $person): PersonResponse => new PersonResponse($person['id'] ?? null, $person['name']))
                     ->values()
                     ->all(),
             cast: collect($movie['credits']['cast'] ?? [])
@@ -307,6 +312,10 @@ class MovieService implements MovieServiceInterface
     private function visibleMovies(array $items, string $type, HiddenMovies $hidden, ?int $limit = null): array
     {
         $visible = array_filter($items, fn (array $item): bool => ! $hidden->hides($type, $item['id']));
+        if ($type === MediaType::MOVIE && $visible !== []) {
+            $locals = $this->catalog->findManyByTmdbId(array_column($visible, 'id'));
+            $visible = array_map(fn (array $item): array => LocalMovieOverrides::apply($item, $locals->get($item['id'])), $visible);
+        }
 
         return array_values(array_map(fn (array $item): MovieResponse => $this->toMovie($item, $type), array_slice($visible, 0, $limit)));
     }
@@ -368,10 +377,19 @@ class MovieService implements MovieServiceInterface
             totalResults: max(0, $totalResults - $dropped),
             movies: array_map(
                 fn (array $entry): MovieResponse => $this->toMovie($entry['item'], $entry['type']),
-                array_slice($items, ($page - 1) * self::MERGED_PAGE_SIZE, self::MERGED_PAGE_SIZE),
+                $this->overlayMergedItems(array_slice($items, ($page - 1) * self::MERGED_PAGE_SIZE, self::MERGED_PAGE_SIZE)),
             ),
             meta: $meta,
         );
+    }
+
+    private function overlayMergedItems(array $items): array
+    {
+        $ids = array_column(array_column(array_filter($items, fn (array $item): bool => $item['type'] === MediaType::MOVIE), 'item'), 'id');
+        $locals = $ids === [] ? collect() : $this->catalog->findManyByTmdbId($ids);
+
+        return array_map(fn (array $entry): array => $entry['type'] === MediaType::MOVIE
+            ? [...$entry, 'item' => LocalMovieOverrides::apply($entry['item'], $locals->get($entry['item']['id']))] : $entry, $items);
     }
 
     /**
@@ -404,7 +422,7 @@ class MovieService implements MovieServiceInterface
             year: $releaseDate ? (int) substr($releaseDate, 0, 4) : null,
             rating: round(($movie['vote_average'] ?? 0) / 2, 1),
             voteCount: $movie['vote_count'] ?? 0,
-            genreIds: $movie['genre_ids'] ?? [],
+            genreIds: $movie['genre_ids'] ?? array_column($movie['genres'] ?? [], 'id'),
             posterUrl: $this->imageUrl($movie['poster_path'] ?? null, 'w500'),
             backdropUrl: $this->imageUrl($movie['backdrop_path'] ?? null, 'w1280'),
             mediaType: $type,

@@ -8,12 +8,12 @@ use JsonSerializable;
 final readonly class PersonResponse implements JsonSerializable
 {
     public function __construct(
-        public int $id,
+        public ?int $id,
         public string $name,
     ) {}
 
     /**
-     * @return array{id: int, name: string}
+     * @return array{id: ?int, name: string}
      */
     public function jsonSerialize(): array
     {
