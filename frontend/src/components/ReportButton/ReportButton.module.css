@@ -1,0 +1,20 @@
+.trigger { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 8px; border-radius: 12px; color: var(--ink-600); font-size: 12px; cursor: pointer; }
+.trigger:hover { background: var(--surface-violet-tint); }
+.trigger[aria-disabled="true"] { cursor: default; opacity: .7; }
+.note { color: var(--ink-600); font-size: 12px; }
+.dialog { width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); overflow-y: auto; padding: 28px; border: 0; border-radius: 24px; background: var(--surface-white); color: var(--ink-900); box-shadow: 0 24px 80px #15102540; }
+.dialog::backdrop { background: #15102580; }
+.dialog form { display: flex; flex-direction: column; gap: 12px; }
+.dialog h2 { margin: 0; font-size: 26px; }
+.dialog p { line-height: 1.5; font-size: 14px; }
+.dialog label { font-size: 14px; font-weight: 700; }
+.dialog label span { font-weight: 400; }
+.dialog select, .dialog textarea { width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--ink-300, #c9c3d2); background: var(--surface-white); color: inherit; font: inherit; }
+.dialog textarea { resize: vertical; }
+.dialog :focus-visible, .trigger:focus-visible { outline: 2px solid var(--ground-violet); outline-offset: 3px; }
+.count { font-size: 12px; text-align: right; color: var(--ink-600); }
+.error { color: var(--accent-coral); }
+.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; margin-top: 8px; }
+.actions button { padding: 10px 16px; border-radius: 20px; cursor: pointer; background: var(--surface-violet-tint); }
+.actions button[type='submit'] { background: var(--ground-violet); color: white; }
+.actions button:disabled { opacity: .6; cursor: default; }

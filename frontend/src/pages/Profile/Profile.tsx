@@ -1,3 +1,4 @@
+import ReportButton from '../../components/ReportButton/ReportButton.tsx'
 import { ProfileSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import { useRef, useState } from 'react'
@@ -205,6 +206,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                   <button type="button" className={styles.moreBtn} aria-label="Share profile" onClick={handleShare}>
                     <img src={shareIcon} width={22} height={22} alt="" />
                   </button>
+                  {!isMe && <ReportButton target={{ type: 'profile', username: profile.handle }} />}
                   {isMe && (
                     <button
                       type="button"
