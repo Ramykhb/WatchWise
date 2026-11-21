@@ -1,3 +1,4 @@
+import MemberSearch from './MemberSearch.tsx'
 import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog.tsx'
 import EditNightDialog from './EditNightDialog.tsx'
 import { NightDetailSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
@@ -26,8 +27,8 @@ import { useAuth } from '../../contexts/useAuth.ts'
 import { apiErrorMessage } from '../../lib/auth.ts'
 import { api, isStatus, useApi } from '../../lib/api.ts'
 import { tmdbIdOf } from '../../lib/movies.ts'
-import type { ApiMember, ApiNight } from '../../lib/types.ts'
-import { dateTile, formatWhen, toGuest, toNight, type Night } from './nightsData.ts'
+import type { ApiNight } from '../../lib/types.ts'
+import { dateTile, formatWhen, toNight, type Night } from './nightsData.ts'
 import { apiRsvp, toNightDetail, type NightDetail, type Rsvp } from './nightDetailData.ts'
 import MovieSearch from '../../components/MovieSearch/MovieSearch.tsx'
 import { useMovies } from '../../lib/movieDetails.ts'
@@ -75,7 +76,6 @@ export default function NightDetailRoute() {
 function NightDetailPage({ night, detail, onChange }: { night: Night; detail: NightDetail; onChange: (night: ApiNight) => void }) {
   const pageRef = useRef<HTMLDivElement>(null)
   useEntranceAnimation(pageRef)
-  const { user } = useAuth()
   const calendarOn = useIntegrations().isOn('calendar')
 
   const [editing, setEditing] = useState(false)
@@ -124,12 +124,6 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
     save(
       api.patch(`/movie-nights/${night.id}`, closed ? { status: 'pending', winning_tmdb_id: null } : { status: 'confirmed', winning_tmdb_id: leaders[0]?.tmdbId ?? null }),
     )
-
-  // The host can invite more of the people they follow.
-  const following = useApi<{ users: ApiMember[] }>(`/users/${user?.username ?? ''}/following`)
-  const invitable = detail.isHost
-    ? (following.data?.users ?? []).filter((m) => !guests.some((g) => g.guest.id === m.id)).map((m) => toGuest(m, user?.id))
-    : []
 
   const handleShare = async () => {
     if (sharing) return
@@ -388,30 +382,19 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                 <h2 id="guests-title" className={styles.cardTitle}>
                   Guests
                 </h2>
-                {!detail.cancelled && invitable.length > 0 && (
+                {detail.isHost && !detail.cancelled && (
                   <div className={styles.popWrap}>
                     <button type="button" className={styles.textBtn} aria-expanded={inviting} onClick={() => setInviting((v) => !v)}>
                       Invite more
                     </button>
                     {inviting && (
-                      <ul className={`${styles.popover} ${styles.popoverRight}`}>
-                        {invitable.map((friend) => (
-                          <li key={friend.id}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                save(api.post(`/movie-nights/${night.id}/invites`, { invitees: [friend.handle] }))
-                                setInviting(false)
-                              }}
-                            >
-                              <span className={styles.faceSm} style={{ background: friend.color }} aria-hidden="true">
-                                {friend.initials}
-                              </span>
-                              {friend.name}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
+                      <div className={`${styles.popover} ${styles.popoverRight}`}>
+                        <MemberSearch excludedIds={guests.map((entry) => entry.guest.id)} onPick={async (member) => {
+                          const { data } = await api.post<{ night: ApiNight }>(`/movie-nights/${night.id}/invites`, { invitees: [member.username] })
+                          onChange(data.night)
+                          setInviting(false)
+                        }} />
+                      </div>
                     )}
                   </div>
                 )}
