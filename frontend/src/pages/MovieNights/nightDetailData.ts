@@ -19,6 +19,7 @@ export type NightDetail = {
   /** Host first, then everyone invited. */
   guests: { guest: Guest; rsvp: Rsvp; isHost: boolean }[]
   candidates: Candidate[]
+  cancelled: boolean
   closed: boolean
   winner: number | null
 }
@@ -47,7 +48,8 @@ export function toNightDetail(night: ApiNight, viewerId: number | undefined): Ni
       suggestedBy: c.added_by ? (c.added_by.id === viewerId ? 'you' : toGuest(c.added_by, viewerId).name) : 'someone',
       voters: c.voters.map((v) => toGuest(v, viewerId)),
     })),
-    closed: night.status === 'confirmed' || night.winning_tmdb_id !== null,
+    cancelled: night.status === 'cancelled',
+    closed: night.status !== 'pending' || night.winning_tmdb_id !== null,
     winner: night.winning_tmdb_id,
   }
 }

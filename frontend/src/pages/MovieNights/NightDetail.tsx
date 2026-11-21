@@ -1,3 +1,5 @@
+import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog.tsx'
+import EditNightDialog from './EditNightDialog.tsx'
 import { NightDetailSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useRef, useState, type CSSProperties } from 'react'
 import { useParams } from 'react-router'
@@ -75,6 +77,8 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
   const { user } = useAuth()
   const calendarOn = useIntegrations().isOn('calendar')
 
+  const [editing, setEditing] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [inviting, setInviting] = useState(false)
   const [shareNote, setShareNote] = useState('')
@@ -139,7 +143,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
   }
 
   const { month, day } = dateTile(night.date)
-  const statusText = closed
+  const statusText = detail.cancelled ? 'Cancelled' : closed
     ? winner
       ? `Voting closed · ${winner.title} wins`
       : 'Voting closed'
@@ -148,6 +152,12 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
   return (
     <div ref={pageRef} className={styles.page}>
       <AppNav />
+      {editing && <EditNightDialog night={night} detail={detail} onSaved={onChange} onClose={() => setEditing(false)} />}
+      <ConfirmDialog open={cancelling} title="Cancel this movie night?" message="Guests will be notified and voting will close." confirmLabel="Cancel movie night" busyLabel="Cancelling…" cancelLabel="Keep movie night" onCancel={() => setCancelling(false)} onConfirm={async () => {
+        const { data } = await api.patch<{ night: ApiNight }>(`/movie-nights/${night.id}`, { status: 'cancelled' })
+        onChange(data.night)
+        setCancelling(false)
+      }} />
 
       <main>
         <section className={styles.hero} aria-labelledby="night-title">
@@ -184,7 +194,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                 )}
               </ul>
               <div className={styles.actions}>
-                {rsvp !== null && (
+                {rsvp !== null && !detail.cancelled && (
                 <div className={styles.rsvp} role="radiogroup" aria-label="Your RSVP">
                   {RSVP_OPTIONS.map((option) => (
                     <button
@@ -202,7 +212,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                 </div>
                 )}
                 {/* Settings › Integrations › Calendar: off hides "Add to calendar". */}
-                {calendarOn && <details className={styles.calendarPicker} onKeyDown={(event) => {
+                {calendarOn && !detail.cancelled && <details className={styles.calendarPicker} onKeyDown={(event) => {
                   if (event.key === 'Escape') {
                     event.currentTarget.open = false
                     event.currentTarget.querySelector('summary')?.focus()
@@ -227,10 +237,14 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                     </a>
                   </div>
                 </details>}
-                <button type="button" className={styles.heroBtn} onClick={handleShare}>
+                {detail.isHost && !detail.cancelled && <>
+                  <PillButton variant="soft" onClick={() => setEditing(true)}>Edit details</PillButton>
+                  <PillButton variant="outline" onClick={() => setCancelling(true)}>Cancel movie night</PillButton>
+                </>}
+                {!detail.cancelled && <button type="button" className={styles.heroBtn} onClick={handleShare}>
                   <img src={shareIcon} width={16} height={16} alt="" />
                   Share invite
-                </button>
+                </button>}
                 <span className={styles.shareNote} role="status">
                   {actionError || shareNote}
                 </span>
@@ -269,7 +283,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
             <ul className={styles.candidates}>
               {candidates.map((candidate) => {
                 const movie = movieOf(candidate.tmdbId)
-                const leading = leaders.includes(candidate)
+                const leading = !detail.cancelled && leaders.includes(candidate)
                 const mine = myVote === candidate.tmdbId
                 const width = topVotes > 0 ? (candidate.voters.length / topVotes) * 80 : 0
                 return (
@@ -331,7 +345,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                 <img src={crownYellowIcon} width={25} height={25} alt="" />
               </span>
               <div className={styles.finalText}>
-                {closed ? (
+                {detail.cancelled ? <><span className={styles.finalLabel}>CANCELLED</span><span className={styles.finalTitle}>This movie night is cancelled.</span><span className={styles.finalBody}>Guests have been notified. Voting and invitations are closed.</span></> : closed ? (
                   <>
                     <span className={styles.finalLabel}>VOTING CLOSED</span>
                     <span className={styles.finalTitle}>{winner ? `${winner.title} it is!` : 'No votes were cast'}</span>
@@ -345,7 +359,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                   </>
                 )}
               </div>
-              {detail.isHost && <PillButton onClick={toggleVoting}>{closed ? 'Reopen voting' : 'Close voting now'}</PillButton>}
+              {detail.isHost && !detail.cancelled && <PillButton onClick={toggleVoting}>{closed ? 'Reopen voting' : 'Close voting now'}</PillButton>}
             </div>
           </section>
 
@@ -355,7 +369,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                 <h2 id="guests-title" className={styles.cardTitle}>
                   Guests
                 </h2>
-                {invitable.length > 0 && (
+                {!detail.cancelled && invitable.length > 0 && (
                   <div className={styles.popWrap}>
                     <button type="button" className={styles.textBtn} aria-expanded={inviting} onClick={() => setInviting((v) => !v)}>
                       Invite more
@@ -423,7 +437,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                 <DetailRow
                   icon={crownRowIcon}
                   label="MOVIE"
-                  value={winner ? `${winner.title} (${closed ? 'winner' : 'leading'})` : 'Still voting'}
+                  value={detail.cancelled ? 'Cancelled' : winner ? `${winner.title} (${closed ? 'winner' : 'leading'})` : 'Still voting'}
                 />
               </dl>
               {detail.note && <p className={styles.note}>{detail.note}</p>}
