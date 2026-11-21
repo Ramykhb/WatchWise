@@ -8,9 +8,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MovieNight extends Model
 {
-    protected $fillable = ['organizer_id', 'title', 'scheduled_at', 'location', 'meeting_link', 'note', 'status', 'winning_tmdb_id', 'share_token', 'share_expires_at'];
+    protected $fillable = ['organizer_id', 'title', 'scheduled_at', 'location', 'meeting_link', 'note', 'status', 'winning_tmdb_id', 'share_token', 'share_expires_at', 'calendar_revision'];
 
-    protected $hidden = ['share_token', 'share_expires_at'];
+    protected $hidden = ['share_token', 'share_expires_at', 'calendar_revision'];
 
     protected function casts(): array
     {
@@ -20,6 +20,7 @@ class MovieNight extends Model
             'share_expires_at' => 'datetime',
             'organizer_id' => 'integer',
             'winning_tmdb_id' => 'integer',
+            'calendar_revision' => 'integer',
         ];
     }
 

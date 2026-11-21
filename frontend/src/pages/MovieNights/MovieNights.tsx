@@ -38,7 +38,7 @@ const STATUS_CLASS = {
 const HOW_IT_WORKS = [
   { title: 'Plan & invite', text: 'Pick a date, where you will watch, and the friends to invite.' },
   { title: 'Shortlist & vote', text: 'Everyone adds candidates and votes until voting closes.' },
-  { title: 'Watch together', text: 'The winning film is announced and added to everyone’s calendar.' },
+  { title: 'Watch together', text: 'The winner is announced and calendar invitations are emailed to participants with Calendar enabled.' },
 ]
 
 /** Segmented-control icons are masks filled with the text colour, so they follow the selected option. */

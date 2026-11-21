@@ -3,6 +3,7 @@
 namespace App\MovieNight\Services;
 
 use App\Models\MovieNight;
+use App\Models\MovieNightCalendarDelivery;
 use App\Models\User;
 use App\MovieNight\DTOs\Requests\CreateMovieNightData;
 use App\MovieNight\DTOs\Requests\InviteGuestsData;
@@ -26,6 +27,7 @@ class MovieNightService implements MovieNightServiceInterface
     public function __construct(
         private readonly MovieNightRepositoryInterface $nights,
         private readonly NotificationServiceInterface $notifications,
+        private readonly MovieNightCalendarService $calendar,
     ) {}
 
     public function shareLink(MovieNight $night): array
@@ -83,6 +85,10 @@ class MovieNightService implements MovieNightServiceInterface
             if ($invite->status !== 'accepted') {
                 $this->nights->updateInviteStatus($invite, 'accepted');
                 DB::afterCommit(fn () => $this->notifications->nightAnswered($night, $guest, 'accepted'));
+                if ($night->status === 'confirmed') {
+                    $this->nights->update($night, ['calendar_revision' => $night->calendar_revision + 1]);
+                    $this->calendar->schedule($night);
+                }
             }
 
             return $night;
@@ -141,64 +147,108 @@ class MovieNightService implements MovieNightServiceInterface
 
     public function invite(MovieNight $night, InviteGuestsData $data, User $organizer): MovieNightResponse
     {
-        if ($night->status === 'cancelled') {
-            throw ValidationException::withMessages(['night' => 'This movie night is cancelled.']);
-        }
-        $this->inviteUsers($night, $data->invitees, $organizer, $this->nights->invitedUserIds($night));
+        $night = DB::transaction(function () use ($night, $data, $organizer): MovieNight {
+            $night = $this->nights->lock($night);
+            if ($night->status === 'cancelled') {
+                throw ValidationException::withMessages(['night' => 'This movie night is cancelled.']);
+            }
+            $this->inviteUsers($night, $data->invitees, $organizer, $this->nights->invitedUserIds($night));
+
+            return $night;
+        });
 
         return $this->present($night, $organizer->id);
     }
 
     public function rsvp(MovieNight $night, RsvpData $data, User $guest): MovieNightResponse
     {
-        if ($night->status === 'cancelled') {
-            throw ValidationException::withMessages(['night' => 'This movie night is cancelled.']);
-        }
-        $invite = $this->nights->findInvite($night, $guest->id);
-
-        if ($invite === null) {
-            throw new NotInvitedToMovieNight;
-        }
-
-        if ($invite->status !== $data->status) {
-            $this->nights->updateInviteStatus($invite, $data->status);
-
-            if ($data->status !== 'pending') {
-                $this->notifications->nightAnswered($night, $guest, $data->status);
+        $night = DB::transaction(function () use ($night, $data, $guest): MovieNight {
+            $night = $this->nights->lock($night);
+            if ($night->status === 'cancelled') {
+                throw ValidationException::withMessages(['night' => 'This movie night is cancelled.']);
             }
-        }
+            $invite = $this->nights->findInvite($night, $guest->id);
+            if ($invite === null) {
+                throw new NotInvitedToMovieNight;
+            }
+            if ($invite->status !== $data->status) {
+                $this->nights->updateInviteStatus($invite, $data->status);
+                if ($data->status !== 'pending') {
+                    DB::afterCommit(fn () => $this->notifications->nightAnswered($night, $guest, $data->status));
+                }
+                if ($night->status === 'confirmed') {
+                    $this->nights->update($night, ['calendar_revision' => $night->calendar_revision + 1]);
+                    $this->calendar->schedule($night);
+                    if ($data->status === 'declined') {
+                        $this->calendar->schedule($night, [$guest->id], cancelled: true);
+                    }
+                }
+            }
+
+            return $night;
+        });
 
         return $this->present($night, $guest->id);
     }
 
     public function vote(MovieNight $night, VoteData $data, User $voter): MovieNightResponse
     {
-        $invite = $this->nights->findInvite($night, $voter->id);
+        $night = DB::transaction(function () use ($night, $data, $voter): MovieNight {
+            $night = $this->nights->lock($night);
+            $invite = $this->nights->findInvite($night, $voter->id);
+            if ($night->organizer_id !== $voter->id && $invite?->status === 'declined') {
+                throw new DeclinedGuestCannotVote;
+            }
+            if ($night->status !== 'pending' || $night->winning_tmdb_id !== null) {
+                throw new VotingClosed;
+            }
+            $this->nights->replaceVote($night, $data->tmdbId, $voter->id);
+            DB::afterCommit(fn () => $this->notifications->nightVoted($night, $voter, $data->tmdbId));
 
-        if ($night->organizer_id !== $voter->id && $invite?->status === 'declined') {
-            throw new DeclinedGuestCannotVote;
-        }
-
-        // The host closes voting by confirming the night (with a winner) or cancels it.
-        if ($night->status !== 'pending' || $night->winning_tmdb_id !== null) {
-            throw new VotingClosed;
-        }
-
-        DB::transaction(fn () => $this->nights->replaceVote($night, $data->tmdbId, $voter->id));
-        $this->notifications->nightVoted($night, $voter, $data->tmdbId);
+            return $night;
+        });
 
         return $this->present($night, $voter->id);
     }
 
     public function update(MovieNight $night, UpdateMovieNightData $data, User $organizer): MovieNightResponse
     {
-        $before = ['status' => $night->status, 'scheduled_at' => $night->scheduled_at?->toJSON()];
-        $this->nights->update($night, $data->attributes);
+        $night = DB::transaction(function () use ($night, $data): MovieNight {
+            $night = $this->nights->lock($night);
+            $attributes = $data->attributes;
+            if (! array_key_exists('status', $attributes) && isset($attributes['winning_tmdb_id']) && $night->status === 'pending') {
+                $attributes['status'] = 'confirmed';
+            }
+            if (($attributes['status'] ?? null) === 'pending') {
+                $attributes['winning_tmdb_id'] = null;
+            }
+            $status = $attributes['status'] ?? $night->status;
+            $winner = array_key_exists('winning_tmdb_id', $attributes) ? $attributes['winning_tmdb_id'] : $night->winning_tmdb_id;
+            if ($status === 'confirmed' && ($winner === null || ! $night->candidates()->where('tmdb_id', $winner)->exists())) {
+                throw ValidationException::withMessages(['winning_tmdb_id' => 'Choose a movie from the shortlist before closing voting.']);
+            }
+            if ($status === 'pending' && $winner !== null) {
+                throw ValidationException::withMessages(['winning_tmdb_id' => 'Confirm the night when selecting a winner.']);
+            }
+            $before = ['status' => $night->status, 'scheduled_at' => $night->scheduled_at?->toJSON()];
+            $night->fill($attributes);
+            if (! $night->isDirty()) {
+                return $night;
+            }
+            $attributes['calendar_revision'] = $night->calendar_revision + 1;
+            $this->nights->update($night, $attributes);
+            $change = $this->changeGuestsHearAbout($before, $night);
+            if ($change !== null) {
+                DB::afterCommit(fn () => $this->notifications->nightChanged($night, $change, $this->nights->attendingGuestIds($night)));
+            }
+            if ($night->status === 'confirmed') {
+                $this->calendar->schedule($night);
+            } elseif (MovieNightCalendarDelivery::where('movie_night_id', $night->id)->where('cancelled', false)->exists()) {
+                $this->calendar->schedule($night, cancelled: true);
+            }
 
-        $change = $this->changeGuestsHearAbout($before, $night);
-        if ($change !== null) {
-            $this->notifications->nightChanged($night, $change, $this->nights->attendingGuestIds($night));
-        }
+            return $night;
+        });
 
         return $this->present($night, $organizer->id);
     }
@@ -215,7 +265,10 @@ class MovieNightService implements MovieNightServiceInterface
             ->each(fn (User $guest) => $this->nights->addInvite($night, $guest->id));
 
         if ($guests->isNotEmpty()) {
-            $this->notifications->nightInvited($night, $organizer, $guests->modelKeys());
+            DB::afterCommit(fn () => $this->notifications->nightInvited($night, $organizer, $guests->modelKeys()));
+            if ($night->status === 'confirmed') {
+                $this->calendar->schedule($night, $guests->modelKeys());
+            }
         }
     }
 

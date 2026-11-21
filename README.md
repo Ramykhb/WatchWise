@@ -332,7 +332,7 @@ REVERB_ALLOWED_ORIGINS=localhost
 
 Use a hostname without `https://` for `REVERB_PUBLIC_HOST`. Set `REVERB_ALLOWED_ORIGINS` to the frontend hostname (or comma-separated hostnames), such as `localhost` during local development. The frontend obtains these public settings from `/api/chat/connection`; changing frontend `VITE_REVERB_*` variables does not configure this app's sockets. Render terminates TLS, so Reverb listens internally over plain HTTP while browsers connect with `wss://`. See [Laravel Reverb configuration](https://laravel.com/docs/12.x/reverb) and [Render WebSockets](https://render.com/docs/websocket).
 
-Queue workers and the scheduler still need separate processes if those features are enabled. Uploaded avatars use local storage by default; use persistent storage or an object storage service to retain them across deploys.
+The container also runs the Laravel scheduler under Supervisor, including retries for pending movie-night calendar emails. Local development can run `php artisan schedule:work` in another terminal. Queue workers are still separate if queued features are enabled. Uploaded avatars use local storage by default; use persistent storage or an object storage service to retain them across deploys.
 
 ## API documentation
 
@@ -381,7 +381,7 @@ GitHub Actions runs the [frontend TypeScript/build checks](.github/workflows/fro
 
 - Terms, privacy policy, community, releases, full credits, and full video-gallery routes still use placeholder screens. Core movie details include credits and available trailers.
 - The notification screen, shared frontend store, preferences, and model exist, but `/api/notifications` read/update/dismiss routes are not currently registered in the backend.
-- Google Calendar support opens a prefilled event link; it does not synchronize calendars in the background. Saved integration/digest preferences do not by themselves implement delivery jobs.
+- Calendar actions support prefilled event links and `.ics` exports. Confirmed movie nights also email calendar invitations to participants with Calendar enabled, with updates and cancellations for later changes. Recipients accept/import those invitations in their calendar; there is no background provider synchronization. Weekly digest delivery remains unimplemented.
 - External catalog, AI, email, map, OAuth, and socket functionality depends on valid provider configuration.
 
 ## Contributing

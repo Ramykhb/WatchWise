@@ -1,3 +1,4 @@
+import ChooseWinnerDialog from './ChooseWinnerDialog.tsx'
 import MemberSearch from './MemberSearch.tsx'
 import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog.tsx'
 import EditNightDialog from './EditNightDialog.tsx'
@@ -78,6 +79,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
   useEntranceAnimation(pageRef)
   const calendarOn = useIntegrations().isOn('calendar')
 
+  const [choosingWinner, setChoosingWinner] = useState(false)
   const [editing, setEditing] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
@@ -120,10 +122,10 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
     if (tmdbId !== myVote) save(api.put(`/movie-nights/${night.id}/vote`, { tmdb_id: tmdbId }))
   }
   const setRsvp = (option: Exclude<Rsvp, 'pending'>) => save(api.put(`/movie-nights/${night.id}/rsvp`, { status: apiRsvp(option) }))
-  const toggleVoting = () =>
-    save(
-      api.patch(`/movie-nights/${night.id}`, closed ? { status: 'pending', winning_tmdb_id: null } : { status: 'confirmed', winning_tmdb_id: leaders[0]?.tmdbId ?? null }),
-    )
+  const toggleVoting = () => {
+    if (closed) save(api.patch(`/movie-nights/${night.id}`, { status: 'pending', winning_tmdb_id: null }))
+    else setChoosingWinner(true)
+  }
 
   const handleShare = async () => {
     if (sharing) return
@@ -161,6 +163,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
   return (
     <div ref={pageRef} className={styles.page}>
       <AppNav />
+      {choosingWinner && <ChooseWinnerDialog nightId={night.id} candidates={candidates} titleOf={(id) => movieOf(id).title} onSaved={onChange} onClose={() => setChoosingWinner(false)} />}
       {editing && <EditNightDialog night={night} detail={detail} onSaved={onChange} onClose={() => setEditing(false)} />}
       <ConfirmDialog open={cancelling} title="Cancel this movie night?" message="Guests will be notified and voting will close." confirmLabel="Cancel movie night" busyLabel="Cancelling…" cancelLabel="Keep movie night" onCancel={() => setCancelling(false)} onConfirm={async () => {
         const { data } = await api.patch<{ night: ApiNight }>(`/movie-nights/${night.id}`, { status: 'cancelled' })
@@ -362,17 +365,18 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                   <>
                     <span className={styles.finalLabel}>VOTING CLOSED</span>
                     <span className={styles.finalTitle}>{winner ? `${winner.title} it is!` : 'No votes were cast'}</span>
-                    <span className={styles.finalBody}>Everyone has been sent the final movie, time, place and link — plus a calendar invite.</span>
+                    <span className={styles.finalBody}>The final details are available to all participants. Calendar invitations are emailed to participants with Calendar enabled.</span>
                   </>
                 ) : (
                   <>
                     <span className={styles.finalLabel}>WHEN VOTING CLOSES</span>
                     <span className={styles.finalTitle}>The winner is announced to everyone</span>
-                    <span className={styles.finalBody}>All participants get the final movie, time, place and link — plus a calendar invite.</span>
+                    <span className={styles.finalBody}>Confirm a winning movie to notify participants and email calendar invitations to those with Calendar enabled.</span>
                   </>
                 )}
               </div>
-              {detail.isHost && !detail.cancelled && <PillButton onClick={toggleVoting}>{closed ? 'Reopen voting' : 'Close voting now'}</PillButton>}
+              {detail.isHost && !detail.cancelled && <PillButton disabled={!closed && candidates.length === 0} onClick={toggleVoting}>{closed ? 'Reopen voting' : 'Close voting now'}</PillButton>}
+              {detail.isHost && !closed && candidates.length === 0 && <p>Add a candidate movie before closing voting.</p>}
             </div>
           </section>
 
