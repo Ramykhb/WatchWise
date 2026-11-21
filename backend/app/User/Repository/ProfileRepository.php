@@ -11,6 +11,8 @@ use App\User\InterfaceRepository\ProfileRepositoryInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Pagination\Cursor;
+use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Collection as SupportCollection;
 
 class ProfileRepository implements ProfileRepositoryInterface
@@ -82,6 +84,14 @@ class ProfileRepository implements ProfileRepositoryInterface
 
         return $user->movieLists()->when($publicOnly, fn ($builder) => $builder->where('is_public', true))
             ->with(['user', 'items' => fn ($items) => $hidden->exclude($items)->limit(5)])->withCount(['items' => $visibleItems])->latest('updated_at')->get();
+    }
+
+    public function watchedPage(User $user, HiddenMovies $hidden, ?Cursor $cursor = null): CursorPaginator
+    {
+        return $hidden->exclude($user->watchlists()->where('status', 'watched'))
+            ->select(['id', 'tmdb_id', 'media_type', 'watched_at', 'created_at'])
+            ->selectRaw('COALESCE(watched_at, created_at) as watched_order')
+            ->orderByDesc('watched_order')->orderByDesc('id')->cursorPaginate(24, ['*'], 'cursor', $cursor);
     }
 
     public function watchedCount(User $user, HiddenMovies $hidden): int

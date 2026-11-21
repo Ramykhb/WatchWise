@@ -13,6 +13,7 @@ use App\User\DTOs\Responses\UserSearchResponse;
 use App\User\Exceptions\FollowRequestNotFound;
 use App\User\Exceptions\ProfileSectionHidden;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\Cursor;
 
 interface ProfileServiceInterface
 {
@@ -23,6 +24,8 @@ interface ProfileServiceInterface
      * Everything the Profile page shows, filtered by the owner's privacy settings. A profile the
      * viewer may not open comes back with only the name and handle (enough to follow them).
      */
+    public function watched(User $user, CurrentUser $viewer, ?Cursor $cursor = null): array;
+
     public function profile(User $user, CurrentUser $viewer): ProfileResponse;
 
     /**

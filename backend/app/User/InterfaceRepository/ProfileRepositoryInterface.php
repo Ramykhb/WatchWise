@@ -9,6 +9,8 @@ use App\Models\Watchlist;
 use App\Support\HiddenMovies;
 use App\User\DTOs\Requests\UserSearchQuery;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\Cursor;
+use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Collection as SupportCollection;
 
 interface ProfileRepositoryInterface
@@ -65,6 +67,8 @@ interface ProfileRepositoryInterface
      * @return Collection<int, MovieList> latest activity first, with owner, films and film count, without the hidden movies
      */
     public function lists(User $user, bool $publicOnly, HiddenMovies $hidden): Collection;
+
+    public function watchedPage(User $user, HiddenMovies $hidden, ?Cursor $cursor = null): CursorPaginator;
 
     public function watchedCount(User $user, HiddenMovies $hidden): int;
 

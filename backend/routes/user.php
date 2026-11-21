@@ -27,6 +27,7 @@ Route::prefix('me')->controller(UserController::class)->group(function () {
 Route::get('users', [UserController::class, 'index'])->middleware('throttle:user-search');
 Route::prefix('users/{user:username}')->controller(UserController::class)->group(function () {
     Route::get('/', 'show');
+    Route::get('watched', 'watched');
     Route::get('followers', 'followers');
     Route::get('following', 'following');
     Route::post('report', 'report')->middleware('throttle:report');

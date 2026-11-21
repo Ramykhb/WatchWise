@@ -2,6 +2,7 @@ import type { Movie } from '../components/MovieTile/MovieTile.tsx'
 /** A neutral placeholder until the title's TMDB details load. Every numeric ID belongs to TMDB. */
 export function movieFor(tmdbId: number): Movie {
   return {
+    mediaType: 'movie',
     slug: String(tmdbId),
     title: `Film #${tmdbId}`,
     posterTitle: ['FILM', `#${tmdbId}`],
@@ -44,5 +45,5 @@ export function movieForKey(key: FilmKey): Movie {
   if (typeof key === 'number') return movieFor(key)
   if (!key.startsWith('tv-')) return movieFor(Number(key))
   const tmdbId = Number(key.slice('tv-'.length))
-  return { ...movieFor(tmdbId), slug: key, title: `Show #${tmdbId}`, posterTitle: ['SHOW', `#${tmdbId}`] }
+  return { ...movieFor(tmdbId), mediaType: 'tv', slug: key, title: `Show #${tmdbId}`, posterTitle: ['SHOW', `#${tmdbId}`] }
 }

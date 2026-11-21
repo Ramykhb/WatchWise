@@ -26,6 +26,7 @@ use App\User\InterfaceRepository\ProfileRepositoryInterface;
 use App\User\InterfaceServices\ProfileServiceInterface;
 use App\User\Resources\MemberResource;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\Cursor;
 
 class ProfileService implements ProfileServiceInterface
 {
@@ -117,6 +118,7 @@ class ProfileService implements ProfileServiceInterface
         // Sections the owner hid come back as null (counts) or empty (content).
         $count = fn (string $section, callable $count) => $shows($section) ? $count() : null;
         $lists = $shows('lists') ? $this->profiles->lists($user, $publicListsOnly, $hidden) : new Collection;
+        $watchedPage = $shows('history') ? $this->watched($user, $viewer) : null;
         $reviews = $shows('reviews') ? $this->profiles->recentReviews($user, $approvedOnly, self::RECENT, $hidden, $viewer->id()) : new Collection;
 
         return new ProfileResponse([
@@ -140,6 +142,7 @@ class ProfileService implements ProfileServiceInterface
             'activity' => $this->activity($user, $shows, $approvedOnly, $hidden, $reviews, $lists),
             'reviews' => $reviews->map(fn (Review $review) => $this->review($review, $shows('ratings')))->values()->all(),
             'lists' => MovieListResource::collection($lists),
+            'watched_page' => $watchedPage,
             'watched' => $shows('history') ? $this->profiles->watchedTmdbIds($user, 24, $hidden) : [],
             // Highest-rated films first; ties go to the most recent review.
             'top4' => $shows('ratings') ? $this->profiles->topRatedTmdbIds($user, $approvedOnly, 4, $hidden) : [],
@@ -147,6 +150,20 @@ class ProfileService implements ProfileServiceInterface
             'followers' => $shows('following') ? MemberResource::collection($this->profiles->recentFollowers($user, 8)) : [],
             'following' => $shows('following') ? MemberResource::collection($this->profiles->recentFollowing($user, 8)) : [],
         ]);
+    }
+
+    public function watched(User $user, CurrentUser $viewer, ?Cursor $cursor = null): array
+    {
+        if (! $this->privacy->shows($user, $viewer, 'history')) {
+            throw new ProfileSectionHidden;
+        }
+        $hidden = $viewer->id() === $user->id ? HiddenMovies::none() : $this->catalog->hiddenMovies();
+        $page = $this->profiles->watchedPage($user, $hidden, $cursor);
+
+        return ['items' => collect($page->items())->map(fn (Watchlist $item): array => [
+            'id' => $item->id, 'tmdb_id' => $item->tmdb_id, 'media_type' => $item->media_type,
+            'watched_at' => ($item->watched_at ?? $item->created_at)?->toJSON(),
+        ])->all(), 'next_cursor' => $page->nextCursor()?->encode(), 'has_more' => $page->hasMorePages()];
     }
 
     public function followers(User $user, CurrentUser $viewer): Collection

@@ -17,6 +17,7 @@ use App\User\FormRequests\UpdatePreferencesRequest;
 use App\User\FormRequests\UpdateProfileRequest;
 use App\User\FormRequests\UploadAvatarRequest;
 use App\User\FormRequests\UserSearchRequest;
+use App\User\FormRequests\WatchedHistoryRequest;
 use App\User\InterfaceServices\AccountDeletionServiceInterface;
 use App\User\InterfaceServices\AccountServiceInterface;
 use App\User\InterfaceServices\EmailChangeServiceInterface;
@@ -217,6 +218,11 @@ class UserController
     public function show(User $user, CurrentUser $current): JsonResponse
     {
         return response()->json($this->profiles->profile($user, $current));
+    }
+
+    public function watched(WatchedHistoryRequest $request, User $user, CurrentUser $current): JsonResponse
+    {
+        return response()->json($this->profiles->watched($user, $current, $request->cursor()));
     }
 
     /** GET /api/users/{username}/followers */

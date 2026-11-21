@@ -1,3 +1,4 @@
+import { itemKey, movieForKey } from '../../lib/movies.ts'
 import ReportButton from '../../components/ReportButton/ReportButton.tsx'
 import { ProfileSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
@@ -29,7 +30,7 @@ import { useAuth } from '../../contexts/useAuth.ts'
 import { api, isStatus, useApi } from '../../lib/api.ts'
 import { setFollowing as saveFollow } from '../../lib/follow.ts'
 import { useMovies } from '../../lib/movieDetails.ts'
-import type { ApiMember, ApiProfile } from '../../lib/types.ts'
+import type { ApiMember, ApiProfile, ApiWatchedPage } from '../../lib/types.ts'
 
 type Tab = 'activity' | 'reviews' | 'lists' | 'watched'
 type PeopleTab = 'followers' | 'following'
@@ -60,8 +61,23 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
   useEntranceAnimation(pageRef)
 
   const isMe = profile.isMe
+  const [watched, setWatched] = useState(profile.watched)
+  const [watchedCursor, setWatchedCursor] = useState(profile.watchedCursor)
+  const [loadingWatched, setLoadingWatched] = useState(false)
+  const [historyError, setHistoryError] = useState('')
+  const loadWatched = async () => {
+    if (!watchedCursor || loadingWatched) return
+    setLoadingWatched(true)
+    setHistoryError('')
+    try {
+      const { data } = await api.get<ApiWatchedPage>(`/users/${encodeURIComponent(profile.handle)}/watched`, { params: { cursor: watchedCursor } })
+      setWatched((current) => [...new Map([...current, ...data.items.map((item) => movieForKey(itemKey(item)))].map((movie) => [movie.slug, movie])).values()])
+      setWatchedCursor(data.next_cursor)
+    } catch { setHistoryError("Couldn't load more watched titles. Try again.") }
+    finally { setLoadingWatched(false) }
+  }
   // Real titles and posters for the activity cards (the API sends only ids).
-  const movieOf = useMovies(profile.activity.flatMap((item) => ('movie' in item ? [item.movie.slug] : [])))
+  const movieOf = useMovies([...watched.map((movie) => movie.slug), ...profile.top4.map((movie) => movie.slug), ...profile.activity.flatMap((item) => ('movie' in item ? [item.movie.slug] : []))])
   const activity = profile.activity.map((item) => ('movie' in item ? { ...item, movie: movieOf(item.movie.slug, item.movie) } : item))
 
   // "Helpful" on these reviews is saved like on the Movie page (POST/DELETE /api/reviews/{id}/helpful);
@@ -154,7 +170,7 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
     { label: 'Following', value: compactCount(profile.following) },
     { label: 'Reviews', value: compactCount(profile.reviews) },
     { label: 'Lists', value: compactCount(profile.lists) },
-    { label: 'Films', value: compactCount(profile.films) },
+    { label: 'Titles watched', value: compactCount(profile.films) },
   ]
   // The profile carries the first 8 of each list; "View all" loads the rest.
   const [fullLists, setFullLists] = useState<Partial<Record<PeopleTab, Member[]>>>({})
@@ -307,15 +323,17 @@ function ProfilePage({ profile }: { profile: ProfileData }) {
                   <p className={styles.empty}>No lists yet.</p>
                 ))}
               {tab === 'watched' &&
-                (profile.watched.length > 0 ? (
+                (watched.length > 0 ? (
                   <div className={styles.watched}>
-                    {profile.watched.map((movie) => (
-                      <MovieTile key={movie.slug} movie={movie} />
+                    {watched.map((movie) => (
+                      <MovieTile key={movie.slug} movie={movieOf(movie.slug, movie)} />
                     ))}
                   </div>
                 ) : (
-                  <p className={styles.empty}>No watched films to show.</p>
+                  <p className={styles.empty}>No watched movies or TV shows to show.</p>
                 ))}
+              {tab === 'watched' && historyError && <p role="alert">{historyError}</p>}
+              {tab === 'watched' && watchedCursor && <PillButton disabled={loadingWatched} onClick={() => void loadWatched()}>{loadingWatched ? 'Loading…' : 'Load more watched titles'}</PillButton>}
             </section>
 
             <aside className={styles.side} data-enter data-enter-delay="0.45">

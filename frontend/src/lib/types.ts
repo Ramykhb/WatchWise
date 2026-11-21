@@ -73,6 +73,8 @@ export type ApiActivity = {
   | { kind: 'watchlist' }
 )
 
+export type ApiWatchedPage = { items: { id: number; tmdb_id: number; media_type: 'movie' | 'tv'; watched_at: string | null }[]; next_cursor: string | null; has_more: boolean }
+
 export type ApiProfile = {
   user: ApiMember & { bio: string | null; location: string | null; profile_visibility: string; member_since: string | null }
   is_me: boolean
@@ -87,6 +89,7 @@ export type ApiProfile = {
   reviews?: ApiReview[]
   lists?: ApiList[]
   watched?: number[]
+  watched_page?: ApiWatchedPage | null
   top4?: number[]
   genres?: string[]
   followers?: ApiMember[]

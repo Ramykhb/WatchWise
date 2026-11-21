@@ -50,6 +50,7 @@ export type Profile = Member & {
   markedHelpful: string[]
   listCards: ProfileList[]
   watched: Movie[]
+  watchedCursor: string | null
   top4: Movie[]
   genres: string[]
   followerList: Member[]
@@ -127,7 +128,8 @@ export function toProfile(data: ApiProfile): Profile {
     reviewList: (data.reviews ?? []).map(toReview),
     markedHelpful: (data.reviews ?? []).filter((review) => review.marked_helpful).map((review) => String(review.id)),
     listCards: (data.lists ?? []).map(toProfileList),
-    watched: (data.watched ?? []).map(movieFor),
+    watched: data.watched_page ? data.watched_page.items.map((item) => movieForKey(itemKey(item))) : (data.watched ?? []).map(movieFor),
+    watchedCursor: data.watched_page?.next_cursor ?? null,
     top4: (data.top4 ?? []).map(movieFor),
     genres: data.genres ?? [],
     followerList: (data.followers ?? []).map(toMember),
