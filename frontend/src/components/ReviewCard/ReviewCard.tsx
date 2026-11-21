@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ReportButton from '../ReportButton/ReportButton.tsx'
 import RatingStars from '../RatingStars/RatingStars.tsx'
 import Sentiment, { type SentimentType } from '../Sentiment/Sentiment.tsx'
 import heartIcon from '../../assets/movie/icon-heart.svg'
@@ -33,10 +34,11 @@ type ReviewCardProps = {
   canReply?: boolean
   /** Classification is still running; sentiment is not available yet. */
   pending?: boolean
+  reportId?: number
 }
 
 /** Member review with rating, sentiment, "helpful" and reply actions (Figma "Review Card"). */
-export default function ReviewCard({ review, onHelpful, markedHelpful, own = false, canReply = !onHelpful, pending = false }: ReviewCardProps) {
+export default function ReviewCard({ review, onHelpful, markedHelpful, own = false, canReply = !onHelpful, pending = false, reportId }: ReviewCardProps) {
   const [localHelpful, setLocalHelpful] = useState(false)
   const [revealedReview, setRevealedReview] = useState<string | null>(null)
   const pressed = onHelpful ? Boolean(markedHelpful) : localHelpful
@@ -102,6 +104,7 @@ export default function ReviewCard({ review, onHelpful, markedHelpful, own = fal
             {helpful} helpful
           </button>
         )}
+        {reportId !== undefined && !own && <ReportButton target={{ type: 'review', id: reportId }} />}
         {canReply && (
           // TODO: open a reply thread once comments exist in the API.
           <button type="button" className={styles.action}>

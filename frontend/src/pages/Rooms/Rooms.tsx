@@ -1,3 +1,4 @@
+import ReportButton from '../../components/ReportButton/ReportButton.tsx'
 import { RoomChatSkeleton, RoomListSkeleton, RoomInfoSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { LoadingIndicator } from '../../components/LoadingState/LoadingState.tsx'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
@@ -825,6 +826,7 @@ export default function Rooms() {
             </div>
             {isMuted && <span className={styles.mutedChip}>Muted</span>}
             <span className={room.spoilers ? styles.spoilerChip : styles.safeChip}>{room.spoilers ? 'Spoilers allowed' : 'Spoiler-free'}</span>
+            {room.host?.id !== user?.id && <ReportButton key={`report-room-${room.id}`} target={{ type: 'room', id: Number(room.id) }} />}
             <div className={styles.menuWrap}>
               <button
                 type="button"
@@ -934,6 +936,7 @@ export default function Rooms() {
                       <span className={styles.time}>{message.time}</span>
                     </p>
                     <p className={styles.bubble}>{message.text}</p>
+                    <ReportButton target={{ type: 'message', id: message.messageId, roomId: Number(room.id) }} />
                     {message.receipt && <p className={styles.receipt}>{message.receipt}</p>}
                   </div>
                 </div>

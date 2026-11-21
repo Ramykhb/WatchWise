@@ -1,3 +1,4 @@
+import ReportButton from '../../components/ReportButton/ReportButton.tsx'
 import { ListDetailSkeleton } from '../../components/LoadingState/ScreenSkeletons.tsx'
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { Link, useParams } from 'react-router'
@@ -299,6 +300,7 @@ function ListDetailPage({ detail, revision }: { detail: Detail; revision: number
                   <img src={shareIcon} width={16} height={16} alt="" />
                   Share
                 </button>
+                {!detail.isOwner && <ReportButton target={{ type: 'list', id: detail.id }} />}
                 <span className={styles.shareNote} role="status">
                   {shareNote}
                 </span>
