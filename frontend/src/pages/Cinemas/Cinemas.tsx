@@ -234,7 +234,7 @@ export default function Cinemas() {
           <>
         <section className={styles.panel} aria-labelledby="cinemas-title" data-enter data-enter-delay="0.05">
           <SplitHeadline id="cinemas-title" className={styles.title} lines={[{ text: 'Cinemas near you' }]} />
-          <p className={styles.lead}>Discover cinemas around you. Select a cinema to see its details and get directions.</p>
+          <p className={styles.lead}>Discover cinemas around you. Select a cinema for details and directions. For screening schedules, open its website when available.</p>
 
           <div className={styles.location}>
             <img src={pinIcon} width={18} height={18} alt="" />
@@ -323,7 +323,7 @@ export default function Cinemas() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Website
+                    Schedules on cinema website
                     <ExternalLink size={16} aria-hidden="true" />
                   </a>
                 )}

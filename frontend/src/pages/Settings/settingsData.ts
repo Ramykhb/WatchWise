@@ -23,7 +23,7 @@ export type IntegrationKey = 'calendar' | 'location' | 'weather' | 'digest'
 
 export const INTEGRATIONS: { id: IntegrationKey; title: string; text: string }[] = [
   { id: 'calendar', title: 'Google Calendar', text: 'Add releases and movie nights to your calendar' },
-  { id: 'location', title: 'Location', text: 'Find nearby cinemas and showtimes' },
+  { id: 'location', title: 'Location', text: 'Find nearby cinemas and open their websites for schedules' },
   { id: 'weather', title: 'Weather-based suggestions', text: 'Adapt picks to the weather where you are' },
-  { id: 'digest', title: 'Email digest', text: "Weekly picks and friends' activity" },
+  { id: 'digest', title: 'Email digest', text: "Weekly trending picks and friends' activity" },
 ]

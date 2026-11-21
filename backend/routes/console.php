@@ -1,5 +1,6 @@
 <?php
 
+use App\Digest\Services\WeeklyDigestService;
 use App\MovieNight\Services\MovieNightCalendarService;
 use App\Room\InterfaceServices\RoomServiceInterface;
 use Illuminate\Foundation\Inspiring;
@@ -24,3 +25,8 @@ Artisan::command('movie-nights:retry-calendar-mail', function (MovieNightCalenda
     $this->info("Processed {$calendar->retryPending()} pending movie-night calendar invitations.");
 })->purpose('Retry movie-night calendar email deliveries that have not been sent');
 Schedule::command('movie-nights:retry-calendar-mail')->everyMinute()->withoutOverlapping();
+
+Artisan::command('mail:weekly-digest', function (WeeklyDigestService $digests) {
+    $this->info("Sent {$digests->sendDue()} weekly email digests.");
+})->purpose('Send opted-in members one weekly digest, retrying failed deliveries');
+Schedule::command('mail:weekly-digest')->hourly()->timezone('UTC')->withoutOverlapping();

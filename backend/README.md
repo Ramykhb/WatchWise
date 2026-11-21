@@ -79,3 +79,25 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Weekly email digests
+
+Run migrations and keep the existing Laravel scheduler running (`php artisan schedule:work`,
+provided by the production Supervisor configuration, or cron `schedule:run` each minute).
+Configure a real Laravel mail transport and `FRONTEND_URL` for links. The hourly
+`mail:weekly-digest` command starts the current week's deliveries Monday at 09:00 UTC.
+Only active, verified members who explicitly enabled Settings → Integrations → Email digest
+are eligible. Each member gets at most one recorded successful delivery per UTC week.
+The command retries pending deliveries hourly through Sunday, rechecking opt-in, account state,
+sharing rules and moderation on every attempt. Previous weeks are not mailed late.
+`weekly_digest_deliveries` records attempts, success and skipped deliveries. As with SMTP mail
+in general, a transport timeout after acceptance can lead to a duplicate on retry.
+
+Digests include up to five current trending movies and up to eight visible recent activities
+from followed members within the past seven days. Spoiler excerpts and private activity are
+excluded; rating values follow the author's sharing preference. Both HTML and plain text
+emails include the Settings link to stop digests. Mail/provider failures do not mark a delivery
+sent or stop the remaining recipients. To run the job manually: `php artisan mail:weekly-digest`.
+
+Cinema search provides locations, directions and available cinema website links for schedules;
+it does not provide live showtime or ticket inventory.

@@ -77,7 +77,7 @@ class HomeService implements HomeServiceInterface
     }
 
     /** @return list<array<string, mixed>> */
-    private function activity(User $viewer): array
+    public function activity(User $viewer): array
     {
         $recent = $this->home->recentActivity($viewer, 8, $this->catalog->hiddenMovies());
         $reviews = $recent['reviews']->map(function (Review $review): array {
