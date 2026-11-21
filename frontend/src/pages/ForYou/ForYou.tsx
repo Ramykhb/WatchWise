@@ -26,7 +26,6 @@ import { useEntranceAnimation } from "../../hooks/useEntranceAnimation.ts";
 import { useAuth } from "../../contexts/useAuth.ts";
 import { api } from "../../lib/api.ts";
 import { useIntegrations } from "../../lib/integrations.ts";
-import type { WatchlistResponse } from "../../lib/watchlist.ts";
 import { toTileMovie, type TmdbMovie } from "../Discover/discoverApi.ts";
 import {
   WEATHER_MOOD,
@@ -211,12 +210,7 @@ export default function ForYou() {
     let requestTimeout: number | undefined;
     const load = async () => {
       try {
-        const history = await api.get<WatchlistResponse>("/watchlist", { signal: controller.signal });
         if (controller.signal.aborted) return;
-        if (!history.data.items.some((item) => item.status === "watched")) {
-          setWatchedPicks(null);
-          return;
-        }
         setWatchedPicks({ userId, source: null, movies: [], status: "loading" });
         await new Promise<void>((resolve) => {
           requestTimeout = window.setTimeout(resolve, 1000);
@@ -727,7 +721,7 @@ export default function ForYou() {
           <section className={styles.shelf} aria-labelledby="shelf-because">
             <div className={styles.sectionHeader}>
               <h2 id="shelf-because" className={styles.sectionTitle}>
-                Because you watched{watchedPicks.source ? ` ${watchedPicks.source.title}` : "…"}
+                {watchedPicks.source ? `Because you watched ${watchedPicks.source.title}` : "Picked for your taste"}
               </h2>
               {watchedPicks.source && (
                 <Link
