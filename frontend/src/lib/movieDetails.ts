@@ -11,7 +11,7 @@ import { filmKeyOf, movieForKey, type FilmKey } from './movies.ts'
 type TmdbMovieDetails = TmdbMovie & { genres: { id: number; name: string }[] }
 
 // Ignore caches created when numeric IDs could resolve to fictional demo titles.
-const STORAGE_KEY = 'watchwise.movies.v2'
+const STORAGE_KEY = 'watchwise.movies.v3'
 const STORAGE_DAYS = 7
 /** Keeps the stored films well under the browser's storage limit. */
 const STORAGE_MAX = 400
@@ -131,7 +131,7 @@ export function useMovies(keys: FilmKey[], load = true) {
     let active = true
     for (const part of new Set(joined.split(',').filter(Boolean))) {
       const key = toKey(part)
-      if (known.has(part)) continue
+      if (known.has(part) && known.get(part)?.runtimeMinutes !== undefined) continue
       loadMovie(key)
         .then((movie) => active && setLoaded((current) => new Map(current).set(part, movie)))
         .catch(() => active && setFailed((current) => new Set(current).add(part)))

@@ -5,18 +5,15 @@ import type { ApiWatchItem } from '../../lib/types.ts'
 
 // Turns GET /api/watchlist into the queue, history and taste bars the Watchlist page draws.
 // `movieOf` gives each film's details (the page passes `useMovies`, which loads them from TMDB).
-// Availability (in cinemas / streaming) and exact runtimes are not shown yet.
+// Availability (in cinemas / streaming) is not provided. Runtimes come from full movie details.
 
 type MovieOf = (key: FilmKey) => Movie
-
-/** Until TMDB runtimes exist, a film counts as about two hours. */
-const DEFAULT_RUNTIME = 118
 
 export type QueueItem = {
   id: number
   movie: Movie
   details: string
-  runtimeMinutes: number
+  runtimeMinutes: number | null
   added: string
   /** Higher = added more recently (for "Recently added"). */
   addedOrder: number
@@ -27,11 +24,13 @@ export type HistoryEntry = { id: number; month: string; date: string; movie: Mov
 
 export const toQueueItem = (item: ApiWatchItem, movieOf: MovieOf = movieForKey): QueueItem => {
   const movie = movieOf(itemKey(item))
+  const runtime = typeof movie.runtimeMinutes === 'number' && Number.isFinite(movie.runtimeMinutes) && movie.runtimeMinutes > 0 ? movie.runtimeMinutes : null
+  const isShow = item.media_type === 'tv'
   return {
     id: item.id,
     movie,
-    details: movie.meta,
-    runtimeMinutes: DEFAULT_RUNTIME,
+    details: `${movie.meta} · ${runtime === null ? 'Runtime unavailable' : `${runtime} min${isShow ? '/episode' : ''}`}`,
+    runtimeMinutes: isShow ? null : runtime,
     added: `Added ${timeAgo(item.created_at)}`,
     addedOrder: new Date(item.created_at).getTime(),
     watched: item.status === 'watched',
@@ -70,4 +69,14 @@ export function tasteOf(movies: Movie[]) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
     .map(([genre, n], index) => ({ genre, percent: Math.round((n / total) * 100), color: TASTE_COLORS[index] }))
+}
+
+/** Unknown film runtimes and TV series totals never masquerade as complete durations. */
+export const compareRuntime = (a: QueueItem, b: QueueItem) => (a.runtimeMinutes ?? Number.MAX_SAFE_INTEGER) - (b.runtimeMinutes ?? Number.MAX_SAFE_INTEGER)
+
+export function queuedRuntime(items: QueueItem[]) {
+  return {
+    minutes: items.reduce((sum, item) => sum + (item.runtimeMinutes ?? 0), 0),
+    unknown: items.filter((item) => item.runtimeMinutes === null).length,
+  }
 }

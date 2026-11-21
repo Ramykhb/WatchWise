@@ -21,7 +21,7 @@ import { posterAt, useMovies } from '../../lib/movieDetails.ts'
 import { itemKey } from '../../lib/movies.ts'
 import type { Movie } from '../../components/MovieTile/MovieTile.tsx'
 import type { ApiWatchItem } from '../../lib/types.ts'
-import { tasteOf, toHistory, toQueueItem, type HistoryEntry, type QueueItem } from './watchlistData.ts'
+import { compareRuntime, queuedRuntime, tasteOf, toHistory, toQueueItem, type HistoryEntry, type QueueItem } from './watchlistData.ts'
 import styles from './Watchlist.module.css'
 
 type WatchlistResponse = { items: ApiWatchItem[]; ratings: Record<string, number> }
@@ -32,7 +32,7 @@ const SORTS = {
   recent: { label: 'Recently added', compare: (a: QueueItem, b: QueueItem) => b.addedOrder - a.addedOrder },
   title: { label: 'Title A–Z', compare: (a: QueueItem, b: QueueItem) => a.movie.title.localeCompare(b.movie.title) },
   rating: { label: 'Highest rated', compare: (a: QueueItem, b: QueueItem) => Number(b.movie.score) - Number(a.movie.score) },
-  runtime: { label: 'Shortest first', compare: (a: QueueItem, b: QueueItem) => a.runtimeMinutes - b.runtimeMinutes },
+  runtime: { label: 'Shortest films first', compare: compareRuntime },
 }
 type SortKey = keyof typeof SORTS
 
@@ -92,7 +92,8 @@ export default function Watchlist() {
   const queue = items.filter((item) => item.status !== 'watched').map((item) => toQueueItem(item, movieOf))
   const toWatch = queue.length
   const watchedTotal = history.length
-  const queuedHours = Math.round(queue.reduce((sum, item) => sum + item.runtimeMinutes, 0) / 60)
+  const runtime = queuedRuntime(queue)
+  const queuedHours = (runtime.minutes / 60).toFixed(1).replace(/\.0$/, '')
   const taste = tasteOf(history.map((entry) => entry.movie))
   const maxTaste = Math.max(1, ...taste.map((t) => t.percent))
 
@@ -143,7 +144,7 @@ export default function Watchlist() {
               </li>
               <li className={styles.statYellow}>
                 <img src={filmIcon} width={14} height={14} alt="" />
-                {queuedHours}h queued
+                {runtime.minutes === 0 && queue.length > 0 ? 'Runtime unavailable' : `${queuedHours}h ${runtime.unknown ? 'known movie runtime' : 'queued'}`}
               </li>
             </ul>
           </div>
@@ -176,6 +177,7 @@ export default function Watchlist() {
             {tab === 'watchlist' && (
               <>
                 {/* TODO: availability filters (in cinemas / streaming / coming soon) once TMDB data is connected. */}
+                {runtime.unknown > 0 && <p className={styles.details}>Runtime totals exclude {runtime.unknown} TV shows or films whose runtime is unavailable. Unknown durations appear last when sorting by runtime.</p>}
                 {shown.length > 0 && <div className={styles.toolbar}>
                   <span />
                   <label className={styles.sort}>

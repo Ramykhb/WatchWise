@@ -6,6 +6,7 @@ import type { Filters } from './discoverData.ts'
 export type TmdbMovie = {
   id: number
   media_type: 'movie' | 'tv'
+  runtime?: number | null
   title: string
   overview: string
   release_date: string | null
@@ -165,6 +166,7 @@ export function toTileMovie(movie: TmdbMovie, genres: Map<number, string>): Movi
     slug: movie.media_type === 'tv' ? `tv-${movie.id}` : String(movie.id),
     title: movie.title,
     mediaType: movie.media_type,
+    runtimeMinutes: movie.runtime === undefined ? undefined : typeof movie.runtime === 'number' && Number.isFinite(movie.runtime) && movie.runtime > 0 ? movie.runtime : null,
     posterTitle: posterTitle(movie.title),
     meta: [movie.year, genreNames.join(', ')].filter(Boolean).join(' · '),
     // Unreleased films have no votes yet; a dash reads better than "0.0".

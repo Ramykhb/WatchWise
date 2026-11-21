@@ -12,6 +12,8 @@ export type Movie = {
   meta: string
   score: string
   mediaType?: 'movie' | 'tv'
+  /** Movie runtime or TV episode length; undefined until full details load, null when unavailable. */
+  runtimeMinutes?: number | null
   /** Top → middle → bottom poster gradient stops. */
   gradient: [string, string, string]
   /** Real poster (e.g. from TMDB). When set it replaces the gradient art. */
