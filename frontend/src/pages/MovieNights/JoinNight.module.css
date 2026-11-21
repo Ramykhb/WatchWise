@@ -1,0 +1,3 @@
+.page { min-height: 70vh; display: grid; place-items: center; padding: 32px 16px; }
+.card { width: min(540px, 100%); padding: 32px; border-radius: 28px; display: flex; flex-direction: column; gap: 18px; background: var(--surface-white); overflow-wrap: anywhere; }
+.card h1 { font-size: 30px; }.card h2 { font-size: 24px; }.card p { line-height: 1.6; }.card a { text-decoration: underline; }

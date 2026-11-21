@@ -21,6 +21,11 @@ class MovieNightRepository implements MovieNightRepositoryInterface
             ->get();
     }
 
+    public function lock(MovieNight $night): MovieNight
+    {
+        return MovieNight::whereKey($night->id)->lockForUpdate()->firstOrFail();
+    }
+
     public function loadRelations(MovieNight $night): MovieNight
     {
         return $night->load(self::RELATIONS);

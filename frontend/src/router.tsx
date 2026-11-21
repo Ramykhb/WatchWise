@@ -31,6 +31,7 @@ import AdminUsers from './pages/Admin/AdminUsers.tsx'
 import AdminReviews from './pages/Admin/AdminReviews.tsx'
 import AdminMovies from './pages/Admin/AdminMovies.tsx'
 import MovieNights from './pages/MovieNights/MovieNights.tsx'
+import JoinNight from './pages/MovieNights/JoinNight.tsx'
 import NightDetail from './pages/MovieNights/NightDetail.tsx'
 import Rooms from './pages/Rooms/Rooms.tsx'
 import Notifications from './pages/Notifications/Notifications.tsx'
@@ -119,6 +120,7 @@ export const router = createBrowserRouter([
           { path: 'notifications', element: <Notifications /> },
           { path: 'community', element: <Placeholder title="Community" /> },
           { path: 'movie-nights', element: <MovieNights /> },
+          { path: 'movie-nights/:slug/join', element: <JoinNight /> },
           { path: 'movie-nights/:slug', element: <NightDetail /> },
           // One optional room id keeps the page mounted when switching rooms.
           { path: 'rooms/:roomId?', element: <Rooms /> },

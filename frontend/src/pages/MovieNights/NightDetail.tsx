@@ -23,6 +23,7 @@ import xInkIcon from '../../assets/night/icon-x-ink.svg'
 import { useEntranceAnimation } from '../../hooks/useEntranceAnimation.ts'
 import { gradientCss } from '../Home/homeData.ts'
 import { useAuth } from '../../contexts/useAuth.ts'
+import { apiErrorMessage } from '../../lib/auth.ts'
 import { api, isStatus, useApi } from '../../lib/api.ts'
 import { tmdbIdOf } from '../../lib/movies.ts'
 import type { ApiMember, ApiNight } from '../../lib/types.ts'
@@ -81,6 +82,8 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
   const [cancelling, setCancelling] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [inviting, setInviting] = useState(false)
+  const [inviteLink, setInviteLink] = useState('')
+  const [sharing, setSharing] = useState(false)
   const [shareNote, setShareNote] = useState('')
   const [actionError, setActionError] = useState('')
 
@@ -129,17 +132,29 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
     : []
 
   const handleShare = async () => {
-    const url = window.location.href
+    if (sharing) return
+    setSharing(true)
+    setShareNote('')
     try {
-      if (navigator.share) {
-        await navigator.share({ title: `${night.title} on WatchWise`, url })
-        return
+      const { data } = await api.post<{ url: string }>(`/movie-nights/${night.id}/invite-link`)
+      setInviteLink(data.url)
+      try {
+        await navigator.clipboard.writeText(data.url)
+        setShareNote('Invite link copied. Anyone with this link can sign in and join.')
+      } catch {
+        setShareNote('Copy the invite link below. Anyone with it can sign in and join.')
       }
-      await navigator.clipboard.writeText(url)
-      setShareNote('Invite link copied')
-    } catch {
-      setShareNote('')
-    }
+    } catch (error) { setShareNote(apiErrorMessage(error, "Couldn't create an invite link.")) }
+    finally { setSharing(false) }
+  }
+  const revokeLink = async () => {
+    setSharing(true)
+    try {
+      await api.delete(`/movie-nights/${night.id}/invite-link`)
+      setInviteLink('')
+      setShareNote('Invite link disabled. Previously shared copies no longer work.')
+    } catch (error) { setShareNote(apiErrorMessage(error, "Couldn't disable the invite link.")) }
+    finally { setSharing(false) }
   }
 
   const { month, day } = dateTile(night.date)
@@ -241,7 +256,7 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                   <PillButton variant="soft" onClick={() => setEditing(true)}>Edit details</PillButton>
                   <PillButton variant="outline" onClick={() => setCancelling(true)}>Cancel movie night</PillButton>
                 </>}
-                {!detail.cancelled && <button type="button" className={styles.heroBtn} onClick={handleShare}>
+                {detail.isHost && !detail.cancelled && <button type="button" className={styles.heroBtn} disabled={sharing} onClick={handleShare}>
                   <img src={shareIcon} width={16} height={16} alt="" />
                   Share invite
                 </button>}
@@ -249,6 +264,10 @@ function NightDetailPage({ night, detail, onChange }: { night: Night; detail: Ni
                   {actionError || shareNote}
                 </span>
               </div>
+              {detail.isHost && !detail.cancelled && inviteLink && <div className={styles.inviteLink}>
+                <label>Invite link<input aria-label="Movie night invite link" readOnly value={inviteLink} onFocus={(event) => event.target.select()} /></label>
+                <PillButton variant="outline" disabled={sharing} onClick={() => void revokeLink()}>Disable invite link</PillButton>
+              </div>}
             </div>
           </div>
         </section>

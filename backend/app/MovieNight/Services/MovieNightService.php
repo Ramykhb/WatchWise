@@ -18,6 +18,7 @@ use App\MovieNight\InterfaceRepository\MovieNightRepositoryInterface;
 use App\MovieNight\InterfaceServices\MovieNightServiceInterface;
 use App\Notification\InterfaceServices\NotificationServiceInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class MovieNightService implements MovieNightServiceInterface
@@ -26,6 +27,69 @@ class MovieNightService implements MovieNightServiceInterface
         private readonly MovieNightRepositoryInterface $nights,
         private readonly NotificationServiceInterface $notifications,
     ) {}
+
+    public function shareLink(MovieNight $night): array
+    {
+        return DB::transaction(function () use ($night): array {
+            $night = $this->nights->lock($night);
+            abort_if($night->status === 'cancelled' || $night->scheduled_at->copy()->addHours(6)->isPast(), 410, 'This movie night is no longer accepting guests.');
+            if ($night->share_token === null || $night->share_expires_at?->isPast()) {
+                $this->nights->update($night, ['share_token' => Str::random(64),
+                    'share_expires_at' => now()->addDays(7)->min($night->scheduled_at->copy()->addHours(6))]);
+            }
+
+            return ['url' => rtrim(config('services.frontend_url'), '/').'/movie-nights/'.$night->id.'/join?token='.rawurlencode($night->share_token),
+                'expires_at' => $night->share_expires_at->toJSON()];
+        });
+    }
+
+    public function revokeShareLink(MovieNight $night): void
+    {
+        DB::transaction(function () use ($night): void {
+            $this->nights->update($this->nights->lock($night), ['share_token' => null, 'share_expires_at' => null]);
+        });
+    }
+
+    private function ensureShareLinkValid(MovieNight $night, string $token): void
+    {
+        abort_unless($night->share_token !== null && hash_equals($night->share_token, $token), 404, 'Invitation not found.');
+        abort_if($night->status === 'cancelled' || $night->share_expires_at === null || $night->share_expires_at->isPast()
+            || $night->scheduled_at->copy()->addHours(6)->isPast(), 410, 'This invitation has expired or the movie night was cancelled.');
+    }
+
+    public function invitation(MovieNight $night, string $token): array
+    {
+        $this->ensureShareLinkValid($night, $token);
+        $night = $this->nights->loadRelations($night);
+
+        // Location, meeting link, note, guest list and shortlist stay private until the member joins.
+        return ['title' => $night->title, 'scheduled_at' => $night->scheduled_at->toJSON(),
+            'host_name' => $night->organizer->name];
+    }
+
+    public function joinFromLink(MovieNight $night, string $token, User $guest): MovieNightResponse
+    {
+        $night = DB::transaction(function () use ($night, $token, $guest): MovieNight {
+            $night = $this->nights->lock($night);
+            $this->ensureShareLinkValid($night, $token);
+            if ($night->organizer_id === $guest->id) {
+                return $night;
+            }
+            $invite = $this->nights->findInvite($night, $guest->id);
+            if ($invite === null) {
+                $this->nights->addInvite($night, $guest->id);
+                $invite = $this->nights->findInvite($night, $guest->id);
+            }
+            if ($invite->status !== 'accepted') {
+                $this->nights->updateInviteStatus($invite, 'accepted');
+                DB::afterCommit(fn () => $this->notifications->nightAnswered($night, $guest, 'accepted'));
+            }
+
+            return $night;
+        });
+
+        return $this->present($night, $guest->id);
+    }
 
     public function overview(User $viewer): MovieNightOverviewResponse
     {
