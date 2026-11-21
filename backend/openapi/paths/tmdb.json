@@ -121,7 +121,7 @@
     "/api/movies/{id}": {
       "get": {
         "summary": "Get movie details",
-        "description": "Returns a movie with its genres, cast, directors, trailer, certification and recommended movies. Successful responses are cached for six hours. The movie opens even when an admin hid it from browsing, but hidden movies are left out of its recommended movies. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
+        "description": "Returns a movie with its genres, cast, directors, trailer, certification and recommended movies. Provider responses are cached for six hours; explicit local movie edits are applied after the cache on every request. Cleared local values stay cleared. A director entered as free text has a null person ID unless it matches the provider director. The movie opens even when an admin hid it from browsing, but hidden movies are left out of its recommended movies. Requires TMDB_API_KEY in .env. Limited to 60 requests per minute.",
         "tags": ["Movies"],
         "parameters": [
           {"name": "id", "in": "path", "required": true, "description": "TMDB movie id (or TV show id with type=tv).", "schema": {"type": "integer", "minimum": 1}, "example": 27205},
@@ -260,7 +260,7 @@
       "Person": {
         "type": "object",
         "required": ["id", "name"],
-        "properties": {"id": {"type": "integer"}, "name": {"type": "string"}}
+        "properties": {"id": {"type": "integer", "nullable": true, "description": "Null for a locally entered director with no verified TMDB identity."}, "name": {"type": "string"}}
       },
       "PersonCredit": {
         "type": "object",

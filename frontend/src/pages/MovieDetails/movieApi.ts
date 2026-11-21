@@ -14,7 +14,7 @@ export type TmdbMovieDetails = TmdbMovie & {
   certification: string | null
   budget: number | null
   revenue: number | null
-  directors: { id: number; name: string }[]
+  directors: { id: number | null; name: string }[]
   cast: { id: number; name: string; character: string; profile_url: string | null }[]
   trailer: { name: string; youtube_key: string; url: string; embed_url: string } | null
   similar: TmdbMovie[]
@@ -86,7 +86,7 @@ export function toDetails(api: TmdbMovieDetails, genres: Map<number, string>): M
   ]
   const cast: CastMember[] = people.slice(0, PEOPLE_SHOWN).map((person, index) => ({
     // The TMDB person id, so the cast links to /people/{id}.
-    slug: String(person.id),
+    slug: person.id === null ? '' : String(person.id),
     initials: initials(person.name),
     name: person.name,
     role: person.role,

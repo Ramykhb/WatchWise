@@ -26,6 +26,8 @@ class MovieServiceTest extends TestCase
 
         /** @var MovieCatalogRepositoryInterface&MockInterface $catalog */
         $catalog = Mockery::mock(MovieCatalogRepositoryInterface::class);
+        $catalog->shouldReceive('findByTmdbId')->andReturnNull();
+        $catalog->shouldReceive('findManyByTmdbId')->andReturn(collect());
         $catalog->shouldReceive('hidden')->andReturn(HiddenMovies::none());
 
         return new MovieService($repository, $catalog);
