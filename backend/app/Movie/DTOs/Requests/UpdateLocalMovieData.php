@@ -12,7 +12,7 @@ use Carbon\CarbonInterface;
 final readonly class UpdateLocalMovieData
 {
     /** The fields that make up a film's content; changing one marks the film as edited. */
-    private const CONTENT_FIELDS = ['title', 'overview', 'director', 'runtime', 'release_date', 'genre_ids'];
+    public const CONTENT_FIELDS = ['title', 'overview', 'director', 'runtime', 'release_date', 'genre_ids'];
 
     /**
      * @param  list<int>|null  $genreIds  null keeps the genres, an empty list clears them

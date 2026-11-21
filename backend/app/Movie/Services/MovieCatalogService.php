@@ -63,6 +63,7 @@ class MovieCatalogService implements MovieCatalogServiceInterface
         $changes = $data->changesFrom($movie);
 
         if (UpdateLocalMovieData::editsContent($changes)) {
+            $changes['override_fields'] = array_values(array_unique([...$movie->contentOverrideFields(), ...array_intersect(array_keys($changes), UpdateLocalMovieData::CONTENT_FIELDS)]));
             $changes['edited_at'] = now();
         }
 
