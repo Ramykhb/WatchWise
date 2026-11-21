@@ -12,6 +12,7 @@ Route::middleware('throttle:tmdb')->group(function () {
     Route::get('/movies/trending', [MovieController::class, 'trending']);
     Route::get('/movies/search', [MovieController::class, 'search']);
     Route::get('/movies/discover', [MovieController::class, 'discover']);
+    Route::get('/movies/{id}/extras', [MovieController::class, 'extras'])->whereNumber('id');
     Route::get('/movies/{id}', [MovieController::class, 'show'])->whereNumber('id');
     Route::get('/people/search', [PersonController::class, 'search']);
     Route::get('/people/{id}', [PersonController::class, 'show'])->whereNumber('id');

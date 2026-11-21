@@ -31,6 +31,9 @@ interface MovieServiceInterface
      * @throws MovieNotFound
      * @throws TmdbUnavailable
      */
+    /** Complete credits and available YouTube videos, with local catalogue edits applied. */
+    public function extras(int $id, string $type = 'movie'): array;
+
     public function find(int $id, string $type = 'movie'): MovieDetailsResponse;
 
     /**

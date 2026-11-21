@@ -46,6 +46,13 @@ class MovieController
     /**
      * One movie (or, with ?type=tv, one TV show) with its cast, directors, trailer, certification and related titles.
      */
+    public function extras(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate(['type' => ['sometimes', 'in:movie,tv']]);
+
+        return response()->json($this->movies->extras($id, $validated['type'] ?? 'movie'));
+    }
+
     public function show(Request $request, int $id): JsonResponse
     {
         $type = $request->query('type') === 'tv' ? 'tv' : 'movie';

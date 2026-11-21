@@ -1,0 +1,15 @@
+.main { max-width: 1120px; margin: 0 auto; padding: 56px 24px 100px; }
+.main h1 { font: 900 clamp(40px, 6vw, 72px)/1 var(--font-display); letter-spacing: -.04em; margin: 24px 0; }
+.main h2 { font: 800 28px/1.2 var(--font-display); margin: 36px 0 16px; }
+.main p { line-height: 1.7; max-width: 760px; margin: 12px 0; }
+.main a { color: var(--ground-violet); text-underline-offset: 4px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+.card { padding: 20px; border: 1px solid var(--ink-600, #555); border-radius: 18px; overflow-wrap: anywhere; }
+.person { display: flex; align-items: center; gap: 12px; }
+.person img { width: 64px; height: 86px; object-fit: cover; border-radius: 10px; }
+.card h3 { margin: 0 0 8px; }
+.card p { margin: 8px 0 0; font-size: 14px; }
+.video { width: 100%; aspect-ratio: 16 / 9; border: 0; margin-top: 20px; border-radius: 16px; }
+.selected { font-weight: 800; }
+.legal { max-width: 800px; }
+.legal nav { display: flex; gap: 24px; margin: 30px 0; }

@@ -166,7 +166,7 @@ class MovieService implements MovieServiceInterface
         return self::DETAILS_CACHE_PREFIX.($type === 'tv' ? 'tv.' : '').$id;
     }
 
-    public function find(int $id, string $type = 'movie'): MovieDetailsResponse
+    private function details(int $id, string $type): array
     {
         // A movie's details rarely change, so repeat visits don't spend the TMDB quota.
         // Only successful answers are cached: MovieNotFound and TmdbUnavailable pass straight through.
@@ -175,6 +175,34 @@ class MovieService implements MovieServiceInterface
         if ($type === MediaType::MOVIE) {
             $movie = LocalMovieOverrides::apply($movie, $this->catalog->findByTmdbId($id));
         }
+
+        return $movie;
+    }
+
+    public function extras(int $id, string $type = 'movie'): array
+    {
+        $movie = $this->details($id, $type);
+        $person = fn (array $person): array => [
+            'id' => $person['id'] ?? null, 'name' => $person['name'],
+            'profile_url' => $this->imageUrl($person['profile_path'] ?? null, 'w185'),
+        ];
+
+        return [
+            'title' => $movie['title'] ?? $movie['name'] ?? '',
+            'cast' => collect($movie['credits']['cast'] ?? [])->map(fn (array $p): array => [...$person($p), 'character' => $p['character'] ?? ''])->values()->all(),
+            'crew' => collect($movie['credits']['crew'] ?? [])->map(fn (array $p): array => [...$person($p), 'job' => $p['job'] ?? '', 'department' => $p['department'] ?? ''])->values()->all(),
+            'videos' => collect($movie['videos']['results'] ?? [])
+                ->filter(fn (array $v): bool => ($v['site'] ?? '') === 'YouTube' && is_string($v['key'] ?? null) && preg_match('/^[A-Za-z0-9_-]{1,64}$/D', $v['key']))
+                ->unique('key')->map(fn (array $v): array => [
+                    'youtube_key' => $v['key'], 'name' => $v['name'] ?? 'Video',
+                    'type' => $v['type'] ?? 'Video', 'official' => (bool) ($v['official'] ?? false),
+                ])->values()->all(),
+        ];
+    }
+
+    public function find(int $id, string $type = 'movie'): MovieDetailsResponse
+    {
+        $movie = $this->details($id, $type);
 
         // TMDB's recommendations match far better than its "similar" list, which is only the fallback.
         $related = ($movie['recommendations']['results'] ?? []) ?: ($movie['similar']['results'] ?? []);

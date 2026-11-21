@@ -1,3 +1,6 @@
+import ServiceInformation from './pages/Information/ServiceInformation.tsx'
+import Community from './pages/Information/Community.tsx'
+import MovieExtras from './pages/Information/MovieExtras.tsx'
 import { Navigate, createBrowserRouter } from 'react-router'
 import RootLayout from './layouts/RootLayout.tsx'
 import Landing from './pages/Landing/Landing.tsx'
@@ -56,8 +59,8 @@ export const router = createBrowserRouter([
       { path: 'account-link/result', element: <AccountLinkResult /> },
       { path: 'account-link/:kind', element: <AccountLink /> },
       // Legal pages are readable without an account.
-      { path: 'terms', element: <Placeholder title="Terms of Service" /> },
-      { path: 'privacy', element: <Placeholder title="Privacy Policy" /> },
+      { path: 'terms', element: <ServiceInformation kind="terms" /> },
+      { path: 'privacy', element: <ServiceInformation kind="privacy" /> },
       { path: 'signup', element: <RequireGuest><SignUp /></RequireGuest> },
       { path: 'forgot-password', element: <RequireGuest><ForgotPassword /></RequireGuest> },
       { path: 'auth/callback', element: <RequireGuest><AuthCallback /></RequireGuest> },
@@ -118,15 +121,15 @@ export const router = createBrowserRouter([
             ],
           },
           { path: 'notifications', element: <Notifications /> },
-          { path: 'community', element: <Placeholder title="Community" /> },
+          { path: 'community', element: <Community /> },
           { path: 'movie-nights', element: <MovieNights /> },
           { path: 'movie-nights/:slug/join', element: <JoinNight /> },
           { path: 'movie-nights/:slug', element: <NightDetail /> },
           // One optional room id keeps the page mounted when switching rooms.
           { path: 'rooms/:roomId?', element: <Rooms /> },
           { path: 'releases', element: <Releases /> },
-          { path: 'movies/:slug/credits', element: <Placeholder title="Full credits" /> },
-          { path: 'movies/:slug/videos', element: <Placeholder title="Videos" /> },
+          { path: 'movies/:slug/credits', element: <MovieExtras kind="credits" /> },
+          { path: 'movies/:slug/videos', element: <MovieExtras kind="videos" /> },
           { path: '*', element: <Placeholder title="Page not found" notFound /> },
         ],
       },

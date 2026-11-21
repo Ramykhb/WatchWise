@@ -1,5 +1,6 @@
 {
   "paths": {
+    "/api/movies/{id}/extras": {"get": {"summary": "Full cast, crew and available YouTube videos", "tags": ["Movies"], "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}, {"name": "type", "in": "query", "schema": {"type": "string", "enum": ["movie", "tv"]}}], "responses": {"200": {"description": "Title, complete cast and crew (person id may be null for local credits), and videos with youtube_key, name, type and official flag. Shares the six-hour details cache and applies local movie edits."}, "404": {"description": "Title not found."}, "422": {"description": "Invalid media type."}, "503": {"description": "TMDB unavailable."}}}},
     "/api/people/search": {"get": {"summary": "Search actors and directors by name", "tags": ["People"], "parameters": [{"name": "q", "in": "query", "required": true, "schema": {"type": "string", "minLength": 2, "maxLength": 100}}], "responses": {"200": {"description": "Up to ten people with id, name, department and profile_url."}, "422": {"description": "Invalid query."}, "429": {"description": "Too many requests."}, "502": {"description": "TMDB unavailable."}}}},
     "/api/movies/trending": {
       "get": {
