@@ -11,6 +11,11 @@ class PersonRepository implements PersonRepositoryInterface
 {
     public function __construct(private readonly TmdbHttpClient $client) {}
 
+    public function search(string $query): array
+    {
+        return $this->client->get('/search/person', ['query' => $query, 'include_adult' => 'false'])->json('results', []);
+    }
+
     public function find(int $id): array
     {
         try {

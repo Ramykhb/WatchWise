@@ -40,6 +40,15 @@ class PersonService implements PersonServiceInterface
         private readonly MovieCatalogServiceInterface $catalog,
     ) {}
 
+    public function search(string $query): array
+    {
+        return collect($this->people->search($query))->take(10)->map(fn (array $person): array => [
+            'id' => $person['id'], 'name' => $person['name'],
+            'department' => $person['known_for_department'] ?? null,
+            'profile_url' => $this->imageUrl($person['profile_path'] ?? null, 'w185'),
+        ])->values()->all();
+    }
+
     public function find(int $id): PersonDetailsResponse
     {
         $person = $this->cachedPerson($id);

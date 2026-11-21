@@ -20,6 +20,10 @@ class UpdatePreferencesRequest extends FormRequest
         return [
             'favorite_genres' => ['sometimes', 'array', 'max:10'],
             'favorite_genres.*' => ['string', 'max:40', 'distinct'],
+            'favorite_actor_ids' => ['sometimes', 'array', 'max:5'],
+            'favorite_actor_ids.*' => ['integer', 'min:1', 'max:2147483647', 'distinct'],
+            'favorite_director_ids' => ['sometimes', 'array', 'max:5'],
+            'favorite_director_ids.*' => ['integer', 'min:1', 'max:2147483647', 'distinct'],
             'privacy' => ['sometimes', 'array'],
             'privacy.*' => ['boolean'],
             'integrations' => ['sometimes', 'array'],

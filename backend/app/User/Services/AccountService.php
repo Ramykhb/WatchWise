@@ -61,6 +61,12 @@ class AccountService implements AccountServiceInterface
         if ($data->favoriteGenres !== null) {
             $preferences->favorite_genres = array_values($data->favoriteGenres);
         }
+        if ($data->favoriteActorIds !== null) {
+            $preferences->favorite_actor_ids = array_map('intval', $data->favoriteActorIds);
+        }
+        if ($data->favoriteDirectorIds !== null) {
+            $preferences->favorite_director_ids = array_map('intval', $data->favoriteDirectorIds);
+        }
         $this->accounts->savePreferences($preferences);
 
         return AccountResponse::fromModel($user->refresh());

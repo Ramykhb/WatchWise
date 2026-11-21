@@ -104,6 +104,9 @@ export type ApiMe = {
   }
   preferences: {
     favorite_genres: string[]
+    favorite_genre_options: string[]
+    favorite_actor_ids: number[]
+    favorite_director_ids: number[]
     privacy: Record<'ratings' | 'reviews' | 'lists' | 'watchlist' | 'history' | 'following', boolean>
     integrations: Record<'calendar' | 'location' | 'weather' | 'digest', boolean>
     /** One switch per notification type, all on by default. Follow requests and removed-review notices have none: they always arrive. */

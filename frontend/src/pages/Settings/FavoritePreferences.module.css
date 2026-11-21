@@ -1,0 +1,18 @@
+.form, .fields, .picker { display: flex; flex-direction: column; gap: 12px; }
+.form { margin-top: 20px; align-items: flex-start; width: 100%; }
+.fields { border: 0; padding: 0; margin: 0; width: 100%; min-width: 0; gap: 20px; }
+.fields legend, .picker > label { font-weight: 700; margin-bottom: 8px; }
+.genres { display: flex; flex-wrap: wrap; gap: 10px 18px; }
+.genres label { display: flex; gap: 6px; align-items: center; font-size: 14px; }
+.genres input { accent-color: var(--ground-violet); }
+.picker input { width: 100%; padding: 12px 16px; border: 1px solid var(--ink-300, #c9c3d2); border-radius: 14px; background: var(--surface-white); color: var(--ink-900); }
+.picker input:focus-visible { outline: 2px solid var(--ground-violet); outline-offset: 2px; }
+.selected, .results { list-style: none; padding: 0; margin: 0; }
+.selected { display: flex; flex-wrap: wrap; gap: 8px; }
+.selected li { display: flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 18px; background: var(--surface-violet-tint); font-size: 14px; overflow-wrap: anywhere; }
+.selected button { padding: 4px; cursor: pointer; font-size: 20px; }
+.results { border-radius: 14px; border: 1px solid var(--ink-300, #c9c3d2); max-height: 230px; overflow-y: auto; }
+.results li { padding: 8px 12px; }
+.results button { cursor: pointer; width: 100%; text-align: left; padding: 4px; }
+.results button:hover { background: var(--surface-violet-tint); }
+.hint { color: var(--ink-600); font-size: 13px; font-weight: 400; }

@@ -32,6 +32,8 @@ final readonly class UpdatePreferencesData
         public ?array $privacy,
         public ?array $integrations,
         public ?array $notifications,
+        public ?array $favoriteActorIds = null,
+        public ?array $favoriteDirectorIds = null,
     ) {}
 
     /**
@@ -44,6 +46,8 @@ final readonly class UpdatePreferencesData
             $validated['privacy'] ?? null,
             $validated['integrations'] ?? null,
             $validated['notifications'] ?? null,
+            $validated['favorite_actor_ids'] ?? null,
+            $validated['favorite_director_ids'] ?? null,
         );
     }
 
